@@ -9,6 +9,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   updatedAt,
+  revokeTable,
 } from "../shared.ts";
 import {
   accessModel,
@@ -167,7 +168,7 @@ ${t.has("createdAt") ? `create index if not exists invitations_tenant_created_id
 alter table ${t.table} drop constraint if exists invitations_role_check;
 ${roleCheck}
 alter table ${t.table} enable row level security;
-revoke all on ${t.table} from anon, authenticated;
+${revokeTable(t.table)}
 grant select on ${t.table} to authenticated;
 grant all on ${t.table} to service_role;
 
@@ -216,7 +217,7 @@ create unique index if not exists platform_invitations_open_email_idx
   on ${p.table} (lower(${c("email")})) where ${where};
 ${p.has("updatedAt") ? `${updatedAt(p.table, c("updatedAt"))}\n` : ""}${p.has("invitedBy") ? `create index if not exists platform_invitations_invited_by_idx on ${p.table} (${c("invitedBy")});\n` : ""}${p.has("acceptedBy") ? `create index if not exists platform_invitations_accepted_by_idx on ${p.table} (${c("acceptedBy")});\n` : ""}
 alter table ${p.table} enable row level security;
-revoke all on ${p.table} from anon, authenticated;
+${revokeTable(p.table)}
 grant select on ${p.table} to authenticated;
 grant all on ${p.table} to service_role;
 create or replace function ${ctx.fn("platform_invitations_readable")}()

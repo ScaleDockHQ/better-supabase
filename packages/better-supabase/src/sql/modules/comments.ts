@@ -15,6 +15,7 @@ import {
   schemaPreamble,
   tenantIn,
   pageSize,
+  revokeTable,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -449,7 +450,7 @@ create index if not exists comments_subject_idx on ${comments} (${c("tenant")}, 
 create index if not exists comments_author_idx on ${comments} (${c("author")});
 create index if not exists comments_parent_idx on ${comments} (${c("parent")});
 alter table ${comments} enable row level security;
-revoke all on ${comments} from anon, authenticated;
+${revokeTable(comments)}
 grant select on ${comments} to authenticated;
 grant insert (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent")].join(", ")}) on ${comments} to authenticated;
 grant update (${[c("body"), c("document"), c("mentions"), c("deletedAt")].join(", ")}) on ${comments} to authenticated;
@@ -731,7 +732,7 @@ create index if not exists activity_entries_feed_idx on ${activity} (${a("tenant
 create index if not exists activity_entries_subject_idx on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
 create index if not exists activity_entries_actor_idx on ${activity} (${a("actor")});
 alter table ${activity} enable row level security;
-revoke all on ${activity} from anon, authenticated;
+${revokeTable(activity)}
 grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
 drop policy if exists "activity_entries_read" on ${activity};

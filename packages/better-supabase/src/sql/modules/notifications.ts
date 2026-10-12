@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, tenantIn, updatedAt } from "../shared.ts";
+import { schemaPreamble, tenantIn, updatedAt, revokeTable } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
@@ -208,7 +208,7 @@ create table if not exists ${n.table("events")} (
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
 create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});
 alter table ${n.table("events")} enable row level security;
-revoke all on ${n.table("events")} from anon, authenticated;
+${revokeTable(n.table("events"))}
 grant select on ${n.table("events")} to authenticated;
 grant all on ${n.table("events")} to service_role;
 
@@ -230,7 +230,7 @@ create index if not exists notification_recipients_inbox_idx on ${n.table("recip
 create index if not exists notification_recipients_unread_idx on ${n.table("recipients")} (${c("recipients", "user")}) where ${c("recipients", "readAt")} is null and ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_user_idx on ${n.table("recipients")} (${c("recipients", "user")});
 alter table ${n.table("recipients")} enable row level security;
-revoke all on ${n.table("recipients")} from anon, authenticated;
+${revokeTable(n.table("recipients"))}
 grant select on ${n.table("recipients")} to authenticated;
 grant update (${c("recipients", "readAt")}, ${c("recipients", "dismissedAt")}) on ${n.table("recipients")} to authenticated;
 grant all on ${n.table("recipients")} to service_role;${policy(
@@ -276,7 +276,7 @@ create table if not exists ${n.table("deliveries")} (
 create index if not exists notification_deliveries_pending_idx on ${n.table("deliveries")} (${c("deliveries", "channel")}, ${c("deliveries", "createdAt")}) where ${c("deliveries", "status")} = 'pending';
 create index if not exists notification_deliveries_leased_idx on ${n.table("deliveries")} (${c("deliveries", "channel")}, ${c("deliveries", "attemptedAt")}) where ${c("deliveries", "status")} = 'pending' and ${c("deliveries", "attemptedAt")} is not null;
 alter table ${n.table("deliveries")} enable row level security;
-revoke all on ${n.table("deliveries")} from anon, authenticated;
+${revokeTable(n.table("deliveries"))}
 grant select on ${n.table("deliveries")} to authenticated;
 grant all on ${n.table("deliveries")} to service_role;${policy(
       "deliveries",
@@ -340,7 +340,7 @@ create index if not exists notification_subscriptions_subject_idx on ${n.table(t
         : ""
     }${n.has(table, "updatedAt") ? `\n${updatedAt(n.table(table), c(table, "updatedAt"))}` : ""}
 alter table ${n.table(table)} enable row level security;
-revoke all on ${n.table(table)} from anon, authenticated;
+${revokeTable(n.table(table))}
 grant select, insert, update, delete on ${n.table(table)} to authenticated;
 grant all on ${n.table(table)} to service_role;${policy(
       table,

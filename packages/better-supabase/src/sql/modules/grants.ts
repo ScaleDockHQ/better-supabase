@@ -66,6 +66,8 @@ const keyOf = (name: string): string =>
  * grants fill tables `expose` doesn't list, with every privilege for
  * `service_role`. With policy grants on, a declared table that `expose`
  * doesn't list, with RLS on and no permissive policy reaching it, is service-only.
+ * Not `lockTable`: this also revokes from `public` and `service_role`, and
+ * leaves RLS to the module that declares the table.
  */
 function tableGrants(layout: ModuleLayout): string {
   const listed = layout.grants ?? [];

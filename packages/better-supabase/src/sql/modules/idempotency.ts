@@ -1,6 +1,6 @@
 import type { SqlModule } from "../module-types.ts";
 
-import { SCHEMA, serviceOnly } from "../shared.ts";
+import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
 export const IDEMPOTENCY: SqlModule = {
   name: "idempotency",
@@ -27,9 +27,7 @@ create index if not exists idempotency_keys_expiry_idx on better_supabase.idempo
 -- The token of the request that holds the key while it runs.
 alter table better_supabase.idempotency_keys add column if not exists holder uuid;
 
-alter table better_supabase.idempotency_keys enable row level security;
-revoke all on better_supabase.idempotency_keys from anon, authenticated;
-grant all on better_supabase.idempotency_keys to service_role;
+${lockTable("better_supabase.idempotency_keys")}
 
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
@@ -133,9 +131,7 @@ create table if not exists better_supabase.leases (
   expires_at timestamptz not null,
   primary key (scope, key)
 );
-alter table better_supabase.leases enable row level security;
-revoke all on better_supabase.leases from anon, authenticated;
-grant all on better_supabase.leases to service_role;
+${lockTable("better_supabase.leases")}
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid

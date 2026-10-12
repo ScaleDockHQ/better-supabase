@@ -11,6 +11,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   updatedAt,
+  revokeTable,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
@@ -255,7 +256,7 @@ alter table ${n.organization} add column if not exists stripe_customer_id text u
 `
       : ""
   }alter table ${n.organization} enable row level security;
-revoke all on ${n.organization} from anon, authenticated;
+${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
 drop policy if exists bs_organizations_read on ${n.organization};

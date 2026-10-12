@@ -2,7 +2,13 @@ import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
+import {
+  SCHEMA,
+  SERVICE_CALLER,
+  revokeTable,
+  userGrant,
+  serviceGrant,
+} from "../shared.ts";
 import {
   hasPlatformRoles,
   MODULE_PERMISSIONS,
@@ -121,7 +127,7 @@ create index if not exists support_sessions_admin_idx on ${sessions} (${c("admin
 create index if not exists support_sessions_target_idx on ${sessions} (${c("target")}, ${c("startedAt")} desc);
 create unique index if not exists support_sessions_one_active_idx on ${sessions} (${c("admin")}) where ${c("endedAt")} is null;
 alter table ${sessions} enable row level security;
-revoke all on ${sessions} from anon, authenticated;
+${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
@@ -514,18 +520,9 @@ function grants(ctx: ModuleContext): string {
     `${ctx.fn("support_target_claims")}(uuid)`,
     `${ctx.fn("expire_support_sessions")}()`,
   ];
-  return [
-    ...shared.map(
-      (fn) => `revoke execute on function ${fn} from public, anon;
-grant execute on function ${fn} to authenticated, service_role;`,
-    ),
-    ...serviceOnly.map(
-      (
-        fn,
-      ) => `revoke execute on function ${fn} from public, anon, authenticated;
-grant execute on function ${fn} to service_role;`,
-    ),
-  ].join("\n");
+  return [...shared.map(userGrant), ...serviceOnly.map(serviceGrant)].join(
+    "\n",
+  );
 }
 
 function build(ctx: ModuleContext): string {

@@ -2,7 +2,13 @@ import type { ModuleContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { raise, serviceGrant, tenantIn, userGrant } from "../shared.ts";
+import {
+  raise,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+  revokeTable,
+} from "../shared.ts";
 
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
@@ -77,7 +83,7 @@ create index if not exists ai_sandboxes_harness_idx on ${sandboxes} (${s.chat}, 
 create index if not exists ai_sandboxes_tenant_idx on ${sandboxes} (${s.tenant});
 create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});
 alter table ${sandboxes} enable row level security;
-revoke all on ${sandboxes} from anon, authenticated;
+${revokeTable(sandboxes)}
 grant select on ${sandboxes} to authenticated;
 grant all on ${sandboxes} to service_role;
 drop policy if exists ai_sandboxes_read on ${sandboxes};

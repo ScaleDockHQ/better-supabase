@@ -12,6 +12,8 @@ import {
   SERVICE_CALLER,
   schemaPreamble,
   tenantIn,
+  revokeTable,
+  lockTable,
 } from "../shared.ts";
 import {
   type Subject,
@@ -391,7 +393,7 @@ create unique index if not exists attachments_object_idx on ${t} (${c("bucket")}
 create index if not exists attachments_subject_idx on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
 create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});
 alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
+${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
 grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : [])].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
@@ -628,9 +630,7 @@ create table if not exists ${scans} (
   ${sc("scannedAt")} timestamptz,
   primary key (${sc("bucket")}, ${sc("path")})
 );
-alter table ${scans} enable row level security;
-revoke all on ${scans} from anon, authenticated;
-grant all on ${scans} to service_role;
+${lockTable(scans)}
 
 -- For storage policies: whether the object was scanned and found clean.
 --   using (bucket_id = 'files' and better_supabase.object_clean(bucket_id, name) and ...)

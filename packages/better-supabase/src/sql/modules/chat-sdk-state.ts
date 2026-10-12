@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble, serviceGrant } from "../shared.ts";
+import { schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   tables: {
@@ -98,11 +98,6 @@ function build(ctx: ModuleContext): string {
   const cli = (column: string): string => ctx.col("lists", column);
   const cq = (column: string): string => ctx.col("queues", column);
   const ci = (column: string): string => ctx.col("installations", column);
-  const table = (
-    name: string,
-  ): string => `alter table ${name} enable row level security;
-revoke all on ${name} from anon, authenticated;
-grant all on ${name} to service_role;`;
   const ttl = (ms: string): string =>
     `case when ${ms} is null or ${ms} <= 0 then null else clock_timestamp() + make_interval(secs => ${ms} / 1000.0) end`;
   // Expiry reads the wall clock, so a long transaction sees TTLs pass.
@@ -125,7 +120,7 @@ create table if not exists ${sub} (
   ${cs("createdAt")} timestamptz not null default now(),
   primary key (${cs("prefix")}, ${cs("thread")})
 );
-${table(sub)}
+${lockTable(sub)}
 
 create table if not exists ${lk} (
   ${cl("prefix")} text not null,
@@ -136,7 +131,7 @@ create table if not exists ${lk} (
   primary key (${cl("prefix")}, ${cl("thread")})
 );
 create index if not exists chat_state_locks_expires_idx on ${lk} (${cl("expiresAt")});
-${table(lk)}
+${lockTable(lk)}
 
 create table if not exists ${ca} (
   ${cc("prefix")} text not null,
@@ -147,7 +142,7 @@ create table if not exists ${ca} (
   primary key (${cc("prefix")}, ${cc("key")})
 );
 create index if not exists chat_state_cache_expires_idx on ${ca} (${cc("expiresAt")}) where ${cc("expiresAt")} is not null;
-${table(ca)}
+${lockTable(ca)}
 
 create table if not exists ${li} (
   ${cli("id")} bigint generated always as identity primary key,
@@ -158,7 +153,7 @@ create table if not exists ${li} (
 );
 create index if not exists chat_state_lists_key_idx on ${li} (${cli("prefix")}, ${cli("key")}, ${cli("id")});
 create index if not exists chat_state_lists_expires_idx on ${li} (${cli("expiresAt")}) where ${cli("expiresAt")} is not null;
-${table(li)}
+${lockTable(li)}
 
 create table if not exists ${qu} (
   ${cq("id")} bigint generated always as identity primary key,
@@ -169,7 +164,7 @@ create table if not exists ${qu} (
 );
 create index if not exists chat_state_queues_thread_idx on ${qu} (${cq("prefix")}, ${cq("thread")}, ${cq("id")});
 create index if not exists chat_state_queues_expires_idx on ${qu} (${cq("expiresAt")});
-${table(qu)}
+${lockTable(qu)}
 
 -- A workspace (a Slack team, a GitHub installation, a WhatsApp number) that
 -- installed a bot. credential_ref names its token in a CredentialProvider;
@@ -189,7 +184,7 @@ create table if not exists ${ins} (
 );
 create index if not exists chat_installations_tenant_idx on ${ins} (${ci("tenant")});
 create index if not exists chat_installations_installed_by_idx on ${ins} (${ci("installedBy")});
-${table(ins)}
+${lockTable(ins)}
 
 create or replace function ${fn("chat_state_subscribe")}(prefix text, thread_id text)
 returns void

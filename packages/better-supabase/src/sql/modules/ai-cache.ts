@@ -1,7 +1,7 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { raise, schemaPreamble, serviceGrant } from "../shared.ts";
+import { raise, schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const ENTRIES = {
@@ -63,9 +63,7 @@ create table if not exists ${entries} (
 );
 create index if not exists ai_cache_entries_expires_idx on ${entries} (${e.expiresAt});
 create index if not exists ai_cache_entries_tenant_idx on ${entries} (${e.tenant});
-alter table ${entries} enable row level security;
-revoke all on ${entries} from anon, authenticated;
-grant all on ${entries} to service_role;
+${lockTable(entries)}
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
 create or replace function ${fn("ai_cache_get")}(key text)

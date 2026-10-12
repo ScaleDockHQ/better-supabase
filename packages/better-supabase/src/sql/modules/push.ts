@@ -6,7 +6,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, revokeTable } from "../shared.ts";
 
 const EVENTS: ModuleEvents = {
   "push.device_registered": {
@@ -97,7 +97,7 @@ create table if not exists ${d} (
 );
 create index if not exists push_devices_user_idx on ${d} (${c("user")});
 alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
+${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
 grant all on ${d} to service_role;
 drop policy if exists "push_devices_own_read" on ${d};

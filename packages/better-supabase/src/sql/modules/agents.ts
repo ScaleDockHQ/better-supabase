@@ -8,6 +8,7 @@ import {
   SERVICE_CALLER,
   tenantIn,
   userGrant,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
@@ -193,7 +194,7 @@ create table if not exists ${agents} (
 create index if not exists agents_owner_idx on ${agents} (${a.owner});
 create index if not exists agents_published_idx on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
-revoke all on ${agents} from anon, authenticated;
+${revokeTable(agents)}
 grant select on ${agents} to authenticated;
 grant all on ${agents} to service_role;
 drop policy if exists agents_read on ${agents};
@@ -209,7 +210,7 @@ create table if not exists ${installs} (
 );
 create index if not exists agent_installs_user_idx on ${installs} (${i.user}, ${i.tenant});
 alter table ${installs} enable row level security;
-revoke all on ${installs} from anon, authenticated;
+${revokeTable(installs)}
 grant select on ${installs} to authenticated;
 grant all on ${installs} to service_role;
 drop policy if exists agent_installs_read on ${installs};
@@ -226,7 +227,7 @@ create table if not exists ${ratings} (
 );
 create index if not exists agent_ratings_user_idx on ${ratings} (${r.user});
 alter table ${ratings} enable row level security;
-revoke all on ${ratings} from anon, authenticated;
+${revokeTable(ratings)}
 grant select on ${ratings} to authenticated;
 grant all on ${ratings} to service_role;
 drop policy if exists agent_ratings_read on ${ratings};
@@ -243,7 +244,7 @@ create table if not exists ${skills} (
 );
 create index if not exists agent_skills_agent_idx on ${skills} (${s.agent});
 alter table ${skills} enable row level security;
-revoke all on ${skills} from anon, authenticated;
+${revokeTable(skills)}
 grant select on ${skills} to authenticated;
 grant all on ${skills} to service_role;
 drop policy if exists agent_skills_read on ${skills};

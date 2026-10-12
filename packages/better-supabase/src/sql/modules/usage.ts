@@ -12,6 +12,8 @@ import {
   SERVICE_CALLER,
   tenantIn,
   pageSize,
+  revokeTable,
+  lockTable,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 import {
@@ -170,7 +172,7 @@ alter table ${counters} alter column ${cc("reported")} type numeric;
 create index if not exists usage_counters_unreported_idx on ${counters} (${cc("day")})
   where ${cc("value")} > ${cc("reported")};
 alter table ${counters} enable row level security;
-revoke all on ${counters} from anon, authenticated;
+${revokeTable(counters)}
 grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
 drop policy if exists "usage_counters_read" on ${counters};
@@ -204,7 +206,7 @@ create table if not exists ${history} (
 );
 create index if not exists usage_history_tenant_idx on ${history} (${hc("tenant")}, ${hc("recordedAt")} desc, ${hc("id")} desc);
 alter table ${history} enable row level security;
-revoke all on ${history} from anon, authenticated;
+${revokeTable(history)}
 grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
 drop policy if exists "usage_history_read" on ${history};
@@ -214,9 +216,7 @@ create policy "usage_history_read" on ${history} for select to authenticated
     : ""
 }
 create index if not exists usage_events_recorded_at_idx on ${events} (${ec("recordedAt")});
-alter table ${events} enable row level security;
-revoke all on ${events} from anon, authenticated;
-grant all on ${events} to service_role;
+${lockTable(events)}
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
@@ -236,7 +236,7 @@ alter table ${quotas} alter column ${qc("limit")} drop not null;
 alter table ${quotas} drop constraint if exists ${periodConstraint};
 alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});
 alter table ${quotas} enable row level security;
-revoke all on ${quotas} from anon, authenticated;
+${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
 drop policy if exists "usage_quotas_read" on ${quotas};

@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, lockTable } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -138,9 +138,7 @@ alter table ${a} drop constraint if exists bs_announcements_audience;
 alter table ${a} add constraint bs_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
 create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
 create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});
-alter table ${a} enable row level security;
-revoke all on ${a} from anon, authenticated;
-grant all on ${a} to service_role;
+${lockTable(a)}
 
 create table if not exists ${d} (
   ${cd("announcement")} uuid not null references ${a} (${ca("id")}) on delete cascade,
@@ -149,9 +147,7 @@ create table if not exists ${d} (
   primary key (${cd("announcement")}, ${cd("user")})
 );
 create index if not exists announcement_dismissals_user_idx on ${d} (${cd("user")});
-alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
-grant all on ${d} to service_role;
+${lockTable(d)}
 
 -- The caller's live, undismissed announcements, newest first. Pass the
 -- active tenant for tenant, role and plan audiences; a tenant the caller

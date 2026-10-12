@@ -11,6 +11,8 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
+  lockTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
@@ -217,7 +219,7 @@ create index if not exists memories_superseded_idx on ${memories} (${m.supersede
 create index if not exists memories_embedding_idx on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
 create index if not exists memories_tsv_idx on ${memories} using gin (${m.tsv});
 alter table ${memories} enable row level security;
-revoke all on ${memories} from anon, authenticated;
+${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
 drop policy if exists memories_read on ${memories};
@@ -239,7 +241,7 @@ create table if not exists ${messageEmbeddings} (
 create index if not exists ai_message_embeddings_user_idx on ${messageEmbeddings} (${e.user}, ${e.tenant});
 create index if not exists ai_message_embeddings_embedding_idx on ${messageEmbeddings} using hnsw (${e.embedding} ${embedding.opclass});
 alter table ${messageEmbeddings} enable row level security;
-revoke all on ${messageEmbeddings} from anon, authenticated;
+${revokeTable(messageEmbeddings)}
 grant select on ${messageEmbeddings} to authenticated;
 grant all on ${messageEmbeddings} to service_role;
 drop policy if exists ai_message_embeddings_read on ${messageEmbeddings};
@@ -702,9 +704,7 @@ create table if not exists ${documents} (
   primary key (${d.scopeKey}, ${d.path})
 );
 create index if not exists memory_documents_expires_idx on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;
-alter table ${documents} enable row level security;
-revoke all on ${documents} from anon, authenticated;
-grant all on ${documents} to service_role;
+${lockTable(documents)}
 
 -- A document and its version, or null.
 create or replace function ${fn("memory_document_read")}(scope_key text, path text)

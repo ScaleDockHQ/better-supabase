@@ -13,6 +13,7 @@ import {
   jsonSchemaChecks,
   schemaPreamble,
   tenantIn,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -313,7 +314,7 @@ create table if not exists ${u} (
 );
 create index if not exists user_settings_updated_by_idx on ${u} (${uc("updatedBy")});
 alter table ${u} enable row level security;
-revoke all on ${u} from anon, authenticated;
+${revokeTable(u)}
 grant select, insert, update, delete on ${u} to authenticated;
 grant all on ${u} to service_role;
 drop policy if exists "user_settings_own" on ${u};
@@ -331,7 +332,7 @@ create table if not exists ${o} (
 );
 create index if not exists organization_settings_updated_by_idx on ${o} (${oc("updatedBy")});
 alter table ${o} enable row level security;
-revoke all on ${o} from anon, authenticated;
+${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
 drop policy if exists "organization_settings_read" on ${o};
@@ -359,7 +360,7 @@ create table if not exists ${p} (
 );
 create index if not exists platform_settings_updated_by_idx on ${p} (${pc("updatedBy")});
 alter table ${p} enable row level security;
-revoke all on ${p} from anon, authenticated;
+${revokeTable(p)}
 grant select on ${p} to anon;
 grant select, insert, update, delete on ${p} to authenticated;
 grant all on ${p} to service_role;

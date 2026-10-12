@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, fail } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, fail, lockTable } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -210,9 +210,7 @@ create index if not exists api_keys_tenant_idx on ${t} (${c("tenant")});
 create index if not exists api_keys_user_idx on ${t} (${c("user")});
 create index if not exists api_keys_rotated_from_idx on ${t} (${c("rotatedFrom")});
 create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});
-alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
-grant all on ${t} to service_role;
+${lockTable(t)}
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal

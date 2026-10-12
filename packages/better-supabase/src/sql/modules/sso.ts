@@ -11,6 +11,7 @@ import {
   memberAddedRecord,
   SERVICE_CALLER,
   schemaPreamble,
+  lockTable,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
@@ -339,9 +340,7 @@ create table if not exists ${d} (
 );
 create unique index if not exists organization_domains_verified_idx on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
 create index if not exists organization_domains_created_by_idx on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
-alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
-grant all on ${d} to service_role;
+${lockTable(d)}
 
 -- SAML identity providers registered with Supabase Auth for an organization.
 create table if not exists ${p} (
@@ -353,9 +352,7 @@ create table if not exists ${p} (
   ${cp("createdAt")} timestamptz not null default now()
 );
 create index if not exists organization_sso_providers_tenant_idx on ${p} (${cp("tenant")});
-alter table ${p} enable row level security;
-revoke all on ${p} from anon, authenticated;
-grant all on ${p} to service_role;
+${lockTable(p)}
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
 -- A user links to an account whose confirmed email is at a verified domain
@@ -381,9 +378,7 @@ create unique index if not exists scim_users_external_id_idx on ${u} (${cu("tena
 create unique index if not exists scim_users_user_idx on ${u} (${cu("tenant")}, ${cu("user")}) where ${cu("user")} is not null;
 create index if not exists scim_users_email_idx on ${u} (${cu("email")}) where ${cu("user")} is null;
 create index if not exists scim_users_account_idx on ${u} (${cu("user")}) where ${cu("user")} is not null;
-alter table ${u} enable row level security;
-revoke all on ${u} from anon, authenticated;
-grant all on ${u} to service_role;
+${lockTable(u)}
 
 create table if not exists ${g} (
   ${cg("id")} uuid primary key default gen_random_uuid(),
@@ -397,9 +392,7 @@ create table if not exists ${g} (
 );
 create unique index if not exists scim_groups_display_name_idx on ${g} (${cg("tenant")}, lower(${cg("displayName")}));
 create unique index if not exists scim_groups_external_id_idx on ${g} (${cg("tenant")}, ${cg("externalId")}) where ${cg("externalId")} is not null;
-alter table ${g} enable row level security;
-revoke all on ${g} from anon, authenticated;
-grant all on ${g} to service_role;
+${lockTable(g)}
 
 create table if not exists ${gm} (
   ${cm("group")} uuid not null references ${g} (${cg("id")}) on delete cascade,
@@ -407,9 +400,7 @@ create table if not exists ${gm} (
   primary key (${cm("group")}, ${cm("member")})
 );
 create index if not exists scim_group_members_member_idx on ${gm} (${cm("member")});
-alter table ${gm} enable row level security;
-revoke all on ${gm} from anon, authenticated;
-grant all on ${gm} to service_role;
+${lockTable(gm)}
 
 -- The role a SCIM group grants: groupRoles by name, else a group named
 -- like an assignable role, else none.

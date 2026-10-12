@@ -1,6 +1,6 @@
 import type { SqlModule } from "../module-types.ts";
 
-import { SCHEMA, serviceOnly } from "../shared.ts";
+import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
 export const WEBHOOK_INBOX: SqlModule = {
   name: "webhook-inbox",
@@ -93,9 +93,7 @@ create index if not exists webhook_inbox_processed_idx
 create index if not exists webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
-alter table better_supabase.webhook_inbox enable row level security;
-revoke all on better_supabase.webhook_inbox from anon, authenticated;
-grant all on better_supabase.webhook_inbox to service_role;
+${lockTable("better_supabase.webhook_inbox")}
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.

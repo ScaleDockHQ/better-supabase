@@ -13,6 +13,7 @@ import {
   EQUIVALENT_TRIGGERS,
   SCHEMA,
   SERVICE_CALLER,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
@@ -286,7 +287,7 @@ create table if not exists ${ctx.table("restricted")} (
 alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restricted", "sessionId")} text;
 alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restricted", "changedValues")} jsonb;
 alter table ${ctx.table("restricted")} enable row level security;
-revoke all on ${ctx.table("restricted")} from anon, authenticated;`
+${revokeTable(ctx.table("restricted"))}`
     : "";
   return `create table if not exists ${log} (
   ${c("id")} bigint generated always as identity primary key,${line("table", "text")}${line("record", "text")}${line("op", "text not null")}${line("old", "jsonb")}${line("new", "jsonb")}${line("changed", "text[]")}${line("actor", "uuid")}${line("actorRole", "text")}
@@ -313,7 +314,7 @@ create unique index if not exists audit_events_idempotency_idx on ${log} (${c("i
       : ""
   }
 alter table ${log} enable row level security;
-revoke all on ${log} from anon, authenticated;
+${revokeTable(log)}
 grant select on ${log} to service_role;${restrictedTable}`;
 }
 
@@ -331,7 +332,7 @@ alter table better_supabase.audited_tables add column if not exists target_type 
 alter table better_supabase.audited_tables add column if not exists tenant_column text;
 alter table better_supabase.audited_tables add column if not exists label_column text;
 alter table better_supabase.audited_tables enable row level security;
-revoke all on better_supabase.audited_tables from anon, authenticated;
+${revokeTable("better_supabase.audited_tables")}
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()

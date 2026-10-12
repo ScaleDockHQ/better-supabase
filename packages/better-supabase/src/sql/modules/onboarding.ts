@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  tenantIn,
+  revokeTable,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -170,7 +175,7 @@ create index if not exists onboarding_progress_user_idx on ${p} (${c("user")});
 create index if not exists onboarding_progress_tenant_idx on ${p} (${c("tenant")});
 create index if not exists onboarding_progress_completed_by_idx on ${p} (${c("completedBy")});
 alter table ${p} enable row level security;
-revoke all on ${p} from anon, authenticated;
+${revokeTable(p)}
 grant select on ${p} to authenticated;
 grant all on ${p} to service_role;
 drop policy if exists "onboarding_progress_read" on ${p};

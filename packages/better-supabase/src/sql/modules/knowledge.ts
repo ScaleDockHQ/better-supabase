@@ -10,6 +10,7 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
 } from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
@@ -214,7 +215,7 @@ create index if not exists knowledge_documents_owner_idx on ${documents} (${d.ow
 create index if not exists knowledge_documents_file_idx on ${documents} (${d.file}) where ${d.file} is not null;
 create index if not exists knowledge_documents_pending_idx on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
 alter table ${documents} enable row level security;
-revoke all on ${documents} from anon, authenticated;
+${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;
 drop policy if exists knowledge_documents_read on ${documents};
@@ -237,7 +238,7 @@ create index if not exists knowledge_chunks_embedding_idx on ${chunks} using hns
 create index if not exists knowledge_chunks_tsv_idx on ${chunks} using gin (${c.tsv});
 create index if not exists knowledge_chunks_pending_idx on ${chunks} (${c.document}, ${c.index}) where ${c.embedding} is null;
 alter table ${chunks} enable row level security;
-revoke all on ${chunks} from anon, authenticated;
+${revokeTable(chunks)}
 grant select on ${chunks} to authenticated;
 grant all on ${chunks} to service_role;
 drop policy if exists knowledge_chunks_read on ${chunks};

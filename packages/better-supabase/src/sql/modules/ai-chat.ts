@@ -8,7 +8,12 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
-import { replaceColumnCheck, schemaPreamble, tenantIn } from "../shared.ts";
+import {
+  replaceColumnCheck,
+  schemaPreamble,
+  tenantIn,
+  lockTable,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
@@ -508,11 +513,6 @@ function tables(ctx: ModuleContext, names: AiChatNames): string {
     (type) => `@.type == "${type}"`,
   ).join(" || ");
   const textParts = `jsonb_path_query_array(${m.parts}, '$[*] ? (@.type == "text").text')`;
-  const lock = (
-    table: string,
-  ): string => `alter table ${table} enable row level security;
-revoke all on ${table} from anon, authenticated;
-grant all on ${table} to service_role;`;
   const visible = tenantIn(ch.tenant, perm.read);
 
   return `-- Projects group chats and carry instructions and a default model.
@@ -529,7 +529,7 @@ create table if not exists ${t.projects} (
   ${p.updatedAt} timestamptz not null default now()
 );
 create index if not exists ai_projects_owner_idx on ${t.projects} (${p.owner}, ${p.tenant});
-${lock(t.projects)}
+${lockTable(t.projects)}
 grant select on ${t.projects} to authenticated;
 drop policy if exists ai_projects_owner_read on ${t.projects};
 create policy ai_projects_owner_read on ${t.projects} for select to authenticated
@@ -564,7 +564,7 @@ create index if not exists ai_chats_tenant_idx on ${t.chats} (${ch.tenant});
 create index if not exists ai_chats_project_idx on ${t.chats} (${ch.project});
 create index if not exists ai_chats_expires_idx on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
 create index if not exists ai_chats_search_idx on ${t.chats} using gin (${ch.search});
-${lock(t.chats)}
+${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
 drop policy if exists ai_chats_read on ${t.chats};
 create policy ai_chats_read on ${t.chats} for select to authenticated
@@ -600,7 +600,7 @@ create table if not exists ${t.messages} (
 create index if not exists ai_messages_parent_idx on ${t.messages} (${m.chat}, ${m.parent});
 create index if not exists ai_messages_owner_idx on ${t.messages} (${m.owner});
 create index if not exists ai_messages_search_idx on ${t.messages} using gin (${m.search});
-${lock(t.messages)}
+${lockTable(t.messages)}
 grant select on ${t.messages} to authenticated;
 drop policy if exists ai_messages_read on ${t.messages};
 create policy ai_messages_read on ${t.messages} for select to authenticated
@@ -628,7 +628,7 @@ create index if not exists ai_runs_chat_idx on ${t.runs} (${r.chat}, ${r.started
 create index if not exists ai_runs_owner_idx on ${t.runs} (${r.owner});
 create index if not exists ai_runs_generation_idx on ${t.runs} (${r.generation}) where ${r.generation} is not null;
 create index if not exists ai_runs_external_idx on ${t.runs} (${r.engine}, ${r.externalRun}) where ${r.externalRun} is not null;
-${lock(t.runs)}
+${lockTable(t.runs)}
 grant select on ${t.runs} to authenticated;
 drop policy if exists ai_runs_owner_read on ${t.runs};
 create policy ai_runs_owner_read on ${t.runs} for select to authenticated
@@ -654,7 +654,7 @@ create table if not exists ${t.approvals} (
 create index if not exists ai_tool_approvals_chat_idx on ${t.approvals} (${a.chat});
 create index if not exists ai_tool_approvals_run_idx on ${t.approvals} (${a.run});
 create index if not exists ai_tool_approvals_owner_idx on ${t.approvals} (${a.owner});
-${lock(t.approvals)}
+${lockTable(t.approvals)}
 grant select on ${t.approvals} to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on ${t.approvals};
 create policy ai_tool_approvals_owner_read on ${t.approvals} for select to authenticated
@@ -669,7 +669,7 @@ create table if not exists ${t.policies} (
   ${po.updatedAt} timestamptz not null default now(),
   primary key (${po.tenant}, ${po.tool})
 );
-${lock(t.policies)}
+${lockTable(t.policies)}
 
 -- A question the model asked the user mid-run (a form or a choice).
 create table if not exists ${t.inputs} (
@@ -687,7 +687,7 @@ create table if not exists ${t.inputs} (
 create index if not exists ai_pending_inputs_chat_idx on ${t.inputs} (${i.chat});
 create index if not exists ai_pending_inputs_run_idx on ${t.inputs} (${i.run});
 create index if not exists ai_pending_inputs_owner_idx on ${t.inputs} (${i.owner});
-${lock(t.inputs)}
+${lockTable(t.inputs)}
 grant select on ${t.inputs} to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on ${t.inputs};
 create policy ai_pending_inputs_owner_read on ${t.inputs} for select to authenticated
@@ -705,7 +705,7 @@ create table if not exists ${t.sources} (
   primary key (${s.chat}, ${s.message}, ${s.source}),
   foreign key (${s.chat}, ${s.message}) references ${t.messages} (${m.chat}, ${m.id}) on delete cascade
 );
-${lock(t.sources)}
+${lockTable(t.sources)}
 grant select on ${t.sources} to authenticated;
 drop policy if exists ai_message_sources_read on ${t.sources};
 create policy ai_message_sources_read on ${t.sources} for select to authenticated
@@ -725,7 +725,7 @@ create table if not exists ${t.feedback} (
   foreign key (${f.chat}, ${f.message}) references ${t.messages} (${m.chat}, ${m.id}) on delete cascade
 );
 create index if not exists ai_message_feedback_user_idx on ${t.feedback} (${f.user});
-${lock(t.feedback)}
+${lockTable(t.feedback)}
 grant select on ${t.feedback} to authenticated;
 drop policy if exists ai_message_feedback_own_read on ${t.feedback};
 create policy ai_message_feedback_own_read on ${t.feedback} for select to authenticated
@@ -744,7 +744,7 @@ create table if not exists ${t.shares} (
 );
 create index if not exists ai_chat_shares_chat_idx on ${t.shares} (${sh.chat});
 create index if not exists ai_chat_shares_created_by_idx on ${t.shares} (${sh.createdBy});
-${lock(t.shares)}
+${lockTable(t.shares)}
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
@@ -758,7 +758,7 @@ create table if not exists ${t.models} (
   ${mo.enabled} boolean not null default true,
   ${mo.refreshedAt} timestamptz not null default now()
 );
-${lock(t.models)}
+${lockTable(t.models)}
 
 -- What moderation decided about an input, an output or a tool call.
 create table if not exists ${t.moderation} (
@@ -776,7 +776,7 @@ create table if not exists ${t.moderation} (
 create index if not exists ai_moderation_events_tenant_idx on ${t.moderation} (${md.tenant}, ${md.createdAt} desc);
 create index if not exists ai_moderation_events_chat_idx on ${t.moderation} (${md.chat});
 create index if not exists ai_moderation_events_user_idx on ${t.moderation} (${md.user});
-${lock(t.moderation)}
+${lockTable(t.moderation)}
 
 -- The progress of a long run, one row per step key, so a reload shows it.
 create table if not exists ${t.steps} (
@@ -794,7 +794,7 @@ create table if not exists ${t.steps} (
 );
 create index if not exists ai_run_steps_chat_idx on ${t.steps} (${rs.chat});
 create index if not exists ai_run_steps_owner_idx on ${t.steps} (${rs.owner});
-${lock(t.steps)}
+${lockTable(t.steps)}
 grant select on ${t.steps} to authenticated;
 drop policy if exists ai_run_steps_owner_read on ${t.steps};
 create policy ai_run_steps_owner_read on ${t.steps} for select to authenticated
@@ -819,7 +819,7 @@ create table if not exists ${t.harness} (
 );
 create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.owner});
 create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active';
-${lock(t.harness)}
+${lockTable(t.harness)}
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
 drop policy if exists ai_harness_sessions_owner_read on ${t.harness};`;

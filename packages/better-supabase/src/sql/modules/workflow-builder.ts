@@ -7,7 +7,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  revokeTable,
+  lockTable,
+} from "../shared.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
 
 const EVENTS: ModuleEvents = {
@@ -226,7 +231,7 @@ create table if not exists ${d} (
 );
 create index if not exists workflow_definitions_created_by_idx on ${d} (${cd("createdBy")});
 alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
+${revokeTable(d)}
 grant select on ${d} to authenticated;
 grant all on ${d} to service_role;
 drop policy if exists workflow_definitions_read on ${d};
@@ -249,7 +254,7 @@ create unique index if not exists workflow_versions_one_draft_idx on ${v} (${cv(
 create unique index if not exists workflow_versions_one_published_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'published';
 create index if not exists workflow_versions_created_by_idx on ${v} (${cv("createdBy")});
 alter table ${v} enable row level security;
-revoke all on ${v} from anon, authenticated;
+${revokeTable(v)}
 grant select on ${v} to authenticated;
 grant all on ${v} to service_role;
 drop policy if exists workflow_versions_read on ${v};
@@ -270,7 +275,7 @@ create table if not exists ${t} (
 );
 create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});
 alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
+${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
 drop policy if exists workflow_triggers_read on ${t};
@@ -282,9 +287,7 @@ create table if not exists ${w} (
   ${cw("trigger")} uuid not null unique references ${t} (${ct("id")}) on delete cascade,
   ${cw("createdAt")} timestamptz not null default now()
 );
-alter table ${w} enable row level security;
-revoke all on ${w} from anon, authenticated;
-grant all on ${w} to service_role;
+${lockTable(w)}
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
 -- with a credential_ref that a CredentialProvider resolves; it never holds
@@ -302,7 +305,7 @@ create table if not exists ${c} (
 );
 create index if not exists workflow_credentials_created_by_idx on ${c} (${cc("createdBy")});
 alter table ${c} enable row level security;
-revoke all on ${c} from anon, authenticated;
+${revokeTable(c)}
 grant select on ${c} to authenticated;
 grant all on ${c} to service_role;
 drop policy if exists workflow_credentials_read on ${c};
@@ -321,7 +324,7 @@ create table if not exists ${l} (
   ${cl("updatedAt")} timestamptz not null default now()
 );
 alter table ${l} enable row level security;
-revoke all on ${l} from anon, authenticated;
+${revokeTable(l)}
 grant select on ${l} to authenticated;
 grant all on ${l} to service_role;
 drop policy if exists workflow_step_library_read on ${l};
@@ -340,7 +343,7 @@ create table if not exists ${n} (
   primary key (${cn("run")}, ${cn("node")})
 );
 alter table ${n} enable row level security;
-revoke all on ${n} from anon, authenticated;
+${revokeTable(n)}
 grant select on ${n} to authenticated;
 grant all on ${n} to service_role;
 drop policy if exists workflow_node_runs_read on ${n};
@@ -363,7 +366,7 @@ create table if not exists ${a} (
 create index if not exists workflow_alerts_definition_idx on ${a} (${ca("definition")});
 create index if not exists workflow_alerts_created_by_idx on ${a} (${ca("createdBy")});
 alter table ${a} enable row level security;
-revoke all on ${a} from anon, authenticated;
+${revokeTable(a)}
 grant select on ${a} to authenticated;
 grant all on ${a} to service_role;
 drop policy if exists workflow_alerts_read on ${a};
@@ -377,9 +380,7 @@ create table if not exists ${f} (
   primary key (${cf("alert")}, ${cf("run")})
 );
 create index if not exists workflow_alert_fires_run_idx on ${f} (${cf("run")});
-alter table ${f} enable row level security;
-revoke all on ${f} from anon, authenticated;
-grant all on ${f} to service_role;
+${lockTable(f)}
 
 -- Problems that keep a graph from being published, as messages; empty when
 -- it may be. The step names must be in the step library.

@@ -10,6 +10,7 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
@@ -140,7 +141,7 @@ create index if not exists ai_scheduled_tasks_due_idx on ${tasks} (${t.nextRunAt
 create index if not exists ai_scheduled_tasks_user_idx on ${tasks} (${t.user}, ${t.tenant});
 create index if not exists ai_scheduled_tasks_agent_idx on ${tasks} (${t.agent});
 alter table ${tasks} enable row level security;
-revoke all on ${tasks} from anon, authenticated;
+${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
 drop policy if exists ai_scheduled_tasks_read on ${tasks};
@@ -164,7 +165,7 @@ create index if not exists ai_task_runs_task_idx on ${runs} (${r.task}, ${r.crea
 create index if not exists ai_task_runs_user_idx on ${runs} (${r.user});
 create index if not exists ai_task_runs_open_idx on ${runs} (${r.status}, ${r.startedAt}) where ${r.status} in ('queued', 'running');
 alter table ${runs} enable row level security;
-revoke all on ${runs} from anon, authenticated;
+${revokeTable(runs)}
 grant select on ${runs} to authenticated;
 grant all on ${runs} to service_role;
 drop policy if exists ai_task_runs_read on ${runs};

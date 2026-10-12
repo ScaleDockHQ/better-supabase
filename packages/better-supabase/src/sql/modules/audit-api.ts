@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, pageSize } from "../shared.ts";
+import { SERVICE_CALLER, pageSize, userGrant } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
@@ -302,8 +302,7 @@ begin
   return coalesce(details, jsonb_build_object('entry', entry));
 end;
 $$;
-revoke execute on function ${ctx.fn("reveal_audit_entry")}(text) from public, anon;
-grant execute on function ${ctx.fn("reveal_audit_entry")}(text) to authenticated, service_role;
+${userGrant(`${ctx.fn("reveal_audit_entry")}(text)`)}
 
 -- The restricted details of the entries the caller may reveal, for an
 -- export; entries it may not reveal are left out. One audit.revealed entry
@@ -350,6 +349,5 @@ begin
   return details;
 end;
 $$;
-revoke execute on function ${ctx.fn("reveal_audit_entries")}(text[]) from public, anon;
-grant execute on function ${ctx.fn("reveal_audit_entries")}(text[]) to authenticated, service_role;`;
+${userGrant(`${ctx.fn("reveal_audit_entries")}(text[])`)}`;
 }

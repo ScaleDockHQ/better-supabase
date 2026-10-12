@@ -8,6 +8,7 @@ import {
   sha256Hex,
   updatedAt,
   fail,
+  revokeTable,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -179,7 +180,7 @@ create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subjec
 create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
 ${updatedAt(t, "updated_at")}${cleanup}
 alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
+${revokeTable(t)}
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on ${t} to authenticated;
 grant all on ${t} to service_role;

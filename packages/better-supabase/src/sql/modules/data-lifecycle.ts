@@ -6,7 +6,13 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, schemaPreamble, tenantIn } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  schemaPreamble,
+  tenantIn,
+  revokeTable,
+  lockTable,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
 import { autoTablesOf, autoTablesSql } from "./data-lifecycle-auto-tables.ts";
@@ -212,7 +218,7 @@ create unique index if not exists data_exports_open_tenant_idx on ${e} (${ce("te
 create index if not exists data_exports_requested_by_idx on ${e} (${ce("requestedBy")});
 create index if not exists data_exports_user_idx on ${e} (${ce("user")}) where ${ce("user")} is not null;
 alter table ${e} enable row level security;
-revoke all on ${e} from anon, authenticated;
+${revokeTable(e)}
 grant select on ${e} to authenticated;
 grant all on ${e} to service_role;
 drop policy if exists "data_exports_read" on ${e};
@@ -233,9 +239,7 @@ create table if not exists ${d} (
 );
 create index if not exists organization_deletions_due_idx on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
 create index if not exists organization_deletions_requested_by_idx on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
-alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
-grant all on ${d} to service_role;
+${lockTable(d)}
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.

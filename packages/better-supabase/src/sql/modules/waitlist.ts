@@ -13,6 +13,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   sha256Hex,
+  lockTable,
 } from "../shared.ts";
 import {
   accessModel,
@@ -212,9 +213,7 @@ create table if not exists ${e} (
 create index if not exists waitlist_entries_status_idx on ${e} (${ce("status")}, ${ce("position")});
 create index if not exists waitlist_entries_user_idx on ${e} (${ce("user")});
 create index if not exists waitlist_entries_decided_by_idx on ${e} (${ce("decidedBy")});
-alter table ${e} enable row level security;
-revoke all on ${e} from anon, authenticated;
-grant all on ${e} to service_role;
+${lockTable(e)}
 
 -- Invite codes, stored as the SHA-256 of the upper-cased code. One with an
 -- organization also adds the user to it with role (or defaultRole).
@@ -233,9 +232,7 @@ create table if not exists ${k} (
 );
 create index if not exists invite_codes_tenant_idx on ${k} (${ck("tenant")});
 create index if not exists invite_codes_created_by_idx on ${k} (${ck("createdBy")});
-alter table ${k} enable row level security;
-revoke all on ${k} from anon, authenticated;
-grant all on ${k} to service_role;
+${lockTable(k)}
 
 create table if not exists ${r} (
   ${cr("code")} uuid not null references ${k} (${ck("id")}) on delete cascade,
@@ -244,9 +241,7 @@ create table if not exists ${r} (
   primary key (${cr("code")}, ${cr("user")})
 );
 create index if not exists invite_code_redemptions_user_idx on ${r} (${cr("user")});
-alter table ${r} enable row level security;
-revoke all on ${r} from anon, authenticated;
-grant all on ${r} to service_role;
+${lockTable(r)}
 
 -- { position, status } for an address; adding it again changes nothing.
 -- Open to anon, so rate-limit the route that calls it. Only the service role

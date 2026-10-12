@@ -14,6 +14,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   tenantIn,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
@@ -215,7 +216,7 @@ create table if not exists ${t} (
   ${c("createdAt")} timestamptz not null default now()
 );
 alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
+${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
 ${tenantKey}drop policy if exists "billing_customers_read" on ${t};

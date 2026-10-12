@@ -2,7 +2,7 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, pageSize } from "../shared.ts";
+import { schemaPreamble, pageSize, lockTable } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   options: ["defaultSource", "emitRoles", "blockSource", "retention", "settle"],
@@ -103,9 +103,7 @@ create table if not exists ${n.c} (
 alter table ${n.c} add column if not exists ${n.k("attempts")} integer not null default 0;
 alter table ${n.c} add column if not exists ${n.k("lastError")} text;
 alter table ${n.c} add column if not exists ${n.k("retryAt")} timestamptz;
-alter table ${n.c} enable row level security;
-revoke all on ${n.c} from anon, authenticated;
-grant all on ${n.c} to service_role;
+${lockTable(n.c)}
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
 -- event, so one bad event can't stop the consumer.
@@ -121,9 +119,7 @@ create table if not exists ${n.d} (
   primary key (${n.x("consumer")}, ${n.x("position")})
 );
 create index if not exists outbox_dead_letters_dead_at_idx on ${n.d} (${n.x("deadAt")});
-alter table ${n.d} enable row level security;
-revoke all on ${n.d} from anon, authenticated;
-grant all on ${n.d} to service_role;
+${lockTable(n.d)}
 `;
 }
 
@@ -175,9 +171,7 @@ create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt
       ? `\ncreate index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`
       : ""
   }
-alter table ${n.t} enable row level security;
-revoke all on ${n.t} from anon, authenticated;
-grant all on ${n.t} to service_role;
+${lockTable(n.t)}
 ${consumersTable(n)}`;
 }
 
