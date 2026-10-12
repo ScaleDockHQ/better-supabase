@@ -77,6 +77,7 @@ import {
   type ServerOptions,
 } from "./server-types.ts";
 import { supportOff } from "./support-off.ts";
+import { type SupportStorage, supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
 
 /** The environment as `getEnv` resolves it, one variable at a time. */
@@ -302,12 +303,27 @@ export function createServer<
     };
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
+    let storage: SupportStorage | undefined;
     return {
       ...credentials,
       ...ids,
       auth,
       resolution,
       support: active,
+      get storage() {
+        const postgres = options.postgres;
+        if (!postgres) {
+          throw new TypeError(
+            "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
+          );
+        }
+        storage ??= supportStorage({
+          admin: serviceClient().storage,
+          sql: postgres.asUser(sqlClaims, sessionOptions),
+          readOnly: session.readOnly,
+        });
+        return storage;
+      },
       get supabase(): SupabaseClient {
         return unavailable();
       },

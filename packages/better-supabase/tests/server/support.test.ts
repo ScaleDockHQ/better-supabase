@@ -43,6 +43,11 @@ function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
       sessions.push(session);
       return postgresExecutor(fake.sql);
     },
+    asUser: (value: SqlClaims, session?: SessionOptions) => {
+      claims.push(value);
+      sessions.push(session);
+      return fake.sql;
+    },
   } as unknown as BetterPostgres;
   return { postgres, claims, sessions, fake };
 }
@@ -556,5 +561,34 @@ describe("support sessions on the server", () => {
       support: supportSessions({ store: { ...store, withTemporal } }),
     });
     expect(withTemporal).toHaveBeenCalledWith(Temporal);
+  });
+
+  it("reads Storage as the target in a support session", async () => {
+    const { server, pg } = setup(
+      { env: { ...env, secretKey: "sb_secret_test" } },
+      [["as visible", [{ visible: false }]]],
+    );
+    const normal = await server.context(await request());
+    expect(normal.storage).toBeUndefined();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    const ctx = await server.context(
+      await request(`bs-support=${started.session.id}`),
+    );
+    const docs = ctx.storage!.from("docs");
+    expect(ctx.storage).toBe(ctx.storage);
+    expect((await docs.download("o1/a.pdf")).error).toMatchObject({
+      kind: "not_found",
+    });
+    expect((await docs.upload("o1/a.pdf", "x")).error?.code).toBe(
+      "SUPPORT_READ_ONLY",
+    );
+    expect(pg.claims.at(-1)).toMatchObject({
+      sub: TARGET,
+      act: { kind: "support", session_id: started.session.id },
+    });
+    expect(pg.sessions.at(-1)).toMatchObject({ readOnly: true });
+    expect(pg.fake.calls.at(-1)?.values).toEqual(["docs", "o1/a.pdf"]);
   });
 });

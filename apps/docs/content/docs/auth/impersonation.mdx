@@ -83,6 +83,39 @@ A read-only session runs each transaction with `begin read only`, so any write
 fails with Postgres error `25006`. In a support session, `ctx.supabase` and
 `ctx.db.$client` throw: the Data API would only see the admin's own token, so
 everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
+Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)
+follow, and `ctx.storage` reads Storage as the target (see below).
+
+### Storage in a support session
+
+Storage policies read `auth.uid()` from the request's token, and there is no
+token for the target, so `ctx.supabase.storage` can't serve them. In a
+support session, `ctx.storage` reads Storage as the target instead: each
+call first checks over Postgres, as the target, that the Storage policies on
+`storage.objects` let them see the object, and only then reads it with the
+service client. A path the target can't see is `not_found`, and a listing
+leaves out the entries they can't see:
+
+```ts title="app/files/[...path]/route.ts"
+const ctx = await bs.context(request);
+if (ctx.storage) {
+  const url = await ctx.storage
+    .from("documents")
+    .createSignedUrl(path, 60)
+    .orThrow();
+  return Response.redirect(url);
+}
+```
+
+`ctx.storage` has `download(path)`, `createSignedUrl(path, expiresIn)` and
+`list(prefix)`, each returning an `AsyncResult`, and it needs
+`SUPABASE_SECRET_KEY`. `upload` always fails: with `SUPPORT_READ_ONLY` in a
+read-only session, and with `SUPPORT_STORAGE_WRITES` in a writable one, since
+the service client would store the object without the target as its owner.
+Outside a support session `ctx.storage` is `undefined`; use `ctx.supabase.storage`
+there. `supportStorage({ admin, sql, readOnly })` from `better-supabase/server`
+builds the same thing from a service-role storage client and a `SqlClient`
+that runs as the target.
 
 Starting a second session ends the admin's first one. Admins can't start a
 session for themselves (`SUPPORT_SELF`) or from inside another one
