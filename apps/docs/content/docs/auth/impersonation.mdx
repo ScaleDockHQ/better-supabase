@@ -93,18 +93,18 @@ token for the target, so `ctx.supabase.storage` can't serve them. In a
 support session, `ctx.storage` reads Storage as the target instead. It has
 the file API of `supabase.storage` (a `StorageApi`), so a
 [connected bucket](/docs/platform/storage#client) and the blocks that take
-`storage` work with it unchanged (`documents` is a `defineBucket`
-definition):
+`storage` work with it unchanged. `ctx.db.$storage` and `ctx.sql.$storage`
+are the same object, and outside a support session `ctx.db.$storage` is the
+caller's `supabase.storage`, so code that connects buckets through the `Db`
+works in both (`documents` is a `defineBucket` definition):
 
 ```ts title="app/files/[...path]/route.ts"
 const ctx = await bs.context(request);
-if (ctx.storage) {
-  const url = await documents
-    .connect(ctx.storage)
-    .signedUrl(path, { ttl: 60 })
-    .orThrow();
-  return Response.redirect(url);
-}
+const url = await documents
+  .connect(ctx.db.$storage)
+  .signedUrl(path, { ttl: 60 })
+  .orThrow();
+return Response.redirect(url);
 ```
 
 Each read runs as the target over Postgres, so the policies on

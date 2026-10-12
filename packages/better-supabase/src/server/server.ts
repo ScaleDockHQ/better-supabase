@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { SqlClient } from "../postgres/executor.ts";
 import type { SessionOptions, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
@@ -201,6 +202,7 @@ export function createServer<
     context: RequestContext,
     stats?: StatsRecorder,
     session?: SessionOptions,
+    storage?: StorageApi,
   ): Db<M, F, E, undefined> => {
     if (!options.postgres) {
       throw new TypeError(
@@ -212,7 +214,7 @@ export function createServer<
         ? options.postgres.executorFor(claims, session)
         : options.postgres.executorFor(claims),
       context,
-      stats ? { stats } : {},
+      { ...(stats ? { stats } : {}), ...(storage ? { storage } : {}) },
     );
   };
 
@@ -305,6 +307,27 @@ export function createServer<
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     let storage: StorageApi | undefined;
+    const targetStorage = (): StorageApi => {
+      const postgres = options.postgres;
+      if (!postgres) {
+        throw new TypeError(
+          "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
+        );
+      }
+      let asTarget: SqlClient | undefined;
+      storage ??= supportStorage({
+        admin: { from: (bucket) => serviceClient().storage.from(bucket) },
+        sql: {
+          queryRaw: <T>(text: string, params?: unknown[]) =>
+            (asTarget ??= postgres.asUser(
+              sqlClaims,
+              sessionOptions,
+            )).queryRaw<T>(text, params),
+        },
+        readOnly: session.readOnly,
+      });
+      return storage;
+    };
     return {
       ...credentials,
       ...ids,
@@ -312,18 +335,7 @@ export function createServer<
       resolution,
       support: active,
       get storage() {
-        const postgres = options.postgres;
-        if (!postgres) {
-          throw new TypeError(
-            "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
-          );
-        }
-        storage ??= supportStorage({
-          admin: serviceClient().storage,
-          sql: postgres.asUser(sqlClaims, sessionOptions),
-          readOnly: session.readOnly,
-        });
-        return storage;
+        return targetStorage();
       },
       get supabase(): SupabaseClient {
         return unavailable();
@@ -332,14 +344,20 @@ export function createServer<
         // SAFETY: `$client` is redefined to throw, so no caller gets a client.
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the repositories are the same; only `$client`'s type differs, and it throws.
         db ??= Object.defineProperty(
-          sqlFor(sqlClaims, context, recorder, sessionOptions),
+          sqlFor(sqlClaims, context, recorder, sessionOptions, targetStorage()),
           "$client",
           { get: unavailable, enumerable: true, configurable: true },
         ) as unknown as Db<M, F, E, SupabaseClient>;
         return db;
       },
       get sql() {
-        sql ??= sqlFor(sqlClaims, context, recorder, sessionOptions);
+        sql ??= sqlFor(
+          sqlClaims,
+          context,
+          recorder,
+          sessionOptions,
+          targetStorage(),
+        );
         return sql;
       },
       replica: undefined,

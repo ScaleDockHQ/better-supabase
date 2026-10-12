@@ -578,6 +578,8 @@ describe("support sessions on the server", () => {
     );
     const docs = ctx.storage!.from("docs");
     expect(ctx.storage).toBe(ctx.storage);
+    expect(ctx.db.$storage).toBe(ctx.storage);
+    expect(ctx.sql?.$storage).toBe(ctx.storage);
     expect((await docs.download("o1/a.pdf")).error).toMatchObject({
       code: "NoSuchKey",
     });

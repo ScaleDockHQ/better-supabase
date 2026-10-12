@@ -314,7 +314,9 @@ const thumb = await storage
 `connect` takes a supabase-js client, its `storage`, or any other
 `StorageApi`: an object whose `from(bucket)` returns the file methods of
 `supabase.storage.from(bucket)` (`StorageBucketApi`, typed structurally), so
-another implementation can stand in for supabase-js. `apply(client)` still
+another implementation can stand in for supabase-js. `db.$storage` is
+Storage as the same caller as the `Db`, so `logos.connect(ctx.db.$storage)`
+also works in a [support session](/docs/auth/impersonation#storage-in-a-support-session). `apply(client)` still
 needs a supabase-js client with the secret key (`StorageAdminClient`), since
 it calls the bucket admin API.
 
