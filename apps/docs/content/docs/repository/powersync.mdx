@@ -84,10 +84,24 @@ stays the only write path, and an unsupported write still returns
 `unsupported`. When the device is offline, the read returns the fallback's
 error, usually kind `network`.
 
-A fallback read inside `watch` or `useWatch` reruns only when one of the
-watched local tables changes. A change on the server that hasn't synced to
-those tables yet doesn't show until the next local change or the next
-mount.
+A fallback read inside `watch` or `useWatch` reruns when one of the watched
+local tables changes, but a change on the server that hasn't synced to those
+tables doesn't trigger it. Pass `refresh` to rerun it without a local
+change:
+
+```ts
+const stop = watch(powersync, () => noteCounts.run(local, query), {
+  tables: sqliteTables(betterSupabase, ["notes"]),
+  onResult: (result) => render(result),
+  refresh: { everyMs: 30_000, onReconnect: true },
+});
+```
+
+`everyMs` reruns the query on an interval and skips the runs while
+PowerSync reports it is offline. `onReconnect` reruns it when PowerSync
+connects again, and needs a database with `registerListener` (every
+PowerSync database has one). A refresh that returns the same result calls no
+`onResult`. `useWatch` takes the same `refresh` option.
 
 ## Porting a list from PostgREST
 
@@ -102,7 +116,8 @@ functions that aggregate. For each, pick one:
 - Search a synced text column with `search: ["name", "kvk"]` (`ilike`)
   instead of `{ fts: ... }`.
 - Keep it on the server with `fallback`, and accept that it needs a
-  connection and only reruns on local changes.
+  connection. Give its `watch` a `refresh` so it doesn't wait for a local
+  change.
 
 To find the server-only reads, list them in a test:
 
