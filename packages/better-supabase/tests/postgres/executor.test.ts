@@ -487,6 +487,39 @@ describe("postgresExecutor rpc", () => {
     ]);
   });
 
+  it.each([
+    ["jsonb", { data: "Acme" }, '"Acme"', ["data"], ["i"]],
+    ["text", { data: "Acme" }, "Acme", ["data"], ["i"]],
+    ["json", { payload: { a: 1 } }, '{"a":1}', ["payload"], null],
+    // An OUT parameter shifts the names but not the input types.
+    ["jsonb", { data: "x" }, '"x"', ["total", "data"], ["o", "i"]],
+  ])(
+    "reads %s parameter types from the catalog without generated types",
+    async (type, args, expected, names, modes) => {
+      const fake = fakeSql([
+        [
+          "pg_proc",
+          [
+            {
+              returns_set: false,
+              returns_void: false,
+              arg_names: names,
+              arg_modes: modes,
+              arg_types: [type],
+            },
+          ],
+        ],
+        ["to_json(bs_call)", [{ value: 1 }]],
+      ]);
+      await postgresExecutor(fake.sql).rpc!("log_event", args, {
+        schema: "public",
+        errorMappers: [],
+      });
+      const call = fake.calls.find((c) => c.text.includes("to_json(bs_call)"));
+      expect(call!.values).toEqual([expected]);
+    },
+  );
+
   it("sends objects as json, Temporal values as text and bigints as strings", async () => {
     const fake = fakeSql([
       ["pg_proc", [{ returns_set: true, returns_void: false }]],
