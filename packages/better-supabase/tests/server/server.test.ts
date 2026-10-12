@@ -371,6 +371,29 @@ describe("createServer clients", () => {
     expect(typeof db.$client.storage.from).toBe("function");
   });
 
+  it("answers unauthorized to queries on invalid credentials, without a request", async () => {
+    const { fetch } = stubFetch();
+    const server = createServer(defineSupabase(schema), { env });
+    const invalid: AuthState = {
+      kind: "invalid",
+      reason: "token",
+      error: {
+        kind: "unauthorized",
+        message: "bad token",
+        status: 401,
+      } as never,
+    };
+    const viaContext = await server.contextFor(invalid).db.customers.findMany();
+    const viaDbFor = await server.dbFor(invalid).customers.findMany();
+    for (const result of [viaContext, viaDbFor]) {
+      expect(result).toMatchObject({
+        ok: false,
+        error: { kind: "unauthorized" },
+      });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("builds contexts from one resolution", async () => {
     const server = createServer(defineSupabase(schema), { env });
     const request = new Request("https://app.test/");
