@@ -86,6 +86,11 @@ export interface SupportSessionStore {
   ): Promise<readonly SupportSession[]>;
   /** The claims `targetUserId` would get, when the store can build them. */
   claims?(targetUserId: string): Promise<Readonly<Record<string, unknown>>>;
+  /**
+   * Ends every running session past its expiry with `endedBy: "expired"`
+   * and returns them. Optional; `support.expire()` fails without it.
+   */
+  expire?(): Promise<readonly SupportSession[]>;
 }
 
 interface SupportRow {
@@ -193,6 +198,12 @@ export function sqlSupportStore(
           filter.active ?? null,
           filter.limit ?? 50,
         ],
+      );
+      return rows.map((row) => supportSessionFromRow(row.session));
+    },
+    async expire() {
+      const rows = await postgres.admin.queryRaw<{ session: SupportRow }>(
+        `select session from ${fn("expire_support_sessions")}() as session`,
       );
       return rows.map((row) => supportSessionFromRow(row.session));
     },

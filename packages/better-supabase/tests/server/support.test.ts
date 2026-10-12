@@ -461,4 +461,89 @@ describe("support sessions on the server", () => {
     expect(ctx.support).toBeUndefined();
     expect(ctx.auth).toMatchObject({ user: { id: ADMIN } });
   });
+
+  it("expires sessions past their expiry and reports each as ended", async () => {
+    const { server, store, events } = setup();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    expect(await server.support.expire().orThrow()).toEqual([]);
+    store.sessions.set(started.session.id, {
+      ...started.session,
+      expiresAt: Temporal.Now.instant().subtract({ seconds: 1 }),
+    });
+    const expired = await server.support.expire().orThrow();
+    expect(expired.map((session) => session.endedBy)).toEqual(["expired"]);
+    expect(events.at(-1)).toMatchObject({
+      type: "support.ended",
+      actorId: ADMIN,
+      subject: `support_sessions/${started.session.id}`,
+      data: {
+        sessionId: started.session.id,
+        adminId: ADMIN,
+        targetUserId: TARGET,
+        reason: "ticket 9",
+        endedBy: "expired",
+      },
+    });
+  });
+
+  it("serves expire as a cron route behind its secret", async () => {
+    const { server, store } = setup();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+    store.sessions.set(started.session.id, {
+      ...started.session,
+      expiresAt: Temporal.Now.instant().subtract({ seconds: 1 }),
+    });
+    expect(() => server.support.expireRoute({ secret: undefined })).toThrow(
+      /expireRoute needs a secret/,
+    );
+    const route = server.support.expireRoute({ secret: "s3cret" });
+    const url = "https://app.test/api/cron/support";
+    expect((await route(new Request(url))).status).toBe(401);
+    const response = await route(
+      new Request(url, { headers: { authorization: "Bearer s3cret" } }),
+    );
+    expect(await response.json()).toEqual({ expired: 1 });
+  });
+
+  it("fails expire for a store without it, and when the store fails", async () => {
+    const withoutExpire = memorySupportStore();
+    delete (withoutExpire as { expire?: unknown }).expire;
+    const { server } = setup({
+      support: supportSessions({ store: withoutExpire }),
+    });
+    expect((await server.support.expire()).error).toMatchObject({
+      kind: "unsupported",
+      code: "SUPPORT_EXPIRE_UNSUPPORTED",
+    });
+    const route = server.support.expireRoute({ secret: "s" });
+    const response = await route(
+      new Request("https://app.test/cron", {
+        method: "POST",
+        headers: { authorization: "Bearer s" },
+      }),
+    );
+    expect(response.status).toBe(501);
+    const failing = setup({
+      support: supportSessions({
+        store: {
+          ...memorySupportStore(),
+          expire: () => Promise.reject(pgError("57014", "timeout")),
+        },
+      }),
+    });
+    expect((await failing.server.support.expire()).error?.kind).toBe("timeout");
+  });
+
+  it("fails expire without support options", async () => {
+    const server = createServer(defineSupabase(schema), { env });
+    expect((await server.support.expire()).ok).toBe(false);
+    const response = await server.support.expireRoute({ secret: "s" })(
+      new Request("https://app.test/cron"),
+    );
+    expect(response.status).toBe(500);
+  });
 });

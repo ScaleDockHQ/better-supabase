@@ -21,7 +21,8 @@ export interface TestSupportSessionStoreOptions {
 /**
  * Proves a `SupportSessionStore` starts sessions with the input it was
  * given, shows a running session only to its admin, ends the admin's
- * previous session on start, ends a session once, and lists sessions.
+ * previous session on start, ends a session once, lists sessions and, with
+ * `expire`, leaves running sessions alone.
  * It writes sessions to the store; they are all ended when it returns.
  */
 export function testSupportSessionStore(
@@ -129,6 +130,30 @@ export function testSupportSessionStore(
           running.every((item) => item.id !== session.id),
           "list({ active: true }) must leave out ended sessions",
         );
+      },
+    ],
+    [
+      "expires only sessions past their expiry, when it has expire",
+      async () => {
+        if (!store.expire) return;
+        const session = await start(first);
+        try {
+          const expired = await store.expire();
+          expect(
+            expired.every((item) => item.id !== session.id),
+            "expire must leave a running session alone",
+          );
+          expect(
+            expired.every((item) => item.endedBy === "expired"),
+            "expire must end sessions with endedBy expired",
+          );
+          expect(
+            (await store.get(session.id, admin.id))?.id === session.id,
+            "the running session must still be running after expire",
+          );
+        } finally {
+          await store.end(session.id, "admin");
+        }
       },
     ],
   ]);

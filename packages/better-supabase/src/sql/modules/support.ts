@@ -354,6 +354,42 @@ end;
 $$;`;
 }
 
+/**
+ * `expire_support_sessions()`: ends every running session past its expiry
+ * through `end_support_session(id, 'expired')`, so each one records
+ * `support.ended`, and returns the sessions it ended. Service role only.
+ */
+function expire(ctx: ModuleContext): string {
+  const sessions = ctx.table("sessions");
+  const c = (logical: string) => ctx.col("sessions", logical);
+  return `-- Ends the sessions past their expiry, each with ended_by 'expired', and
+-- returns them. Run it from a cron job as the service role.
+create or replace function ${ctx.fn("expire_support_sessions")}()
+returns setof jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  expired_id uuid;
+begin
+  if not (${SERVICE_CALLER}) then
+    raise exception 'Only the service role expires support sessions' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  for expired_id in
+    select s.${c("id")} from ${sessions} s
+    where s.${c("endedAt")} is null and s.${c("expiresAt")} <= now()
+    order by s.${c("expiresAt")}
+    for update skip locked
+  loop
+    if ${ctx.fn("end_support_session")}(expired_id, 'expired') then
+      return next (select ${sessionJson(ctx, "s")} from ${sessions} s where s.${c("id")} = expired_id);
+    end if;
+  end loop;
+end;
+$$;`;
+}
+
 function reads(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
@@ -464,14 +500,21 @@ function grants(ctx: ModuleContext): string {
     `${ctx.fn("active_support_session")}(uuid, uuid)`,
     `${ctx.fn("list_support_sessions")}(uuid, uuid, boolean, integer)`,
   ];
-  const claimsFn = `${ctx.fn("support_target_claims")}(uuid)`;
+  const serviceOnly = [
+    `${ctx.fn("support_target_claims")}(uuid)`,
+    `${ctx.fn("expire_support_sessions")}()`,
+  ];
   return [
     ...shared.map(
       (fn) => `revoke execute on function ${fn} from public, anon;
 grant execute on function ${fn} to authenticated, service_role;`,
     ),
-    `revoke execute on function ${claimsFn} from public, anon, authenticated;
-grant execute on function ${claimsFn} to service_role;`,
+    ...serviceOnly.map(
+      (
+        fn,
+      ) => `revoke execute on function ${fn} from public, anon, authenticated;
+grant execute on function ${fn} to service_role;`,
+    ),
   ].join("\n");
 }
 
@@ -490,6 +533,7 @@ function build(ctx: ModuleContext): string {
     `${SCHEMA}${table(ctx)}`,
     start(ctx),
     end(ctx),
+    expire(ctx),
     reads(ctx),
     claims(ctx),
     grants(ctx),
@@ -525,6 +569,7 @@ export const SUPPORT_SESSIONS: ModuleDefinition = {
       returns: "jsonb",
     },
     { name: "support_target_claims", args: ["uuid"], returns: "jsonb" },
+    { name: "expire_support_sessions", args: [], returns: "jsonb" },
   ],
   build,
 };

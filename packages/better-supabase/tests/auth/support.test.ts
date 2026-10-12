@@ -168,6 +168,36 @@ describe("sqlSupportStore", () => {
     expect(await store.claims!("t")).toEqual({ role: "authenticated" });
   });
 
+  it("expires sessions on the admin connection", async () => {
+    const fake = fakeSql([
+      [
+        "expire_support_sessions",
+        [
+          {
+            session: { ...ROW, ended_at: ROW.expires_at, ended_by: "expired" },
+          },
+        ],
+      ],
+    ]);
+    const store = sqlSupportStore(
+      {
+        admin: fake.sql,
+        asUser: () => {
+          throw new Error("expire runs as the admin connection");
+        },
+      },
+      { schema: "ops" },
+    );
+    const expired = await store.expire!();
+    expect(expired).toMatchObject([{ id: ROW.id, endedBy: "expired" }]);
+    expect(fake.calls).toEqual([
+      {
+        text: 'select session from "ops"."expire_support_sessions"() as session',
+        values: [],
+      },
+    ]);
+  });
+
   it("rejects when start returns nothing", async () => {
     const fake = fakeSql([["start_support_session", [{ session: null }]]]);
     const store = sqlSupportStore({ admin: fake.sql, asUser: () => fake.sql });

@@ -16,7 +16,9 @@ import {
   type SupportSessionStore,
 } from "../auth/support.ts";
 import { emitBlockEvent, type SupportEventData } from "../core/block-events.ts";
+import { cronRoute } from "../core/cron-route.ts";
 import { type DbError, dbError, mapDbError } from "../core/errors.ts";
+import { type ProblemFormat, problemResponse } from "../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
@@ -81,6 +83,14 @@ export interface SupportStartRequest {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** Options for `support.expireRoute`. */
+export interface SupportExpireRouteOptions {
+  /** The bearer token the cron caller sends, such as `process.env.CRON_SECRET`. */
+  readonly secret: string | undefined;
+  /** Rewrites the Problem Details bodies of the route's errors. */
+  readonly problem?: ProblemFormat;
+}
+
 /** A running support session, as the request that carries its cookie sees it. */
 export interface ActiveSupport {
   readonly session: SupportSession;
@@ -120,6 +130,19 @@ export interface SupportApi {
     caller: AuthState,
     filter?: SupportListFilter,
   ): AsyncResult<readonly SupportSession[]>;
+  /**
+   * Ends every session past its expiry through the store and emits
+   * `support.ended` with `endedBy: "expired"` for each; the SQL store runs
+   * over `postgres.admin`. Returns the sessions it ended.
+   */
+  expire(): AsyncResult<readonly SupportSession[]>;
+  /**
+   * A `GET` or `POST` handler for a cron caller that runs `expire()` and
+   * answers `{ expired }`, the number of sessions it ended.
+   */
+  expireRoute(
+    options: SupportExpireRouteOptions,
+  ): (request: Request) => Promise<Response>;
   /** The support session id in a request's cookie. */
   sessionIdOf(request: Request): string | undefined;
   /** `Set-Cookie` that clears the support cookie. */
@@ -248,7 +271,57 @@ function createSupport(
     }
   };
 
+  const expire = (): AsyncResult<readonly SupportSession[]> =>
+    AsyncResult.from(async () => {
+      if (!options.store.expire) {
+        return err(
+          dbError(
+            "unsupported",
+            `The "${options.store.name}" support session store has no expire()`,
+            { code: "SUPPORT_EXPIRE_UNSUPPORTED" },
+          ),
+        );
+      }
+      let expired: readonly SupportSession[];
+      try {
+        expired = await options.store.expire();
+      } catch (cause) {
+        return err(storeError(cause));
+      }
+      for (const session of expired) {
+        emit("support.ended", {
+          sessionId: session.id,
+          adminId: session.adminId,
+          targetUserId: session.targetUserId,
+          reason: session.reason,
+          endedBy: "expired",
+          ...(session.tenant === undefined
+            ? {}
+            : { organizationId: session.tenant }),
+        });
+      }
+      return ok(expired);
+    });
+
   return {
+    expire,
+    expireRoute: (routeOptions) =>
+      cronRoute(
+        {
+          name: "expire",
+          secret: routeOptions.secret,
+          problem: routeOptions.problem,
+        },
+        async (_request, instance) => {
+          const result = await expire();
+          return result.ok
+            ? Response.json({ expired: result.data.length })
+            : problemResponse(result.error, {
+                instance,
+                format: routeOptions.problem,
+              });
+        },
+      ),
     start(admin, request) {
       return AsyncResult.from(async () => {
         if (admin.kind !== "user")

@@ -34,6 +34,7 @@ export type {
   ActiveSupport,
   SupportApi,
   SupportAuthorizeInput,
+  SupportExpireRouteOptions,
   SupportOptions,
   SupportPolicy,
   SupportSessions,

@@ -688,6 +688,7 @@
       "SupportCallerClaims",
       "SupportCookieOptions",
       "SupportEndedBy",
+      "SupportExpireRouteOptions",
       "SupportListFilter",
       "SupportOptions",
       "SupportPolicy",

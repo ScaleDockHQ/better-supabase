@@ -38,9 +38,9 @@ export const bs = createServer(betterSupabase, {
 don't bundle it. `createNext` takes the same option, and `better-supabase/next`
 exports `supportSessions` too.
 
-The module adds a `support_sessions` table and four functions:
-`start_support_session`, `end_support_session`, `active_support_session` and
-`list_support_sessions`. Starting a session checks
+The module adds a `support_sessions` table and five functions:
+`start_support_session`, `end_support_session`, `active_support_session`,
+`list_support_sessions` and `expire_support_sessions`. Starting a session checks
 `is_platform('support.start')` in the database with the admin's own claims, so
 only admins your [access model](/docs/blocks/access) grants that permission
 can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
@@ -156,6 +156,29 @@ admin page, and `bs.support.revoke(auth, id)` ends a session. Both run as the
 caller: the SQL store lists sessions for staff with `support.read`, and ends
 the caller's own session or, with `support.revoke`, anyone's.
 
+### Ending expired sessions
+
+A session stops working the moment it expires, since every request checks
+`expires_at`. Its row stays open until something ends it, so run
+`bs.support.expire()` on a schedule to close expired sessions and record
+them: the SQL store calls `expire_support_sessions()` over `postgres.admin`,
+which ends each one through `end_support_session(id, 'expired')`, so the
+audit log gets a `support.ended` entry, and `sb.on` receives `support.ended`
+with `endedBy: "expired"` for each. `expireRoute` serves it to a cron caller
+behind a bearer secret and answers `{ "expired": 2 }`:
+
+```ts title="app/api/cron/support/route.ts"
+import "server-only";
+
+import { bs } from "@/lib/supabase/server";
+
+export const GET = bs.support.expireRoute({ secret: process.env.CRON_SECRET });
+```
+
+`expire_support_sessions()` is executable by the service role only. A store
+of your own implements the optional `expire()` method for this; without it,
+`bs.support.expire()` fails with `SUPPORT_EXPIRE_UNSUPPORTED`.
+
 The SQL module refuses a target who holds platform permissions (the platform
 claim in `app_metadata`, or a platform role), because the admin would gain
 that staff member's reach (`allowPlatformTargets` turns this off). Sessions
@@ -168,8 +191,8 @@ as staff. Each request checks again that the admin still holds
 ### Bringing your own store
 
 `SupportSessionStore` (`apiVersion: 1`) is the interface behind
-`sqlSupportStore`. Implement `start`, `get`, `end` and `list` to keep sessions
-somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
+`sqlSupportStore`. Implement `start`, `get`, `end` and `list` (and
+optionally `expire`) to keep sessions somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
 against it (see [conformance](/docs/extending/conformance)).
 
 ## Acting as a user in code

@@ -40,6 +40,22 @@ describe("support-sessions module", () => {
     );
   });
 
+  it("expires sessions past their expiry for the service role only", () => {
+    const sql = support();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."expire_support_sessions"()\nreturns setof jsonb',
+    );
+    expect(sql).toContain(
+      `if "better_supabase"."end_support_session"(expired_id, 'expired') then`,
+    );
+    expect(sql).toContain(
+      'where s."ended_at" is null and s."expires_at" <= now()',
+    );
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;\ngrant execute on function "better_supabase"."expire_support_sessions"() to service_role;',
+    );
+  });
+
   it("calls the app's hooks and its access token hook", () => {
     const sql = support({
       hooks: {
