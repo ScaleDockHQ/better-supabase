@@ -150,4 +150,39 @@ describe("support-sessions next to provider platform roles", () => {
       'select 1 from "public"."user_roles" a where a."user_id" = target',
     );
   });
+
+  it("counts only the roles that match platformRoles.through.where", () => {
+    const files = renderModules(["support-sessions", "invitations"], {
+      modules: {
+        access: { model: "provider" },
+        invitations: {
+          options: {
+            platformRoles: {
+              table: "public.user_roles",
+              user: "user_id",
+              role: "role_id",
+              through: {
+                table: "public.roles",
+                id: "id",
+                column: "name",
+                where: "{row}.scope = 'system'",
+              },
+            },
+          },
+        },
+      },
+      accessProvider: moduleProvider,
+    });
+    const sql = files.find(
+      (file) => file.module === "support-sessions" && file.kind === "schema",
+    )!.contents;
+    expect(sql).toContain(
+      `select 1 from "public"."user_roles" a
+    join "public"."roles" r on r."id"::text = a."role_id"::text
+    where a."user_id" = target and (r.scope = 'system')`,
+    );
+    expect(sql).not.toContain(
+      'select 1 from "public"."user_roles" a where a."user_id" = target',
+    );
+  });
 });

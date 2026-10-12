@@ -666,7 +666,11 @@ checks `is_platform('support.start')` for the caller, ends the caller's
 previous session, writes `support.started` to the audit log and returns the
 session as jsonb. An admin has one active session (a unique index). It refuses
 a target with platform permissions and a writable session unless the options
-below allow them. `end_support_session(session_id)` ends it for its admin
+below allow them. Under the `provider` access model, a target holds platform
+permissions when a row in `invitations.options.platformRoles.table` names them,
+and, with `platformRoles.through.where`, only when that row's role matches the
+condition, so a roles table that also holds tenant roles counts only its
+platform ones. `end_support_session(session_id)` ends it for its admin
 (`ended_by` is `admin`), a caller with `support.revoke` (`revoked`) or the
 service role, which alone passes `ended_by`. `expire_support_sessions()`,
 for the service role only, ends every running session past its expiry with

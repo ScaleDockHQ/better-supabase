@@ -133,8 +133,10 @@ grant select on ${sessions} to authenticated;
 
 /**
  * Whether `target` holds platform permissions: the platform claim in
- * `app_metadata`, or a platform role under the catalog model. Claims your
- * access token hook adds from elsewhere are not seen here.
+ * `app_metadata`, a row in the provider model's platform role table (only
+ * roles that match `platformRoles.through.where`, when it is set), or a
+ * platform role under the catalog model. Claims your access token hook adds
+ * from elsewhere are not seen here.
  */
 function platformTarget(ctx: ModuleContext): string {
   const claim = sqlString(
@@ -147,6 +149,14 @@ function platformTarget(ctx: ModuleContext): string {
   )`;
   const platform = providerPlatformRoles(ctx);
   if (platform) {
+    const through = platform.through;
+    if (through?.where) {
+      return `(${claimed} or exists (
+    select 1 from ${platform.table} a
+    join ${through.table} r on r.${through.id}::text = a.${platform.role}::text
+    where a.${platform.user} = target and (${through.where.replaceAll("{row}", "r")})
+  ))`;
+    }
     return `(${claimed} or exists (
     select 1 from ${platform.table} a where a.${platform.user} = target
   ))`;
