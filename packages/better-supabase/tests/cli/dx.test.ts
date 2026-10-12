@@ -399,9 +399,12 @@ describe("env", () => {
     );
     expect(written).toContain("SUPABASE_SECRET_KEY=sb_secret_test");
     expect(written).toContain("SUPABASE_JWT_SECRET=jwt-secret-test");
+    expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
+    await chmod(join(dir, ".env.local"), 0o644);
     expect(
       (await run(["env", "--from", "status.json", "--cwd", dir])).stdout,
     ).toContain("Unchanged");
+    expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
   });
 
   it("runs supabase status through $SUPABASE_BIN", async () => {

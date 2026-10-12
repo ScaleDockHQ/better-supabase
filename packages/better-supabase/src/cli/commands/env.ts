@@ -161,6 +161,7 @@ export async function runEnv(
     mergeEnv(current, values),
     display(config.root, out),
     `: ${Object.keys(values).join(", ")}`,
+    { mode: 0o600 },
   );
   const lines = [line];
   if (!text(status, "PUBLISHABLE_KEY")) {

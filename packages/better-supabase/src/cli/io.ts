@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
 import type { Prompter } from "./prompts.ts";
@@ -55,13 +55,20 @@ export async function readIfExists(path: string): Promise<string | undefined> {
 export async function writeIfChanged(
   path: string,
   contents: string,
+  options: { readonly mode?: number } = {},
 ): Promise<boolean> {
+  const { mode } = options;
   if (existsSync(path)) {
     const current = await readFile(path, "utf8");
-    if (sameText(current, contents)) return false;
+    if (sameText(current, contents)) {
+      if (mode !== undefined) await chmod(path, mode);
+      return false;
+    }
   }
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, contents);
+  await writeFile(path, contents, mode === undefined ? {} : { mode });
+  // writeFile applies `mode` only when it creates the file, and through the umask.
+  if (mode !== undefined) await chmod(path, mode);
   return true;
 }
 
