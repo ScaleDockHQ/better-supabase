@@ -27,7 +27,11 @@ function described<T>(
 
 const betterSupabase = defineSupabase(schema);
 const bs = createEdge(betterSupabase, {
-  env: { url: PROJECT_URL, publishableKey: "sb_publishable_test" },
+  env: {
+    url: PROJECT_URL,
+    publishableKey: "sb_publishable_test",
+    jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
+  },
 });
 const input = described<{ email: string }>({
   type: "object",
