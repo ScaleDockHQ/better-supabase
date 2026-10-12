@@ -108,6 +108,17 @@ describe("postgresExecutor", () => {
       /^select count\(\*\)::int as count from "public"\."customers"/,
     );
     expect(fake.calls[1]!.values).toEqual(["Acme"]);
+    expect(fake.transactions).toBe(1);
+  });
+
+  it("reads rows without a count outside a transaction", async () => {
+    const fake = fakeSql([[/^select /, rowsOf({ id: "c1", name: "Acme" })]]);
+    await postgresExecutor(fake.sql).execute(select(), context);
+    await postgresExecutor(fake.sql).execute(
+      select({ head: true, count: "exact" }),
+      context,
+    );
+    expect(fake.transactions).toBe(0);
   });
 
   it("counts zero when the count query returns no row, and head selects no rows", async () => {

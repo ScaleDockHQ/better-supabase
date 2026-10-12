@@ -152,10 +152,14 @@ async function executeOn(
   if (plan.never) return ok({ rows: [], count: 0 });
   if (context.signal?.aborted)
     return err(dbError("aborted", "The request was aborted"));
+  // Rows and their count read one snapshot, and chunks commit together.
+  const together =
+    plan.chunks !== undefined ||
+    (plan.rows !== undefined && plan.count !== undefined);
   let result: ExecuteResult;
   try {
     result =
-      plan.chunks && client.transaction
+      together && client.transaction
         ? await client.transaction((scoped) => run(scoped, plan, op))
         : await run(client, plan, op);
   } catch (cause) {
