@@ -246,7 +246,7 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 | Local data | PowerSync, expo-sqlite                                                                                                                                                                                               |
 | AI         | AI SDK, Chat SDK, eve, Workflow SDK, MCP                                                                                                                                                                             |
 | Validation | Zod, Valibot and any Standard Schema                                                                                                                                                                                 |
-| Standards  | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                                                            |
+| Standards  | OpenAPI 3.0 to 3.2, AsyncAPI 3, Arazzo 1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                               |
 | Testing    | Vitest, pgTAP, the Supabase local stack                                                                                                                                                                              |
 
 ## Good to know

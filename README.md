@@ -248,7 +248,7 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 | Local data | PowerSync, expo-sqlite                                                                                                                                                                                               |
 | AI         | AI SDK, Chat SDK, eve, Workflow SDK, MCP                                                                                                                                                                             |
 | Validation | Zod, Valibot and any Standard Schema                                                                                                                                                                                 |
-| Standards  | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                                                            |
+| Standards  | OpenAPI 3.0 to 3.2, AsyncAPI 3, Arazzo 1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                               |
 | Testing    | Vitest, pgTAP, the Supabase local stack                                                                                                                                                                              |
 
 ## Good to know
@@ -272,13 +272,16 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 | `better-supabase/postgres`                                                                                                                 | The same repositories over direct Postgres                                           |
 | `better-supabase/env`                                                                                                                      | Validated Supabase settings                                                          |
 | `better-supabase/list`                                                                                                                     | Search, facets, sorting and pagination from one definition                           |
+| `better-supabase/better-result`                                                                                                            | `withBetterResult`: a `db` whose methods return better-result values                 |
 | `better-supabase/storage`, `/realtime`                                                                                                     | Typed buckets (paths, versions, vector, analytics) and broadcast topics              |
 | `better-supabase/plugins/timestamps`, `/plugins/soft-delete`, `/plugins/tenant`, `/plugins/actor`, `/plugins/validation`, `/plugins/rules` | Timestamps, soft delete, tenant scoping, actor columns, validation and runtime rules |
 | `better-supabase/sql`                                                                                                                      | The SQL modules and read-set compiler behind `better-supabase sql`                   |
 | `better-supabase/lint`                                                                                                                     | Editor rules for unbounded reads and unscoped deletes                                |
 | `better-supabase/cli`                                                                                                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI                  |
 | `better-supabase/testing`                                                                                                                  | `asUser`, `localAuth`, typed seeds and conformance kits                              |
-| `better-supabase/events`, `/openapi`, `/otel`                                                                                              | CloudEvents, OpenAPI 3.1 and OpenTelemetry                                           |
+| `better-supabase/events`, `/otel`                                                                                                          | CloudEvents and OpenTelemetry                                                        |
+| `better-supabase/spec`, `/openapi`, `/asyncapi`, `/arazzo`                                                                                 | One API model rendered as OpenAPI 3.0 to 3.2, AsyncAPI 3 and Arazzo 1 documents      |
+| `better-supabase/overlay`                                                                                                                  | Apply, define and diff OpenAPI Overlay 1.0 to 1.2 documents                          |
 
 ### Frontend and local data
 
@@ -290,6 +293,7 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 | `better-supabase/react/native`                  | OAuth, auth deep links, a protected route hook and `AuthGate` for Expo                         |
 | `better-supabase/query`                         | TanStack Query options with table-based invalidation                                           |
 | `better-supabase/tanstack-db`                   | TanStack DB collections that load through a query and write through the repositories           |
+| `better-supabase/tanstack-db/supabase`          | TanStack DB collections on `@supabase-labs/tanstack-db`, with Realtime and repository writes   |
 | `better-supabase/vue`, `/solid`, `/svelte`      | Live queries, presence, actions and the session for Vue, Solid and Svelte 5                    |
 | `better-supabase/powersync`, `/powersync/react` | The repositories over PowerSync's local SQLite, `useWatch`, `useSyncStatus` and `useConflicts` |
 | `better-supabase/expo-sqlite`                   | The same repositories over a local expo-sqlite database, with live queries                     |

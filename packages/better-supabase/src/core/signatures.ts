@@ -41,9 +41,11 @@ function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
 }
 
 /** Secrets come from configuration, so a handful of keys suffice. */
-const keys = new Map<string, Promise<CryptoKey>>();
+// Typed from `crypto.subtle`, because `CryptoKey` is a value only under @types/node without the DOM lib.
+type ImportedKey = ReturnType<typeof crypto.subtle.importKey>;
+const keys = new Map<string, ImportedKey>();
 
-function keyFor(secret: string): Promise<CryptoKey> {
+function keyFor(secret: string): ImportedKey {
   let key = keys.get(secret);
   if (!key) {
     key = crypto.subtle.importKey(

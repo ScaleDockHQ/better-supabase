@@ -43,7 +43,7 @@ jobs:
           - task: format
             run: pnpm run format:check
           - task: lint
-            run: pnpm exec turbo run lint lint:root --log-file $AFFECTED
+            run: pnpm exec turbo run lint lint:root $AFFECTED --log-file
           - task: prose
             run: pnpm exec turbo run check:prose docs:drift
           - task: knip
@@ -52,9 +52,9 @@ jobs:
             run: pnpm run boundaries
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
-            run: pnpm exec turbo run typecheck typecheck:tooling --concurrency=1 --log-file $AFFECTED
+            run: pnpm exec turbo run typecheck typecheck:tooling --concurrency=1 $AFFECTED --log-file
           - task: test
-            run: pnpm exec turbo run test --concurrency=1 --log-file $AFFECTED
+            run: pnpm exec turbo run test --concurrency=1 $AFFECTED --log-file
           - task: audit
             run: pnpm run audit:high
           - task: typecheck matrix

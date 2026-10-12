@@ -1,6 +1,7 @@
 // Dependency-free HMAC primitives: the workflow world bundle imports these without the webhook code.
 
-export const encoder: TextEncoder = /* @__PURE__ */ new TextEncoder();
+export const encoder: InstanceType<typeof TextEncoder> =
+  /* @__PURE__ */ new TextEncoder();
 
 /** Constant-time string comparison. */
 export function timingSafeEqual(a: string, b: string): boolean {
