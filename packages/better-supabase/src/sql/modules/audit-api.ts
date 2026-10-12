@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, pageSize, userGrant } from "../shared.ts";
+import { SERVICE_CALLER, pageSize, userGrant, raise } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
@@ -281,7 +281,7 @@ begin
   if found_entry is null or not (
     ${allowed("owner")}
   ) then
-    raise exception 'No audit entry %', entry using errcode = 'P0002', hint = 'AUDIT_ENTRY_NOT_FOUND';
+    ${raise("No audit entry %", "P0002", "AUDIT_ENTRY_NOT_FOUND", "entry")}
   end if;
   select jsonb_build_object('entry', entry${fields}) into details
   from ${ctx.table("restricted")} d where d.${r("entry")}::text = entry;

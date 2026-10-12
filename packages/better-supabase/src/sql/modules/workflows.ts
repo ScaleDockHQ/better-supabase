@@ -16,6 +16,7 @@ import {
   pageSize,
   revokeTable,
   lockTable,
+  fail,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -450,7 +451,7 @@ begin
   if not (${SERVICE_CALLER}
     or v_run.${cr("actor")} = (select auth.uid())
     or (v_run.${cr("tenant")} is not null and ${can(`v_run.${cr("tenant")}`, "admin")})) then
-    raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    ${fail("WORKFLOW_FORBIDDEN", "You may not cancel this run")}
   end if;
   if v_run.${cr("status")} in ${TERMINAL} then
     return ${runJson("v_run")};
@@ -516,7 +517,7 @@ declare
   v_row ${s}%rowtype;
 begin
   if not (${SERVICE_CALLER} or (tenant is not null and ${can("tenant", "admin")})) then
-    raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    ${fail("WORKFLOW_FORBIDDEN", "You may not schedule workflows here")}
   end if;
   insert into ${s} as x (${cs("tenant")}, ${cs("name")}, ${cs("workflow")}, ${cs("input")}, ${cs("cron")}, ${cs("timezone")}, ${cs("nextRunAt")}, ${cs("createdBy")})
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))

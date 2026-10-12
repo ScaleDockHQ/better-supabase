@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { SERVICE_CALLER, fail } from "../shared.ts";
 
 export interface PlanLookup {
   readonly table: string;
@@ -28,7 +28,7 @@ export function platformLists(
     then 'left join lateral (select null::jsonb as customer_row) cu on true'
     else 'left join lateral (select to_jsonb(k.*) as customer_row from stripe.customers k where k.id = b.${c("customer").replaceAll("'", "''")}::text) cu on true' end`;
   const guard = `if not (${SERVICE_CALLER} or ${viewAll}) then
-    raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read every tenant's billing")}
   end if;`;
   return `
 drop function if exists ${fn("billing_platform_subscriptions")}();

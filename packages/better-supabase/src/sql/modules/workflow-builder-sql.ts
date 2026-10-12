@@ -1,8 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
-import { SERVICE_CALLER, serviceGrant, tenantIn } from "../shared.ts";
+import { SERVICE_CALLER, serviceGrant, tenantIn, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
@@ -86,7 +85,7 @@ export function builderSql(ctx: ModuleContext): BuilderSql {
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>
-    `raise exception ${sqlString(message)} using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';`;
+    fail("WORKFLOW_FORBIDDEN", message);
   const callable = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
@@ -286,7 +285,7 @@ declare
 begin
   select x.${cd("tenant")} into v_tenant from ${d} x where x.${cd("id")} = definition;
   if not found then
-    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
   if not ${allowed("v_tenant", "edit")} then
     ${forbidden("You may not edit this workflow")}
@@ -304,7 +303,7 @@ begin
     where x.${ct("id")} = trigger and x.${ct("definition")} = definition
     returning * into v_row;
     if not found then
-      raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+      ${fail("WORKFLOW_NOT_FOUND", "No such trigger", "P0002")}
     end if;
     if kind <> 'webhook' then
       delete from ${w} x where x.${cw("trigger")} = trigger;
@@ -361,13 +360,13 @@ begin
   from ${t} x join ${d} y on y.${cd("id")} = x.${ct("definition")}
   where x.${ct("id")} = trigger;
   if not found then
-    raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such trigger", "P0002")}
   end if;
   if not ${allowed("v_tenant", "edit")} then
     ${forbidden("You may not edit this workflow")}
   end if;
   if v_kind <> 'webhook' then
-    raise exception 'Only webhook triggers have tokens' using errcode = '22023', hint = 'WORKFLOW_TRIGGER_KIND';
+    ${fail("WORKFLOW_TRIGGER_KIND", "Only webhook triggers have tokens", "22023")}
   end if;
   delete from ${w} x where x.${cw("trigger")} = trigger;
   insert into ${w} (${cw("tokenHash")}, ${cw("trigger")})
@@ -610,7 +609,7 @@ declare
 begin
   select x.${cd("tenant")} into v_tenant from ${d} x where x.${cd("id")} = definition;
   if not found then
-    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
   if not ${allowed("v_tenant", "admin")} then
     ${forbidden("You may not manage alerts for this workflow")}
@@ -624,7 +623,7 @@ begin
     where x.${ca("id")} = alert and x.${ca("definition")} = definition
     returning * into v_row;
     if not found then
-      raise exception 'No such alert' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+      ${fail("WORKFLOW_NOT_FOUND", "No such alert", "P0002")}
     end if;
   end if;
   return ${alertJson("v_row")};

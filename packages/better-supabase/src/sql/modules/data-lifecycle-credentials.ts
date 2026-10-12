@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { SERVICE_CALLER, fail } from "../shared.ts";
 import { refOutsideTenant } from "./credentials.ts";
 
 /** The columns an export leaves out: `omit` and the credential refs. */
@@ -119,14 +119,14 @@ declare
   v_all jsonb := '[]'::jsonb;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
+    ${fail("ORGANIZATION_DELETION_FORBIDDEN", "Only the service role purges organizations")}
   end if;
   if not exists (
     select 1 from ${d} x
     where x.${cd("tenant")} = organization_credential_refs.tenant and x.${cd("cancelledAt")} is null
       and x.${cd("purgedAt")} is null and x.${cd("purgeAfter")} <= now()
   ) then
-    raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
+    ${fail("ORGANIZATION_DELETION_NOT_DUE", "No due deletion for this organization", "P0002")}
   end if;
   for v_entry in
     select c.name, c.tbl, c.col, c.user_col, t.col as tenant_col

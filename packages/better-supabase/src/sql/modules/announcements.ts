@@ -7,7 +7,13 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, lockTable } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  lockTable,
+  fail,
+  raise,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -202,14 +208,14 @@ declare
   v_count integer;
 begin
   if auth.uid() is null then
-    raise exception 'Sign in first' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "Sign in first")}
   end if;
   select x.${ca("dismissible")} into v_dismissible from ${a} x where x.${ca("id")} = dismiss_announcement.id;
   if v_dismissible is null then
-    raise exception 'No announcement %', dismiss_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
+    ${raise("No announcement %", "P0002", "ANNOUNCEMENT_NOT_FOUND", "dismiss_announcement.id")}
   end if;
   if not v_dismissible then
-    raise exception 'This announcement can''t be dismissed' using errcode = '22023', hint = 'ANNOUNCEMENT_NOT_DISMISSIBLE';
+    ${fail("ANNOUNCEMENT_NOT_DISMISSIBLE", "This announcement can't be dismissed", "22023")}
   end if;
   insert into ${d} (${cd("announcement")}, ${cd("user")}) values (dismiss_announcement.id, auth.uid())
   on conflict do nothing;
@@ -228,7 +234,7 @@ set search_path = ''
 as $$
 begin
   if not ${staff} then
-    raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
   return (
     select coalesce(jsonb_agg(to_jsonb(x) order by x.${ca("startsAt")} desc), '[]'::jsonb)
@@ -249,7 +255,7 @@ declare
   v_row ${a};
 begin
   if not ${staff} then
-    raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
   if save_announcement.id is null then
     v_row := jsonb_populate_record(null::${a}, jsonb_build_object(
@@ -268,7 +274,7 @@ begin
   else
     select * into v_row from ${a} x where x.${ca("id")} = save_announcement.id for update;
     if v_row.${ca("id")} is null then
-      raise exception 'No announcement %', save_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
+      ${raise("No announcement %", "P0002", "ANNOUNCEMENT_NOT_FOUND", "save_announcement.id")}
     end if;
     v_row := jsonb_populate_record(v_row, save_announcement.fields - ${raw("id")} - ${raw("createdBy")} - ${raw("createdAt")});
     v_row.${ca("updatedAt")} := now();
@@ -291,7 +297,7 @@ declare
   v_count integer;
 begin
   if not ${staff} then
-    raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
   delete from ${a} x where x.${ca("id")} = delete_announcement.id;
   get diagnostics v_count = row_count;

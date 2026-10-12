@@ -6,7 +6,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble, lockTable } from "../shared.ts";
+import { schemaPreamble, lockTable, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -70,7 +70,7 @@ function build(ctx: ModuleContext): string {
     ctx.permission("manage", MODULE_PERMISSIONS.flags.manage),
   );
   const denied = `if not ${manage} then
-    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
+    ${fail("FLAGS_FORBIDDEN", "Not allowed to manage feature flags")}
   end if;`;
   const flagEvent = (type: string, key: string): string =>
     ctx.record({
@@ -342,7 +342,7 @@ as $$
 begin
   ${denied}
   if (tenant is null) = (member is null) then
-    raise exception 'Pass a tenant or a member, not both' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';
+    ${fail("FLAGS_OVERRIDE_TARGET", "Pass a tenant or a member, not both", "22023")}
   end if;
   if variant is null then
     delete from ${overrides} v

@@ -12,6 +12,8 @@ import {
   SERVICE_CALLER,
   updatedAt,
   revokeTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
@@ -190,7 +192,7 @@ function checkRole(ctx: ModuleContext, expr: string, tenant: string): string {
       : `${roleValue(ctx, expr, tenant)} is not null`;
   return `
   if not (${known}) then
-    raise exception 'Unknown role %', ${expr} using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
+    ${raise("Unknown role %", "22023", "ORGANIZATION_ROLE_UNKNOWN", expr)}
   end if;`;
 }
 
@@ -323,9 +325,9 @@ const raiseSlug = (
   ctx.has("organizations", "slug")
     ? `
   case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
-    when 'invalid' then raise exception 'Invalid slug "%"', ${value} using errcode = '23514', hint = 'ORGANIZATION_SLUG_INVALID';
-    when 'reserved' then raise exception 'The slug "%" is reserved', ${value} using errcode = '23514', hint = 'ORGANIZATION_SLUG_RESERVED';
-    when 'taken' then raise exception 'The slug "%" is taken', ${value} using errcode = '23505', hint = 'ORGANIZATION_SLUG_TAKEN';
+    when 'invalid' then ${raise(`Invalid slug "%"`, "23514", "ORGANIZATION_SLUG_INVALID", value)}
+    when 'reserved' then ${raise(`The slug "%" is reserved`, "23514", "ORGANIZATION_SLUG_RESERVED", value)}
+    when 'taken' then ${raise(`The slug "%" is taken`, "23505", "ORGANIZATION_SLUG_TAKEN", value)}
     else null;
   end case;`
     : "";
@@ -389,7 +391,7 @@ function create(ctx: ModuleContext, n: OrganizationNames): string {
       ? ""
       : `
   if not service and not better_supabase.is_platform(${sqlString(permission)}) then
-    raise exception 'Not allowed to create an organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to create an organization")}
   end if;`;
   const slug = ctx.has("organizations", "slug")
     ? sqlString(unquoted(ctx.col("organizations", "slug")))
@@ -411,10 +413,10 @@ declare
   organization ${id};${optional.length === 0 ? "" : "\n  extra_columns text;\n  extra_values text;"}
 begin
   if owner is null then
-    raise exception 'An organization needs an owner' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "An organization needs an owner")}
   end if;
   if better_supabase.user_disabled(owner) then
-    raise exception 'The user is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "The user is disabled")}
   end if;${createCheck}${slug ? raiseSlug(ctx, `attrs ->> ${slug}`, "null") : ""}
   ${ctx.hook("before_organization_create", [
     ["jsonb", "attrs"],
@@ -442,7 +444,7 @@ as $$
 #variable_conflict use_variable
 begin
   if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false)${platformOverride(ctx, "updatePlatform")} then
-    raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to update the organization")}
   end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
   ${ctx.hook("before_organization_update", [
     [id, "organization"],
@@ -453,7 +455,7 @@ begin
   from jsonb_populate_record(null::${n.organization}, attrs) r
   where o.${n.id} = organization;
   if not found then
-    raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
+    ${raise("No organization %", "P0002", "ORGANIZATION_NOT_FOUND", "organization")}
   end if;
   ${ctx.hook("after_organization_update", [
     [id, "organization"],
@@ -523,7 +525,7 @@ as $$
 #variable_conflict use_variable
 begin
   if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
-    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
   end if;
   perform ${ctx.of("data-lifecycle").fn("request_organization_deletion")}(organization);
   return true;
@@ -562,7 +564,7 @@ as $$
 #variable_conflict use_variable
 begin
   if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
-    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
   end if;
   ${action}
   if not found then
@@ -653,7 +655,7 @@ begin
   if found and not exists (
       select 1 from ${n.m} m where m.${n.tenant} = old.${n.tenant} and ${isOwner(ctx, n, "m")}${activeMembership(ctx, "m")}
     ) then
-    raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
+    ${fail("ORGANIZATION_OWNER_REQUIRED", "An organization needs an owner", "23514")}
   end if;
   return null;
 end;
@@ -703,11 +705,11 @@ set search_path = ''
 as $$
 begin
   if target_member = auth.uid() then
-    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+    ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
   end if;
   if not better_supabase.can_assign(target_tenant, ${assignableRole(ctx, "target_role")})
     or (previous_tenant is not null and not better_supabase.can_assign(previous_tenant, ${assignableRole(ctx, "previous_role")})) then
-    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+    ${fail("ORGANIZATION_ROLE_CEILING", "That role is above your own")}
   end if;
 end;
 $$;
@@ -750,7 +752,7 @@ function members(ctx: ModuleContext, n: OrganizationNames): string {
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission(action, p[action])}), false))`;
   const active = `
   if not (${activeOrganization(ctx, n, "organization")}) then
-    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
+    ${fail("ORGANIZATION_DISABLED", "The organization is unavailable")}
   end if;`;
   const change = (user: string, kind: string) =>
     ctx.hook("after_member_change", [
@@ -771,7 +773,7 @@ function members(ctx: ModuleContext, n: OrganizationNames): string {
       ? ""
       : `
   if exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner and m.${disabledAt} is not null) then
-    raise exception 'The new owner is suspended' using errcode = '42501', hint = 'ORGANIZATION_MEMBER_SUSPENDED';
+    ${fail("ORGANIZATION_MEMBER_SUSPENDED", "The new owner is suspended")}
   end if;`;
   return `
 -- Errors carry a code in the hint: ORGANIZATION_FORBIDDEN, ORGANIZATION_DISABLED, ORGANIZATION_NOT_MEMBER,
@@ -788,21 +790,21 @@ declare
   previous_assignable text;
 begin
   if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
-    raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to change roles")}
   end if;${active}${checkRole(ctx, "role", "organization")}
   select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
   from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
   -- Checked here whatever sql.modules.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
   if not (${SERVICE_CALLER}) and member = auth.uid() then
-    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+    ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
     or not better_supabase.can_assign(organization, ${assignableRole(ctx, `(${roleValue(ctx, "role", "organization")})`)}) then
-    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+    ${fail("ORGANIZATION_ROLE_CEILING", "That role is above your own")}
   end if;
   update ${n.m} set ${n.role} = ${roleValue(ctx, "role", "organization")}
   where ${n.tenant} = organization and ${n.user} = member;
@@ -823,17 +825,17 @@ declare
   current_role_value text;
 begin
   if member = auth.uid() then
-    raise exception 'Leave the organization instead' using errcode = '22023', hint = 'ORGANIZATION_SELF';
+    ${fail("ORGANIZATION_SELF", "Leave the organization instead", "22023")}
   end if;
   if not ${can("removeMember")}${platformOverride(ctx, "removeMemberPlatform")} then
-    raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to remove members")}
   end if;
   select ${assignableRole(ctx, `m.${n.role}`)} into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
   if not better_supabase.can_assign(organization, current_role_value) then
-    raise exception 'That member''s role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+    ${fail("ORGANIZATION_ROLE_CEILING", "That member's role is above your own")}
   end if;
   delete from ${n.m} where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "removed")}
@@ -854,7 +856,7 @@ declare
 begin
   delete from ${n.m} where ${n.tenant} = organization and ${n.user} = me;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
   ${change("me", "left")}
   ${ctx.record({ type: "organization.member_left", payload: event("organization", "me"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "me::text" } })}
@@ -875,20 +877,20 @@ declare
   me uuid := auth.uid();
 begin
   if not ${can("transferOwnership")} then
-    raise exception 'Not allowed to transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to transfer ownership")}
   end if;
   -- Only an owner hands ownership on, so the permission alone can't make its
   -- holder an owner.
   if not (${SERVICE_CALLER}) and not exists (
     select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")}
   ) then
-    raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Only an owner can transfer ownership")}
   end if;${active}${checkRole(ctx, "former_role", "organization")}
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
-    raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "The new owner must be a member", "P0002")}
   end if;
   if better_supabase.user_disabled(new_owner) then
-    raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "The new owner is disabled")}
   end if;${suspendedOwner}
   -- One statement for both rows, so a statement-level guard on the number of
   -- owners sees the transfer as a whole.
@@ -962,10 +964,10 @@ declare
   me uuid := auth.uid();
 begin
   if me is null or not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me) then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
   if not (${activeOrganization(ctx, n, "organization")}) then
-    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
+    ${fail("ORGANIZATION_DISABLED", "The organization is unavailable")}
   end if;
   ${write}${lastUsed}
   ${ctx.record({ type: "organization.switched", payload: event("organization", "me"), subject: "'organizations/' || organization::text", tenant: "organization", audit: false })}

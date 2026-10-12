@@ -15,6 +15,8 @@ import {
   SERVICE_CALLER,
   tenantIn,
   revokeTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
@@ -337,10 +339,10 @@ declare
   found jsonb;
 begin
   if not (${can("tenant", "read")} or ${viewAll}) then
-    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read billing in this tenant")}
   end if;
   if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids') then
-    raise exception 'Unknown Stripe table %', billing_stripe_rows.source using errcode = '22023', hint = 'BILLING_SOURCE';
+    ${raise("Unknown Stripe table %", "22023", "BILLING_SOURCE", "billing_stripe_rows.source")}
   end if;
   if customer is null or to_regclass('stripe.' || billing_stripe_rows.source) is null then
     return '[]'::jsonb;
@@ -453,7 +455,7 @@ set search_path = ''
 as $$
 begin
   if not (${can("tenant", "read")} or ${viewAll}) then
-    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read billing in this tenant")}
   end if;
   return ${fn("billing_tenant_subscription")}(billing_subscription.tenant);
 end;
@@ -473,7 +475,7 @@ declare
   found jsonb;
 begin
   if not (${SERVICE_CALLER} or ${viewAll}) then
-    raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read every tenant's billing")}
   end if;
   if to_regclass('stripe.subscriptions') is null then
     return '[]'::jsonb;
@@ -514,7 +516,7 @@ declare
   found jsonb;
 begin
   if not (${SERVICE_CALLER} or ${viewAll}) then
-    raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read every tenant's billing")}
   end if;
   if to_regclass('stripe.invoices') is null then
     return '[]'::jsonb;
@@ -545,7 +547,7 @@ set search_path = ''
 as $$
 begin
   if not ${can("tenant", "read")} then
-    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+    ${fail("BILLING_FORBIDDEN", "Not allowed to read billing in this tenant")}
   end if;
   return jsonb_build_object(
     'customer', (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_status.tenant),

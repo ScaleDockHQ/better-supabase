@@ -2,7 +2,7 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, pageSize, lockTable } from "../shared.ts";
+import { schemaPreamble, pageSize, lockTable, fail, raise } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   options: ["defaultSource", "emitRoles", "blockSource", "retention", "settle"],
@@ -258,7 +258,7 @@ declare
   found_id text;
 begin
   if event_type is null or btrim(event_type) = '' then
-    raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
+    ${fail("OUTBOX_TYPE_REQUIRED", "An event needs a type", "22023")}
   end if;${existing}
   insert into ${n.t} (${insert.map(([column]) => column).join(", ")})
   values (${insert.map(([, value]) => value).join(", ")})
@@ -379,7 +379,7 @@ begin
   returning k.* into c;
   if not found then
     if not exists (select 1 from ${n.c} k where k.${n.k("name")} = consumer) then
-      raise exception 'Unknown outbox consumer %', consumer using errcode = 'P0002', hint = 'OUTBOX_UNKNOWN_CONSUMER';
+      ${raise("Unknown outbox consumer %", "P0002", "OUTBOX_UNKNOWN_CONSUMER", "consumer")}
     end if;
     return '[]';
   end if;

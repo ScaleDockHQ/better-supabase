@@ -12,6 +12,7 @@ import {
   SERVICE_CALLER,
   revokeTable,
   lockTable,
+  fail,
 } from "../shared.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
 
@@ -526,13 +527,13 @@ declare
 begin
   select x.${cd("tenant")} into v_tenant from ${d} x where x.${cd("id")} = definition for update;
   if not found then
-    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
   if not ${allowed("v_tenant", "edit")} then
     ${forbidden("You may not edit this workflow")}
   end if;
   if jsonb_typeof(graph) <> 'object' then
-    raise exception 'A graph is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+    ${fail("WORKFLOW_GRAPH_INVALID", "A graph is an object", "22023")}
   end if;
   update ${v} x set ${cv("graph")} = graph, ${cv("compiled")} = null
   where x.${cv("definition")} = definition and x.${cv("status")} = 'draft'
@@ -571,14 +572,14 @@ declare
 begin
   select * into v_row from ${v} x where x.${cv("id")} = version for update;
   if not found then
-    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow version", "P0002")}
   end if;
   select x.${cd("tenant")} into v_tenant from ${d} x where x.${cd("id")} = v_row.${cv("definition")};
   if not ${allowed("v_tenant", "publish")} then
     ${forbidden("You may not publish this workflow")}
   end if;
   if compiled is not null and not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role may store a compiled form' using errcode = '42501', hint = 'WORKFLOW_COMPILED_FORBIDDEN';
+    ${fail("WORKFLOW_COMPILED_FORBIDDEN", "Only the service role may store a compiled form")}
   end if;
   if v_row.${cv("status")} = 'published' then
     if compiled is not null then
@@ -653,14 +654,14 @@ declare
 begin
   select * into v_def from ${d} x where x.${cd("id")} = definition;
   if not found then
-    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
   if not ${allowed(`v_def.${cd("tenant")}`, "run")} then
     ${forbidden("You may not run this workflow")}
   end if;
   select * into v_row from ${v} x where x.${cv("definition")} = definition and x.${cv("status")} = 'published';
   if not found then
-    raise exception 'This workflow has no published version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+    ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow has no published version", "P0002")}
   end if;
   return jsonb_build_object('definition', ${definitionJson("v_def")}, 'version', ${versionJson("v_row", true)});
 end;

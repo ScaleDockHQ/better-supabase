@@ -1,6 +1,6 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
-import { columnsObject, membershipDisabledAt } from "../shared.ts";
+import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 
 /** The keys `list_my_organizations` returns, which no attribute may shadow. */
@@ -107,7 +107,7 @@ set search_path = ''
 as $$
 begin
   if not coalesce(better_supabase.member_can((select auth.uid()), organization, 'members.read'), false) then
-    raise exception 'Not allowed to list members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list members")}
   end if;
   return query
   select m.${n.user}, m.${n.role}::text${disabledValue}
@@ -147,7 +147,7 @@ set search_path = ''
 as $$
 begin
   if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx.of("invitations"), "view", MODULE_PERMISSIONS.invitations.view)}), false) then
-    raise exception 'Not allowed to list invitations' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list invitations")}
   end if;
   return query
   select i.${id}, i.${email}, i.${role}::text${expires === undefined ? "" : `, i.${expires}`}

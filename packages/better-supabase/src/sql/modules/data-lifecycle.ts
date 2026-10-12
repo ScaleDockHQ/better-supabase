@@ -12,6 +12,8 @@ import {
   tenantIn,
   revokeTable,
   lockTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
@@ -293,11 +295,11 @@ declare
   v_row ${e};
 begin
   if auth.uid() is null then
-    raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+    ${fail("DATA_EXPORT_FORBIDDEN", "Sign in to export data")}
   end if;
   if request_data_export.subject = 'organization' then
     if request_data_export.tenant is null or not ${can("request_data_export.tenant", "export")} then
-      raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+      ${fail("DATA_EXPORT_FORBIDDEN", "You may not export this organization's data")}
     end if;
     select * into v_row from ${e} x where x.${ce("tenant")} = request_data_export.tenant and x.${ce("subject")} = 'organization' and x.${ce("status")} in ('pending', 'running');
     if v_row.${ce("id")} is null then
@@ -311,7 +313,7 @@ begin
       ${exportEvent("data_export.requested")}
     end if;
   else
-    raise exception 'subject must be user or organization' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
+    ${fail("DATA_EXPORT_SUBJECT", "subject must be user or organization", "22023")}
   end if;
   return to_jsonb(v_row);
 end;
@@ -354,7 +356,7 @@ declare
   v_row ${e};
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+    ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
   update ${e} x set ${ce("status")} = 'running', ${ce("error")} = null
   where x.${ce("id")} = claim_data_export.id and x.${ce("status")} in ('pending', 'failed')
@@ -386,16 +388,16 @@ declare
   v_after text;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+    ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
   select * into v_row from ${e} x where x.${ce("id")} = data_export_rows.id and x.${ce("status")} = 'running';
   if v_row.${ce("id")} is null then
-    raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
+    ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
   select * into v_table from ${fn("data_lifecycle_tables")}() t
   where t.subject = v_row.${ce("subject")} and t.name = data_export_rows.table_name and t.exported;
   if v_table.tbl is null or to_regclass(v_table.tbl) is null then
-    raise exception 'The export has no table %', data_export_rows.table_name using errcode = '22023', hint = 'DATA_EXPORT_TABLE';
+    ${raise("The export has no table %", "22023", "DATA_EXPORT_TABLE", "data_export_rows.table_name")}
   end if;
   select pg_catalog.format_type(a.atttypid, a.atttypmod) into v_type
   from pg_catalog.pg_attribute a
@@ -424,14 +426,14 @@ declare
   v_row ${e};
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+    ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
   update ${e} x set ${ce("status")} = 'ready', ${ce("files")} = complete_data_export.files,
     ${ce("completedAt")} = now(), ${ce("expiresAt")} = now() + ${sqlString(exportTtl)}::interval
   where x.${ce("id")} = complete_data_export.id and x.${ce("status")} = 'running'
   returning * into v_row;
   if v_row.${ce("id")} is null then
-    raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
+    ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
   ${exportEvent("data_export.completed", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`, true)}
   return to_jsonb(v_row);
@@ -448,7 +450,7 @@ declare
   v_row ${e};
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+    ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
   update ${e} x set ${ce("status")} = 'failed', ${ce("error")} = fail_data_export.error, ${ce("completedAt")} = now()
   where x.${ce("id")} = fail_data_export.id and x.${ce("status")} = 'running'
@@ -474,13 +476,13 @@ declare
   v_disabled boolean;
 begin
   if not (${SERVICE_CALLER}) and not ${can("request_organization_deletion.tenant", "delete")}${platform} then
-    raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
+    ${fail("ORGANIZATION_DELETION_FORBIDDEN", "You may not delete this organization")}
   end if;
   if request_organization_deletion.grace < interval '0' then
-    raise exception 'grace must not be negative' using errcode = '22023', hint = 'ORGANIZATION_DELETION_GRACE';
+    ${fail("ORGANIZATION_DELETION_GRACE", "grace must not be negative", "22023")}
   end if;
   if exists (select 1 from ${d} x where x.${cd("tenant")} = request_organization_deletion.tenant and x.${cd("purgedAt")} is not null) then
-    raise exception 'The organization was already purged' using errcode = 'P0002', hint = 'ORGANIZATION_PURGED';
+    ${fail("ORGANIZATION_PURGED", "The organization was already purged", "P0002")}
   end if;
   ${disableSql}
   insert into ${d} as x (${cd("tenant")}, ${cd("requestedBy")}, ${cd("purgeAfter")}, ${cd("previouslyDisabled")})
@@ -516,7 +518,7 @@ begin
     return null;
   end if;
   if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${owner})${platform} then
-    raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
+    ${fail("ORGANIZATION_DELETION_FORBIDDEN", "You may not cancel this deletion")}
   end if;
   update ${d} x set ${cd("cancelledAt")} = now()
   where x.${cd("tenant")} = v_row.${cd("tenant")}
@@ -578,13 +580,13 @@ declare
   v_pass integer;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
+    ${fail("ORGANIZATION_DELETION_FORBIDDEN", "Only the service role purges organizations")}
   end if;
   select * into v_row from ${d} x
   where x.${cd("tenant")} = purge_organization.tenant and x.${cd("cancelledAt")} is null and x.${cd("purgedAt")} is null
   for update;
   if v_row.${cd("tenant")} is null or v_row.${cd("purgeAfter")} > now() then
-    raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
+    ${fail("ORGANIZATION_DELETION_NOT_DUE", "No due deletion for this organization", "P0002")}
   end if;
   ${ctx.hook("on_organization_purge", [[id, "purge_organization.tenant"]])}
   -- Tables go in reverse order; a table whose rows another table still

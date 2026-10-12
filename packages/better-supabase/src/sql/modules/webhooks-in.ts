@@ -9,6 +9,7 @@ import {
   updatedAt,
   fail,
   revokeTable,
+  raise,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -304,7 +305,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if rotate_secret then
     v_secret := ${newSecret("previous.verify")};
@@ -344,7 +345,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   v_secret := ${newSecret("previous.verify")};
   if v_secret is null then
@@ -390,7 +391,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if name is not null and btrim(name) = '' then
     ${fail("WEBHOOK_IN_NAME_REQUIRED", "An endpoint needs a name", "22023")}

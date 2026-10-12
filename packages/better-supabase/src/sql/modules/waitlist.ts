@@ -14,6 +14,8 @@ import {
   SERVICE_CALLER,
   sha256Hex,
   lockTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import {
   accessModel,
@@ -260,7 +262,7 @@ declare
   v_row ${e};
 begin
   if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
-    raise exception 'Not an email address' using errcode = '22023', hint = 'WAITLIST_EMAIL_INVALID';
+    ${fail("WAITLIST_EMAIL_INVALID", "Not an email address", "22023")}
   end if;
   insert into ${e} as x (${ce("email")}, ${ce("referrer")}, ${ce("metadata")})
   values (v_email, join_waitlist.referrer, coalesce(join_waitlist.metadata, '{}'::jsonb))
@@ -294,7 +296,7 @@ set search_path = ''
 as $$
 begin
   if not ${staff} then
-    raise exception 'You may not manage the waitlist' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   return (
     select coalesce(jsonb_agg(to_jsonb(x) order by x.${ce("position")}), '[]'::jsonb)
@@ -321,7 +323,7 @@ declare
   v_row ${e};
 begin
   if not ${staff} then
-    raise exception 'You may not manage the waitlist' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   update ${e} x set
     ${ce("status")} = case when decide_waitlist_entry.approve then 'approved' else 'rejected' end,
@@ -330,7 +332,7 @@ begin
   where x.${ce("id")} = decide_waitlist_entry.id and x.${ce("status")} in ('waiting', 'approved', 'rejected')
   returning * into v_row;
   if v_row.${ce("id")} is null then
-    raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
+    ${raise("No open waitlist entry %", "P0002", "WAITLIST_NOT_FOUND", "decide_waitlist_entry.id")}
   end if;
   if decide_waitlist_entry.approve then
     ${decided("waitlist.approved")}
@@ -353,18 +355,18 @@ declare
   v_row ${k};
 begin
   if not ${inviter("create_invite_code.tenant")} then
-    raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "You may not create this invite code")}
   end if;
   if length(trim(create_invite_code.code)) < 8 then
-    raise exception 'Invite codes need at least 8 characters' using errcode = '22023', hint = 'WAITLIST_CODE_INVALID';
+    ${fail("WAITLIST_CODE_INVALID", "Invite codes need at least 8 characters", "22023")}
   end if;
   if create_invite_code.role is not null and not (create_invite_code.role = any (${roles})) then
-    raise exception 'An invite code can''t grant role %', create_invite_code.role using errcode = '22023', hint = 'WAITLIST_ROLE_INVALID';
+    ${raise("An invite code can't grant role %", "22023", "WAITLIST_ROLE_INVALID", "create_invite_code.role")}
   end if;
   if create_invite_code.role is not null
     and not ${staff}
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
-    raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
+    ${raise("You may not grant role %", "42501", "WAITLIST_ROLE_FORBIDDEN", "create_invite_code.role")}
   end if;
   insert into ${k} (${ck("hash")}, ${ck("prefix")}, ${ck("maxUses")}, ${ck("expiresAt")}, ${ck("tenant")}, ${ck("role")})
   values (
@@ -379,7 +381,7 @@ begin
   ${codeEvent("invite_code.created", "v_row", "v_row." + ck("tenant"))}
   return ${publicCode("v_row")};
 exception when unique_violation then
-  raise exception 'That invite code exists' using errcode = '23505', hint = 'WAITLIST_CODE_TAKEN';
+  ${fail("WAITLIST_CODE_TAKEN", "That invite code exists", "23505")}
 end;
 $$;
 
@@ -392,7 +394,7 @@ set search_path = ''
 as $$
 begin
   if not ${inviter("list_invite_codes.tenant")} then
-    raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "You may not see these invite codes")}
   end if;
   return (
     select coalesce(jsonb_agg(${publicCode("x")} order by x.${ck("createdAt")} desc), '[]'::jsonb)
@@ -417,7 +419,7 @@ begin
     return false;
   end if;
   if not ${inviter("v_tenant")} then
-    raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "You may not revoke this invite code")}
   end if;
   update ${k} x set ${ck("revokedAt")} = now()
   where x.${ck("id")} = revoke_invite_code.id and x.${ck("revokedAt")} is null
@@ -473,12 +475,12 @@ begin
   where x.${ck("hash")} = ${hash("redeem_for.code")}
   for update;
   if v_code.${ck("id")} is null or not (${usable("v_code")}) then
-    raise exception 'This invite code is not valid' using errcode = '22023', hint = 'WAITLIST_CODE_INVALID';
+    ${fail("WAITLIST_CODE_INVALID", "This invite code is not valid", "22023")}
   end if;
   insert into ${r} (${cr("code")}, ${cr("user")}) values (v_code.${ck("id")}, redeem_for.member)
   on conflict do nothing;
   if not found then
-    raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
+    ${fail("WAITLIST_CODE_USED", "You already used this invite code", "23505")}
   end if;
   update ${k} x set ${ck("uses")} = x.${ck("uses")} + 1 where x.${ck("id")} = v_code.${ck("id")};
   if v_code.${ck("tenant")} is not null then
@@ -506,7 +508,7 @@ set search_path = ''
 as $$
 begin
   if auth.uid() is null then
-    raise exception 'Sign in first' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
+    ${fail("WAITLIST_FORBIDDEN", "Sign in first")}
   end if;
   return ${fn("redeem_for")}(redeem_invite_code.code, auth.uid());
 end;

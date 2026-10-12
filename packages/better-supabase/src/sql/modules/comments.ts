@@ -16,6 +16,7 @@ import {
   tenantIn,
   pageSize,
   revokeTable,
+  fail,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -492,7 +493,7 @@ set search_path = ''
 as $$
 begin
   if tg_op = 'UPDATE' and old.${c("deletedAt")} is not null then
-    raise exception 'This comment was deleted' using errcode = 'P0001', hint = 'COMMENT_DELETED';
+    ${fail("COMMENT_DELETED", "This comment was deleted", "P0001")}
   end if;
   if new.${c("deletedAt")} is not null then
     new.${c("body")} := '';
@@ -510,11 +511,11 @@ begin
     where p.${c("id")} = new.${c("parent")} and p.${c("tenant")} = new.${c("tenant")}
       and p.${c("subjectType")} = new.${c("subjectType")} and p.${c("subjectId")} = new.${c("subjectId")}
   ) then
-    raise exception 'A reply must be on its parent''s subject' using errcode = '23514', hint = 'COMMENT_PARENT_MISMATCH';
+    ${fail("COMMENT_PARENT_MISMATCH", "A reply must be on its parent's subject", "23514")}
   end if;
   if tg_op = 'UPDATE' and (new.${c("body")} is distinct from old.${c("body")} or new.${c("document")} is distinct from old.${c("document")} or new.${c("mentions")} is distinct from old.${c("mentions")}) then
     if old.${c("author")} is distinct from auth.uid() and not (${SERVICE_CALLER}) then
-      raise exception 'Only the author edits a comment' using errcode = '42501', hint = 'COMMENT_NOT_AUTHOR';
+      ${fail("COMMENT_NOT_AUTHOR", "Only the author edits a comment")}
     end if;
     new.${c("editedAt")} := now();
   end if;
@@ -627,7 +628,7 @@ declare
   copied integer;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role copies comments' using errcode = '42501', hint = 'COMMENT_FORBIDDEN';
+    ${fail("COMMENT_FORBIDDEN", "Only the service role copies comments")}
   end if;
   with copies as materialized (
     select y.${c("id")} as old_id, gen_random_uuid() as new_id
@@ -754,7 +755,7 @@ declare
   inserted integer;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role records activity' using errcode = '42501', hint = 'ACTIVITY_FORBIDDEN';
+    ${fail("ACTIVITY_FORBIDDEN", "Only the service role records activity")}
   end if;
   insert into ${activity} (${[a("event"), a("tenant"), a("type"), a("actor"), a("subjectType"), a("subjectId"), a("summary"), a("data"), a("occurredAt")].join(", ")})
   select e ->> 'event_id', (e ->> 'organization_id')::${id}, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,

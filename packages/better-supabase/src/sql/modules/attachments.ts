@@ -14,6 +14,7 @@ import {
   tenantIn,
   revokeTable,
   lockTable,
+  fail,
 } from "../shared.ts";
 import {
   type Subject,
@@ -522,7 +523,7 @@ declare
 begin
   select * into v_row from ${t} a where a.${c("id")} = confirm_attachment.id for update;
   if v_row.${c("id")} is null or (v_row.${c("uploadedBy")} is distinct from auth.uid() and not (${SERVICE_CALLER})) then
-    raise exception 'No pending attachment of yours has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
+    ${fail("ATTACHMENT_NOT_FOUND", "No pending attachment of yours has this id", "P0002")}
   end if;
   if v_row.${c("uploadedAt")} is not null then
     return to_jsonb(v_row);
@@ -530,7 +531,7 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row.${c("bucket")} and o.name = v_row.${c("path")};
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    ${fail("ATTACHMENT_NOT_UPLOADED", "The file was not uploaded yet", "P0002")}
   end if;
   update ${t} a set
     ${c("uploadedAt")} = now(),
@@ -555,10 +556,10 @@ declare
   v_row ${t};
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role records scan results' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
+    ${fail("ATTACHMENT_FORBIDDEN", "Only the service role records scan results")}
   end if;
   if set_attachment_status.status not in ('clean', 'infected', 'failed') then
-    raise exception 'status must be clean, infected or failed' using errcode = '22023', hint = 'ATTACHMENT_STATUS_UNKNOWN';
+    ${fail("ATTACHMENT_STATUS_UNKNOWN", "status must be clean, infected or failed", "22023")}
   end if;
   update ${t} a set
     ${c("status")} = set_attachment_status.status,
@@ -672,10 +673,10 @@ declare
   v_row ${scans};
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role records scan results' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
+    ${fail("ATTACHMENT_FORBIDDEN", "Only the service role records scan results")}
   end if;
   if set_object_scan.status not in ('pending', 'clean', 'infected', 'failed') then
-    raise exception 'status must be pending, clean, infected or failed' using errcode = '22023', hint = 'ATTACHMENT_STATUS_UNKNOWN';
+    ${fail("ATTACHMENT_STATUS_UNKNOWN", "status must be pending, clean, infected or failed", "22023")}
   end if;
   insert into ${scans} as s (${sc("bucket")}, ${sc("path")}, ${sc("status")}, ${sc("detail")}, ${sc("scannedAt")})
   values (set_object_scan.bucket, set_object_scan.path, set_object_scan.status, set_object_scan.detail,

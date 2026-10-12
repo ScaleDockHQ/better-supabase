@@ -1,3 +1,4 @@
+import { fail, raise } from "../shared.ts";
 /** The SCIM storage functions of the sso module, for the SCIM handler. */
 
 export interface ScimSqlNames {
@@ -87,10 +88,10 @@ declare
 begin
   ${serviceOnly("serves SCIM")}
   if v_name is null or length(trim(v_name)) = 0 then
-    raise exception 'userName is required' using errcode = '22023', hint = 'SCIM_INVALID';
+    ${fail("SCIM_INVALID", "userName is required", "22023")}
   end if;
   if jsonb_typeof(v_emails) <> 'array' then
-    raise exception 'emails must be an array' using errcode = '22023', hint = 'SCIM_INVALID';
+    ${fail("SCIM_INVALID", "emails must be an array", "22023")}
   end if;
   v_email := lower(coalesce(
     (select e ->> 'value' from jsonb_array_elements(v_emails) e where (e ->> 'primary')::boolean limit 1),
@@ -106,10 +107,10 @@ begin
   else
     select * into v_row from ${u} x where x.${cu("tenant")} = scim_save_user.tenant and x.${cu("id")} = scim_save_user.id for update;
     if v_row.${cu("id")} is null then
-      raise exception 'No SCIM user has this id' using errcode = 'P0002', hint = 'SCIM_NOT_FOUND';
+      ${fail("SCIM_NOT_FOUND", "No SCIM user has this id", "P0002")}
     end if;
     if scim_save_user.version is not null and scim_save_user.version <> v_row.${cu("version")} then
-      raise exception 'The user changed since version %', scim_save_user.version using errcode = 'P0001', hint = 'SCIM_PRECONDITION';
+      ${raise("The user changed since version %", "P0001", "SCIM_PRECONDITION", "scim_save_user.version")}
     end if;
     update ${u} x set
       ${cu("externalId")} = scim_save_user.data ->> 'externalId',
@@ -214,19 +215,19 @@ declare
 begin
   ${serviceOnly("serves SCIM")}
   if v_name is null or length(trim(v_name)) = 0 then
-    raise exception 'displayName is required' using errcode = '22023', hint = 'SCIM_INVALID';
+    ${fail("SCIM_INVALID", "displayName is required", "22023")}
   end if;
   begin
     select coalesce(array_agg(distinct (w.value)::uuid), '{}') into v_members
     from jsonb_array_elements_text(coalesce(scim_save_group.data -> 'members', '[]'::jsonb)) w;
   exception when invalid_text_representation then
-    raise exception 'members must be SCIM user ids' using errcode = '22023', hint = 'SCIM_INVALID';
+    ${fail("SCIM_INVALID", "members must be SCIM user ids", "22023")}
   end;
   if exists (
     select 1 from unnest(v_members) w(member)
     where not exists (select 1 from ${u} x where x.${cu("tenant")} = scim_save_group.tenant and x.${cu("id")} = w.member)
   ) then
-    raise exception 'members must be SCIM users of the organization' using errcode = '22023', hint = 'SCIM_INVALID';
+    ${fail("SCIM_INVALID", "members must be SCIM users of the organization", "22023")}
   end if;
   if scim_save_group.id is null then
     insert into ${g} (${cg("tenant")}, ${cg("displayName")}, ${cg("externalId")}, ${cg("role")})
@@ -235,10 +236,10 @@ begin
   else
     select * into v_row from ${g} x where x.${cg("tenant")} = scim_save_group.tenant and x.${cg("id")} = scim_save_group.id for update;
     if v_row.${cg("id")} is null then
-      raise exception 'No SCIM group has this id' using errcode = 'P0002', hint = 'SCIM_NOT_FOUND';
+      ${fail("SCIM_NOT_FOUND", "No SCIM group has this id", "P0002")}
     end if;
     if scim_save_group.version is not null and scim_save_group.version <> v_row.${cg("version")} then
-      raise exception 'The group changed since version %', scim_save_group.version using errcode = 'P0001', hint = 'SCIM_PRECONDITION';
+      ${raise("The group changed since version %", "P0001", "SCIM_PRECONDITION", "scim_save_group.version")}
     end if;
     select coalesce(array_agg(sm.${cm("member")}), '{}') into v_before from ${gm} sm where sm.${cm("group")} = v_row.${cg("id")};
     update ${g} x set

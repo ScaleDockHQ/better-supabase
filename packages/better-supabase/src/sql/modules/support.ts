@@ -8,6 +8,8 @@ import {
   revokeTable,
   userGrant,
   serviceGrant,
+  fail,
+  raise,
 } from "../shared.ts";
 import {
   hasPlatformRoles,
@@ -221,43 +223,43 @@ begin
   if service then
     admin := admin_id;
     if admin is null then
-      raise exception 'admin_id is required for the service role' using errcode = '22023', hint = 'SUPPORT_FORBIDDEN';
+      ${fail("SUPPORT_FORBIDDEN", "admin_id is required for the service role", "22023")}
     end if;
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
       or not ${isPlatform}(${ctx.permission("start", MODULE_PERMISSIONS["support-sessions"].start)}) then
-      raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+      ${fail("SUPPORT_FORBIDDEN", "Not allowed to start a support session")}
     end if;
   end if;
   if target = admin then
-    raise exception 'An admin cannot start a support session as themselves' using errcode = '22023', hint = 'SUPPORT_SELF';
+    ${fail("SUPPORT_SELF", "An admin cannot start a support session as themselves", "22023")}
   end if;
   if not exists (select 1 from auth.users u where u.id = target) then
-    raise exception 'No user %', target using errcode = 'P0002', hint = 'SUPPORT_TARGET_MISSING';
+    ${raise("No user %", "P0002", "SUPPORT_TARGET_MISSING", "target")}
   end if;
   if ttl <= interval '0' or ttl > ${maxTtl}::interval then
-    raise exception 'ttl must be between 0 and %', ${maxTtl} using errcode = '22023', hint = 'SUPPORT_TTL';
+    ${raise("ttl must be between 0 and %", "22023", "SUPPORT_TTL", maxTtl)}
   end if;${
     ctx.flag("allowPlatformTargets", false)
       ? ""
       : `
   -- Viewing the app as platform staff would hand the admin that staff's reach.
   if ${platformTarget(ctx)} then
-    raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
+    ${fail("SUPPORT_TARGET_PLATFORM", "A support session cannot target platform staff")}
   end if;`
   }${
     ctx.flag("allowWrites", false)
       ? ""
       : `
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (modules.support-sessions.options.allowWrites)")}
   end if;`
   }${
     requireReason
       ? `
   if coalesce(btrim(reason), '') = '' then
-    raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
+    ${fail("SUPPORT_REASON_REQUIRED", "A reason is required", "22023")}
   end if;`
       : ""
   }
@@ -324,7 +326,7 @@ declare
   ended jsonb;
 begin
   if service and ended_by not in ('admin', 'expired', 'revoked') then
-    raise exception 'ended_by must be admin, expired or revoked' using errcode = '22023';
+    ${raise("ended_by must be admin, expired or revoked", "22023")}
   end if;
   update ${sessions} s set ${c("endedAt")} = now()${
     ctx.has("sessions", "endedBy")
@@ -390,7 +392,7 @@ declare
   expired_id uuid;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role expires support sessions' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+    ${fail("SUPPORT_FORBIDDEN", "Only the service role expires support sessions")}
   end if;
   for expired_id in
     select s.${c("id")} from ${sessions} s
@@ -501,7 +503,7 @@ begin
   ) into base
   from auth.users u where u.id = target;
   if base is null then
-    raise exception 'No user %', target using errcode = 'P0002', hint = 'SUPPORT_TARGET_MISSING';
+    ${raise("No user %", "P0002", "SUPPORT_TARGET_MISSING", "target")}
   end if;
 ${apply}
 end;

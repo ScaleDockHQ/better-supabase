@@ -622,14 +622,18 @@ export function serviceOnly(
     .join("\n");
 }
 
-/** `raise exception` with an errcode and a hint the TypeScript side maps. */
+/**
+ * `raise exception` with an errcode and, when given, a hint the TypeScript side maps.
+ * Sites that put `using` on its own line, raise without an errcode or compute
+ * the hint stay inline: this one-line form would change SQL apps have generated.
+ */
 export const raise = (
   message: string,
   errcode: string,
-  hint: string,
+  hint?: string,
   ...args: readonly string[]
 ): string =>
-  `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}', hint = '${hint}';`;
+  `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}'${hint === undefined ? "" : `, hint = '${hint}'`};`;
 
 /** `raise` for a module function: the hint first, the errcode defaulting to insufficient privilege. */
 export const fail = (

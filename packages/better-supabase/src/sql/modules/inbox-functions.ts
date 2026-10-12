@@ -1,12 +1,12 @@
 import type { InboxSql } from "./inbox-names.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { serviceGrant, pageSize } from "../shared.ts";
+import { serviceGrant, pageSize, fail } from "../shared.ts";
 
 export const forbidden = (what: string): string =>
-  `raise exception '${what}' using errcode = '42501', hint = 'INBOX_FORBIDDEN';`;
+  fail("INBOX_FORBIDDEN", what);
 export const missing = (what: string, hint: string): string =>
-  `raise exception '${what} not found' using errcode = 'P0002', hint = '${hint}';`;
+  fail(hint, `${what} not found`, "P0002");
 
 /** The SQL functions: the writes and the reads with joined rows. */
 export function inboxFunctions(q: InboxSql): string {
@@ -184,7 +184,7 @@ begin
     return found;
   end if;
   if not coalesce(better_supabase.can_user(member, 'tenant', v_tenant, ${q.key("read")}), false) then
-    raise exception 'user cannot read this inbox' using errcode = '22023', hint = 'INBOX_MEMBER_INVALID';
+    ${fail("INBOX_MEMBER_INVALID", "user cannot read this inbox", "22023")}
   end if;
   insert into ${T("members")} (${mb("inbox")}, ${mb("user")}, ${mb("role")}) values (set_inbox_member.inbox, member, role)
   on conflict (${mb("inbox")}, ${mb("user")}) do update set ${mb("role")} = excluded.${mb("role")};
@@ -334,7 +334,7 @@ begin
     end if;
   end if;
   if length(btrim(coalesce(input ->> 'body', ''))) = 0 and coalesce(jsonb_array_length(input -> 'attachments'), 0) = 0 then
-    raise exception 'a message needs a body or an attachment' using errcode = '22023', hint = 'INBOX_MESSAGE_EMPTY';
+    ${fail("INBOX_MESSAGE_EMPTY", "a message needs a body or an attachment", "22023")}
   end if;
   select coalesce(array_agg(distinct x), '{}') into v_mentions
   from jsonb_array_elements_text(coalesce(input -> 'mentions', '[]'::jsonb)) e(raw)
@@ -453,7 +453,7 @@ begin
       v_contact_input := jsonb_build_object('id', input ->> 'contact');
     end if;
     if v_contact_input = '{}'::jsonb then
-      raise exception 'input.contact is required' using errcode = '22023', hint = 'CONTACT_REQUIRED';
+      ${fail("CONTACT_REQUIRED", "input.contact is required", "22023")}
     end if;
   else
     ${forbidden("not allowed to open a conversation in this inbox")}
@@ -609,7 +609,7 @@ begin
     ${forbidden("not allowed to assign this conversation")}
   end if;
   if assignee is not null and not coalesce(better_supabase.can_user(assignee, 'tenant', v_conv.${cv("tenant")}, ${q.key("read")}), false) then
-    raise exception 'the assignee cannot read this inbox' using errcode = '22023', hint = 'INBOX_ASSIGNEE_INVALID';
+    ${fail("INBOX_ASSIGNEE_INVALID", "the assignee cannot read this inbox", "22023")}
   end if;
   v_before := v_conv.${cv("assignee")};
   update ${T("conversations")} set
@@ -658,7 +658,7 @@ begin
     ${forbidden("not allowed to change this conversation")}
   end if;
   if status = 'snoozed' and snoozed_until is null then
-    raise exception 'snoozing needs snoozed_until' using errcode = '22023', hint = 'INBOX_SNOOZE_UNTIL';
+    ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs snoozed_until", "22023")}
   end if;
   v_before := v_conv.${cv("status")};
   update ${T("conversations")} set
@@ -766,7 +766,7 @@ begin
     ${forbidden("not allowed to react to this message")}
   end if;
   if length(emoji) not between 1 and 64 then
-    raise exception 'emoji must be 1 to 64 characters' using errcode = '22023', hint = 'INBOX_REACTION_INVALID';
+    ${fail("INBOX_REACTION_INVALID", "emoji must be 1 to 64 characters", "22023")}
   end if;
   update ${T("messages")} set ${ms("reactions")} = case
     when coalesce(present, true) then
@@ -807,7 +807,7 @@ begin
     ${forbidden("only the author edits a message")}
   end if;
   if v_msg.${ms("deletedAt")} is not null then
-    raise exception 'message is deleted' using errcode = '22023', hint = 'MESSAGE_DELETED';
+    ${fail("MESSAGE_DELETED", "message is deleted", "22023")}
   end if;
   update ${T("messages")} set
     ${ms("body")} = case when coalesce(remove, false) then '' else coalesce(edit_message.body, ${ms("body")}) end,
