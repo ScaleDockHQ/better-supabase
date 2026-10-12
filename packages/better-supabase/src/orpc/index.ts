@@ -92,7 +92,8 @@ export type OrpcMiddleware<
   OrpcRequestContext,
   OrpcContext<M, F, E, C, P>,
   unknown,
-  unknown,
+  // oxlint-disable-next-line typescript/no-explicit-any -- as oRPC's `middleware()` default; `unknown` is rejected by `.use()` on a contract procedure with a typed output
+  any,
   Record<never, never>
 >;
 

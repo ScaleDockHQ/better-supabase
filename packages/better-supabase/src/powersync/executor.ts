@@ -28,6 +28,12 @@ export interface PowerSyncDatabaseLike extends SqliteDatabaseLike {
       signal?: AbortSignal;
     },
   ): () => void;
+  /** The sync status `watch`'s `refresh` reads to skip runs while offline. */
+  readonly currentStatus?: { readonly connected: boolean };
+  /** Status updates; `watch`'s `refresh.onReconnect` listens to them. */
+  registerListener?(listener: {
+    statusChanged?: (status: { readonly connected: boolean }) => void;
+  }): () => void;
 }
 
 export type PowerSyncExecutorOptions = SqliteExecutorOptions;

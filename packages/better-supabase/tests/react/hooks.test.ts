@@ -2748,6 +2748,36 @@ describe("powersync/react", () => {
     expect(handlers.size).toBe(0);
   });
 
+  it("useWatch refreshes on an interval without restarting on rerender", async () => {
+    vi.useFakeTimers();
+    try {
+      const { db } = fakePowerSync();
+      let runs = 0;
+      const query = vi.fn(async () => ok((runs += 1)));
+      const onChange = vi.spyOn(db, "onChange");
+      const view = renderHook(
+        () =>
+          useWatch({
+            db,
+            query,
+            tables: ["t"],
+            refresh: { everyMs: 1000 },
+          }),
+        {},
+        null,
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result.data).toBe(1);
+      view.rerender({});
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(view.result.data).toBe(2);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("useWatch reports errors and pauses when disabled", async () => {
     const { db } = fakePowerSync();
     const query = vi.fn(async () => err(dbError("unexpected", "disk full")));

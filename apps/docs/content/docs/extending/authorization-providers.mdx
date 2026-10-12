@@ -31,6 +31,12 @@ instead, passed as `authorizer` to the server. An authorization package can
 ship both: the provider for the config, and an authorizer for the server
 that answers with the same permission keys.
 
+A package that audits the tables it creates, or the app's tables, calls
+`better_supabase.audit()` like the app does. Each call replaces the table's
+settings, so pass the app's `ignore` and `redact` from `audit_settings(table)`
+instead of calling it with defaults. See the
+[audit log](/docs/blocks/sql#audit-log).
+
 ## What reads it
 
 | Feature                                                                                    | What it takes from the provider                                                   |

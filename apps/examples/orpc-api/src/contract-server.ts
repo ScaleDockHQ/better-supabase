@@ -31,6 +31,23 @@ export const contractRouter = os.router({
     create: os.customers.create.handler(({ context, input }) =>
       bs.unwrap(context.db.customers.create(input, { select })),
     ),
+    archive: os.customers.archive
+      .use(
+        bs.middleware({
+          roles: ["admin"],
+          roleClaim: "user_role",
+          requireTenant: true,
+        }),
+      )
+      .handler(({ context, input }) =>
+        bs.unwrap(
+          context.db.customers.update(
+            input.id,
+            { status: "archived" },
+            { select },
+          ),
+        ),
+      ),
   },
 });
 

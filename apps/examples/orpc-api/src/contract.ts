@@ -44,5 +44,9 @@ export const contract = {
         }),
       )
       .output(customer),
+    archive: oc
+      .meta(openapi({ method: "POST", path: "/customers/{id}/archive" }))
+      .input(v.object({ id }))
+      .output(customer),
   },
 };

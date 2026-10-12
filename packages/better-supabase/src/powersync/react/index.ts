@@ -26,6 +26,11 @@ export interface UseWatchOptions<T> {
   /** Values the query reads; a change restarts the watch. */
   readonly deps?: readonly unknown[];
   readonly throttleMs?: number;
+  /** Reruns for server fallback reads; see `watch`'s `refresh`. */
+  readonly refresh?: {
+    readonly everyMs?: number;
+    readonly onReconnect?: boolean;
+  };
   /** False pauses the watch and keeps the last result. Defaults to true. */
   readonly enabled?: boolean;
 }
@@ -54,6 +59,8 @@ export interface WatchState<T> {
  */
 export function useWatch<T>(options: UseWatchOptions<T>): WatchState<T> {
   const { db, tables, throttleMs } = options;
+  const everyMs = options.refresh?.everyMs;
+  const onReconnect = options.refresh?.onReconnect ?? false;
   const enabled = options.enabled ?? true;
   const key = JSON.stringify([tables, options.deps ?? []]);
   const [state, setState] = useState<{
@@ -73,8 +80,9 @@ export function useWatch<T>(options: UseWatchOptions<T>): WatchState<T> {
         setState({ key, result });
       },
       ...(throttleMs === undefined ? {} : { throttleMs }),
+      refresh: { ...(everyMs === undefined ? {} : { everyMs }), onReconnect },
     });
-  }, [db, key, enabled, throttleMs]);
+  }, [db, key, enabled, throttleMs, everyMs, onReconnect]);
 
   const result = state.result;
   return {

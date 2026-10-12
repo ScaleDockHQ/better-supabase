@@ -19,6 +19,16 @@ export interface WatchOptions<T> {
    * when a run returns what the last one did. Defaults to true.
    */
   readonly structuralSharing?: boolean;
+  /**
+   * Reruns that don't wait for a local change, for reads that run on the
+   * executor's server `fallback`: `everyMs` reruns on an interval (skipped
+   * while PowerSync reports it is offline), and `onReconnect` reruns when
+   * PowerSync connects again. `onReconnect` needs `registerListener()`.
+   */
+  readonly refresh?: {
+    readonly everyMs?: number;
+    readonly onReconnect?: boolean;
+  };
 }
 
 /**
@@ -43,6 +53,12 @@ export function watch<T>(
   if (!db.onChange) {
     throw new TypeError(
       "better-supabase: watch() needs a PowerSync database with onChange()",
+    );
+  }
+  const refresh = options.refresh ?? {};
+  if (refresh.onReconnect && !db.registerListener) {
+    throw new TypeError(
+      "better-supabase: watch() refresh.onReconnect needs a PowerSync database with registerListener()",
     );
   }
   const signal = options.signal;
@@ -84,6 +100,29 @@ export function watch<T>(
         : { throttleMs: options.throttleMs }),
     },
   );
+  const timer =
+    refresh.everyMs === undefined
+      ? undefined
+      : setInterval(() => {
+          if (db.currentStatus?.connected === false) return;
+          void rerun();
+        }, refresh.everyMs);
+  let connected = db.currentStatus?.connected ?? true;
+  const unlisten =
+    refresh.onReconnect && db.registerListener
+      ? db.registerListener({
+          statusChanged: (status) => {
+            const reconnected = status.connected && !connected;
+            connected = status.connected;
+            if (reconnected) void rerun();
+          },
+        })
+      : undefined;
+  const cleanup = (): void => {
+    clearInterval(timer);
+    unlisten?.();
+  };
+  controller.signal.addEventListener("abort", cleanup, { once: true });
   return () => {
     signal?.removeEventListener("abort", stop);
     stop();
