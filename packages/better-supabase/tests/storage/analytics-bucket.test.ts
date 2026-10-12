@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   defineAnalyticsBucket,
-  type StorageClient,
+  type StorageAdminClient,
 } from "../../src/storage/index.ts";
 
 function analyticsApi(names: string[]) {
@@ -21,7 +21,7 @@ function analyticsApi(names: string[]) {
   return {
     analytics,
     catalog,
-    client: { storage: { analytics } } as unknown as StorageClient,
+    client: { storage: { analytics } } as unknown as StorageAdminClient,
   };
 }
 

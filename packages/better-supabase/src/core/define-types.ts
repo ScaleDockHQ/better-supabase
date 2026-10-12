@@ -1,3 +1,4 @@
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 import type { Logger } from "./logger.ts";
@@ -76,6 +77,12 @@ export interface ConnectOptions {
    * call's own `retry` replaces it. Defaults to the client's setting.
    */
   readonly retry?: boolean;
+  /**
+   * Storage that runs as the same caller, as `db.$storage`. Defaults to
+   * the client's `storage`; pass it when connecting an `Executor`, such as
+   * direct Postgres as a user.
+   */
+  readonly storage?: StorageApi;
 }
 
 export interface RpcDefinition {

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RequestContext } from "../core/plugin.ts";
 import type { AccessBucketPolicy, BucketPolicyName } from "../schema/types.ts";
 import type { PathIn, StoragePath } from "./path.ts";
+import type { StorageClient } from "./storage-api.ts";
 import type { TtlPreset } from "./ttl.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
@@ -264,7 +265,10 @@ export interface ActualBucket {
   readonly lifecycle?: unknown;
 }
 
-export type StorageClient = Pick<SupabaseClient, "storage">;
+export type { StorageClient } from "./storage-api.ts";
+
+/** A supabase-js client with the secret key: `apply()` needs the bucket admin API. */
+export type StorageAdminClient = Pick<SupabaseClient, "storage">;
 
 export interface BucketClient<P extends string, Id extends string = string> {
   readonly bucket: Bucket<P, Id>;
@@ -402,7 +406,7 @@ export interface Bucket<P extends string, Id extends string = string> {
    * versioning and the lifecycle policy, which `sql()` can't set. Needs the
    * secret key. Idempotent.
    */
-  apply(client: StorageClient): AsyncResult<AppliedBucket>;
+  apply(client: StorageAdminClient): AsyncResult<AppliedBucket>;
   connect(
     client: StorageClient,
     options?: BucketConnectOptions,

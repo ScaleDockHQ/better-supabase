@@ -80,7 +80,8 @@ session and the `Set-Cookie` header to send.
 | `readOnly`      | `"always"` | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
 
 A read-only session runs each transaction with `begin read only`, so any write
-fails with Postgres error `25006`. In a support session, `ctx.supabase` and
+fails with Postgres error `25006`, which a repository or block call returns as
+`forbidden` (code `25006`) with a hint that the connection is read-only. In a support session, `ctx.supabase` and
 `ctx.db.$client` throw: the Data API would only see the admin's own token, so
 everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
 Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)
@@ -90,32 +91,58 @@ follow, and `ctx.storage` reads Storage as the target (see below).
 
 Storage policies read `auth.uid()` from the request's token, and there is no
 token for the target, so `ctx.supabase.storage` can't serve them. In a
-support session, `ctx.storage` reads Storage as the target instead: each
-call first checks over Postgres, as the target, that the Storage policies on
-`storage.objects` let them see the object, and only then reads it with the
-service client. A path the target can't see is `not_found`, and a listing
-leaves out the entries they can't see:
+support session, `ctx.storage` reads Storage as the target instead. It has
+the file API of `supabase.storage` (a `StorageApi`), so a
+[connected bucket](/docs/platform/storage#client) and the blocks that take
+`storage` work with it unchanged. `ctx.db.$storage` and `ctx.sql.$storage`
+are the same object, and outside a support session `ctx.db.$storage` is the
+caller's `supabase.storage`, so code that connects buckets through the `Db`
+works in both (`documents` is a `defineBucket` definition):
 
 ```ts title="app/files/[...path]/route.ts"
 const ctx = await bs.context(request);
-if (ctx.storage) {
-  const url = await ctx.storage
-    .from("documents")
-    .createSignedUrl(path, 60)
-    .orThrow();
-  return Response.redirect(url);
-}
+const url = await documents
+  .connect(ctx.db.$storage)
+  .signedUrl(path, { ttl: 60 })
+  .orThrow();
+return Response.redirect(url);
 ```
 
-`ctx.storage` has `download(path)`, `createSignedUrl(path, expiresIn)` and
-`list(prefix)`, each returning an `AsyncResult`, and it needs
-`SUPABASE_SECRET_KEY`. `upload` always fails: with `SUPPORT_READ_ONLY` in a
-read-only session, and with `SUPPORT_STORAGE_WRITES` in a writable one, since
-the service client would store the object without the target as its owner.
-Outside a support session `ctx.storage` is `undefined`; use `ctx.supabase.storage`
-there. `supportStorage({ admin, sql, readOnly })` from `better-supabase/server`
-builds the same thing from a service-role storage client and a `SqlClient`
-that runs as the target.
+Each read runs as the target over Postgres, so the policies on
+`storage.objects` decide what they see:
+
+| Methods                                                   | How they run                                                                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `list`, `listV2`                                          | `storage.search` and `storage.search_v2` as the target, the queries Storage runs, so RLS filters each page |
+| `exists`, `info`                                          | A `storage.objects` read as the target; no Storage request                                                 |
+| `download`, `createSignedUrl`, `createSignedUrls`         | A visibility check as the target, then the service client serves the object                                |
+| `getPublicUrl`                                            | Built by the service client without a check, as it is built without a request                              |
+| `upload`, `update`, `remove`, `copy`, `move` and the rest | Refused                                                                                                    |
+
+A path the target can't see answers like a missing object (`not_found`,
+code `NoSuchKey`), and `exists` returns `false`. Paths are normalised the
+way storage-js normalises them before the check, so the checked object and
+the served one are the same.
+
+Writes resolve to a `403` error that a connected bucket maps to `forbidden`:
+`SUPPORT_READ_ONLY` in a read-only session, and `SUPPORT_STORAGE_WRITES` in a
+writable one. They stay refused in a writable session because the service
+client would store the object with no owner, and Storage never sees the
+session's `act` claim, so the write could be neither attributed to the
+target nor audited as the admin's.
+
+A public bucket is served to anyone by URL, but its objects are still rows in
+`storage.objects`. When the bucket has no `select` policy that lets the
+target see them, `download`, the signed URLs, `exists` and the listings
+answer as if the objects were missing, while `getPublicUrl` still returns a
+working URL. Add a `select` policy for the bucket when support sessions
+should read it.
+
+`ctx.storage` needs `SUPABASE_SECRET_KEY`. Outside a support session it is
+`undefined`; use `ctx.supabase.storage` there.
+`supportStorage({ admin, sql, readOnly })` from `better-supabase/server`
+builds the same `StorageApi` from a service-role `supabase.storage` and a
+`SqlClient` that runs as the target.
 
 Starting a second session ends the admin's first one. Admins can't start a
 session for themselves (`SUPPORT_SELF`) or from inside another one

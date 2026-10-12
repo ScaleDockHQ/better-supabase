@@ -2,7 +2,11 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { Db } from "../../src/core/repository-types.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { BetterServer } from "../../src/server/server-types.ts";
+import type {
+  BetterServer,
+  ServerContext,
+} from "../../src/server/server-types.ts";
+import type { StorageApi } from "../../src/storage/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -35,5 +39,16 @@ describe("createServer forContext", () => {
     createServer(defineSupabase(schema), {
       claimsFor: async () => ({ user_role: "admin" }),
     });
+  });
+});
+
+describe("storage on the context", () => {
+  it("types ctx.storage and db.$storage as a StorageApi", () => {
+    type Ctx = ServerContext<Server["M"], Server["F"], Server["E"]>;
+    expectTypeOf<Ctx["storage"]>().toEqualTypeOf<StorageApi | undefined>();
+    expectTypeOf<Ctx["db"]["$storage"]>().toEqualTypeOf<StorageApi>();
+    expectTypeOf<
+      NonNullable<Ctx["sql"]>["$storage"]
+    >().toEqualTypeOf<StorageApi>();
   });
 });

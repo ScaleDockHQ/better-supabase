@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { StorageClient } from "./bucket.ts";
+import type { StorageAdminClient } from "./bucket.ts";
 
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
@@ -19,7 +19,7 @@ export interface AnalyticsBucketClient {
 
 export interface AnalyticsBucket<Id extends string> {
   readonly id: Id;
-  connect(client: StorageClient): AnalyticsBucketClient;
+  connect(client: StorageAdminClient): AnalyticsBucketClient;
 }
 
 /**

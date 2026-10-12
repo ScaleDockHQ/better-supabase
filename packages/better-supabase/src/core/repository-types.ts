@@ -23,6 +23,7 @@ import type {
   UniqueWhere,
   Update,
 } from "../schema/types.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
 import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
@@ -440,6 +441,13 @@ export type RawRpcOptions = Omit<RpcOptions<unknown>, "returns" | "raw"> & {
 export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   /** The underlying client (supabase-js), for anything the repository lacks. */
   readonly $client: C;
+  /**
+   * Storage as the same caller: `connect()`'s `storage` option, or the
+   * client's `storage`. Pass it to `bucket.connect()` and the blocks, so
+   * Storage follows whatever the `Db` runs as. Throws when the connection
+   * has neither, such as a bare `Executor`.
+   */
+  readonly $storage: StorageApi;
   readonly $executor: Executor;
   readonly $context: RequestContext;
   /**

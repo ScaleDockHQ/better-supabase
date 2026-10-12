@@ -5,6 +5,7 @@ import type {
   SchemaMeta,
   TableKey,
 } from "../schema/types.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { Executor } from "./executor.ts";
 import type { Db } from "./repository-types.ts";
@@ -32,6 +33,7 @@ import {
   type EventHandler,
   type EventName,
 } from "./events.ts";
+import { isRecord } from "./guards.ts";
 import {
   orderPlugins,
   type AnyPlugin,
@@ -79,6 +81,33 @@ import {
   providedTemporal,
 } from "./temporal.ts";
 import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
+
+/** What a `Db` was connected to: its client, and the `storage` option. */
+interface DbSource {
+  readonly client: unknown;
+  readonly storage: StorageApi | undefined;
+}
+
+const isStorageApi = (value: unknown): value is StorageApi =>
+  isRecord(value) && typeof value["from"] === "function";
+
+/** A supabase-js client builds a new storage client on each read of `storage`, so it is read once per connection. */
+const clientStorage = new WeakMap<DbSource, StorageApi>();
+
+function storageOf(source: DbSource): StorageApi {
+  if (source.storage) return source.storage;
+  const cached = clientStorage.get(source);
+  if (cached) return cached;
+  const client = source.client;
+  const storage = isRecord(client) ? client["storage"] : undefined;
+  if (isStorageApi(storage)) {
+    clientStorage.set(source, storage);
+    return storage;
+  }
+  throw new TypeError(
+    "better-supabase: db.$storage needs a client with storage, or connect(executor, context, { storage })",
+  );
+}
 
 /**
  * The isomorphic definition of your data layer: schema plus plugins. Holds no
@@ -364,7 +393,14 @@ export class BetterSupabase<
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
       ...(options.retry === undefined ? {} : { retry: options.retry }),
     };
-    return this.#db(client, base, context, this.plugins, recorder, tuning);
+    return this.#db(
+      { client, storage: options.storage },
+      base,
+      context,
+      this.plugins,
+      recorder,
+      tuning,
+    );
   }
 
   /**
@@ -400,7 +436,7 @@ export class BetterSupabase<
   }
 
   #db(
-    client: unknown,
+    source: DbSource,
     base: Executor,
     given: RequestContext,
     plugins: readonly AnyPlugin[],
@@ -433,6 +469,11 @@ export class BetterSupabase<
     // below are the $ methods.
     const db = Object.create(this.#tablePrototype()) as Record<string, unknown>;
     dbStates.set(db, { runner, plugins, repositories: new Map() });
+    const { client } = source;
+    Object.defineProperty(db, "$storage", {
+      get: () => storageOf(source),
+      configurable: true,
+    });
     Object.assign(db, {
       $client: client,
       $executor: executor,
@@ -456,7 +497,7 @@ export class BetterSupabase<
           }),
       $with: (extra: RequestContext) =>
         this.#db(
-          client,
+          source,
           base,
           { ...given, ...extra },
           plugins,
@@ -465,7 +506,7 @@ export class BetterSupabase<
         ),
       $withoutPlugins: (options?: { readonly keep?: readonly string[] }) =>
         this.#db(
-          client,
+          source,
           base,
           given,
           keptPlugins(plugins, options?.keep ?? []),
@@ -533,7 +574,7 @@ export class BetterSupabase<
         const target = (
           batching
             ? this.#db(
-                client,
+                source,
                 batching.executor,
                 given,
                 active,
@@ -542,7 +583,7 @@ export class BetterSupabase<
               )
             : usePlugins
               ? db
-              : this.#db(client, base, given, NO_PLUGINS, recorder, tuning)
+              : this.#db(source, base, given, NO_PLUGINS, recorder, tuning)
         ) as Record<string, unknown>;
         const results = await Promise.all(
           specs.map(async (spec) => {
@@ -601,7 +642,7 @@ export class BetterSupabase<
           },
         );
         if (!called.ok) return called;
-        return this.#decodeReadSet(client, context, set, bound, called.data);
+        return this.#decodeReadSet(source, context, set, bound, called.data);
       });
 
     const throwAs = this.options.throwAs;
@@ -620,7 +661,7 @@ export class BetterSupabase<
    * aggregates come out exactly as from `db.$run`.
    */
   async #decodeReadSet(
-    client: unknown,
+    source: DbSource,
     context: RequestContext,
     set: ReadSet,
     specs: Readonly<Record<string, QuerySpec>>,
@@ -653,7 +694,7 @@ export class BetterSupabase<
     };
     // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
     const decoder = this.#db(
-      client,
+      source,
       stub,
       context,
       NO_PLUGINS,

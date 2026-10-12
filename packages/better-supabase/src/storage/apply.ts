@@ -1,4 +1,4 @@
-import type { StorageClient } from "./bucket.ts";
+import type { StorageAdminClient } from "./bucket.ts";
 
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
@@ -29,7 +29,7 @@ export interface AppliedBucket {
  */
 export function applyBucket(
   settings: BucketSettings,
-  client: StorageClient,
+  client: StorageAdminClient,
 ): AsyncResult<AppliedBucket> {
   const storage = client.storage;
   const fail = (raw: unknown) => err(fromStorageError(raw, settings.id));

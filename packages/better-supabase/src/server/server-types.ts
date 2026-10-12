@@ -12,9 +12,9 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 import type { EventSink } from "../events/index.ts";
 import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { LiteDriver } from "./lite.ts";
 import type { RequestIdOptions } from "./request-ids.ts";
-import type { SupportStorage } from "./support-storage.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
 import {
@@ -199,11 +199,12 @@ export interface ServerContext<
   readonly support?: ActiveSupport;
   /**
    * Set in a support session, where `ctx.supabase` throws: Storage read as
-   * the target. Each download, signed URL or listing is checked against the
-   * Storage policies over Postgres as the target, then served with the
-   * service client; uploads are refused. Needs `SUPABASE_SECRET_KEY`.
+   * the target, with the file API of `supabase.storage`. Listings, `exists`
+   * and `info` run over Postgres as the target; downloads and signed URLs
+   * are checked there, then served with the service client. Writes are
+   * refused. Needs `SUPABASE_SECRET_KEY`.
    */
-  readonly storage?: SupportStorage;
+  readonly storage?: StorageApi;
   /** `options.credentials`, when the server has one. */
   readonly credentials?: CredentialProvider;
   readonly requestId?: string;

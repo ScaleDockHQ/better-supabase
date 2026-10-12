@@ -311,6 +311,15 @@ const thumb = await storage
   .orThrow();
 ```
 
+`connect` takes a supabase-js client, its `storage`, or any other
+`StorageApi`: an object whose `from(bucket)` returns the file methods of
+`supabase.storage.from(bucket)` (`StorageBucketApi`, typed structurally), so
+another implementation can stand in for supabase-js. `db.$storage` is
+Storage as the same caller as the `Db`, so `logos.connect(ctx.db.$storage)`
+also works in a [support session](/docs/auth/impersonation#storage-in-a-support-session). `apply(client)` still
+needs a supabase-js client with the secret key (`StorageAdminClient`), since
+it calls the bucket admin API.
+
 `publicUrl(target)` builds the URL of an object in a public bucket without a
 request. Like `path(target)`, it returns a `Result`: `invalid_input` for a
 path outside the templates and `forbidden` for another tenant's path.

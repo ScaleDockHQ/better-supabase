@@ -62,7 +62,7 @@ export type {
   ReplaceOptions,
   ReplaceResult,
   Reservation,
-  StorageClient,
+  StorageAdminClient,
   StoredObject,
   SweepOptions,
   SweepResult,
@@ -73,6 +73,28 @@ export type {
   UploadOptions,
   UrlOptions,
 } from "./bucket.ts";
+export type {
+  StorageApi,
+  StorageBucketApi,
+  StorageClient,
+  StorageDestinationOptions,
+  StorageDownloadOptions,
+  StorageFailure,
+  StorageFetchParameters,
+  StorageFileOptions,
+  StorageListEntry,
+  StorageListV2Folder,
+  StorageListV2Object,
+  StorageListV2Result,
+  StorageObjectInfo,
+  StorageRemoveEntry,
+  StorageResponse,
+  StorageSearchOptions,
+  StorageSearchV2Options,
+  StorageSignedUrlEntry,
+  StorageTransform,
+  StorageUrlOptions,
+} from "./storage-api.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PathIn, StoragePath } from "./path.ts";
 export type { AccessBucketPolicy, AccessPolicySql } from "../schema/types.ts";

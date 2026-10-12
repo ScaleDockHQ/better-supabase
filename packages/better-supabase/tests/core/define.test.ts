@@ -176,6 +176,45 @@ describe("connect", () => {
   });
 });
 
+describe("$storage", () => {
+  const storageApi = () => ({ from: vi.fn(() => ({}) as never) });
+
+  it("is the connect option, kept by $with and $withoutPlugins", () => {
+    const storage = storageApi();
+    const db = betterSupabase.connect(fake(), {}, { storage });
+    expect(db.$storage).toBe(storage);
+    expect(db.$with({ tenant: "t1" }).$storage).toBe(storage);
+    expect(db.$withoutPlugins().$storage).toBe(storage);
+  });
+
+  it("falls back to the client's storage, read once per connection", () => {
+    const storage = storageApi();
+    const read = vi.fn(() => storage);
+    const client = Object.defineProperty({ from: () => ({}) }, "storage", {
+      get: read,
+    });
+    const db = betterSupabase.connect(client);
+    expect(db.$storage).toBe(storage);
+    expect(db.$storage).toBe(storage);
+    expect(read).toHaveBeenCalledTimes(1);
+    const option = storageApi();
+    expect(
+      betterSupabase.connect(client, {}, { storage: option }).$storage,
+    ).toBe(option);
+  });
+
+  it("throws without a client storage or the option", () => {
+    const db = betterSupabase.connect(fake());
+    expect(() => db.$storage).toThrow(
+      "better-supabase: db.$storage needs a client with storage, or connect(executor, context, { storage })",
+    );
+    expect(
+      () => betterSupabase.connect({ from: () => ({}), storage: {} }).$storage,
+    ).toThrow(TypeError);
+    expect(Object.keys(db)).not.toContain("$storage");
+  });
+});
+
 describe("$run", () => {
   it("rejects a value that is not a spec", async () => {
     expect(

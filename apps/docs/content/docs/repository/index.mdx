@@ -73,6 +73,11 @@ queries, and `retry` does nothing.
 ## Escape hatches
 
 - `db.$client` is the client you passed in.
+- `db.$storage` is Storage as the same caller: the `storage` option of
+  `connect(client, context, { storage })`, or the client's `storage`. Pass it
+  to [`bucket.connect()`](/docs/platform/storage#client) and to blocks that
+  take `storage`, so Storage runs as whoever the `Db` runs as. It throws on a
+  connection with neither, such as a bare executor.
 - `db.$rpc('fn', args, { returns })` calls a typed Postgres function, and can
   validate the result with a Standard Schema. Rows of a table and
   `returns table (...)` records come back in the configured
