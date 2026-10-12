@@ -10,6 +10,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
 import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
+import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -121,6 +122,72 @@ describe("a contract-first router under Hono", () => {
     expect(await denied.json()).toMatchObject({
       code: "FORBIDDEN",
       data: { kind: "forbidden", status: 403 },
+    });
+  });
+});
+
+describe("a permission on one contract procedure", () => {
+  const guarded = {
+    customers: {
+      get: oc
+        .meta(openapi({ method: "GET", path: "/customers/{id}" }))
+        .input(v.object({ id: v.string() }))
+        .output(customer),
+      remove: oc
+        .meta(openapi({ method: "DELETE", path: "/customers/{id}" }))
+        .input(v.object({ id: v.string() }))
+        .output(v.object({ deleted: v.boolean() })),
+    },
+  };
+  const bs = createOrpc(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks as never },
+    authorizer: staticAuthorizer({
+      roles: { authenticated: ["customers.read"] },
+    }),
+  });
+  const os = implement(guarded)
+    .$context<OrpcRequestContext>()
+    .use(bs.middleware());
+  const router = os.router({
+    customers: {
+      get: os.customers.get
+        .use(bs.middleware({ permission: "customers.read" }))
+        .handler(({ input, context }) => ({
+          id: input.id,
+          name: context.auth.kind,
+        })),
+      remove: os.customers.remove
+        .use(bs.middleware({ permission: "customers.delete" }))
+        .handler(() => ({ deleted: true })),
+    },
+  });
+  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+    prefix: "/api",
+  });
+
+  const call = async (method: string) =>
+    handle(
+      new Request("https://app.test/api/customers/c1", {
+        method,
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+        },
+      }),
+    );
+
+  it("runs the procedure when the authorizer allows the permission", async () => {
+    const response = await call("GET");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: "c1", name: "user" });
+  });
+
+  it("refuses the procedure when the authorizer denies it", async () => {
+    const response = await call("DELETE");
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "FORBIDDEN",
+      data: { code: "PERMISSION_DENIED" },
     });
   });
 });

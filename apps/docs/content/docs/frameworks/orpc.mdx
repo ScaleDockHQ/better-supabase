@@ -190,6 +190,41 @@ with a `permission` refuses every caller. See
 [Authorizers](/docs/extending/authorizers) for the contract and
 `defineAuthorizer`.
 
+### Permissions in a contract-first router
+
+`bs.authed()` builds a procedure from scratch, so it doesn't apply to an
+implementer from `implement(contract)`. Guard the router with
+`bs.middleware()`, then add `.use(bs.middleware({ ... }))` to each procedure
+that needs more, with the same guard options:
+
+```ts title="src/server.ts"
+const os = implement(contract)
+  .$context<OrpcRequestContext>()
+  .use(bs.middleware());
+
+const router = os.router({
+  customers: {
+    get: os.customers.get.handler(({ context, input }) =>
+      bs.unwrap(context.db.customers.findById(input.id)),
+    ),
+    remove: os.customers.remove
+      .use(
+        bs.middleware({ requireTenant: true, permission: "customers.delete" }),
+      )
+      .handler(async ({ context, input }) => {
+        await bs.unwrap(context.db.customers.delete(input.id));
+        return { deleted: true };
+      }),
+  },
+});
+```
+
+The nested middleware reuses the request's resolved caller, so the second
+guard verifies no token again. In both styles the `authorizer` passed to
+`createOrpc` decides every `permission`. An authorization package plugs in
+there, as the authorizer, instead of adding a guard of its own in front of
+the procedures.
+
 ## Errors
 
 `bs.unwrap(result)` returns the data, or throws an `ORPCError` when the

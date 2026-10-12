@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { os } from "@orpc/server";
+import { oc } from "@orpc/contract";
+import { implement, os } from "@orpc/server";
 import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
@@ -49,6 +50,23 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState<Claims>>();
         expectTypeOf(context.bs.auth).toEqualTypeOf<AuthState<Claims>>();
         return null;
+      });
+  });
+
+  it("guards one contract procedure that has a typed output", () => {
+    const contract = {
+      remove: oc
+        .input(v.object({ id: v.string() }))
+        .output(v.object({ deleted: v.boolean() })),
+    };
+    const impl = implement(contract)
+      .$context<OrpcRequestContext>()
+      .use(bs.middleware());
+    impl.remove
+      .use(bs.middleware({ permission: "customers.delete" }))
+      .handler(({ context }) => {
+        expectTypeOf(context.auth).toEqualTypeOf<AuthState>();
+        return { deleted: true };
       });
   });
 
