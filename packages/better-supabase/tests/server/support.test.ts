@@ -9,6 +9,8 @@ import type {
   SqlClaims,
 } from "../../src/postgres/pool.ts";
 
+import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { dbTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -28,8 +30,8 @@ const signer = await createTestSigner();
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-function fakePostgres() {
-  const fake = fakeSql();
+function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
+  const fake = fakeSql(rules);
   const claims: SqlClaims[] = [];
   const sessions: (SessionOptions | undefined)[] = [];
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
@@ -40,6 +42,11 @@ function fakePostgres() {
       claims.push(value);
       sessions.push(session);
       return postgresExecutor(fake.sql);
+    },
+    asUser: (value: SqlClaims, session?: SessionOptions) => {
+      claims.push(value);
+      sessions.push(session);
+      return fake.sql;
     },
   } as unknown as BetterPostgres;
   return { postgres, claims, sessions, fake };
@@ -54,7 +61,10 @@ const admin = (claims: Record<string, unknown> = {}): AuthState => ({
   expiresAt: null,
 });
 
-function setup(options: Parameters<typeof createServer>[1] = {}) {
+function setup(
+  options: Parameters<typeof createServer>[1] = {},
+  rules: Parameters<typeof fakeSql>[0] = [],
+) {
   const betterSupabase = defineSupabase(schema);
   const events: BlockEvent[] = [];
   betterSupabase.events.on("block", (event) => events.push(event));
@@ -65,7 +75,7 @@ function setup(options: Parameters<typeof createServer>[1] = {}) {
       organization: "o1",
     },
   });
-  const pg = fakePostgres();
+  const pg = fakePostgres(rules);
   const server = createServer(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -280,6 +290,40 @@ describe("support sessions on the server", () => {
     ).toBe("unauthorized");
   });
 
+  it("runs a block over ctx.db as the target with dbTransport", async () => {
+    const { server, pg } = setup({}, [
+      ["pg_catalog.pg_proc", [{ returns_set: false, returns_void: false }]],
+      [
+        "bs_call",
+        () => ({
+          throws: pgError("42501", "Not a member", {
+            hint: "ORGANIZATION_FORBIDDEN",
+          }),
+        }),
+      ],
+    ]);
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    const ctx = await server.context(
+      await request(`bs-support=${started.session.id}`),
+    );
+    expect(() => ctx.db.$client).toThrow(/support session/);
+    const organizations = createOrganizations({
+      transport: dbTransport(ctx.db, { schema: "api" }),
+    });
+    expect(await organizations.leave("o1")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", hint: "ORGANIZATION_FORBIDDEN" },
+    });
+    expect(pg.claims[0]).toMatchObject({
+      sub: TARGET,
+      act: { kind: "support", session_id: started.session.id },
+    });
+    expect(pg.sessions[0]).toMatchObject({ readOnly: true });
+    expect(pg.fake.texts().at(-1)).toContain('"api"."leave_organization"(');
+  });
+
   it("allows writes only when the policy and the start agree", async () => {
     const { server, pg } = setup({
       support: supportSessions({
@@ -421,5 +465,130 @@ describe("support sessions on the server", () => {
     const ctx = await server.context(await request("bs-support=x"));
     expect(ctx.support).toBeUndefined();
     expect(ctx.auth).toMatchObject({ user: { id: ADMIN } });
+  });
+
+  it("expires sessions past their expiry and reports each as ended", async () => {
+    const { server, store, events } = setup();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    expect(await server.support.expire().orThrow()).toEqual([]);
+    store.sessions.set(started.session.id, {
+      ...started.session,
+      expiresAt: Temporal.Now.instant().subtract({ seconds: 1 }),
+    });
+    const expired = await server.support.expire().orThrow();
+    expect(expired.map((session) => session.endedBy)).toEqual(["expired"]);
+    expect(events.at(-1)).toMatchObject({
+      type: "support.ended",
+      actorId: ADMIN,
+      subject: `support_sessions/${started.session.id}`,
+      data: {
+        sessionId: started.session.id,
+        adminId: ADMIN,
+        targetUserId: TARGET,
+        reason: "ticket 9",
+        endedBy: "expired",
+      },
+    });
+  });
+
+  it("serves expire as a cron route behind its secret", async () => {
+    const { server, store } = setup();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+    store.sessions.set(started.session.id, {
+      ...started.session,
+      expiresAt: Temporal.Now.instant().subtract({ seconds: 1 }),
+    });
+    expect(() => server.support.expireRoute({ secret: undefined })).toThrow(
+      /expireRoute needs a secret/,
+    );
+    const route = server.support.expireRoute({ secret: "s3cret" });
+    const url = "https://app.test/api/cron/support";
+    expect((await route(new Request(url))).status).toBe(401);
+    const response = await route(
+      new Request(url, { headers: { authorization: "Bearer s3cret" } }),
+    );
+    expect(await response.json()).toEqual({ expired: 1 });
+  });
+
+  it("fails expire for a store without it, and when the store fails", async () => {
+    const withoutExpire = memorySupportStore();
+    delete (withoutExpire as { expire?: unknown }).expire;
+    const { server } = setup({
+      support: supportSessions({ store: withoutExpire }),
+    });
+    expect((await server.support.expire()).error).toMatchObject({
+      kind: "unsupported",
+      code: "SUPPORT_EXPIRE_UNSUPPORTED",
+    });
+    const route = server.support.expireRoute({ secret: "s" });
+    const response = await route(
+      new Request("https://app.test/cron", {
+        method: "POST",
+        headers: { authorization: "Bearer s" },
+      }),
+    );
+    expect(response.status).toBe(501);
+    const failing = setup({
+      support: supportSessions({
+        store: {
+          ...memorySupportStore(),
+          expire: () => Promise.reject(pgError("57014", "timeout")),
+        },
+      }),
+    });
+    expect((await failing.server.support.expire()).error?.kind).toBe("timeout");
+  });
+
+  it("fails expire without support options", async () => {
+    const server = createServer(defineSupabase(schema), { env });
+    expect((await server.support.expire()).ok).toBe(false);
+    const response = await server.support.expireRoute({ secret: "s" })(
+      new Request("https://app.test/cron"),
+    );
+    expect(response.status).toBe(500);
+  });
+
+  it("passes the definition's temporal on to the store", () => {
+    const store = memorySupportStore();
+    const withTemporal = vi.fn(() => store);
+    createServer(defineSupabase(schema, { temporal: Temporal }), {
+      env,
+      postgres: fakePostgres().postgres,
+      support: supportSessions({ store: { ...store, withTemporal } }),
+    });
+    expect(withTemporal).toHaveBeenCalledWith(Temporal);
+  });
+
+  it("reads Storage as the target in a support session", async () => {
+    const { server, pg } = setup(
+      { env: { ...env, secretKey: "sb_secret_test" } },
+      [["as visible", [{ visible: false }]]],
+    );
+    const normal = await server.context(await request());
+    expect(normal.storage).toBeUndefined();
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    const ctx = await server.context(
+      await request(`bs-support=${started.session.id}`),
+    );
+    const docs = ctx.storage!.from("docs");
+    expect(ctx.storage).toBe(ctx.storage);
+    expect((await docs.download("o1/a.pdf")).error).toMatchObject({
+      kind: "not_found",
+    });
+    expect((await docs.upload("o1/a.pdf", "x")).error?.code).toBe(
+      "SUPPORT_READ_ONLY",
+    );
+    expect(pg.claims.at(-1)).toMatchObject({
+      sub: TARGET,
+      act: { kind: "support", session_id: started.session.id },
+    });
+    expect(pg.sessions.at(-1)).toMatchObject({ readOnly: true });
+    expect(pg.fake.calls.at(-1)?.values).toEqual(["docs", "o1/a.pdf"]);
   });
 });

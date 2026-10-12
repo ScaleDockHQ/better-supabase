@@ -133,8 +133,10 @@ grant select on ${sessions} to authenticated;
 
 /**
  * Whether `target` holds platform permissions: the platform claim in
- * `app_metadata`, or a platform role under the catalog model. Claims your
- * access token hook adds from elsewhere are not seen here.
+ * `app_metadata`, a row in the provider model's platform role table (only
+ * roles that match `platformRoles.through.where`, when it is set), or a
+ * platform role under the catalog model. Claims your access token hook adds
+ * from elsewhere are not seen here.
  */
 function platformTarget(ctx: ModuleContext): string {
   const claim = sqlString(
@@ -147,6 +149,14 @@ function platformTarget(ctx: ModuleContext): string {
   )`;
   const platform = providerPlatformRoles(ctx);
   if (platform) {
+    const through = platform.through;
+    if (through?.where) {
+      return `(${claimed} or exists (
+    select 1 from ${platform.table} a
+    join ${through.table} r on r.${through.id}::text = a.${platform.role}::text
+    where a.${platform.user} = target and (${through.where.replaceAll("{row}", "r")})
+  ))`;
+    }
     return `(${claimed} or exists (
     select 1 from ${platform.table} a where a.${platform.user} = target
   ))`;
@@ -273,6 +283,9 @@ begin
       metadata:
         "jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only)",
       actor: "admin",
+      supportSession: "session_id",
+      impersonatedBy: "admin",
+      impersonationReason: "reason",
     },
   })}
   return started;
@@ -341,9 +354,48 @@ begin
         "jsonb_build_object('session_id', session_id, 'ended_by', ended_by)",
       actor:
         "case when service then (ended ->> 'admin_id')::uuid else auth.uid() end",
+      supportSession: "session_id",
+      impersonatedBy: "(ended ->> 'admin_id')::uuid",
+      impersonationReason: "ended ->> 'reason'",
     },
   })}
   return true;
+end;
+$$;`;
+}
+
+/**
+ * `expire_support_sessions()`: ends every running session past its expiry
+ * through `end_support_session(id, 'expired')`, so each one records
+ * `support.ended`, and returns the sessions it ended. Service role only.
+ */
+function expire(ctx: ModuleContext): string {
+  const sessions = ctx.table("sessions");
+  const c = (logical: string) => ctx.col("sessions", logical);
+  return `-- Ends the sessions past their expiry, each with ended_by 'expired', and
+-- returns them. Run it from a cron job as the service role.
+create or replace function ${ctx.fn("expire_support_sessions")}()
+returns setof jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  expired_id uuid;
+begin
+  if not (${SERVICE_CALLER}) then
+    raise exception 'Only the service role expires support sessions' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  for expired_id in
+    select s.${c("id")} from ${sessions} s
+    where s.${c("endedAt")} is null and s.${c("expiresAt")} <= now()
+    order by s.${c("expiresAt")}
+    for update skip locked
+  loop
+    if ${ctx.fn("end_support_session")}(expired_id, 'expired') then
+      return next (select ${sessionJson(ctx, "s")} from ${sessions} s where s.${c("id")} = expired_id);
+    end if;
+  end loop;
 end;
 $$;`;
 }
@@ -458,14 +510,21 @@ function grants(ctx: ModuleContext): string {
     `${ctx.fn("active_support_session")}(uuid, uuid)`,
     `${ctx.fn("list_support_sessions")}(uuid, uuid, boolean, integer)`,
   ];
-  const claimsFn = `${ctx.fn("support_target_claims")}(uuid)`;
+  const serviceOnly = [
+    `${ctx.fn("support_target_claims")}(uuid)`,
+    `${ctx.fn("expire_support_sessions")}()`,
+  ];
   return [
     ...shared.map(
       (fn) => `revoke execute on function ${fn} from public, anon;
 grant execute on function ${fn} to authenticated, service_role;`,
     ),
-    `revoke execute on function ${claimsFn} from public, anon, authenticated;
-grant execute on function ${claimsFn} to service_role;`,
+    ...serviceOnly.map(
+      (
+        fn,
+      ) => `revoke execute on function ${fn} from public, anon, authenticated;
+grant execute on function ${fn} to service_role;`,
+    ),
   ].join("\n");
 }
 
@@ -484,6 +543,7 @@ function build(ctx: ModuleContext): string {
     `${SCHEMA}${table(ctx)}`,
     start(ctx),
     end(ctx),
+    expire(ctx),
     reads(ctx),
     claims(ctx),
     grants(ctx),
@@ -519,6 +579,7 @@ export const SUPPORT_SESSIONS: ModuleDefinition = {
       returns: "jsonb",
     },
     { name: "support_target_claims", args: ["uuid"], returns: "jsonb" },
+    { name: "expire_support_sessions", args: [], returns: "jsonb" },
   ],
   build,
 };

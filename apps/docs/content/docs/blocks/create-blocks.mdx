@@ -43,17 +43,58 @@ factory, typed from what the factory returns, plus `close()`.
 
 ## Options
 
-| Option               | What it does                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| `transport`          | Calls as the caller: `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)`                |
-| `service`            | Calls as the service role, for the blocks with service-only calls                            |
-| `schema`             | The module schema, or the API schema the wrappers live in                                    |
-| `mappers`            | Error mappers that run before each block's built-in ones                                     |
-| `temporal`           | The Temporal namespace for runtimes without a global one                                     |
-| `credentials`        | A `CredentialProvider` for connectors, ai-providers and the workflow builder                 |
-| `events`             | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)     |
-| `audit`              | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`    |
-| `aiTaskNotification` | The notification type ai-tasks sends through the `notifications` block for each finished run |
+| Option               | What it does                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `transport`          | Calls as the caller: `dbTransport(ctx.db)`, `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)` |
+| `service`            | Calls as the service role, for the blocks with service-only calls                                    |
+| `schema`             | The module schema, or the API schema the wrappers live in                                            |
+| `mappers`            | Error mappers that run before each block's built-in ones                                             |
+| `temporal`           | The Temporal namespace for runtimes without a global one                                             |
+| `credentials`        | A `CredentialProvider` for connectors, ai-providers and the workflow builder                         |
+| `events`             | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)             |
+| `audit`              | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
+| `aiTaskNotification` | The notification type ai-tasks sends through the `notifications` block for each finished run         |
+
+## Transports
+
+A transport decides how a block's functions are called and as whom. All
+three reject with the raw database error, so a block maps the same codes and
+hints whichever one you pick.
+
+| Transport                            | Calls through                                    | Use it when                                                      |
+| ------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `dbTransport(db, { schema })`        | the executor of a `Db` (`db.$executor`)          | the blocks should run wherever `ctx.db` runs                     |
+| `rpcTransport(supabase, { schema })` | a supabase-js client over the Data API           | you hold a supabase-js client, such as in the browser            |
+| `sqlTransport(client)`               | a `SqlClient`, such as `postgres.asUser(claims)` | you call over Postgres as a fixed role, such as `postgres.admin` |
+
+`dbTransport` follows the `Db` it gets. `ctx.db` runs over the Data API in a
+normal request, and over direct Postgres as the target user in a
+[support session](/docs/auth/impersonation) or for an API key, so blocks
+built on `dbTransport(ctx.db)` need no second code path for those requests:
+
+```ts title="src/lib/blocks.ts"
+import {
+  type DbTransportSource,
+  createBlocks,
+  dbTransport,
+} from "better-supabase/blocks";
+import { createOrganizations } from "better-supabase/blocks/organizations";
+
+export function blocksFor(db: DbTransportSource) {
+  return createBlocks(
+    { transport: dbTransport(db, { schema: "api" }), schema: "api" },
+    { organizations: createOrganizations },
+  );
+}
+
+const { organizations } = blocksFor(ctx.db);
+```
+
+`schema` sends every call to that schema instead of the module schema. Over
+the Data API it has to be an exposed schema, such as the API schema that
+`sql.modules.<module>.api` writes wrappers into; over Postgres the same
+wrappers work, so pass one schema for both. The executor needs `rpc()`:
+the built-in PostgREST and Postgres executors have it.
 
 ## Siblings
 

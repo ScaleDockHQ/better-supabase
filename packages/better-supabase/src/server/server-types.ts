@@ -14,6 +14,7 @@ import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { LiteDriver } from "./lite.ts";
 import type { RequestIdOptions } from "./request-ids.ts";
+import type { SupportStorage } from "./support-storage.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
 import {
@@ -196,6 +197,13 @@ export interface ServerContext<
    * `sql` are the target's, and `resolution` stays the admin's.
    */
   readonly support?: ActiveSupport;
+  /**
+   * Set in a support session, where `ctx.supabase` throws: Storage read as
+   * the target. Each download, signed URL or listing is checked against the
+   * Storage policies over Postgres as the target, then served with the
+   * service client; uploads are refused. Needs `SUPABASE_SECRET_KEY`.
+   */
+  readonly storage?: SupportStorage;
   /** `options.credentials`, when the server has one. */
   readonly credentials?: CredentialProvider;
   readonly requestId?: string;

@@ -178,4 +178,63 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     );
     expect(ended?.ended_by).toBe("admin");
   });
+
+  it("records the session in the impersonation columns and expires it", async () => {
+    const session = await store.start({
+      adminId: ADMIN,
+      adminClaims,
+      targetUserId: MEMBER,
+      reason: "ticket 4",
+      ttlSeconds: 600,
+      readOnly: true,
+      metadata: {},
+    });
+    const columns = (type: string) =>
+      postgres.admin.queryRaw<{
+        actor_id: string;
+        support_session_id: string;
+        impersonated_by: string;
+        impersonation_reason: string;
+      }>(
+        `select actor_id::text, support_session_id::text, impersonated_by::text, impersonation_reason
+         from better_supabase.audit_events
+         where event_type = $1 and metadata ->> 'session_id' = $2`,
+        [type, session.id],
+      );
+    expect(await columns("support.started")).toEqual([
+      {
+        actor_id: ADMIN,
+        support_session_id: session.id,
+        impersonated_by: ADMIN,
+        impersonation_reason: "ticket 4",
+      },
+    ]);
+    expect(
+      (await store.expire!()).every((ended) => ended.id !== session.id),
+    ).toBe(true);
+    await postgres.admin.queryRaw(
+      `update better_supabase.support_sessions
+       set started_at = now() - interval '2 minutes', expires_at = now() - interval '1 minute'
+       where id = $1`,
+      [session.id],
+    );
+    const expired = await store.expire!();
+    expect(expired.find((ended) => ended.id === session.id)).toMatchObject({
+      endedBy: "expired",
+    });
+    expect(await store.get(session.id, ADMIN)).toBeUndefined();
+    expect(await columns("support.ended")).toEqual([
+      {
+        actor_id: ADMIN,
+        support_session_id: session.id,
+        impersonated_by: ADMIN,
+        impersonation_reason: "ticket 4",
+      },
+    ]);
+    await expect(
+      postgres
+        .asUser(adminClaims)
+        .queryRaw("select better_supabase.expire_support_sessions()"),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
 });

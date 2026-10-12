@@ -1,4 +1,8 @@
-export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
 export {
   extendBlock,
   withBlockHooks,

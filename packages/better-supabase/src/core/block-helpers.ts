@@ -6,6 +6,7 @@ import { rawError } from "./block-transport.ts";
 import {
   type DbError,
   dbError,
+  dbErrorOf,
   type ErrorMapper,
   mapDbError,
 } from "./errors.ts";
@@ -52,11 +53,16 @@ export type BlockCall = <T>(
   then: (value: unknown) => T | Promise<T>,
 ) => AsyncResult<T>;
 
-/** A thrown error as a `DbError`: a database error goes through the app's mappers first. */
+/**
+ * A thrown error as a `DbError`: a database error goes through the app's
+ * mappers first, and a `DbError` a transport already built stays as it is.
+ */
 export function toBlockError(
   cause: unknown,
   mappers: readonly ErrorMapper[] = [],
 ): DbError {
+  const known = dbErrorOf(cause);
+  if (known) return known;
   const raw = rawError(cause);
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }

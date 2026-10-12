@@ -35,12 +35,14 @@ export const bs = createServer(betterSupabase, {
 ```
 
 `supportSessions` lives in its own function so apps without support mode
-don't bundle it. `createNext` takes the same option, and `better-supabase/next`
+don't bundle it. The store reads its time values with the `temporal` you pass
+to `defineSupabase`; `sqlSupportStore(postgres, { temporal })` takes its own
+instead. `createNext` takes the same option, and `better-supabase/next`
 exports `supportSessions` too.
 
-The module adds a `support_sessions` table and four functions:
-`start_support_session`, `end_support_session`, `active_support_session` and
-`list_support_sessions`. Starting a session checks
+The module adds a `support_sessions` table and five functions:
+`start_support_session`, `end_support_session`, `active_support_session`,
+`list_support_sessions` and `expire_support_sessions`. Starting a session checks
 `is_platform('support.start')` in the database with the admin's own claims, so
 only admins your [access model](/docs/blocks/access) grants that permission
 can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
@@ -81,6 +83,39 @@ A read-only session runs each transaction with `begin read only`, so any write
 fails with Postgres error `25006`. In a support session, `ctx.supabase` and
 `ctx.db.$client` throw: the Data API would only see the admin's own token, so
 everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
+Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)
+follow, and `ctx.storage` reads Storage as the target (see below).
+
+### Storage in a support session
+
+Storage policies read `auth.uid()` from the request's token, and there is no
+token for the target, so `ctx.supabase.storage` can't serve them. In a
+support session, `ctx.storage` reads Storage as the target instead: each
+call first checks over Postgres, as the target, that the Storage policies on
+`storage.objects` let them see the object, and only then reads it with the
+service client. A path the target can't see is `not_found`, and a listing
+leaves out the entries they can't see:
+
+```ts title="app/files/[...path]/route.ts"
+const ctx = await bs.context(request);
+if (ctx.storage) {
+  const url = await ctx.storage
+    .from("documents")
+    .createSignedUrl(path, 60)
+    .orThrow();
+  return Response.redirect(url);
+}
+```
+
+`ctx.storage` has `download(path)`, `createSignedUrl(path, expiresIn)` and
+`list(prefix)`, each returning an `AsyncResult`, and it needs
+`SUPABASE_SECRET_KEY`. `upload` always fails: with `SUPPORT_READ_ONLY` in a
+read-only session, and with `SUPPORT_STORAGE_WRITES` in a writable one, since
+the service client would store the object without the target as its owner.
+Outside a support session `ctx.storage` is `undefined`; use `ctx.supabase.storage`
+there. `supportStorage({ admin, sql, readOnly })` from `better-supabase/server`
+builds the same thing from a service-role storage client and a `SqlClient`
+that runs as the target.
 
 Starting a second session ends the admin's first one. Admins can't start a
 session for themselves (`SUPPORT_SELF`) or from inside another one
@@ -145,14 +180,39 @@ On the server, `supportOf(session)` returns the same value.
 `sb.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
 `expired` or `revoked`) and `support.denied` (with the denial code).
 The SQL module writes `support.started` and `support.ended` to the
-[audit log](/docs/blocks/sql#audit-log), and every row the admin changes in a
-writable session records `impersonated_by` and `support_session_id`, so you
-can list everything one session did.
+[audit log](/docs/blocks/sql#audit-log) with `support_session_id`,
+`impersonated_by` and `impersonation_reason` set, and every row the admin
+changes in a writable session records the same columns, so you can list
+everything one session did, from its start to its end. A session that
+another staff member revokes keeps the session id in the entry's metadata.
 
 `bs.support.list(auth, { active: true })` lists running sessions for an
 admin page, and `bs.support.revoke(auth, id)` ends a session. Both run as the
 caller: the SQL store lists sessions for staff with `support.read`, and ends
 the caller's own session or, with `support.revoke`, anyone's.
+
+### Ending expired sessions
+
+A session stops working the moment it expires, since every request checks
+`expires_at`. Its row stays open until something ends it, so run
+`bs.support.expire()` on a schedule to close expired sessions and record
+them: the SQL store calls `expire_support_sessions()` over `postgres.admin`,
+which ends each one through `end_support_session(id, 'expired')`, so the
+audit log gets a `support.ended` entry, and `sb.on` receives `support.ended`
+with `endedBy: "expired"` for each. `expireRoute` serves it to a cron caller
+behind a bearer secret and answers `{ "expired": 2 }`:
+
+```ts title="app/api/cron/support/route.ts"
+import "server-only";
+
+import { bs } from "@/lib/supabase/server";
+
+export const GET = bs.support.expireRoute({ secret: process.env.CRON_SECRET });
+```
+
+`expire_support_sessions()` is executable by the service role only. A store
+of your own implements the optional `expire()` method for this; without it,
+`bs.support.expire()` fails with `SUPPORT_EXPIRE_UNSUPPORTED`.
 
 The SQL module refuses a target who holds platform permissions (the platform
 claim in `app_metadata`, or a platform role), because the admin would gain
@@ -166,8 +226,8 @@ as staff. Each request checks again that the admin still holds
 ### Bringing your own store
 
 `SupportSessionStore` (`apiVersion: 1`) is the interface behind
-`sqlSupportStore`. Implement `start`, `get`, `end` and `list` to keep sessions
-somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
+`sqlSupportStore`. Implement `start`, `get`, `end` and `list` (and
+optionally `expire`) to keep sessions somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
 against it (see [conformance](/docs/extending/conformance)).
 
 ## Acting as a user in code

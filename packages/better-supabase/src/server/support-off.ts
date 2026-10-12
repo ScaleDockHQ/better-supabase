@@ -2,6 +2,7 @@ import type { SupportApi } from "./support.ts";
 
 import { clearSupportCookie } from "../auth/support-cookie.ts";
 import { dbError } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
 import { AsyncResult } from "../core/result.ts";
 
 const NOT_CONFIGURED =
@@ -17,6 +18,9 @@ export const supportOff: SupportApi = {
   revoke: notConfigured,
   current: () => Promise.resolve(undefined),
   list: notConfigured,
+  expire: notConfigured,
+  expireRoute: () => () =>
+    Promise.resolve(problemResponse(dbError("unexpected", NOT_CONFIGURED))),
   sessionIdOf: () => undefined,
   clearCookie: () => clearSupportCookie(),
 };

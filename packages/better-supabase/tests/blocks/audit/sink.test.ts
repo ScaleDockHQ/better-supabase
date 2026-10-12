@@ -75,6 +75,50 @@ describe("auditEventOf", () => {
   });
 });
 
+describe("auditEventOf for support events", () => {
+  it("fills the impersonation fields from the session, admin and reason", () => {
+    expect(
+      auditEventOf({
+        ...base,
+        type: "dev.better-supabase.support.ended",
+        data: {
+          sessionId: "s1",
+          adminId: "admin-1",
+          targetUserId: "user-1",
+          reason: "ticket 9",
+          endedBy: "expired",
+        },
+      }),
+    ).toMatchObject({
+      eventType: "support.ended",
+      supportSessionId: "s1",
+      impersonatedBy: "admin-1",
+      impersonationReason: "ticket 9",
+    });
+  });
+
+  it("leaves them out for other events and for missing values", () => {
+    const other = auditEventOf({
+      ...base,
+      type: "invoice.sent",
+      data: { sessionId: "s1", adminId: "a" },
+    });
+    expect(other).not.toHaveProperty("supportSessionId");
+    expect(other).not.toHaveProperty("impersonatedBy");
+    const denied = auditEventOf({
+      ...base,
+      type: "dev.better-supabase.support.denied",
+      data: { adminId: "admin-1", targetUserId: "user-1" },
+    });
+    expect(denied).toMatchObject({ impersonatedBy: "admin-1" });
+    expect(denied).not.toHaveProperty("supportSessionId");
+    expect(denied).not.toHaveProperty("impersonationReason");
+    expect(
+      auditEventOf({ ...base, type: "dev.better-supabase.support.started" }),
+    ).not.toHaveProperty("impersonatedBy");
+  });
+});
+
 describe("auditSink", () => {
   it("records every event, then throws the first failure", async () => {
     const record = vi.fn((event: AuditEventInput) =>

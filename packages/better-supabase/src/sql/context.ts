@@ -153,6 +153,15 @@ export interface ModuleAudit {
   readonly metadata?: string;
   /** A `uuid` expression for the actor; defaults to the caller. */
   readonly actor?: string;
+  /**
+   * A `uuid` expression for the support session the action belongs to.
+   * Defaults to the session in the caller's `act` claim, which wins when set.
+   */
+  readonly supportSession?: string;
+  /** A `uuid` expression for the admin acting as the user; defaults to `act.sub`. */
+  readonly impersonatedBy?: string;
+  /** A `text` expression for why the admin acts as the user; defaults to `act.reason`. */
+  readonly impersonationReason?: string;
 }
 
 /**
@@ -577,6 +586,9 @@ export function createModuleContext(
       ["metadata", audit.metadata ?? action.payload],
       ["idempotency_key", action.key],
       ["actor_id", audit.actor],
+      ["support_session", audit.supportSession],
+      ["impersonated_by", audit.impersonatedBy],
+      ["impersonation_reason", audit.impersonationReason],
     ];
     return `perform better_supabase.audit_event(\n${args
       .filter((arg): arg is [string, string] => arg[1] !== undefined)

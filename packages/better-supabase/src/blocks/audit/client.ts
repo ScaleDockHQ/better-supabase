@@ -183,6 +183,15 @@ export interface AuditEventInput {
   readonly sessionId?: string;
   readonly requestId?: string;
   readonly scope?: string;
+  /**
+   * The support session the event belongs to, its admin and their reason,
+   * for the impersonation columns. Honoured for the service role; any other
+   * caller may only name itself as `impersonatedBy`, from a token without an
+   * `act` claim, and otherwise gets the claim's values.
+   */
+  readonly supportSessionId?: string;
+  readonly impersonatedBy?: string;
+  readonly impersonationReason?: string;
 }
 
 export interface AuditLogOptions extends BlockTemporalOptions {
@@ -518,6 +527,9 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
         session_id: event.sessionId,
         request_id: event.requestId,
         scope: event.scope,
+        support_session: event.supportSessionId,
+        impersonated_by: event.impersonatedBy,
+        impersonation_reason: event.impersonationReason,
       },
       textOf,
     );

@@ -77,6 +77,19 @@ export function memorySupportStore(
           .slice(0, filter.limit ?? 50),
       );
     },
+    expire() {
+      const expired: SupportSession[] = [];
+      for (const session of sessions.values()) {
+        if (
+          session.endedAt === undefined &&
+          session.expiresAt.epochMilliseconds <= Date.now()
+        ) {
+          endSession(session, "expired");
+          expired.push(sessions.get(session.id)!);
+        }
+      }
+      return Promise.resolve(expired);
+    },
     claims(targetUserId) {
       return Promise.resolve(claims[targetUserId] ?? { role: "authenticated" });
     },

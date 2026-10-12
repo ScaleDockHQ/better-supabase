@@ -299,7 +299,7 @@ describe("testSupportSessionStore", () => {
   it("passes a store that keeps the contract", async () => {
     const report = await testSupportSessionStore(memorySupportStore(), options);
     expect(report.checks.every((check) => check.ok)).toBe(true);
-    expect(report.checks).toHaveLength(5);
+    expect(report.checks).toHaveLength(6);
   });
 
   it("fails a store that shows sessions to anyone and never ends them", async () => {
