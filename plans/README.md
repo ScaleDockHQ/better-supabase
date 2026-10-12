@@ -4,9 +4,10 @@ Improvement plans from the deep audit of 2026-10-11 (commit `1ea78cfa`; re-verif
 
 ## Status
 
-| Plan                                | Title                                                                           | Status                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------ |
-| [001](001-codebase-improvements.md) | rpc JSON argument binding, and refusing database access for invalid credentials | DONE (uncommitted on `fix/audit-findings`) |
+| Plan                                | Title                                                                                               | Status                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| [001](001-codebase-improvements.md) | rpc JSON argument binding, and refusing database access for invalid credentials                     | DONE (uncommitted on `fix/audit-findings`) |
+| [002](002-audit-triage.md)          | Triage of the 2026-10-12 audit: fixes, SQL helper cleanup, build splits, edge functions in the spec | DONE on `fix/audit-triage`                 |
 
 Update the Status column as you execute (`TODO` → `IN PROGRESS` → `DONE`/`BLOCKED`, with a note on what blocked it).
 
@@ -30,15 +31,24 @@ Recorded so a future audit does not re-litigate them. Each entry names the claim
 6. **Honoring `https_proxy` in the webhook safe-fetch is an SSRF vector.** Proxy environment variables are the standard convention; by design.
 7. **Session cookie chunking format (`base64-` prefix).** Documented and tested; settled.
 8. **`refusal.ts` misses a case.** No gap found: it is the route guard's redirect and Problem Details layer, and it covers `unauthorized`, `aal2`, and authorizer refusals.
+9. **Chunked writes coerce a null count to 0 (BUG-03).** Only inserts are chunked, and every insert plan returns a numeric count (plan 002).
+10. **`needs: verify` cannot resolve in CI (DX-01).** `verify` is a job in the same `ci.yml` (plan 002).
+11. **`--log-file $AFFECTED` misparses (DX-03).** A turbo dry run parses it correctly (plan 002).
+12. **The sessions, mfa, grants, actor and ensure-rls modules are untested (TEST-01).** They have integration tests in `sql-modules.integration.test.ts`; only `realtime-tables` lacks one (plan 002).
+13. **`tracedFetch` is missing from `otel`.** It is public, tested and documented; the missing batch span was fixed in plan 002.
+14. **`checkReceipts` in the push block keeps stale tokens.** It prunes them (plan 002).
 
 ## Future direction (deferred, not planned)
 
 Grounded opportunities in priority order. None is urgent; each needs its own plan if pursued. Per the audit brief, features were not bundled into plan 001.
 
-1. **Per-query timeout override** on the direct Postgres path. `createPostgres` already has per-role `statementTimeout` (`src/postgres/pool.ts:148` to `153`); jobs that run one long query on a shared pool would benefit from a per-call override. Small.
+1. DONE in plan 002 (`SessionOptions.statementTimeout`). **Per-query timeout override** on the direct Postgres path. `createPostgres` already has per-role `statementTimeout` (`src/postgres/pool.ts:148` to `153`); jobs that run one long query on a shared pool would benefit from a per-call override. Small.
 2. **Auth observability hook.** `src/auth/resolve.ts` memoizes, refreshes, and re-verifies silently; a small metrics callback (cache hits, misses, refreshes) would make long-lived workers debuggable. Small to medium.
-3. **Batching the direct Postgres executor.** `src/core/batch.ts` batches concurrent PostgREST reads into one round trip; `src/postgres/executor.ts` runs queries one by one. Batching concurrent reads into a single transaction would help job workloads. Medium.
-4. **OUT-parameter filtering in rpc calls.** PostgREST drops OUT parameters from generated calls; `callFunction` binds whatever the caller passes (`src/postgres/executor.ts:262` to `268`). Small; only matters for OUT-parameter functions.
+3. Superseded: the direct Postgres executor already batches the reads of one `db.$many` call, and plan 002 added a `BATCH` span for it. **Batching the direct Postgres executor.** `src/core/batch.ts` batches concurrent PostgREST reads into one round trip; `src/postgres/executor.ts` runs queries one by one. Batching concurrent reads into a single transaction would help job workloads. Medium.
+4. DONE in plan 002 (OUT and TABLE arguments are dropped). **OUT-parameter filtering in rpc calls.** PostgREST drops OUT parameters from generated calls; `callFunction` binds whatever the caller passes (`src/postgres/executor.ts:262` to `268`). Small; only matters for OUT-parameter functions.
+5. **`tablesOf` (PERF-04).** Already cached; the remaining gain is small (plan 002).
+6. **Sequential awaits (PERF-05).** Two loops could run in parallel, but that changes which error is reported first (plan 002).
+7. **A behavioural test for `realtime-tables`** in `sql-modules.integration.test.ts` (plan 002).
 
 ## Scope notes
 
