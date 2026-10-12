@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { defineBucket, type StorageClient } from "../../src/storage/index.ts";
+import {
+  defineBucket,
+  type StorageAdminClient,
+} from "../../src/storage/index.ts";
 
 const notFound = {
   name: "StorageApiError",
@@ -31,7 +34,7 @@ function bucketApi(found: { data: unknown; error: unknown }) {
     })),
     deleteBucketLifecycle: vi.fn(async (): Promise<unknown> => okMessage),
   };
-  return { api, client: { storage: api } as unknown as StorageClient };
+  return { api, client: { storage: api } as unknown as StorageAdminClient };
 }
 
 const documents = defineBucket({

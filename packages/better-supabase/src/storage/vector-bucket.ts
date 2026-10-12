@@ -1,4 +1,4 @@
-import type { StorageClient } from "./bucket.ts";
+import type { StorageAdminClient } from "./bucket.ts";
 
 import { type DbError, dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../core/result.ts";
@@ -80,7 +80,7 @@ export interface VectorBucket<
 > {
   readonly id: Id;
   readonly indexes: I;
-  connect(client: StorageClient): VectorBucketClient<keyof I & string>;
+  connect(client: StorageAdminClient): VectorBucketClient<keyof I & string>;
 }
 
 const PUT_BATCH = 500;
@@ -156,7 +156,7 @@ export function defineVectorBucket<
 
 function connectVectorBucket<I extends string>(
   config: VectorBucketConfig<string, Readonly<Record<I, VectorIndexConfig>>>,
-  client: StorageClient,
+  client: StorageAdminClient,
 ): VectorBucketClient<I> {
   const vectors = () => client.storage.vectors;
   const scope = () => vectors().from(config.id);

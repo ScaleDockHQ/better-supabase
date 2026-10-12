@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   defineVectorBucket,
-  type StorageClient,
+  type StorageAdminClient,
 } from "../../src/storage/index.ts";
 
 const missing = {
@@ -61,7 +61,7 @@ function vectorsApi() {
     vectors,
     scope,
     index,
-    client: { storage: { vectors } } as unknown as StorageClient,
+    client: { storage: { vectors } } as unknown as StorageAdminClient,
   };
 }
 

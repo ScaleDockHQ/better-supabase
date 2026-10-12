@@ -601,6 +601,16 @@ describe("BucketClient upload and download", () => {
     expect(files.get("docs/o1/u1/a.txt")?.contentType).toBe("text/plain");
   });
 
+  it("connects to a StorageApi without a client around it", async () => {
+    const { client, files } = fakeStorage();
+    const bucket = docs.connect(client.storage);
+    expect(await bucket.upload(A, "hello")).toEqual(
+      ok({ path: "o1/u1/a.txt" }),
+    );
+    expect(files.has("docs/o1/u1/a.txt")).toBe(true);
+    expect(await bucket.exists(A)).toEqual(ok(true));
+  });
+
   it("returns a conflict for an existing object unless upsert is set", async () => {
     const { client } = fakeStorage({ files: { "docs/o1/u1/a.txt": "old" } });
     const bucket = docs.connect(client);

@@ -1,4 +1,4 @@
-import type { StorageClient } from "../../src/storage/index.ts";
+import type { StorageApi } from "../../src/storage/index.ts";
 
 export interface StoredFile {
   readonly body: unknown;
@@ -59,7 +59,7 @@ export function fakeStorage(
     readonly throws?: Partial<Record<Method, unknown>>;
   } = {},
 ): {
-  client: StorageClient;
+  client: { readonly storage: StorageApi };
   files: Map<string, StoredFile>;
   calls: StorageCall[];
 } {
@@ -269,6 +269,8 @@ export function fakeStorage(
     };
   };
   // SAFETY: the fake implements the `storage.from()` methods buckets call.
-  const client = { storage: { from } } as unknown as StorageClient;
+  const client = { storage: { from } } as unknown as {
+    readonly storage: StorageApi;
+  };
   return { client, files, calls };
 }

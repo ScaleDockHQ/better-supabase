@@ -22,6 +22,7 @@ import { isInstant, optionalTemporal } from "../core/temporal.ts";
 import { fromStorageError } from "./errors.ts";
 import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
+import { storageApiOf } from "./storage-api.ts";
 import { ttlSeconds } from "./ttl.ts";
 import { type ObjectVersion, toVersion } from "./versioning.ts";
 
@@ -112,7 +113,8 @@ export function connectBucket<P extends string, Id extends string>(
     within: Partial<TemplateValues<P>> | undefined,
   ): Partial<TemplateValues<P>> =>
     guard ? { ...within, [guard.param]: guard.within(within) } : (within ?? {});
-  const api = () => client.storage.from(bucket.id);
+  const storage = storageApiOf(client);
+  const api = () => storage.from(bucket.id);
   const signed = connectOptions.cacheSignedUrls
     ? new Map<string, { readonly url: string; readonly until: number }>()
     : undefined;

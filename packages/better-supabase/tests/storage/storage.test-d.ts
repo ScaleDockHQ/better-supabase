@@ -1,6 +1,14 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { describe, expectTypeOf, it } from "vitest";
 
-import { defineBucket, type TemplateParams } from "../../src/storage/index.ts";
+import {
+  defineBucket,
+  type StorageApi,
+  type StorageBucketApi,
+  type StorageClient,
+  type TemplateParams,
+} from "../../src/storage/index.ts";
 
 describe("bucket types", () => {
   it("derives path values from the template", () => {
@@ -53,5 +61,27 @@ describe("bucket layouts", () => {
         }
       | null
     >();
+  });
+});
+
+describe("storage clients", () => {
+  it("takes a supabase-js client, its storage, or any StorageApi", () => {
+    expectTypeOf<SupabaseClient>().toExtend<StorageClient>();
+    expectTypeOf<SupabaseClient["storage"]>().toExtend<StorageApi>();
+    expectTypeOf<
+      ReturnType<SupabaseClient["storage"]["from"]>
+    >().toExtend<StorageBucketApi>();
+    const files = defineBucket({
+      id: "files",
+      path: "{organizationId}/{file}",
+    });
+    const supabase = {} as SupabaseClient;
+    files.connect(supabase);
+    files.connect(supabase.storage);
+    const custom: StorageApi = { from: () => supabase.storage.from("files") };
+    files.connect(custom);
+    files.apply(supabase);
+    // @ts-expect-error apply needs the bucket admin API of a supabase-js client
+    files.apply(custom);
   });
 });
