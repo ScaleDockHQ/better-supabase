@@ -546,4 +546,15 @@ describe("support sessions on the server", () => {
     );
     expect(response.status).toBe(500);
   });
+
+  it("passes the definition's temporal on to the store", () => {
+    const store = memorySupportStore();
+    const withTemporal = vi.fn(() => store);
+    createServer(defineSupabase(schema, { temporal: Temporal }), {
+      env,
+      postgres: fakePostgres().postgres,
+      support: supportSessions({ store: { ...store, withTemporal } }),
+    });
+    expect(withTemporal).toHaveBeenCalledWith(Temporal);
+  });
 });

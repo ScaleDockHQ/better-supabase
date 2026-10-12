@@ -35,7 +35,9 @@ export const bs = createServer(betterSupabase, {
 ```
 
 `supportSessions` lives in its own function so apps without support mode
-don't bundle it. `createNext` takes the same option, and `better-supabase/next`
+don't bundle it. The store reads its time values with the `temporal` you pass
+to `defineSupabase`; `sqlSupportStore(postgres, { temporal })` takes its own
+instead. `createNext` takes the same option, and `better-supabase/next`
 exports `supportSessions` too.
 
 The module adds a `support_sessions` table and five functions:

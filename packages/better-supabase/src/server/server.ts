@@ -241,6 +241,7 @@ export function createServer<
     ? options.support.create(
         betterSupabase.events,
         options.auth?.claims ?? betterSupabase.claimsSchema,
+        betterSupabase.temporal,
       )
     : supportOff;
 

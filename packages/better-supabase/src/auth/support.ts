@@ -91,6 +91,12 @@ export interface SupportSessionStore {
    * and returns them. Optional; `support.expire()` fails without it.
    */
   expire?(): Promise<readonly SupportSession[]>;
+  /**
+   * The store with `namespace` for its time values, unless it was given one
+   * itself. Optional; `createServer` calls it with the definition's
+   * `temporal`.
+   */
+  withTemporal?(namespace: typeof Temporal): SupportSessionStore;
 }
 
 interface SupportRow {
@@ -107,9 +113,16 @@ interface SupportRow {
   readonly metadata: Record<string, unknown> | null;
 }
 
-/** A session from the jsonb the `support-sessions` functions return. */
-export function supportSessionFromRow(row: SupportRow): SupportSession {
-  const instant = (value: string) => temporal().Instant.from(value);
+/**
+ * A session from the jsonb the `support-sessions` functions return, with
+ * `namespace` (else the provided or global Temporal) for its time values.
+ */
+export function supportSessionFromRow(
+  row: SupportRow,
+  namespace?: typeof Temporal,
+): SupportSession {
+  const Instant = (namespace ?? temporal()).Instant;
+  const instant = (value: string) => Instant.from(value);
   return {
     id: row.id,
     adminId: row.admin_id,
@@ -128,6 +141,12 @@ export function supportSessionFromRow(row: SupportRow): SupportSession {
 export interface SqlSupportStoreOptions {
   /** `sql.modules.support-sessions.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
+  /**
+   * The Temporal namespace for the sessions' time values, for runtimes
+   * without a global one. Defaults to the one `createServer` passes from the
+   * definition, then the provided or global Temporal.
+   */
+  readonly temporal?: typeof Temporal;
 }
 
 /**
@@ -172,7 +191,7 @@ export function sqlSupportStore(
         ],
       );
       if (!row) throw new Error("start_support_session returned no session");
-      return supportSessionFromRow(row);
+      return supportSessionFromRow(row, options.temporal);
     },
     async get(sessionId, adminId, claims) {
       const row = await one(
@@ -180,7 +199,7 @@ export function sqlSupportStore(
         `select ${fn("active_support_session")}($1, $2) as session`,
         [sessionId, adminId],
       );
-      return row ? supportSessionFromRow(row) : undefined;
+      return row ? supportSessionFromRow(row, options.temporal) : undefined;
     },
     async end(sessionId, endedBy, claims) {
       const [row] = await as(claims).queryRaw<{ ended: boolean }>(
@@ -199,14 +218,22 @@ export function sqlSupportStore(
           filter.limit ?? 50,
         ],
       );
-      return rows.map((row) => supportSessionFromRow(row.session));
+      return rows.map((row) =>
+        supportSessionFromRow(row.session, options.temporal),
+      );
     },
     async expire() {
       const rows = await postgres.admin.queryRaw<{ session: SupportRow }>(
         `select session from ${fn("expire_support_sessions")}() as session`,
       );
-      return rows.map((row) => supportSessionFromRow(row.session));
+      return rows.map((row) =>
+        supportSessionFromRow(row.session, options.temporal),
+      );
     },
+    withTemporal: (namespace) =>
+      options.temporal === undefined
+        ? sqlSupportStore(postgres, { ...options, temporal: namespace })
+        : sqlSupportStore(postgres, options),
     async claims(targetUserId) {
       const [row] = await postgres.admin.queryRaw<{
         claims: Record<string, unknown>;

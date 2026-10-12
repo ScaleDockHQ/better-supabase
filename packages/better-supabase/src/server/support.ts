@@ -167,10 +167,14 @@ function storeError(cause: unknown): DbError {
 /** `ServerOptions.support`, from `supportSessions(options)`. */
 export interface SupportSessions {
   readonly options: SupportOptions;
-  /** Builds `bs.support`; `createServer` calls it once. */
+  /**
+   * Builds `bs.support`; `createServer` calls it once, with the definition's
+   * `temporal`, which goes on to the store's `withTemporal`.
+   */
   readonly create: (
     events: EventHub,
     claimsSchema: StandardSchemaV1 | undefined,
+    temporal?: typeof Temporal,
   ) => SupportApi;
 }
 
@@ -181,8 +185,8 @@ export interface SupportSessions {
 export function supportSessions(options: SupportOptions): SupportSessions {
   return {
     options,
-    create: (events, claimsSchema) =>
-      createSupport(options, events, claimsSchema),
+    create: (events, claimsSchema, temporal) =>
+      createSupport(options, events, claimsSchema, temporal),
   };
 }
 
@@ -190,7 +194,12 @@ function createSupport(
   options: SupportOptions,
   events: EventHub,
   claimsSchema: StandardSchemaV1 | undefined,
+  temporal: typeof Temporal | undefined,
 ): SupportApi {
+  const store =
+    temporal !== undefined && options.store.withTemporal
+      ? options.store.withTemporal(temporal)
+      : options.store;
   const policy = options.policy ?? {};
   const ttl = policy.ttl ?? 1800;
   const maxTtl = policy.maxTtl ?? 14_400;
@@ -227,7 +236,7 @@ function createSupport(
   ): Promise<Readonly<Record<string, unknown>>> => {
     const cached = claimsCache.get(session.id);
     if (cached) return cached;
-    const claims = await targetClaims(options.store, session.targetUserId);
+    const claims = await targetClaims(store, session.targetUserId);
     claimsCache.set(
       session.id,
       claims,
@@ -273,18 +282,18 @@ function createSupport(
 
   const expire = (): AsyncResult<readonly SupportSession[]> =>
     AsyncResult.from(async () => {
-      if (!options.store.expire) {
+      if (!store.expire) {
         return err(
           dbError(
             "unsupported",
-            `The "${options.store.name}" support session store has no expire()`,
+            `The "${store.name}" support session store has no expire()`,
             { code: "SUPPORT_EXPIRE_UNSUPPORTED" },
           ),
         );
       }
       let expired: readonly SupportSession[];
       try {
-        expired = await options.store.expire();
+        expired = await store.expire();
       } catch (cause) {
         return err(storeError(cause));
       }
@@ -365,7 +374,7 @@ function createSupport(
         }
         let session: SupportSession;
         try {
-          session = await options.store.start({
+          session = await store.start({
             adminId: admin.user.id,
             adminClaims: admin.claims,
             targetUserId: request.targetUserId,
@@ -399,17 +408,13 @@ function createSupport(
             dbError("unauthorized", "Sign in to stop a support session"),
           );
         try {
-          const session = await options.store.get(
+          const session = await store.get(
             sessionId,
             admin.user.id,
             admin.claims,
           );
           if (!session) return ok({ ended: false, cookie });
-          const ended = await options.store.end(
-            sessionId,
-            "admin",
-            admin.claims,
-          );
+          const ended = await store.end(sessionId, "admin", admin.claims);
           if (ended) {
             emit("support.ended", {
               sessionId,
@@ -432,9 +437,7 @@ function createSupport(
             dbError("unauthorized", "Sign in to revoke a support session"),
           );
         try {
-          return ok(
-            await options.store.end(sessionId, "revoked", caller.claims),
-          );
+          return ok(await store.end(sessionId, "revoked", caller.claims));
         } catch (cause) {
           return err(storeError(cause));
         }
@@ -450,7 +453,7 @@ function createSupport(
       let session: SupportSession | undefined;
       let claims: Readonly<Record<string, unknown>>;
       try {
-        session = await options.store.get(id, auth.user.id, auth.claims);
+        session = await store.get(id, auth.user.id, auth.claims);
         if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
           return;
         }
@@ -493,7 +496,7 @@ function createSupport(
             dbError("unauthorized", "Sign in to list support sessions"),
           );
         try {
-          return ok(await options.store.list(filter, caller.claims));
+          return ok(await store.list(filter, caller.claims));
         } catch (cause) {
           return err(storeError(cause));
         }

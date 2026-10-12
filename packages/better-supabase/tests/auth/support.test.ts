@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SqlClaims } from "../../src/postgres/pool.ts";
 
@@ -196,6 +196,33 @@ describe("sqlSupportStore", () => {
         values: [],
       },
     ]);
+  });
+
+  it("reads time values with its own temporal, else the one passed in", async () => {
+    const fake = fakeSql([["list_support_sessions", [{ session: ROW }]]]);
+    const postgres = { admin: fake.sql, asUser: () => fake.sql };
+    const namespace = (tag: string) => {
+      const from = vi.fn((value: string) => ({ tag, value }));
+      // SAFETY: the store only calls Instant.from.
+      return {
+        from,
+        temporal: { Instant: { from } } as unknown as typeof Temporal,
+      };
+    };
+    const own = namespace("own");
+    const passed = namespace("passed");
+    const [session] = await sqlSupportStore(postgres, {
+      temporal: own.temporal,
+    }).withTemporal!(passed.temporal).list();
+    expect(session?.startedAt).toEqual({ tag: "own", value: ROW.started_at });
+    expect(passed.from).not.toHaveBeenCalled();
+    const [fromServer] = await sqlSupportStore(postgres).withTemporal!(
+      passed.temporal,
+    ).list();
+    expect(fromServer?.expiresAt).toEqual({
+      tag: "passed",
+      value: ROW.expires_at,
+    });
   });
 
   it("rejects when start returns nothing", async () => {

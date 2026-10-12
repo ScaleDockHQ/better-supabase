@@ -137,7 +137,10 @@ admin, `end(sessionId, endedBy)` returns `true` once and `false` after, and
 `list(filter)` returns sessions newest first. `claims(targetUserId)` is
 optional and returns the claims the target would get. `expire()` is optional
 too: it ends every running session past its expiry with `endedBy: "expired"`
-and returns them, for `support.expire()`. `start` should refuse
+and returns them, for `support.expire()`. `withTemporal(namespace)` is
+optional as well: `createServer` calls it with the definition's `temporal`,
+and it returns the store using that namespace for its time values unless the
+store was given one itself. `start` should refuse
 an admin without permission with an error whose `code` is `42501`.
 
 ## NotificationChannel
