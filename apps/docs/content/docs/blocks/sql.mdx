@@ -339,7 +339,21 @@ create trigger bs_audit after insert or update or delete on public.customers
 
 The argument takes `ignore`, `redact`, `key_columns` (the primary key by
 default), `category`, `event_prefix`, `target_type`, `tenant_column` and
-`label_column`. `audit_settings(table)` returns a table's settings. Tables
+`label_column`. `audit_settings(table)` returns a table's settings.
+
+Each `audit()` call replaces every setting on the trigger: the last call
+wins, and arguments it leaves out go back to their defaults. A second
+`audit('public.customers')` therefore clears the app's `ignore` and
+`redact`. Code that registers a table the app may already audit, such as another
+package's migration, reads `audit_settings(table)` first
+and passes the app's `ignore` and `redact` back in, or leaves the call to the
+app. The pgTAP file `sql sync` writes for each audited table checks the
+settings of the last call in the schema files and migrations, so it fails
+when a function or seed replaces them at run time. A later call in a
+migration changes what that file expects, so review the generated test in
+the diff.
+
+Tables
 registered before this release keep their rows in `audited_tables`, and the
 trigger reads them while it has no argument; calling `audit()` again moves
 them onto the trigger.
