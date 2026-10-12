@@ -69,6 +69,11 @@ export interface SessionOptions {
   readonly settings?: Readonly<Record<string, string>>;
   /** Runs every transaction with `begin read only`: writes fail with 25006. */
   readonly readOnly?: boolean;
+  /**
+   * Statement timeout in milliseconds for this session's transactions,
+   * instead of the role's `statementTimeout` from `createPostgres`.
+   */
+  readonly statementTimeout?: number;
 }
 
 export interface BetterPostgres {
@@ -84,7 +89,10 @@ export interface BetterPostgres {
    * bundle the SQL compiler.
    */
   executorFor(claims: SqlClaims, options?: SessionOptions): Executor;
-  /** Runs `fn` in one transaction. Pass claims to run it as a user. */
+  /**
+   * Runs `fn` in one transaction. Pass claims to run it as a user; the
+   * session options apply with or without them.
+   */
   transaction<T>(
     fn: (client: SqlClient) => Promise<T>,
     options?: { readonly claims?: SqlClaims } & SessionOptions,
@@ -123,9 +131,13 @@ function openPool(options: PostgresOptions): PgPool {
   });
 }
 
-type Session =
-  | ({ readonly claims: SqlClaims; readonly role: string } & SessionOptions)
-  | undefined;
+/** Claims and role are both set for a user session, and both unset for the connection role. */
+interface Session extends SessionOptions {
+  readonly claims?: SqlClaims;
+  readonly role?: string;
+}
+
+const ADMIN: Session = {};
 
 const RESERVED_SETTINGS = new Set(["role", "request.jwt.claims"]);
 
@@ -142,7 +154,8 @@ function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
 /**
  * A pooled Postgres connection for jobs, scripts and tests. Each query (or
  * transaction) runs in its own transaction; claims and role are
- * transaction-local, so nothing leaks back into the pool.
+ * transaction-local, so nothing leaks back into the pool. An `admin` query
+ * with no timeout to set runs on its own, without `begin` and `commit`.
  */
 export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   const pool = options.pool ?? openPool(options);
@@ -155,18 +168,16 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         }
       : { ...DEFAULT_TIMEOUTS, ...options.statementTimeout };
 
-  /** Opens the transaction, then sets the timeouts, claims and role in one round trip. */
-  async function begin(client: PgPoolClient, session: Session): Promise<void> {
-    await client.query(session?.readOnly ? "begin read only" : "begin");
-    const settings: [string, string][] = Object.entries(
-      session?.settings ?? {},
-    );
+  /** The transaction-local settings a session's transactions start with. */
+  function settingsOf(session: Session): [string, string][] {
+    const settings: [string, string][] = Object.entries(session.settings ?? {});
     const timeout =
-      session?.role === "authenticated"
+      session.statementTimeout ??
+      (session.role === "authenticated"
         ? timeouts.authenticated
-        : session?.role === "anon"
+        : session.role === "anon"
           ? timeouts.anon
-          : timeouts.admin;
+          : timeouts.admin);
     if (timeout !== undefined)
       settings.push(["statement_timeout", String(Math.trunc(timeout))]);
     if (options.idleInTransactionTimeout !== undefined)
@@ -174,7 +185,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         "idle_in_transaction_session_timeout",
         String(Math.trunc(options.idleInTransactionTimeout)),
       ]);
-    if (session) {
+    if (session.claims && session.role) {
       settings.push(
         [
           "request.jwt.claims",
@@ -183,11 +194,32 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         ["role", session.role],
       );
     }
+    return settings;
+  }
+
+  /** Opens the transaction, then sets the timeouts, claims and role in one round trip. */
+  async function begin(
+    client: PgPoolClient,
+    session: Session,
+    settings: readonly [string, string][],
+  ): Promise<void> {
+    await client.query(session.readOnly ? "begin read only" : "begin");
     if (settings.length === 0) return;
     await client.query(
       `select ${settings.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
       settings.flat(),
     );
+  }
+
+  /** One statement on a pooled connection in autocommit, for sessions that set nothing. */
+  async function single<R>(text: string, params?: unknown[]): Promise<R[]> {
+    const client = await pool.connect();
+    try {
+      // SAFETY: each caller passes the row type that its SQL selects.
+      return (await client.query(text, params)).rows as R[];
+    } finally {
+      client.release();
+    }
   }
 
   async function transaction<T>(
@@ -196,7 +228,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   ): Promise<T> {
     const client = await pool.connect();
     try {
-      await begin(client, session);
+      await begin(client, session, settingsOf(session));
       // SAFETY: each caller passes the row type that its SQL selects.
       const scoped: SqlClient = {
         queryRaw: async <R>(text: string, params?: unknown[]) =>
@@ -214,35 +246,49 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     }
   }
 
-  const clientFor = (session: Session): SqlClient => ({
-    queryRaw: <R>(text: string, params?: unknown[]) =>
-      transaction(session, (client) => client.queryRaw<R>(text, params)),
-    transaction: (fn) => transaction(session, fn),
-  });
+  const clientFor = (session: Session): SqlClient => {
+    const bare = !session.readOnly && settingsOf(session).length === 0;
+    return {
+      queryRaw: <R>(text: string, params?: unknown[]) =>
+        bare
+          ? single<R>(text, params)
+          : transaction(session, (client) => client.queryRaw<R>(text, params)),
+      transaction: (fn) => transaction(session, fn),
+    };
+  };
+
+  const optionsOf = (sessionOptions: SessionOptions): SessionOptions => {
+    checkSettings(sessionOptions.settings);
+    return {
+      ...(sessionOptions.settings ? { settings: sessionOptions.settings } : {}),
+      ...(sessionOptions.readOnly ? { readOnly: true } : {}),
+      ...(sessionOptions.statementTimeout === undefined
+        ? {}
+        : { statementTimeout: sessionOptions.statementTimeout }),
+    };
+  };
 
   const sessionFor = (
     claims: SqlClaims,
     sessionOptions: SessionOptions = {},
-  ): Session => {
-    checkSettings(sessionOptions.settings);
-    return {
-      claims,
-      role: roleOf(claims),
-      ...(sessionOptions.settings ? { settings: sessionOptions.settings } : {}),
-      ...(sessionOptions.readOnly ? { readOnly: true } : {}),
-    };
-  };
+  ): Session => ({
+    claims,
+    role: roleOf(claims),
+    ...optionsOf(sessionOptions),
+  });
 
   return {
-    admin: clientFor(undefined),
+    admin: clientFor(ADMIN),
     anon: clientFor({ claims: { role: "anon" }, role: "anon" }),
     asUser: (claims, sessionOptions) =>
       clientFor(sessionFor(claims, sessionOptions)),
     executorFor: (claims, sessionOptions) =>
       postgresExecutor(clientFor(sessionFor(claims, sessionOptions))),
-    transaction: (fn, txOptions) =>
+    transaction: (fn, txOptions = {}) =>
       transaction(
-        txOptions?.claims ? sessionFor(txOptions.claims, txOptions) : undefined,
+        txOptions.claims
+          ? sessionFor(txOptions.claims, txOptions)
+          : optionsOf(txOptions),
         fn,
       ),
     end: () => pool.end(),

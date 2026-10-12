@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("createPostgres", () => {
-  it("runs an admin query in its own transaction and releases the connection", async () => {
+  it("runs an admin query with nothing to set without a transaction, and releases the connection", async () => {
     const fake = recordingPool((text) =>
       text === "select $1::int as n" ? [{ n: 1 }] : [],
     );
@@ -35,10 +35,54 @@ describe("createPostgres", () => {
     expect(await pg.admin.queryRaw("select $1::int as n", [1])).toEqual([
       { n: 1 },
     ]);
-    expect(fake.log).toEqual(["begin", "select $1::int as n", "commit"]);
-    expect(fake.values[1]).toEqual([1]);
+    expect(fake.log).toEqual(["select $1::int as n"]);
+    expect(fake.values[0]).toEqual([1]);
     expect(fake.connections).toBe(1);
     expect(fake.released).toBe(1);
+  });
+
+  it("releases the connection when a bare admin query fails", async () => {
+    const failure = new Error("syntax error");
+    const fake = recordingPool(() => {
+      throw failure;
+    });
+    const pg = createPostgres({ pool: fake.pool });
+    await expect(pg.admin.queryRaw("selec 1")).rejects.toBe(failure);
+    expect(fake.log).toEqual(["selec 1"]);
+    expect(fake.released).toBe(1);
+  });
+
+  it("overrides the role's statement timeout per session and per transaction", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    await pg
+      .asUser({ sub: "u1" }, { statementTimeout: 60_000 })
+      .queryRaw("select 1");
+    await pg.executorFor({ sub: "u1" }, { statementTimeout: 100.7 }).rpc!(
+      "noop",
+      {},
+      { schema: "public", errorMappers: [] },
+    );
+    await pg.transaction((tx) => tx.queryRaw("select 2"), {
+      statementTimeout: 120_000,
+    });
+    await pg.transaction((tx) => tx.queryRaw("select 3"), {
+      readOnly: true,
+      settings: { "app.job": "export" },
+    });
+    const timeouts = fake.values
+      .filter((values) => values[0] === "statement_timeout")
+      .map((values) => values[1]);
+    expect(timeouts).toEqual(["60000", "100", "120000"]);
+    expect(fake.log.slice(-4)).toEqual([
+      "begin read only",
+      settingsSql(1),
+      "select 3",
+      "commit",
+    ]);
+    expect(() =>
+      pg.transaction(async () => 1, { settings: { role: "postgres" } }),
+    ).toThrow(TypeError);
   });
 
   it("sets a truncated statement timeout per transaction", async () => {
@@ -85,7 +129,7 @@ describe("createPostgres", () => {
     const defaults = recordingPool();
     const plain = createPostgres({ pool: defaults.pool });
     await plain.admin.queryRaw("select 1");
-    expect(defaults.log).toEqual(["begin", "select 1", "commit"]);
+    expect(defaults.log).toEqual(["select 1"]);
   });
 
   it("builds a SQL executor that runs as the user", async () => {
@@ -239,7 +283,9 @@ describe("createPostgres", () => {
       return [];
     });
     const pg = createPostgres({ pool: fake.pool });
-    await expect(pg.admin.queryRaw("insert")).rejects.toBe(failure);
+    await expect(pg.transaction((tx) => tx.queryRaw("insert"))).rejects.toBe(
+      failure,
+    );
     expect(fake.log).toEqual(["begin", "insert", "rollback"]);
     expect(fake.released).toBe(1);
   });
