@@ -42,14 +42,7 @@ export type {
 } from "./support.ts";
 export { supportSessions } from "./support.ts";
 export { supportStorage } from "./support-storage.ts";
-export type {
-  SupportStorage,
-  SupportStorageAdmin,
-  SupportStorageBucket,
-  SupportStorageEntry,
-  SupportStorageListOptions,
-  SupportStorageOptions,
-} from "./support-storage.ts";
+export type { SupportStorageOptions } from "./support-storage.ts";
 export {
   clearSupportCookie,
   SUPPORT_COOKIE,

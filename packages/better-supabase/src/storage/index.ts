@@ -83,6 +83,7 @@ export type {
   StorageFetchParameters,
   StorageFileOptions,
   StorageListEntry,
+  StorageListV2Folder,
   StorageListV2Object,
   StorageListV2Result,
   StorageObjectInfo,

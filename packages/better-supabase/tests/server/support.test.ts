@@ -579,7 +579,7 @@ describe("support sessions on the server", () => {
     const docs = ctx.storage!.from("docs");
     expect(ctx.storage).toBe(ctx.storage);
     expect((await docs.download("o1/a.pdf")).error).toMatchObject({
-      kind: "not_found",
+      code: "NoSuchKey",
     });
     expect((await docs.upload("o1/a.pdf", "x")).error?.code).toBe(
       "SUPPORT_READ_ONLY",

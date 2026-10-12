@@ -116,13 +116,16 @@ export interface StorageListV2Object {
   readonly is_versioned?: boolean;
 }
 
+export interface StorageListV2Folder {
+  /** The folder's full path, ending in `/`. */
+  readonly name: string;
+  readonly key?: string;
+}
+
 export interface StorageListV2Result {
   readonly hasNext: boolean;
   readonly nextCursor?: string;
-  readonly folders: readonly {
-    readonly name: string;
-    readonly key?: string;
-  }[];
+  readonly folders: readonly StorageListV2Folder[];
   readonly objects: readonly StorageListV2Object[];
 }
 

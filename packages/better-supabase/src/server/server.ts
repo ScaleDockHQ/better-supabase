@@ -8,6 +8,7 @@ import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { SessionOptions, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { ActiveSupport } from "./support.ts";
 
 import { actorOf } from "../auth/actor.ts";
@@ -77,7 +78,7 @@ import {
   type ServerOptions,
 } from "./server-types.ts";
 import { supportOff } from "./support-off.ts";
-import { type SupportStorage, supportStorage } from "./support-storage.ts";
+import { supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
 
 /** The environment as `getEnv` resolves it, one variable at a time. */
@@ -303,7 +304,7 @@ export function createServer<
     };
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
-    let storage: SupportStorage | undefined;
+    let storage: StorageApi | undefined;
     return {
       ...credentials,
       ...ids,
