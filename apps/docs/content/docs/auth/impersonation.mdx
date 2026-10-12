@@ -80,7 +80,8 @@ session and the `Set-Cookie` header to send.
 | `readOnly`      | `"always"` | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
 
 A read-only session runs each transaction with `begin read only`, so any write
-fails with Postgres error `25006`. In a support session, `ctx.supabase` and
+fails with Postgres error `25006`, which a repository or block call returns as
+`forbidden` (code `25006`) with a hint that the connection is read-only. In a support session, `ctx.supabase` and
 `ctx.db.$client` throw: the Data API would only see the admin's own token, so
 everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
 Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)

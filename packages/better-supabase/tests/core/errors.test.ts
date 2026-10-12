@@ -339,6 +339,38 @@ describe("mapDbError", () => {
       },
     ],
     [
+      "a write in a read-only transaction",
+      {
+        code: "25006",
+        message: "cannot execute INSERT in a read-only transaction",
+      },
+      {
+        kind: "forbidden",
+        status: 403,
+        code: "25006",
+        message: "This connection is read-only, so the write was refused",
+        details: "cannot execute INSERT in a read-only transaction",
+        hint: "The transaction is read-only, such as in a read-only support session; writes need a writable connection.",
+      },
+    ],
+    [
+      "a read-only transaction error with its own details and hint",
+      {
+        code: "25006",
+        message: "cannot execute UPDATE in a read-only transaction",
+        details: "replica",
+        hint: "Use the primary",
+      },
+      {
+        kind: "forbidden",
+        status: 403,
+        code: "25006",
+        message: "This connection is read-only, so the write was refused",
+        details: "replica",
+        hint: "Use the primary",
+      },
+    ],
+    [
       "a statement timeout",
       {
         code: "57014",

@@ -392,6 +392,18 @@ function mapBuiltin(raw: RawDbError): DbError {
         hint: postgrestHint ? `${base.hint} ${advice}` : advice,
       });
     }
+    case "25006":
+      return dbError(
+        "forbidden",
+        "This connection is read-only, so the write was refused",
+        {
+          ...base,
+          details: base.details ?? message,
+          hint:
+            base.hint ??
+            "The transaction is read-only, such as in a read-only support session; writes need a writable connection.",
+        },
+      );
     case "P0001":
       return dbError("raised", message, base);
     case "P0002":
