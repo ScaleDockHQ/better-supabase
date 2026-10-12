@@ -212,7 +212,7 @@ The original design threw while building the client for `invalid` auth. That was
 All of these must hold on the final tree:
 
 1. `rg -n "json: new Set\(\)" packages/better-supabase/src/postgres/executor.ts` returns no matches.
-2. `rg -n 'case "invalid"' packages/better-supabase/src/server/clients.ts` returns exactly 2 matches, each immediately followed by `return invalidCredentials();`.
+2. `rg -n "refusingExecutor" packages/better-supabase/src/server/server.ts` returns 3 matches: the import and two uses.
 3. `pnpm --filter better-supabase exec vitest run tests/postgres/executor.test.ts tests/server/clients.test.ts` exits 0.
 4. `pnpm --filter better-supabase test` exits 0, coverage thresholds included.
 5. `pnpm --filter better-supabase typecheck` and `pnpm --filter better-supabase lint` exit 0.
