@@ -209,6 +209,59 @@ describe("otel", () => {
     });
   });
 
+  it("records one span for a batch of reads", async () => {
+    const { tracer, spans } = memoryTracer();
+    const { meter, records } = memoryMeter();
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    let failSecond = false;
+    const db = betterSupabase.connect({
+      name: "postgres",
+      execute: async () => ok({ rows: [], count: null }),
+      batch: async (ops) =>
+        ops.map((_, index) =>
+          failSecond && index === 1
+            ? err(dbError("timeout", "canceled", { code: "57014" }))
+            : ok({ rows: [{ id: "c1" }], count: null }),
+        ),
+    });
+    await db.$many([
+      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+    ]);
+    expect(spans.map((span) => span.name)).toEqual([
+      "SELECT customers",
+      "SELECT customers",
+      "BATCH SELECT customers",
+    ]);
+    expect(spans[2]).toMatchObject({
+      name: "BATCH SELECT customers",
+      attributes: {
+        "db.namespace": "postgres|public",
+        "db.collection.name": "customers",
+        "db.operation.name": "BATCH SELECT",
+        "db.operation.batch.size": 2,
+        "db.response.returned_rows": 2,
+      },
+      ended: true,
+    });
+    expect(
+      records.map((record) => record.attributes?.["db.operation.name"]),
+    ).toContain("BATCH SELECT");
+    failSecond = true;
+    await db.$many([
+      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+    ]);
+    expect(spans[5]).toMatchObject({
+      name: "BATCH SELECT customers",
+      attributes: {
+        "error.type": "timeout",
+        "db.response.status_code": "57014",
+      },
+      status: { code: SpanStatusCode.ERROR },
+    });
+  });
+
   it("keeps the schema alone as the namespace for other executors", async () => {
     const { tracer, spans } = memoryTracer();
     const betterSupabase = defineSupabase(schema).use(
