@@ -1,9 +1,8 @@
 import { sqlTransport } from "better-supabase/blocks";
 import {
   createNotifications,
-  watcherSink,
+  watcherHandler,
 } from "better-supabase/blocks/notifications";
-import { outboxCloudEvent } from "better-supabase/blocks/outbox";
 
 import type { Session, User } from "./stack.ts";
 
@@ -27,9 +26,9 @@ export function notificationsFor(s: Session) {
 }
 
 /**
- * The outbox relay only claims committed events, and each test rolls back.
- * `watching` builds the CloudEvents the relay would send, with
- * `outboxCloudEvent`, from the events written after it was called.
+ * `outbox.consume` only claims committed events, and each test rolls back.
+ * `watching` hands the watcher handler the rows written after it was called,
+ * as `consume` would.
  */
 export async function watching(s: Session) {
   await s.client.query("reset role");
@@ -38,35 +37,30 @@ export async function watching(s: Session) {
   );
   const after = latest!.after;
   return {
-    /** Sends the new events through the watcher sink, as the relay route does. */
+    /** Sends the new events through the watcher handler, as the relay route does. */
     async relay(): Promise<number> {
       await s.client.query("reset role");
       const rows = await s.rows<OutboxRow>(
         `select position::text, id::text, type, payload, source, subject,
-                organization_id::text as tenant, created_at::text
+                organization_id::text as tenant, actor_id::text, created_at::text
          from better_supabase.outbox_events
          where position > $1::bigint order by position`,
         [after],
       );
-      const events = rows.map((row) =>
-        outboxCloudEvent(
-          {
-            position: Number(row.position),
-            id: row.id,
-            type: row.type,
-            payload: row.payload,
-            source: row.source,
-            subject: row.subject,
-            tenant: row.tenant,
-            key: null,
-            actorId: null,
-            createdAt: Temporal.Instant.from(row.created_at),
-          },
-          { source: "/recipes" },
-        ),
-      );
+      const events = rows.map((row) => ({
+        position: Number(row.position),
+        id: row.id,
+        type: row.type,
+        payload: row.payload,
+        source: row.source,
+        subject: row.subject,
+        tenant: row.tenant,
+        key: null,
+        actorId: row.actor_id,
+        createdAt: Temporal.Instant.from(row.created_at),
+      }));
       await s.service();
-      await watcherSink(notificationsFor(s), { types: WATCHED }).send(events);
+      await watcherHandler(notificationsFor(s), { types: WATCHED })(events);
       return events.length;
     },
   };
@@ -80,6 +74,7 @@ interface OutboxRow {
   readonly source: string | null;
   readonly subject: string | null;
   readonly tenant: string | null;
+  readonly actor_id: string | null;
   readonly created_at: string;
 }
 

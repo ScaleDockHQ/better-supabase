@@ -18,13 +18,14 @@ describe.skipIf(!live)("CRM recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   afterAll(() => pool.end());
 
-  it("notifies a deal's watcher about comments, tags and stage moves", async () => {
+  it("notifies a deal's watchers about comments, tags and stage moves, except the actor", async () => {
     await withRecipe(pool, crm, async (s) => {
       const { owner, member, organizationId, subjectId } = await workspace(
         s,
         "deal",
         DEAL,
       );
+      await s.watch(owner, organizationId, "deal", subjectId);
       const watchers = await watching(s);
       const { comments, tags, rank } = createBlocks(
         { transport: sqlTransport(s.sql) },

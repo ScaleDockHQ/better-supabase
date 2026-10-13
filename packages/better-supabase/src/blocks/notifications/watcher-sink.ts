@@ -104,3 +104,48 @@ export function watcherSink<K extends NotificationTypes>(
     },
   });
 }
+
+/** The outbox row fields `watcherHandler` reads; every `OutboxEvent` has them. */
+export interface WatchedOutboxEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly payload: unknown;
+  readonly subject: string | null;
+  readonly tenant: string | null;
+  readonly actorId: string | null;
+  readonly createdAt: Temporal.Instant;
+}
+
+/**
+ * `watcherSink` as an outbox handler:
+ * `outbox.consume('watchers', watcherHandler(notifications, { types }))`.
+ * CloudEvents leave the actor out, so a sink can only skip the author a
+ * payload names. The outbox row carries the actor of every event, so with
+ * this handler whoever tags, moves or shares a subject is not notified of it.
+ */
+export function watcherHandler<K extends NotificationTypes>(
+  notifications: Pick<Notifications<K>, "sink">,
+  options: WatcherSinkOptions<K>,
+): (events: readonly WatchedOutboxEvent[]) => Promise<void> {
+  const sink = watcherSink(notifications, options);
+  return async (events) => {
+    await sink.send(events.map(rowEvent));
+  };
+}
+
+function rowEvent(row: WatchedOutboxEvent): CloudEvent {
+  const data =
+    row.actorId !== null && isRecord(row.payload) && !("actorId" in row.payload)
+      ? { ...row.payload, actorId: row.actorId }
+      : row.payload;
+  return {
+    specversion: "1.0",
+    id: row.id,
+    source: "/better-supabase/outbox",
+    type: row.type,
+    time: row.createdAt.toString(),
+    data,
+    ...(row.subject === null ? {} : { subject: row.subject }),
+    ...(row.tenant === null ? {} : { partitionkey: row.tenant }),
+  };
+}

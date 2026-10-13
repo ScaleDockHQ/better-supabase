@@ -6,6 +6,7 @@ import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
 import {
   createNotifications,
+  watcherHandler,
   watcherSink,
 } from "../../../src/blocks/notifications/index.ts";
 
@@ -137,5 +138,50 @@ describe("watcherSink", () => {
       data: { reminderId: "r1" },
       summary: "Reminder for task 7",
     });
+  });
+});
+
+describe("watcherHandler", () => {
+  const row = (type: string, payload: unknown, actorId: string | null) => ({
+    position: 1,
+    id: `id-${type}`,
+    type,
+    payload,
+    source: null,
+    subject: null,
+    tenant: "org_1",
+    key: null,
+    actorId,
+    createdAt: Temporal.Instant.from("2026-10-13T09:00:00Z"),
+  });
+
+  it("leaves out the actor the outbox row names, for any subject event", async () => {
+    const { notifications, sent } = recording();
+    const handle = watcherHandler(notifications, {
+      types: {
+        "subject.tagged": "comment.posted",
+        "status.changed": "comment.posted",
+      },
+    });
+    await handle([
+      row(
+        "subject.tagged",
+        { subjectType: "deal", subjectId: "d1", tagId: "t1" },
+        "u1",
+      ),
+      row(
+        "status.changed",
+        { subjectType: "deal", subjectId: "d1", actorId: "u3" },
+        "u2",
+      ),
+      row("status.changed", { subjectType: "deal", subjectId: "d2" }, null),
+    ]);
+    expect(
+      sent.map((n) => [n["key"], n["tenant"], n["actor"] ?? null]),
+    ).toEqual([
+      ["watch:id-subject.tagged", "org_1", "u1"],
+      ["watch:id-status.changed", "org_1", "u3"],
+      ["watch:id-status.changed", "org_1", null],
+    ]);
   });
 });

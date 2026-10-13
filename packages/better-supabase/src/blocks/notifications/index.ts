@@ -20,8 +20,10 @@ export type {
 } from "./channel.ts";
 export { createNotifications } from "./notifications.ts";
 export {
+  watcherHandler,
   watcherSink,
   type WatchedEventData,
+  type WatchedOutboxEvent,
   type WatcherRule,
   type WatcherSinkOptions,
 } from "./watcher-sink.ts";

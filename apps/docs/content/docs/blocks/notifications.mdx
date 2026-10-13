@@ -407,7 +407,7 @@ event again.
 
 ### Watchers
 
-`watcherSink(notifications, { types })` from
+`watcherHandler(notifications, { types })` from
 `better-supabase/blocks/notifications` maps subject events to notifications
 for the subject's watchers. An event qualifies when its data carries
 `organizationId`, `subjectType` and `subjectId`, which every subject event
@@ -416,11 +416,11 @@ type to a notification type, or to a rule with `activity`, `recipients`,
 `data` and `summary`:
 
 ```ts title="app/api/cron/watchers/route.ts"
-import { watcherSink } from "better-supabase/blocks/notifications";
+import { watcherHandler } from "better-supabase/blocks/notifications";
 
-await outbox.relay(
+await outbox.consume(
   "watchers",
-  watcherSink(notifications, {
+  watcherHandler(notifications, {
     types: {
       "status.changed": "deal.moved",
       "comment.created": { type: "comment.new", activity: "comments" },
@@ -434,9 +434,15 @@ await outbox.relay(
 ```
 
 Each notification is keyed by `watch:<event id>`, so a replayed batch sends
-nothing twice, and the actor (`actorId` or `authorId`) never notifies
-themselves. Events without a subject or a tenant, and types not in `types`,
-are skipped.
+nothing twice. Events without a subject or a tenant, and types not in
+`types`, are skipped.
+
+`watcherHandler` takes outbox rows, through `outbox.consume` or a
+`relayRoute` consumer, and leaves out the actor each row records, so whoever
+tags, moves or shares a subject is not notified of it. `watcherSink` takes
+CloudEvents, which carry no actor, so it can only leave out an actor the
+event data names (`actorId`, or a comment's `authorId`). Use it when the
+events come from a relay or a broker rather than from the outbox itself.
 
 ## Extending it
 
