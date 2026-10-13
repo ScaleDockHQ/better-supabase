@@ -19,6 +19,12 @@ export type {
   NotificationSendResult,
 } from "./channel.ts";
 export { createNotifications } from "./notifications.ts";
+export {
+  watcherSink,
+  type WatchedEventData,
+  type WatcherRule,
+  type WatcherSinkOptions,
+} from "./watcher-sink.ts";
 export type {
   AvatarUrls,
   DeliverOptions,

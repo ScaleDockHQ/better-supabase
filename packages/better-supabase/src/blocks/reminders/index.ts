@@ -7,6 +7,7 @@ export {
   type ReminderPlanInput,
 } from "./schedule.ts";
 export {
+  REMINDER_DELIVERY_QUEUE,
   createReminders,
   type Reminders,
   type RemindersOptions,

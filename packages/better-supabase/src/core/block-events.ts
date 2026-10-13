@@ -326,6 +326,35 @@ export interface AiChatEventData {
   readonly leafId?: string;
 }
 
+/**
+ * The keys every subject-bound event carries in its data: the tenant and the
+ * record the event is about. Outbox consumers such as `activitySink` and
+ * `watcherSink` read these, so they work for every block without per-block
+ * code. The CloudEvent `subject` names the block's own row (a comment, a
+ * tag), and `partitionkey` repeats the tenant.
+ */
+export interface SubjectEventData {
+  readonly organizationId: string | null;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+/** The event types whose data is a `SubjectEventData`. */
+export type SubjectEventType =
+  | "comment.created"
+  | "comment.mentioned"
+  | "comment.deleted"
+  | "subject.tagged"
+  | "subject.untagged"
+  | "status.changed"
+  | "field_value.set"
+  | "share_link.created"
+  | "subject.viewed"
+  | "reminder.sent";
+
+/** `SaasEventData` for an event about one subject. */
+export type SaasSubjectEventData = SaasEventData & SubjectEventData;
+
 /** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports). */
 export interface SaasEventData {
   readonly organizationId?: string | null;
@@ -468,16 +497,16 @@ export interface BlockEventMap {
   "tag.created": SaasEventData;
   "tag.updated": SaasEventData;
   "tag.deleted": SaasEventData;
-  "subject.tagged": SaasEventData;
-  "subject.untagged": SaasEventData;
-  "status.changed": SaasEventData;
+  "subject.tagged": SaasSubjectEventData;
+  "subject.untagged": SaasSubjectEventData;
+  "status.changed": SaasSubjectEventData;
   "custom_field.saved": SaasEventData;
   "custom_field.deleted": SaasEventData;
-  "field_value.set": SaasEventData;
-  "share_link.created": SaasEventData;
+  "field_value.set": SaasSubjectEventData;
+  "share_link.created": SaasSubjectEventData;
   "share_link.revoked": SaasEventData;
-  "subject.viewed": SaasEventData;
-  "reminder.sent": SaasEventData;
+  "subject.viewed": SaasSubjectEventData;
+  "reminder.sent": SaasSubjectEventData;
   "import.completed": SaasEventData;
   "import.failed": SaasEventData;
 }

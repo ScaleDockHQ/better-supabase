@@ -89,6 +89,56 @@ describe("saas block clients", () => {
     ).toBe(true);
   });
 
+  it("delivers a reminder once and notifies on the first delivery", async () => {
+    const notified: unknown[] = [];
+    let first = true;
+    const reminders = createReminders({
+      transport: {
+        call: () => {
+          const sent = first;
+          first = false;
+          return Promise.resolve(sent);
+        },
+      },
+      notifyDelivery: (delivery) => void notified.push(delivery),
+    });
+    const payload = {
+      reminderId: "r1",
+      occurrenceAt: "2026-01-01T00:00:00Z",
+      organizationId: "org",
+      subjectType: "task",
+      subjectId: "42",
+    };
+    await reminders.job(
+      payload,
+      undefined as never,
+      new AbortController().signal,
+    );
+    expect(await reminders.deliver(payload).orThrow()).toBe(false);
+    expect(notified).toEqual([payload]);
+    await expect(
+      Promise.resolve(
+        reminders.job("nope", undefined as never, new AbortController().signal),
+      ),
+    ).rejects.toThrow("reminders.deliver needs an object payload");
+  });
+
+  it("fails the delivery when the notification fails", async () => {
+    const reminders = createReminders({
+      transport: { call: () => Promise.resolve(true) },
+      notifyDelivery: () => ({
+        ok: false,
+        error: { kind: "forbidden", message: "no", status: 403 },
+      }),
+    });
+    const result = await reminders.deliver({
+      reminderId: "r1",
+      occurrenceAt: "2026-01-01T00:00:00Z",
+      organizationId: "org",
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("starts an import and suggests a header mapping", async () => {
     const imports = createImports(options({ start_import: { id: "i1" } }));
     expect((await imports.start("org", "people").orThrow()).id).toBe("i1");

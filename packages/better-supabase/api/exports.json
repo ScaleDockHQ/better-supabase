@@ -1636,6 +1636,7 @@
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
+      "watcherSink",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -1670,7 +1671,10 @@
       "SendInput",
       "SentNotification",
       "SinkNotification",
-      "SubscriptionLevel"
+      "SubscriptionLevel",
+      "WatchedEventData",
+      "WatcherRule",
+      "WatcherSinkOptions"
     ]
   },
   "./blocks/notifications/react": {
@@ -1945,10 +1949,14 @@
       "OrganizationEventData",
       "PushDeviceEventData",
       "RowEventData",
+      "SaasEventData",
+      "SaasSubjectEventData",
       "ScimEventData",
       "SettingEventData",
       "SsoProviderEventData",
       "StorageObjectEventData",
+      "SubjectEventData",
+      "SubjectEventType",
       "SupportEventData",
       "WaitlistEventData",
       "WebhookEventData",
@@ -3400,6 +3408,7 @@
       "deliverReminder",
       "expandRule",
       "planReminderDeliveries",
+      "REMINDER_DELIVERY_QUEUE",
       "weekdayName"
     ],
     "types": [

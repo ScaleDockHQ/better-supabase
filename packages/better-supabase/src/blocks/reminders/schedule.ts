@@ -23,6 +23,11 @@ export interface DeliveryPayload {
   readonly reminderId: string;
   readonly occurrenceAt: string;
   readonly organizationId: string;
+  /** Who set the reminder; `createBlocks` notifies them. */
+  readonly userId?: string;
+  /** The reminded subject, from `list_reminder_schedule`; its watchers are notified too. */
+  readonly subjectType?: string;
+  readonly subjectId?: string;
 }
 
 /**
