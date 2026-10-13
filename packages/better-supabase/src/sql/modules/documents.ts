@@ -81,7 +81,7 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.topic`: the realtime topic prefix, `documents` by default. */
-export function documentsTopic(ctx: ModuleContext): string {
+function documentsTopic(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "documents");
   if (!TOPIC.test(topic)) {
     throw new TypeError(

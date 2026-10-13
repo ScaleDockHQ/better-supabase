@@ -8,6 +8,7 @@ import type {
 } from "../../src/blocks/documents/documents.ts";
 import type { RealtimeClient } from "../../src/realtime/index.ts";
 
+import { toBase64 } from "../../src/core/base64.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import { temporal } from "../../src/core/temporal-required.ts";
 import {
@@ -94,18 +95,25 @@ type Listener = (message: { event: string; payload: unknown }) => void;
 function fakeBus() {
   const channels: {
     listeners: Listener[];
+    syncs: (() => void)[];
+    presence: Record<string, Record<string, unknown>[]>;
     report?: (status: string) => void;
   }[] = [];
   const client = () => {
-    const entry: (typeof channels)[number] = { listeners: [] };
+    const entry: (typeof channels)[number] = {
+      listeners: [],
+      syncs: [],
+      presence: {},
+    };
     channels.push(entry);
     const channel = {
       topic: "",
       on: (type: string, _filter: unknown, listener: Listener) => {
         if (type === "broadcast") entry.listeners.push(listener);
+        if (type === "presence") entry.syncs.push(listener as () => void);
         return channel;
       },
-      presenceState: () => ({}),
+      presenceState: () => entry.presence,
       track: async () => "ok",
       untrack: async () => "ok",
       subscribe: (callback: (status: string) => void) => {
@@ -133,7 +141,20 @@ function fakeBus() {
       realtime: { setAuth: async () => undefined },
     };
     // SAFETY: the fake implements the channel calls the provider makes.
-    return { client: raw as unknown as RealtimeClient, entry, channel };
+    return {
+      client: raw as unknown as RealtimeClient,
+      entry,
+      channel,
+      sync: (state: Record<string, Record<string, unknown>[]>) => {
+        entry.presence = state;
+        for (const listener of entry.syncs) listener();
+      },
+      deliver: (payload: unknown) => {
+        for (const listener of entry.listeners) {
+          listener({ event: "update", payload });
+        }
+      },
+    };
   };
   return { client };
 }
@@ -244,6 +265,127 @@ describe("createDocumentProvider", () => {
     await provider.connect().orThrow();
     await provider.destroy();
   });
+
+  it("shares presence and exposes the opened document", async () => {
+    const server = fakeServer();
+    const bus = fakeBus().client();
+    const seen: unknown[] = [];
+    const provider = createDocumentProvider<{ name: string }>({
+      documents: server.documents,
+      client: bus.client,
+      doc: new Y.Doc(),
+      ref,
+      yjs: Y,
+      onPresence: (members) => seen.push(members),
+    });
+    expect(provider.document).toBeUndefined();
+    expect(provider.members()).toEqual([]);
+    const early = await provider.track({ name: "Ada" });
+    expect(early.ok).toBe(false);
+    const opened = await provider.connect().orThrow();
+    expect(await provider.connect().orThrow()).toBe(opened);
+    expect(provider.document?.id).toBe(DOC_ID);
+    expect((await provider.track({ name: "Ada" })).ok).toBe(true);
+    bus.sync({ k: [{ presence_ref: "1", name: "Ada" }] });
+    await vi.waitFor(() => {
+      expect(provider.members().length).toBe(1);
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    await provider[Symbol.asyncDispose]();
+    expect(provider.status).toBe("closed");
+  });
+
+  it("applies broadcasts and ignores malformed ones", async () => {
+    const server = fakeServer();
+    const bus = fakeBus().client();
+    const doc = new Y.Doc();
+    const provider = createDocumentProvider({
+      documents: server.documents,
+      client: bus.client,
+      doc,
+      ref,
+      yjs: Y,
+    });
+    await provider.connect().orThrow();
+    const other = new Y.Doc();
+    other.getText("t").insert(0, "hi");
+    bus.deliver("nope");
+    bus.deliver({ seq: "1", update: "x" });
+    bus.deliver({ seq: 1, update: toBase64(Y.encodeStateAsUpdate(other)) });
+    await vi.waitFor(() => {
+      expect(doc.getText("t").toString()).toBe("hi");
+    });
+    await provider.destroy();
+  });
+
+  it("opens from a snapshot after compaction", async () => {
+    const server = fakeServer();
+    const seed = new Y.Doc();
+    seed.on("update", (update: Uint8Array) => {
+      void server.documents.push(DOC_ID, update);
+    });
+    seed.getText("t").insert(0, "saved");
+    await compactDocument({
+      documents: server.documents,
+      documentId: DOC_ID,
+      yjs: Y,
+    }).orThrow();
+    const doc = new Y.Doc();
+    const provider = createDocumentProvider({
+      documents: server.documents,
+      client: fakeBus().client().client,
+      doc,
+      ref,
+      yjs: Y,
+    });
+    await provider.connect().orThrow();
+    expect(doc.getText("t").toString()).toBe("saved");
+    await provider.destroy();
+  });
+
+  it("reports open, pull and broadcast failures", async () => {
+    const server = fakeServer();
+    const failure = { kind: "network", message: "down" } as never;
+    const statuses: string[] = [];
+    const closed = createDocumentProvider({
+      documents: {
+        ...server.documents,
+        open: () => AsyncResult.err<OpenedDocument>(failure),
+      },
+      client: fakeBus().client().client,
+      doc: new Y.Doc(),
+      ref,
+      yjs: Y,
+      onStatus: (status) => statuses.push(status),
+    });
+    expect((await closed.connect()).ok).toBe(false);
+    expect(statuses).toEqual(["connecting", "closed"]);
+
+    const errors: unknown[] = [];
+    const bus = fakeBus().client();
+    bus.channel.send.mockImplementation(async () => "error");
+    const doc = new Y.Doc();
+    const provider = createDocumentProvider({
+      documents: {
+        ...server.documents,
+        pull: () => AsyncResult.err<DocumentState>(failure),
+      },
+      client: bus.client,
+      doc,
+      ref,
+      yjs: Y,
+      onError: (error) => errors.push(error),
+    });
+    await provider.connect().orThrow();
+    doc.getText("t").insert(0, "a");
+    await provider.flush();
+    expect(String(errors[0])).toMatch(/broadcast failed/);
+    bus.entry.report?.("SUBSCRIBED");
+    await vi.waitFor(() => {
+      expect(errors).toContain(failure);
+    });
+    await provider.destroy();
+  });
 });
 
 describe("compactDocument", () => {
@@ -277,5 +419,19 @@ describe("compactDocument", () => {
         yjs: Y,
       }).orThrow(),
     ).toBe(false);
+  });
+
+  it("returns the pull error", async () => {
+    const server = fakeServer();
+    const failure = { kind: "network", message: "down" } as never;
+    const result = await compactDocument({
+      documents: {
+        ...server.documents,
+        pull: () => AsyncResult.err<DocumentState>(failure),
+      },
+      documentId: DOC_ID,
+      yjs: Y,
+    });
+    expect(result.ok).toBe(false);
   });
 });

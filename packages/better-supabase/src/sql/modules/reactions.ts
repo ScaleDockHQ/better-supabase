@@ -70,9 +70,9 @@ const NAMES: ModuleNames = {
 };
 
 /** The subject type of a comment from the `comments` module. */
-export const COMMENT_SUBJECT = "comment";
+const COMMENT_SUBJECT = "comment";
 /** The subject type of an inbox message from the `inbox` module. */
-export const INBOX_MESSAGE_SUBJECT = "inbox_message";
+const INBOX_MESSAGE_SUBJECT = "inbox_message";
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const SHORTCODE = "^:[a-z0-9_+-]{1,32}:$";
