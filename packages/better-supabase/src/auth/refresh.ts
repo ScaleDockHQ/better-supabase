@@ -29,6 +29,8 @@ export type RefreshOutcome =
       readonly ok: false;
       /** `rejected`: the refresh token is dead, sign the user out. `network`: keep the session and retry later. */
       readonly reason: "rejected" | "network";
+      /** For `network`: the fetch failed, timed out, or Auth answered 5xx or 429. */
+      readonly cause?: "fetch" | "timeout" | "status";
       readonly status?: number;
       /** The Auth server's `error_code`, such as `user_banned` or `refresh_token_not_found`. */
       readonly code?: string;
@@ -92,6 +94,7 @@ async function request(
     return {
       ok: false,
       reason: "network",
+      cause: signal.aborted ? "timeout" : "fetch",
       message: cause instanceof Error ? cause.message : "fetch failed",
     };
   }
@@ -102,7 +105,12 @@ async function request(
     unknown
   > | null;
   if (signal.aborted) {
-    return { ok: false, reason: "network", message: "refresh timed out" };
+    return {
+      ok: false,
+      reason: "network",
+      cause: "timeout",
+      message: "refresh timed out",
+    };
   }
   if (
     !response.ok ||
@@ -116,12 +124,11 @@ async function request(
         : typeof body?.["error_description"] === "string"
           ? body["error_description"]
           : `Refresh failed with ${String(response.status)}`;
+    const outage = response.status >= 500 || response.status === 429;
     return {
       ok: false,
-      reason:
-        response.status >= 500 || response.status === 429
-          ? "network"
-          : "rejected",
+      reason: outage ? "network" : "rejected",
+      ...(outage ? { cause: "status" as const } : {}),
       status: response.status,
       ...(typeof body?.["error_code"] === "string"
         ? { code: body["error_code"] }

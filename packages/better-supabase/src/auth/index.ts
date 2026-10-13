@@ -36,6 +36,7 @@ export {
   clearSessionAtScopes,
   DEFAULT_SESSION_ENCODING,
   parseCookies,
+  pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,

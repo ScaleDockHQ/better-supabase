@@ -7,7 +7,7 @@ import type {
 
 import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
-import type { RefreshEvent } from "../core/events.ts";
+import type { AuthOutageEvent, RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
@@ -26,6 +26,7 @@ import {
   type CookieRecord,
   type CookieWrite,
   parseCookies,
+  pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,
@@ -186,6 +187,12 @@ export interface ResolveAuthOptions {
   readonly clientIp?: ((request: Request) => string | undefined) | false;
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
+  /**
+   * With `refresh`, expire session chunks the readable session doesn't use
+   * (a leftover `.2` after a shorter rewrite) on every request, not only
+   * when the session is rewritten. Defaults to true.
+   */
+  readonly pruneChunks?: boolean;
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
@@ -205,6 +212,8 @@ export interface AuthResolution<C = unknown, P = unknown> {
   readonly sessionEnded?: boolean;
   /** Why `sessionEnded` is set: `banned` when Auth rejected the user as banned. */
   readonly sessionEndedReason?: "ended" | "banned";
+  /** Set when a refresh failed because the Auth server was unreachable. */
+  readonly outage?: AuthOutageEvent;
 }
 
 function expiryOf(session: StoredSession): number | undefined {
@@ -600,12 +609,14 @@ function resolution(
   cookies: () => readonly CookieRecord[],
   writes: readonly CookieWrite[] = [],
   ended?: "ended" | "banned",
+  outage?: AuthOutageEvent,
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
   let requestCookies: readonly CookieRecord[] | undefined;
   return {
     auth,
     ...(ended ? { sessionEnded: true, sessionEndedReason: ended } : {}),
+    ...(outage ? { outage } : {}),
     cookies: writes,
     headers,
     /** Parsed on first read: bearer requests rarely need their cookies. */
@@ -729,6 +740,12 @@ export async function resolveAuth(
     );
   }
 
+  // Leftover chunks are expired wherever cookies can be written, so they
+  // don't wait for the next refresh.
+  const pruned =
+    options.refresh && options.pruneChunks !== false
+      ? pruneSessionChunks(cookies(), name, options.cookie?.options)
+      : [];
   const now = Math.floor((options.now ?? Date.now)() / 1000);
   const expiry = expiryOf(session);
   // The leeway only decides when to refresh: where refreshing isn't allowed,
@@ -777,7 +794,7 @@ export async function resolveAuth(
       state.reason !== "token" ||
       state.error.kind === "network"
     )
-      return resolution(state, cookies);
+      return resolution(state, cookies, pruned);
     if (!options.refresh)
       return resolution({ kind: "anon", reason: "signed_out" }, cookies);
   } else if (!options.refresh) {
@@ -800,13 +817,32 @@ export async function resolveAuth(
       ? {}
       : { timeoutMs: options.refreshTimeoutMs }),
   });
+  const durationMs = performance.now() - started;
   options.onRefresh?.({
     ok: outcome.ok,
     shared: outcome.ok && outcome.shared === true,
-    durationMs: performance.now() - started,
+    durationMs,
+    ...(outcome.ok
+      ? {}
+      : {
+          reason: outcome.reason,
+          ...(outcome.status === undefined ? {} : { status: outcome.status }),
+          ...(outcome.code === undefined ? {} : { code: outcome.code }),
+        }),
   });
   if (!outcome.ok) {
     if (outcome.reason === "network") {
+      const outage = (kept: boolean): AuthOutageEvent => ({
+        cause:
+          outcome.cause === "timeout"
+            ? "timeout"
+            : outcome.cause === "status"
+              ? "status"
+              : "network",
+        ...(outcome.status === undefined ? {} : { status: outcome.status }),
+        kept,
+        durationMs,
+      });
       // A token refreshed early, in its leeway, is still good until it expires.
       if (!fresh && expiry !== undefined && expiry > now) {
         const state = await verify(
@@ -815,9 +851,16 @@ export async function resolveAuth(
           options,
           "cookie",
         );
-        if (state.kind !== "invalid") return resolution(state, cookies);
+        if (state.kind !== "invalid")
+          return resolution(state, cookies, pruned, undefined, outage(true));
       }
-      return resolution({ kind: "anon", reason: "refresh_failed" }, cookies);
+      return resolution(
+        { kind: "anon", reason: "refresh_failed" },
+        cookies,
+        pruned,
+        undefined,
+        outage(false),
+      );
     }
     return resolution(
       { kind: "anon", reason: "signed_out" },

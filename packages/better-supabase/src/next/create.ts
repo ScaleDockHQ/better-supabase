@@ -26,6 +26,7 @@ import { EMPTY_STATS, type DbStats } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
 import { serverCore } from "../server/entries/core.ts";
+import { outageResponse } from "../server/entries/session.ts";
 import { withExtra } from "../server/extra.ts";
 import {
   authorizeCaller as authorizeAuth,
@@ -379,6 +380,12 @@ export function createNext<
             : undefined;
         const custom =
           ended ??
+          (await outageResponse(
+            proxyOptions.onAuthOutage,
+            resolution,
+            request,
+            betterSupabase.events.logger,
+          )) ??
           (rendersSignedOut || !runsProtect
             ? undefined
             : await proxyOptions.protect?.(resolution.auth, request));

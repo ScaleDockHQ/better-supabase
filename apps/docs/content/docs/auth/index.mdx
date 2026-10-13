@@ -100,7 +100,15 @@ When it does refresh:
   `leeway`) still resolves the user until it expires, otherwise the caller is
   `anon` with `reason: "refresh_failed"`;
 - a refresh that takes longer than `refreshTimeoutMs` (5000 by default)
-  counts as a network failure, so a slow Auth server never holds up the proxy.
+  counts as a network failure, so a slow Auth server never holds up the proxy;
+- a network failure, timeout, 5xx or 429 sets `resolution.outage` to
+  `{ cause, status?, kept, durationMs }`, which the proxy and `withSession`
+  hand to `onAuthOutage`
+  ([details](/docs/frameworks/next#auth-outages)).
+
+With `refresh: true`, chunks the readable session doesn't use are also
+expired on responses that keep the session, not only on a refresh
+(`pruneChunks: false` turns that off).
 
 ```ts
 const resolution = await resolveAuth(request, { env, refresh: true });

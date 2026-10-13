@@ -119,6 +119,7 @@ export type {
 export { EventHub } from "./core/events.ts";
 export type {
   AuthEvent,
+  AuthOutageEvent,
   BetterSupabaseEvents,
   ErrorEvent,
   EventHandler,

@@ -8,6 +8,7 @@ import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { AuthOutageHook } from "../server/entries/session.ts";
 import type {
   ActionInput,
   ActionParsed,
@@ -88,6 +89,14 @@ export interface ProxyOptions<C = unknown, P = unknown> {
    */
   readonly serverTiming?: boolean;
   readonly endedSession?: true | EndedSessionOptions;
+  /**
+   * Called when a refresh failed because the Auth server was unreachable,
+   * timed out or answered 5xx or 429. When the access token couldn't be
+   * kept (`event.kept` is false), a returned `Response` replaces the
+   * proxy's response, such as a 503 with `Retry-After`. A throw is logged
+   * and ignored.
+   */
+  readonly onAuthOutage?: AuthOutageHook;
 }
 
 export interface EndedSessionOptions {

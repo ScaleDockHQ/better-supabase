@@ -80,6 +80,29 @@ export interface RefreshEvent {
   readonly ok: boolean;
   readonly shared: boolean;
   readonly durationMs: number;
+  /**
+   * Why a failed refresh failed: `network` (Auth unreachable, timed out, or
+   * answering 5xx or 429; the session is kept) or `rejected` (the refresh
+   * token is dead; the user is signed out).
+   */
+  readonly reason?: "network" | "rejected";
+  /** The Auth server's HTTP status, when it answered. */
+  readonly status?: number;
+  /** The Auth server's `error_code`, such as `refresh_token_not_found`. */
+  readonly code?: string;
+}
+
+/**
+ * A refresh that failed because the Auth server was unreachable, timed out
+ * or answered 5xx or 429. `kept`: the access token was still valid, so the
+ * request runs as the user; otherwise it runs as `anon` with
+ * `reason: "refresh_failed"` and the cookies stay untouched.
+ */
+export interface AuthOutageEvent {
+  readonly cause: "network" | "timeout" | "status";
+  readonly status?: number;
+  readonly kept: boolean;
+  readonly durationMs: number;
 }
 
 export interface BetterSupabaseEvents {

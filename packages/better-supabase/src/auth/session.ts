@@ -94,24 +94,81 @@ const cookieMaps = new WeakMap<
   ReadonlyMap<string, string>
 >();
 
-function combine(
+function byNameOf(
   cookies: readonly CookieRecord[],
-  name: string,
-): string | undefined {
+): ReadonlyMap<string, string> {
   let byName = cookieMaps.get(cookies);
   if (!byName) {
     byName = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
     cookieMaps.set(cookies, byName);
   }
-  const whole = byName.get(name);
-  if (whole) return whole;
-  const parts: string[] = [];
-  for (let index = 0; ; index++) {
-    const part = byName.get(`${name}.${index}`);
-    if (!part) break;
-    parts.push(part);
+  return byName;
+}
+
+function parseSession(raw: string): StoredSession | null {
+  try {
+    const json = raw.startsWith(BASE64_PREFIX)
+      ? stringFromBase64URL(raw.slice(BASE64_PREFIX.length))
+      : raw;
+    const parsed: unknown = JSON.parse(json);
+    return isStoredSession(parsed) ? parsed : null;
+  } catch {
+    return null;
   }
-  return parts.length > 0 ? parts.join("") : undefined;
+}
+
+/** A readable session and the cookie names it was read from. */
+interface ReadParts {
+  readonly session: StoredSession | null;
+  readonly used: readonly string[];
+}
+
+const readParts = new WeakMap<
+  readonly CookieRecord[],
+  Map<string, ReadParts>
+>();
+
+/**
+ * The whole cookie, else the `.0`, `.1`, ... chunks. When the joined chunks
+ * don't parse (a stale `.2` left by a longer session), the longest prefix
+ * that parses wins, so one leftover chunk never signs the user out.
+ */
+function readSessionParts(
+  cookies: readonly CookieRecord[],
+  name: string,
+): ReadParts {
+  let memo = readParts.get(cookies);
+  const known = memo?.get(name);
+  if (known) return known;
+  const byName = byNameOf(cookies);
+  let result: ReadParts = { session: null, used: [] };
+  const whole = byName.get(name);
+  if (whole) {
+    result = { session: parseSession(whole), used: [name] };
+  } else {
+    const parts: string[] = [];
+    for (let index = 0; ; index++) {
+      const part = byName.get(`${name}.${index}`);
+      if (!part) break;
+      parts.push(part);
+    }
+    for (let length = parts.length; length > 0; length--) {
+      const session = parseSession(parts.slice(0, length).join(""));
+      if (session) {
+        result = {
+          session,
+          used: Array.from({ length }, (_, index) => `${name}.${index}`),
+        };
+        break;
+      }
+    }
+  }
+  if (!memo) {
+    memo = new Map();
+    readParts.set(cookies, memo);
+  }
+  memo.set(name, result);
+  return result;
 }
 
 function isStoredSession(value: unknown): value is StoredSession {
@@ -126,24 +183,40 @@ function isStoredSession(value: unknown): value is StoredSession {
 
 /**
  * Reads the session written by `@supabase/ssr` (plain or `base64-`, whole or
- * chunked, `user-and-tokens` or `tokens-only`). Mismatched chunks from a
- * partial write read as no session.
+ * chunked, `user-and-tokens` or `tokens-only`). Trailing chunks a shorter
+ * session no longer uses are ignored; chunks that never form a session read
+ * as no session.
  */
 export function readSession(
   cookies: readonly CookieRecord[],
   name: string,
 ): StoredSession | null {
-  const raw = combine(cookies, name);
-  if (!raw) return null;
-  try {
-    const json = raw.startsWith(BASE64_PREFIX)
-      ? stringFromBase64URL(raw.slice(BASE64_PREFIX.length))
-      : raw;
-    const parsed: unknown = JSON.parse(json);
-    return isStoredSession(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  return readSessionParts(cookies, name).session;
+}
+
+/**
+ * `Max-Age=0` writes for the session's chunk-like cookies that the readable
+ * session doesn't use: a leftover `.2` after a shorter rewrite, chunks next
+ * to a whole cookie, or chunks past a gap. Empty when no session reads.
+ */
+export function pruneSessionChunks(
+  cookies: readonly CookieRecord[],
+  name: string,
+  options: CookieOptions = {},
+): CookieWrite[] {
+  const { session, used } = readSessionParts(cookies, name);
+  if (!session) return [];
+  const kept = new Set(used);
+  const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
+  return cookies
+    .filter(
+      (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
+    )
+    .map((cookie) => ({
+      name: cookie.name,
+      value: "",
+      options: { ...base, maxAge: 0 },
+    }));
 }
 
 /** The encoding a stored session was written with: `tokens-only` without a `user`. */

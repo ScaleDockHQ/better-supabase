@@ -96,6 +96,35 @@ A proxy that does not use `bs.proxy` can run the same check with
 `sessionStatus` and `clearSessionCookies`
 ([details](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 
+### Auth outages
+
+When a refresh fails because Auth is unreachable, times out or answers 5xx
+or 429, the proxy calls `onAuthOutage(event, request)`. The event carries
+the `cause` (`"network"`, `"timeout"` or `"status"`), the `status` for a
+status outage, `durationMs`, and `kept`: true when the access token was
+still valid and the caller stays signed in. When `kept` is false, a
+`Response` you return replaces the proxy's response, so a signed-in user
+sees a retry page instead of being sent to sign-in:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  bs.proxy(request, {
+    protect,
+    onAuthOutage: (event) =>
+      event.kept
+        ? undefined
+        : new Response("Sign-in is temporarily unavailable.", {
+            status: 503,
+            headers: { "retry-after": "10" },
+          }),
+  });
+```
+
+A rejected refresh token is not an outage: the session is cleared and
+`protect` runs as usual. The `refresh` event also carries `reason`,
+`status` and `code` for a failed refresh. `withSession` takes the same
+`onAuthOutage` option outside Next.js.
+
 ## Server Components
 
 ```tsx

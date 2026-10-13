@@ -84,7 +84,7 @@ export type {
 } from "./composite.ts";
 export { withBlock } from "./entries/block.ts";
 export { withSession } from "./entries/session.ts";
-export type { SessionEntryConfig } from "./entries/session.ts";
+export type { AuthOutageHook, SessionEntryConfig } from "./entries/session.ts";
 export { withGuard } from "./entries/guard.ts";
 export type { GuardEntryConfig } from "./entries/guard.ts";
 export { authModeOf, jwtClaimsOf, userClaimsOf } from "../auth/claims.ts";

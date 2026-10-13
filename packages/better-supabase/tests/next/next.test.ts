@@ -209,6 +209,42 @@ describe("createNext", () => {
     ).toBe(true);
   });
 
+  it("hands an auth outage to onAuthOutage, replacing the response only when the session is lost", async () => {
+    const onAuthOutage = vi.fn(() => new Response("down", { status: 503 }));
+    fresh.mockResolvedValue(new Response("busy", { status: 503 }));
+    const stale = await signer.sign({ sub: USER, expiresIn: 20 });
+    const kept = await bs.proxy(page({ cookie: cookieFor(stale, "o-1") }), {
+      onAuthOutage,
+    });
+    expect(kept.status).toBe(200);
+    expect(onAuthOutage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cause: "status", status: 503, kept: true }),
+      expect.anything(),
+    );
+
+    fresh.mockRejectedValue(new TypeError("fetch failed"));
+    const lost = await bs.proxy(page({ cookie: cookieFor("opaque", "o-2") }), {
+      onAuthOutage,
+      protect: () => NextResponse.redirect("https://app.test/login"),
+    });
+    expect(lost.status).toBe(503);
+    expect(onAuthOutage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cause: "network", kept: false }),
+      expect.anything(),
+    );
+
+    fresh.mockRejectedValue(new TypeError("fetch failed"));
+    const thrown = await bs.proxy(
+      page({ cookie: cookieFor("opaque", "o-3") }),
+      {
+        onAuthOutage: () => {
+          throw new Error("hook");
+        },
+      },
+    );
+    expect(thrown.status).toBe(200);
+  });
+
   describe("ended sessions", () => {
     const session = async () => {
       const token = await signer.sign({ sub: USER });
