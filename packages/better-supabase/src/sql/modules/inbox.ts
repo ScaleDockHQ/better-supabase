@@ -16,17 +16,26 @@ import {
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const q = inboxSql(ctx);
+  const teams = ctx.installed("teams") ? ctx.of("teams") : undefined;
+  const sharedTeams = teams !== undefined;
   return `${schemaPreamble(ctx)}
 -- A shared inbox: conversations with contacts across the in-app widget and
 -- the channels better-supabase/chat-sdk connects, internal notes, mentions,
 -- assignment to members and teams, bot hand-off and delivery status. Staff
 -- read through the inbox.read key; a signed-in contact reads their own
 -- conversations without the notes. Writes go through the functions.
-${inboxTables(q)}
+${inboxTables(q, sharedTeams)}
 
 ${inboxHelpers(q)}
 
-${inboxFunctions(q)}
+${inboxFunctions(
+  q,
+  teams && {
+    create: teams.fn("create_team"),
+    add: teams.fn("add_team_member"),
+    remove: teams.fn("remove_team_member"),
+  },
+)}
 
 ${inboxServiceFunctions(q)}
 
@@ -167,7 +176,7 @@ export const INBOX: ModuleDefinition = {
   title: "Shared inbox",
   description:
     "Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
-  requires: ["tenant", "access", "updated-at"],
+  requires: ["tenant", "access", "updated-at", "teams"],
   integrates: ["jobs", "notifications"],
   providerFunctions: ["idsWithFor"],
   target: "schema",

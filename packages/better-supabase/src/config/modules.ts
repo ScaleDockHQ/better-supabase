@@ -151,6 +151,11 @@ export interface AccessModuleConfig extends ModuleConfig {
      * defaults to the provider's `canAssignFor`.
      */
     readonly canAssignFor?: string;
+    /**
+     * `{permission}` and `{tenant}`: the user ids that hold the permission
+     * in the tenant, for the `custom` model's notification audiences.
+     */
+    readonly holdersOf?: string;
     /** `{user}`: the permission claim for the access token hook. */
     readonly permissionClaims?: string;
   };

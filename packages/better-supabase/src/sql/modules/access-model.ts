@@ -30,6 +30,12 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "inbox.*",
     "ai_chat.*",
     "ai.*",
+    "tags.*",
+    "teams.*",
+    "custom_fields.*",
+    "share_links.*",
+    "reminders.*",
+    "imports.*",
   ],
   member: [
     "organization.read",
@@ -51,6 +57,11 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "ai.read",
     "ai.create",
     "ai.share",
+    "custom_fields.read",
+    "teams.read",
+    "tags.read",
+    "share_links.read",
+    "reminders.read",
   ],
   viewer: ["organization.read"],
 };
@@ -168,6 +179,17 @@ export const MODULE_PERMISSIONS = {
   },
   "ai-tasks": { create: "ai.create", manage: "ai.admin" },
   "ai-providers": { use: "ai.create", manage: "ai.admin" },
+  "number-sequences": { assign: "number_sequences.assign" },
+  teams: { manage: "teams.manage", read: "teams.read" },
+  tags: { manage: "tags.manage", read: "tags.read" },
+  "custom-fields": {
+    manage: "custom_fields.manage",
+    read: "custom_fields.read",
+    sensitive: "custom_fields.sensitive.read",
+  },
+  "share-links": { create: "share_links.create", read: "share_links.read" },
+  reminders: { manage: "reminders.manage", read: "reminders.read" },
+  imports: { manage: "imports.manage" },
 } as const;
 
 /**
@@ -262,6 +284,17 @@ export const MODULE_PERMISSION_SCOPES: {
   connectors: { read: "tenant", use: "tenant", manage: "tenant" },
   "ai-tasks": { create: "tenant", manage: "tenant" },
   "ai-providers": { use: "tenant", manage: "tenant" },
+  "number-sequences": { assign: "tenant" },
+  teams: { manage: "tenant", read: "tenant" },
+  tags: { manage: "tenant", read: "tenant" },
+  "custom-fields": {
+    manage: "tenant",
+    read: "tenant",
+    sensitive: "tenant",
+  },
+  "share-links": { create: "tenant", read: "tenant" },
+  reminders: { manage: "tenant", read: "tenant" },
+  imports: { manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

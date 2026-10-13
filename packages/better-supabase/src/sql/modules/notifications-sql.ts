@@ -1,8 +1,10 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, fail } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import { permissionAudience } from "./notifications-audience.ts";
 import {
   changedJson,
   integerMutations,
@@ -145,7 +147,11 @@ revoke execute on function ${fn}(uuid, ${id}, text, text) from public, anon, aut
 grant execute on function ${fn}(uuid, ${id}, text, text) to service_role;`;
 }
 
-function notify(ctx: ModuleContext, n: NotifyNames): string {
+function notify(
+  ctx: ModuleContext,
+  n: NotifyNames,
+  layout: ModuleLayout = {},
+): string {
   const id = ctx.idType;
   const access = ctx.installed("access");
   const e = (logical: string) => n.col("events", logical);
@@ -359,6 +365,7 @@ begin
     execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');
   end if;${watchers}
+  ${permissionAudience(ctx, layout)}
   -- exclude: users the composer already reached (the mentioned ones, say).
   if jsonb_typeof(notification -> 'exclude') = 'array' then
     v_recipients := array(
@@ -1011,10 +1018,14 @@ revoke execute on function ${fn}(interval, integer) from public, anon, authentic
 grant execute on function ${fn}(interval, integer) to service_role;`;
 }
 
-export function functions(ctx: ModuleContext, n: NotifyNames): string {
+export function functions(
+  ctx: ModuleContext,
+  n: NotifyNames,
+  layout: ModuleLayout = {},
+): string {
   return [
     enabled(ctx, n),
-    notify(ctx, n),
+    notify(ctx, n, layout),
     inbox(ctx, n),
     settings(ctx, n),
     readers(ctx, n),

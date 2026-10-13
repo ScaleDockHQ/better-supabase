@@ -5,6 +5,37 @@
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pgcrypto with schema extensions;
@@ -250,6 +281,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -333,6 +367,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_definitions" x
   where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
   return found;
@@ -354,6 +391,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_versions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition for update;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -410,6 +450,9 @@ declare
   v_tenant uuid;
   v_errors jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version for update;
   if not found then
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -576,6 +619,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_triggers"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -644,6 +690,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
@@ -668,6 +717,9 @@ declare
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select y."tenant_id", x."kind" into v_tenant, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
@@ -758,6 +810,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -843,6 +898,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_credentials" x
   where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)))
   returning * into v_row;
@@ -1005,6 +1063,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_alerts"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -1066,6 +1127,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_alerts" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = alert and y."id" = x."definition_id"
@@ -1182,6 +1246,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pgcrypto with schema extensions;
@@ -1427,6 +1522,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -1510,6 +1608,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_definitions" x
   where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
   return found;
@@ -1531,6 +1632,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_versions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition for update;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -1587,6 +1691,9 @@ declare
   v_tenant uuid;
   v_errors jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version for update;
   if not found then
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -1762,6 +1869,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_triggers"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -1830,6 +1940,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
@@ -1854,6 +1967,9 @@ declare
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select y."tenant_id", x."kind" into v_tenant, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
@@ -1944,6 +2060,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -2029,6 +2148,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_credentials" x
   where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)))
   returning * into v_row;
@@ -2191,6 +2313,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_alerts"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -2252,6 +2377,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_alerts" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = alert and y."id" = x."definition_id"
@@ -2370,6 +2498,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -2617,6 +2776,9 @@ as $$
 declare
   v_row "app_private"."workflow_definitions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -2700,6 +2862,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "app_private"."workflow_definitions" x
   where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
   return found;
@@ -2721,6 +2886,9 @@ declare
   v_tenant uuid;
   v_row "app_private"."workflow_versions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = definition for update;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -2777,6 +2945,9 @@ declare
   v_tenant uuid;
   v_errors jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "app_private"."workflow_versions" x where x."id" = version for update;
   if not found then
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -2943,6 +3114,9 @@ declare
   v_tenant uuid;
   v_row "app_private"."workflow_triggers"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -3011,6 +3185,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "app_private"."workflow_triggers" x
   using "app_private"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
@@ -3035,6 +3212,9 @@ declare
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select y."tenant_id", x."kind" into v_tenant, v_kind
   from "app_private"."workflow_triggers" x join "app_private"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
@@ -3125,6 +3305,9 @@ as $$
 declare
   v_row "app_private"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -3210,6 +3393,9 @@ as $$
 declare
   v_row "app_private"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "app_private"."workflow_credentials" x
   where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)))
   returning * into v_row;
@@ -3372,6 +3558,9 @@ declare
   v_tenant uuid;
   v_row "app_private"."workflow_alerts"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -3433,6 +3622,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "app_private"."workflow_alerts" x
   using "app_private"."workflow_definitions" y
   where x."id" = alert and y."id" = x."definition_id"
@@ -3549,6 +3741,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pgcrypto with schema extensions;
@@ -3794,6 +4017,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -3877,6 +4103,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_definitions" x
   where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
   return found;
@@ -3898,6 +4127,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_versions"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition for update;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -3954,6 +4186,9 @@ declare
   v_tenant uuid;
   v_errors jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version for update;
   if not found then
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -4120,6 +4355,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_triggers"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -4188,6 +4426,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
@@ -4212,6 +4453,9 @@ declare
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select y."tenant_id", x."kind" into v_tenant, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
@@ -4302,6 +4546,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
@@ -4387,6 +4634,9 @@ as $$
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_credentials" x
   where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)))
   returning * into v_row;
@@ -4549,6 +4799,9 @@ declare
   v_tenant uuid;
   v_row "better_supabase"."workflow_alerts"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
@@ -4610,6 +4863,9 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   delete from "better_supabase"."workflow_alerts" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = alert and y."id" = x."definition_id"
@@ -4695,6 +4951,24 @@ grant execute on function "better_supabase"."check_workflow_alerts"(integer) to 
 -- sql.modules.workflow-builder.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."validate_workflow_graph"(graph jsonb)
 returns jsonb

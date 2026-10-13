@@ -273,11 +273,28 @@ export function createNotifications<
         }
         const data = await validate(schemaOf, input.data, `${type} data`);
         if (!data.ok) return err(data.error);
+        if (
+          input.permission !== undefined &&
+          (input.tenant === undefined || input.tenant === "")
+        ) {
+          return err(
+            dbError("validation", "A permission audience needs a tenant", {
+              issues: [
+                {
+                  path: ["tenant"],
+                  message: "A permission audience needs a tenant",
+                },
+              ],
+              hint: "NOTIFICATION_PERMISSION_NEEDS_TENANT",
+            }),
+          );
+        }
         const notification = {
           type,
           data: data.data,
           recipients: input.recipients ?? [],
           tenant: input.tenant,
+          permission: input.permission,
           subject_type: input.subject?.type,
           subject_id: input.subject?.id,
           subject_label: input.subject?.label,

@@ -1,0 +1,1295 @@
+-- ==== alone: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module share-links@1 managed
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."share_links" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "token_hash" text not null unique,
+  "role" text not null default 'view',
+  "version" integer not null default 1,
+  "expires_at" timestamptz,
+  "revoked_at" timestamptz,
+  "max_uses" integer,
+  "created_by" uuid,
+  "leaf_id" text
+);
+alter table "better_supabase"."share_links" enable row level security;
+revoke all on "better_supabase"."share_links" from anon, authenticated;
+grant select on "better_supabase"."share_links" to authenticated;
+grant all on "better_supabase"."share_links" to service_role;
+create table if not exists "better_supabase"."subject_views" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "version" integer not null default 1,
+  "viewer_kind" text not null,
+  "viewer" text,
+  "first_viewed_at" timestamptz not null default now(),
+  "last_viewed_at" timestamptz not null default now(),
+  "view_count" integer not null default 1,
+  unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+);
+alter table "better_supabase"."subject_views" enable row level security;
+revoke all on "better_supabase"."subject_views" from anon, authenticated;
+grant select on "better_supabase"."subject_views" to authenticated;
+grant all on "better_supabase"."subject_views" to service_role;
+
+create table if not exists "better_supabase"."subject_user_state" (
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "user_id" uuid not null,
+  "starred_at" timestamptz,
+  "last_opened_at" timestamptz,
+  primary key ("subject_type", "subject_id", "user_id")
+);
+alter table "better_supabase"."subject_user_state" enable row level security;
+revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+grant select on "better_supabase"."subject_user_state" to authenticated;
+grant all on "better_supabase"."subject_user_state" to service_role;
+
+
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
+    raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'token', v_token);
+end;
+$$;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."revoke_share_link"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id and "revoked_at" is null
+  returning "tenant_id" into v_tenant;
+  if not found then
+    raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."resolve_share_link"(token text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role")
+  from "better_supabase"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and ("expires_at" is null or "expires_at" > now())
+$$;
+revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
+  on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  do update set "last_viewed_at" = now(), "view_count" = "better_supabase"."subject_views"."view_count" + 1;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links"
+  where "subject_type" = list_share_links.subject_type
+    and "subject_id" = list_share_links.subject_id
+$$;
+revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at", "last_opened_at")
+  values (set_user_state.subject_type, set_user_state.subject_id, auth.uid(), case when set_user_state.starred then now() else null end, now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = excluded."starred_at", "last_opened_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== with every module: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module share-links@1 managed
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."share_links" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "token_hash" text not null unique,
+  "role" text not null default 'view',
+  "version" integer not null default 1,
+  "expires_at" timestamptz,
+  "revoked_at" timestamptz,
+  "max_uses" integer,
+  "created_by" uuid,
+  "leaf_id" text
+);
+alter table "better_supabase"."share_links" enable row level security;
+revoke all on "better_supabase"."share_links" from anon, authenticated;
+grant select on "better_supabase"."share_links" to authenticated;
+grant all on "better_supabase"."share_links" to service_role;
+create table if not exists "better_supabase"."subject_views" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "version" integer not null default 1,
+  "viewer_kind" text not null,
+  "viewer" text,
+  "first_viewed_at" timestamptz not null default now(),
+  "last_viewed_at" timestamptz not null default now(),
+  "view_count" integer not null default 1,
+  unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+);
+alter table "better_supabase"."subject_views" enable row level security;
+revoke all on "better_supabase"."subject_views" from anon, authenticated;
+grant select on "better_supabase"."subject_views" to authenticated;
+grant all on "better_supabase"."subject_views" to service_role;
+
+create table if not exists "better_supabase"."subject_user_state" (
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "user_id" uuid not null,
+  "starred_at" timestamptz,
+  "last_opened_at" timestamptz,
+  primary key ("subject_type", "subject_id", "user_id")
+);
+alter table "better_supabase"."subject_user_state" enable row level security;
+revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+grant select on "better_supabase"."subject_user_state" to authenticated;
+grant all on "better_supabase"."subject_user_state" to service_role;
+
+
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
+    raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid())
+  returning "id" into v_id;
+  perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
+  return jsonb_build_object('id', v_id, 'token', v_token);
+end;
+$$;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."revoke_share_link"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id and "revoked_at" is null
+  returning "tenant_id" into v_tenant;
+  if not found then
+    raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
+  end if;
+  perform "better_supabase".emit_event('share_link.revoked', jsonb_build_object('organizationId', v_tenant, 'id', revoke_share_link.id), 'share-links/' || revoke_share_link.id::text, (v_tenant)::text, null, 'better-supabase/share-links');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."resolve_share_link"(token text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role")
+  from "better_supabase"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and ("expires_at" is null or "expires_at" > now())
+$$;
+revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
+  on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  do update set "last_viewed_at" = now(), "view_count" = "better_supabase"."subject_views"."view_count" + 1;
+  perform "better_supabase".emit_event('subject.viewed', jsonb_build_object('organizationId', record_view.tenant, 'subjectType', record_view.subject_type, 'subjectId', record_view.subject_id), 'views/' || record_view.subject_type || '/' || record_view.subject_id, (record_view.tenant)::text, null, 'better-supabase/share-links');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links"
+  where "subject_type" = list_share_links.subject_type
+    and "subject_id" = list_share_links.subject_id
+$$;
+revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at", "last_opened_at")
+  values (set_user_state.subject_type, set_user_state.subject_id, auth.uid(), case when set_user_state.starred then now() else null end, now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = excluded."starred_at", "last_opened_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+-- ai-chat sharing is this block. The old functions stay callable and write
+-- share_links instead of ai_chat_shares.
+do $$
+begin
+  if to_regclass('"better_supabase".ai_chat_shares') is not null then
+    insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "created_by", "leaf_id")
+    select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
+    from "better_supabase".ai_chat_shares s
+    join "better_supabase".ai_chats c on c.id = s.chat_id
+    on conflict ("token_hash") do nothing;
+  end if;
+end;
+$$;
+create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_tenant uuid;
+  v_owner uuid;
+  v_leaf text;
+  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select organization_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
+  from "better_supabase".ai_chats where id = share_ai_chat.chat;
+  if not found or v_owner is distinct from auth.uid() then
+    raise exception 'no chat' using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
+  end if;
+  v_leaf := coalesce(share_ai_chat.leaf, v_leaf);
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "leaf_id")
+  values (v_tenant, 'ai-chat', share_ai_chat.chat::text, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), 'view', auth.uid(), v_leaf)
+  returning "id" into v_id;
+  return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf);
+end;
+$$;
+revoke execute on function "better_supabase"."share_ai_chat"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."share_ai_chat"(uuid, text) to authenticated, service_role;
+create or replace function "better_supabase"."revoke_ai_chat_share"(id uuid)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  return "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
+end;
+$$;
+create or replace function "better_supabase"."list_ai_chat_shares"(chat uuid)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select "better_supabase"."list_share_links"('ai-chat', list_ai_chat_shares.chat::text)
+$$;
+create or replace function "better_supabase"."get_shared_ai_chat"(token text)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_subject text;
+  v_leaf text;
+  v_chat_id uuid;
+begin
+  if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
+    return null;
+  end if;
+  select "subject_id", "leaf_id"
+    into v_subject, v_leaf
+  from "better_supabase"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(get_shared_ai_chat.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and "subject_type" = 'ai-chat';
+  if not found then
+    return null;
+  end if;
+  v_chat_id := v_subject::uuid;
+  return jsonb_build_object(
+    'chat', (select jsonb_build_object('id', id, 'title', title, 'model', model, 'created_at', created_at) from "better_supabase".ai_chats where id = v_chat_id),
+    'leaf_id', v_leaf,
+    'messages', "better_supabase"."ai_message_path_of"(v_chat_id, v_leaf, false)
+  );
+end;
+$$;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module share-links@1 managed
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create schema if not exists "app_private";
+grant usage on schema "app_private" to anon, authenticated, service_role;
+create table if not exists "app_private"."share_links" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "token_hash" text not null unique,
+  "role" text not null default 'view',
+  "version" integer not null default 1,
+  "expires_at" timestamptz,
+  "revoked_at" timestamptz,
+  "max_uses" integer,
+  "created_by" uuid,
+  "leaf_id" text
+);
+alter table "app_private"."share_links" enable row level security;
+revoke all on "app_private"."share_links" from anon, authenticated;
+grant select on "app_private"."share_links" to authenticated;
+grant all on "app_private"."share_links" to service_role;
+create table if not exists "app_private"."subject_views" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "version" integer not null default 1,
+  "viewer_kind" text not null,
+  "viewer" text,
+  "first_viewed_at" timestamptz not null default now(),
+  "last_viewed_at" timestamptz not null default now(),
+  "view_count" integer not null default 1,
+  unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+);
+alter table "app_private"."subject_views" enable row level security;
+revoke all on "app_private"."subject_views" from anon, authenticated;
+grant select on "app_private"."subject_views" to authenticated;
+grant all on "app_private"."subject_views" to service_role;
+
+create table if not exists "app_private"."subject_user_state" (
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "user_id" uuid not null,
+  "starred_at" timestamptz,
+  "last_opened_at" timestamptz,
+  primary key ("subject_type", "subject_id", "user_id")
+);
+alter table "app_private"."subject_user_state" enable row level security;
+revoke all on "app_private"."subject_user_state" from anon, authenticated;
+grant select on "app_private"."subject_user_state" to authenticated;
+grant all on "app_private"."subject_user_state" to service_role;
+
+
+create or replace function "app_private"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
+    raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
+  end if;
+  insert into "app_private"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'token', v_token);
+end;
+$$;
+revoke execute on function "app_private"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "app_private"."revoke_share_link"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "app_private"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id and "revoked_at" is null
+  returning "tenant_id" into v_tenant;
+  if not found then
+    raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "app_private"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."resolve_share_link"(token text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role")
+  from "app_private"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and ("expires_at" is null or "expires_at" > now())
+$$;
+revoke all on function "app_private"."resolve_share_link"(text) from public, anon, authenticated;
+grant execute on function "app_private"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "app_private"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "app_private"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
+  on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  do update set "last_viewed_at" = now(), "view_count" = "app_private"."subject_views"."view_count" + 1;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "app_private"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "app_private"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  from "app_private"."share_links"
+  where "subject_type" = list_share_links.subject_type
+    and "subject_id" = list_share_links.subject_id
+$$;
+revoke execute on function "app_private"."list_share_links"(text, text) from public, anon;
+grant execute on function "app_private"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "app_private"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "app_private"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at", "last_opened_at")
+  values (set_user_state.subject_type, set_user_state.subject_id, auth.uid(), case when set_user_state.starred then now() else null end, now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = excluded."starred_at", "last_opened_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "app_private"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== api schema: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module share-links@1 managed
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."share_links" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "token_hash" text not null unique,
+  "role" text not null default 'view',
+  "version" integer not null default 1,
+  "expires_at" timestamptz,
+  "revoked_at" timestamptz,
+  "max_uses" integer,
+  "created_by" uuid,
+  "leaf_id" text
+);
+alter table "better_supabase"."share_links" enable row level security;
+revoke all on "better_supabase"."share_links" from anon, authenticated;
+grant select on "better_supabase"."share_links" to authenticated;
+grant all on "better_supabase"."share_links" to service_role;
+create table if not exists "better_supabase"."subject_views" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "version" integer not null default 1,
+  "viewer_kind" text not null,
+  "viewer" text,
+  "first_viewed_at" timestamptz not null default now(),
+  "last_viewed_at" timestamptz not null default now(),
+  "view_count" integer not null default 1,
+  unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+);
+alter table "better_supabase"."subject_views" enable row level security;
+revoke all on "better_supabase"."subject_views" from anon, authenticated;
+grant select on "better_supabase"."subject_views" to authenticated;
+grant all on "better_supabase"."subject_views" to service_role;
+
+create table if not exists "better_supabase"."subject_user_state" (
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "user_id" uuid not null,
+  "starred_at" timestamptz,
+  "last_opened_at" timestamptz,
+  primary key ("subject_type", "subject_id", "user_id")
+);
+alter table "better_supabase"."subject_user_state" enable row level security;
+revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+grant select on "better_supabase"."subject_user_state" to authenticated;
+grant all on "better_supabase"."subject_user_state" to service_role;
+
+
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
+    raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'token', v_token);
+end;
+$$;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."revoke_share_link"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id and "revoked_at" is null
+  returning "tenant_id" into v_tenant;
+  if not found then
+    raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."resolve_share_link"(token text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role")
+  from "better_supabase"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and ("expires_at" is null or "expires_at" > now())
+$$;
+revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
+  on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  do update set "last_viewed_at" = now(), "view_count" = "better_supabase"."subject_views"."view_count" + 1;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links"
+  where "subject_type" = list_share_links.subject_type
+    and "subject_id" = list_share_links.subject_id
+$$;
+revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at", "last_opened_at")
+  values (set_user_state.subject_type, set_user_state.subject_id, auth.uid(), case when set_user_state.starred then now() else null end, now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = excluded."starred_at", "last_opened_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+-- sql.modules.share-links.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4) $$;
+revoke execute on function "api"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "api"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."revoke_share_link"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."revoke_share_link"($1) $$;
+revoke execute on function "api"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "api"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "api"."resolve_share_link"(token text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resolve_share_link"($1) $$;
+revoke execute on function "api"."resolve_share_link"(text) from public;
+grant execute on function "api"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "api"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_view"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "api"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_share_links"($1, $2) $$;
+revoke execute on function "api"."list_share_links"(text, text) from public, anon;
+grant execute on function "api"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "api"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_user_state"($1, $2, $3) $$;
+revoke execute on function "api"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "api"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== adopt: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module share-links@1 adopt
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
+    raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'token', v_token);
+end;
+$$;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."revoke_share_link"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id and "revoked_at" is null
+  returning "tenant_id" into v_tenant;
+  if not found then
+    raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
+  end if;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
+grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."resolve_share_link"(token text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role")
+  from "better_supabase"."share_links"
+  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and "revoked_at" is null
+    and ("expires_at" is null or "expires_at" > now())
+$$;
+revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
+  on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
+  do update set "last_viewed_at" = now(), "view_count" = "better_supabase"."subject_views"."view_count" + 1;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."record_view"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_view"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_share_links"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links"
+  where "subject_type" = list_share_links.subject_type
+    and "subject_id" = list_share_links.subject_id
+$$;
+revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_user_state"(subject_type text, subject_id text, starred boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at", "last_opened_at")
+  values (set_user_state.subject_type, set_user_state.subject_id, auth.uid(), case when set_user_state.starred then now() else null end, now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = excluded."starred_at", "last_opened_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== adopt: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- better-supabase module: share-links
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

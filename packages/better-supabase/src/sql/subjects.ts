@@ -4,7 +4,7 @@ import type { ModuleAccessProvider } from "./module-types.ts";
 import { fillTemplate } from "../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/access-model.ts";
-import { quotedTable, tenantIn } from "./shared.ts";
+import { quotedTable, splitTable, tenantIn } from "./shared.ts";
 
 /**
  * One subject type a module's rows belong to (`options.subjects`): the
@@ -138,6 +138,105 @@ export function subjectsOption(
 }
 
 export const qualifiedTable = (table: string): string => quotedTable(table);
+
+const COLUMN_NAME = /^[a-z_][a-z0-9_]*$/;
+
+/**
+ * One adopted table a subject carries (`options.subjects.<type>.<key>`),
+ * so a module can write per-entity link or history tables instead of one
+ * polymorphic table. ADR 0018.
+ */
+export interface SubjectTableBinding {
+  readonly type: string;
+  readonly key: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly qualified: string;
+  /** Logical column to the physical name the adopted table uses. */
+  readonly columns: Readonly<Record<string, string>>;
+}
+
+/**
+ * `options.subjects.<type>.<key>` as `{ table, <column>... }`. Undefined
+ * when the subject doesn't set it (the module's polymorphic table is used).
+ * `columns` are required; `optional` may be omitted.
+ */
+function subjectTableBinding(
+  ctx: ModuleContext,
+  type: string,
+  subject: Subject,
+  key: string,
+  spec: {
+    readonly columns: readonly string[];
+    readonly optional?: readonly string[];
+  },
+): SubjectTableBinding | undefined {
+  const raw = subject.extra[key];
+  if (raw === undefined) return undefined;
+  const where = `sql.modules.${ctx.module}.options.subjects.${type}.${key}`;
+  if (!isObject(raw) || typeof raw["table"] !== "string") {
+    throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
+  }
+  let schema: string;
+  let table: string;
+  try {
+    [schema, table] = splitTable(raw["table"]);
+  } catch {
+    throw new TypeError(`${where}.table must be "table" or "schema.table"`);
+  }
+  if (!COLUMN_NAME.test(schema) || !COLUMN_NAME.test(table)) {
+    throw new TypeError(`${where}.table must be "table" or "schema.table"`);
+  }
+  const columns: Record<string, string> = {};
+  const optional = new Set(spec.optional ?? []);
+  const known = new Set([...spec.columns, ...optional, "table"]);
+  for (const name of Object.keys(raw)) {
+    if (!known.has(name)) {
+      throw new TypeError(
+        `${where}.${name} is not a column. Columns: ${[...spec.columns, ...optional].join(", ")}`,
+      );
+    }
+  }
+  for (const name of spec.columns) {
+    const value = raw[name];
+    if (typeof value !== "string" || !COLUMN_NAME.test(value)) {
+      throw new TypeError(`${where}.${name} must be a column name`);
+    }
+    columns[name] = value;
+  }
+  for (const name of optional) {
+    const value = raw[name];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !COLUMN_NAME.test(value)) {
+      throw new TypeError(`${where}.${name} must be a column name`);
+    }
+    columns[name] = value;
+  }
+  return {
+    type,
+    key,
+    schema,
+    table,
+    qualified: `${sqlIdent(schema)}.${sqlIdent(table)}`,
+    columns,
+  };
+}
+
+/** Every subject table binding `key` declares, for adopt-mode column checks. */
+export function subjectTableBindings(
+  ctx: ModuleContext,
+  subjects: readonly (readonly [string, Subject])[],
+  key: string,
+  spec: {
+    readonly columns: readonly string[];
+    readonly optional?: readonly string[];
+  },
+): readonly SubjectTableBinding[] {
+  return subjects.flatMap(([type, subject]) => {
+    const binding = subjectTableBinding(ctx, type, subject, key, spec);
+    return binding === undefined ? [] : [binding];
+  });
+}
 
 /**
  * Whether the caller may read the subject `type`/`id` in `tenant`: its row

@@ -1,0 +1,24 @@
+---
+title: Number sequences
+description: Gapless document numbers per tenant, entity and period, assigned inside the document's own transaction.
+---
+
+`number-sequences` allocates `INV-2026-00042` style numbers without gaps. `next_number` locks the sequence row in the caller's transaction, and a rollback releases the number. The function is service-only. A document takes its number from a trigger, so a separate client round trip cannot commit a number the document never keeps.
+
+```bash
+better-supabase sql add number-sequences
+```
+
+```ts
+import { createNumberSequences } from "better-supabase/blocks/number-sequences";
+```
+
+| Table              | Holds                                           |
+| ------------------ | ----------------------------------------------- |
+| `number_sequences` | The last number for a tenant, entity and period |
+
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
+
+## Adopt mode
+
+Map `tables.numberSequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`.

@@ -23,6 +23,11 @@ export type TypeName<K extends NotificationTypes> = keyof K & string;
 export interface SendInput<D = unknown> {
   /** Who gets it. Watchers of `subject` and the `notification_audience` hook add more. */
   readonly recipients?: readonly string[];
+  /**
+   * Also notify the users who hold this permission in `tenant`. Needs
+   * `tenant`. Without a holders template the send is refused.
+   */
+  readonly permission?: string;
   /** The organization; required when an authenticated user sends. */
   readonly tenant?: string;
   readonly subject?: NotificationSubject;

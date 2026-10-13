@@ -3,7 +3,10 @@ import type { ModuleAccessProvider } from "../../src/sql/module-types.ts";
 
 type StubProvider = AuthorizationProvider & {
   readonly functions: Required<
-    Omit<AuthorizationProvider["functions"], "permissionsFor" | "canApprove">
+    Omit<
+      AuthorizationProvider["functions"],
+      "permissionsFor" | "canApprove" | "holdersOf" | "actorMayWrite"
+    >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;
   readonly requires: NonNullable<AuthorizationProvider["requires"]>;

@@ -312,6 +312,8 @@ standard or sets how the repo works.
 - 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
 - 0016: `@supabase/postgrest-typegen` is a peer range; the default catalog and `TYPEGEN_VERSION` stay exact.
 - 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version and serves the routes; `3.3-preview` is opt-in.
+- 0018: a subject binding can name the adopted table its rows live in.
+- 0019: security definer writes refuse a read-only support or impersonation session.
 
 ## Pre-release pins
 

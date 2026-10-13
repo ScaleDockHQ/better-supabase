@@ -1,0 +1,36 @@
+---
+title: Tags
+description: Tag definitions per kind, applied to subjects through one table or a link table per subject.
+---
+
+`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Managing definitions needs `tags.manage`. Applying a tag needs the subject's own read permission, and the tag's kind must be one the subject allows.
+
+```bash
+better-supabase sql add tags
+```
+
+```ts
+import { createTags } from "better-supabase/blocks/tags";
+```
+
+In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). In adopt mode each subject can name its own link table.
+
+## Adopt mode
+
+```ts title="better-supabase.config.ts"
+tags: {
+  mode: "adopt",
+  tables: { tags: "public.organization_tags" },
+  options: {
+    subjects: {
+      task: {
+        table: "public.tasks",
+        kinds: ["task"],
+        links: { table: "public.task_tags", subject: "task_id", tag: "tag_id" },
+      },
+    },
+  },
+},
+```
+
+`links` columns are `subject`, `tag` and optional `tenant` and `createdAt`.

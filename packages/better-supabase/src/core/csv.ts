@@ -57,3 +57,68 @@ export function toCsv(
   ];
   return `${lines.join("\r\n")}\r\n`;
 }
+
+/**
+ * Parses RFC 4180 CSV into rows of fields. A quoted field may contain
+ * commas, CRLF and `""` for one quote. A trailing newline does not add a row.
+ */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  let i = 0;
+  const pushField = (): void => {
+    row.push(field);
+    field = "";
+  };
+  const pushRow = (): void => {
+    pushField();
+    rows.push(row);
+    row = [];
+  };
+  while (i < text.length) {
+    const char = text[i] ?? "";
+    if (quoted) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        quoted = false;
+        i += 1;
+        continue;
+      }
+      field += char;
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      quoted = true;
+      i += 1;
+      continue;
+    }
+    if (char === ",") {
+      pushField();
+      i += 1;
+      continue;
+    }
+    if (char === "\r") {
+      if (text[i + 1] === "\n") i += 1;
+      pushRow();
+      i += 1;
+      continue;
+    }
+    if (char === "\n") {
+      pushRow();
+      i += 1;
+      continue;
+    }
+    field += char;
+    i += 1;
+  }
+  if (quoted) throw new TypeError("a quoted CSV field was not closed");
+  if (field !== "" || row.length > 0) pushRow();
+  return rows;
+}

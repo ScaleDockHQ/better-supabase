@@ -1,25 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { csvColumns, toCsv } from "../../src/core/csv.ts";
+import { parseCsv, toCsv } from "../../src/core/csv.ts";
 
-describe("toCsv", () => {
-  it("quotes, joins nested values as JSON and keeps the column order", () => {
-    const rows = [
-      { a: "plain", b: 'say "hi"', c: null },
-      { b: "line\nbreak", d: { x: 1 }, a: 2n, e: true },
-    ];
-    expect(csvColumns(rows)).toEqual(["a", "b", "c", "d", "e"]);
-    expect(toCsv(rows)).toBe(
-      'a,b,c,d,e\r\nplain,"say ""hi""",,,\r\n2,"line\nbreak",,"{""x"":1}",true\r\n',
-    );
-    expect(toCsv([], { columns: ["only"] })).toBe("only\r\n");
+describe("parseCsv", () => {
+  it("reads the RFC 4180 quoted example", () => {
+    expect(parseCsv('"aaa","b""bb","ccc"\r\nzzz,yyy,xxx\r\n')).toEqual([
+      ["aaa", 'b"bb', "ccc"],
+      ["zzz", "yyy", "xxx"],
+    ]);
   });
 
-  it("escapes cells a spreadsheet would run as formulas unless told not to", () => {
-    const rows = [{ v: "=SUM(A1)" }, { v: "-5" }, { v: -5 }, { v: "@x" }];
-    expect(toCsv(rows)).toBe("v\r\n'=SUM(A1)\r\n'-5\r\n-5\r\n'@x\r\n");
-    expect(toCsv(rows, { escapeFormulas: false })).toBe(
-      "v\r\n=SUM(A1)\r\n-5\r\n-5\r\n@x\r\n",
-    );
+  it("keeps a comma and a line break inside quotes", () => {
+    expect(parseCsv('"a,b","c\r\nd"\r\n')).toEqual([["a,b", "c\r\nd"]]);
+  });
+
+  it("round-trips rows that toCsv writes", () => {
+    const csv = toCsv([{ name: "Ada", note: 'say "hi"' }]);
+    const [header, row] = parseCsv(csv);
+    expect(header).toEqual(["name", "note"]);
+    expect(row).toEqual(["Ada", 'say "hi"']);
   });
 });

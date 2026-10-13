@@ -1,4 +1,4 @@
--- better-supabase module: vector-search (0.5.1)
+-- better-supabase module: vector-search (0.8.0)
 -- @bs-module-data vector-search
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.

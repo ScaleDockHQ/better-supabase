@@ -540,4 +540,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       return findings;
     },
   },
+  {
+    code: "BS413",
+    severity: "warning",
+    title: "Support sessions are not tied to the provider's read-only check",
+    description:
+      "Support sessions default to read-only. Write functions refuse them through the built-in act check, or through authorization.functions.actorMayWrite when the provider sets it. With the provider access model, doctor warns when support is installed and actorMayWrite is missing, so the provider's helper is not the one the writes call.",
+    check: (context) => {
+      if (!context.config.sql.moduleNames.includes("support")) return [];
+      if ((context.config.sql.modules.access?.model ?? "roles") !== "provider")
+        return [];
+      const provider = context.config.authorization;
+      if (
+        provider === undefined ||
+        provider.functions.actorMayWrite !== undefined
+      )
+        return [];
+      return [
+        {
+          message: `Support sessions are installed and sql.modules.access.model is "provider", but ${providerLabel(provider)} does not set authorization.functions.actorMayWrite. Writes use the built-in act check. Set actorMayWrite to the provider's read-only helper.`,
+          target: "authorization.functions.actorMayWrite",
+        },
+      ];
+    },
+  },
 ];

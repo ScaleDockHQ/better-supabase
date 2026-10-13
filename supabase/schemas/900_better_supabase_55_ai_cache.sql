@@ -1,4 +1,4 @@
--- better-supabase module: ai-cache (0.5.1)
+-- better-supabase module: ai-cache (0.8.0)
 -- @bs-module ai-cache@1 managed
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.

@@ -1,4 +1,4 @@
--- better-supabase module: rate-limit (0.5.1)
+-- better-supabase module: rate-limit (0.8.0)
 -- @bs-module rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.

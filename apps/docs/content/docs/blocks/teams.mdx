@@ -1,0 +1,29 @@
+---
+title: Teams
+description: Tenant teams and their members, shared with the inbox.
+---
+
+`teams` stores a tenant's teams and who is on them. Creating, changing, archiving and deleting a team needs `teams.manage`. `team_ids_of(user)` lists the teams a user belongs to.
+
+```bash
+better-supabase sql add teams
+```
+
+```ts
+import { createTeams } from "better-supabase/blocks/teams";
+```
+
+| Table          | Holds                                                         |
+| -------------- | ------------------------------------------------------------- |
+| `teams`        | Name, slug, description and status                            |
+| `team_members` | A user on a team, with a foreign key to the tenant membership |
+
+`options.teamIdType` is `uuid` (the default) or `bigint`. The inbox needs `uuid`.
+
+## Inbox
+
+The inbox assigns a conversation to a `teams` row. Installing both drops `inbox_teams` and `inbox_team_members` after copying their rows. `create_inbox_team` and `set_inbox_team_member` call the teams functions.
+
+## Adopt mode
+
+Map `tables.teams` and `tables.teamMembers` onto the app's tables. CentraKit's team ids are `bigint`, so set `teamIdType` to `bigint` and do not install the inbox module in that project.

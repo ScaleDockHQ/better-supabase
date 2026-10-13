@@ -311,7 +311,9 @@ describe.skipIf(!live)("audit block", () => {
       const staff = await s.user("staff");
       const member = await s.user("member");
       await s.asRole(staff, { act: { sub: staff.id, kind: "support" } });
-      await audit.record({ eventType: "member.viewed" }).orThrow();
+      await expect(
+        audit.record({ eventType: "member.viewed" }).orThrow(),
+      ).rejects.toMatchObject({ error: { hint: "ACTOR_READ_ONLY" } });
       await s.asRole(member);
       await audit.record({ eventType: "invoice.sent" }).orThrow();
       await s.service();
@@ -329,11 +331,6 @@ describe.skipIf(!live)("audit block", () => {
           event_type: "job.ran",
           actor_kind: "service",
           actor_is_platform_admin: false,
-        },
-        {
-          event_type: "member.viewed",
-          actor_kind: "platform_admin",
-          actor_is_platform_admin: true,
         },
         {
           event_type: "invoice.sent",

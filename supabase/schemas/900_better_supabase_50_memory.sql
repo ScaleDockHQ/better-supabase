@@ -1,9 +1,40 @@
--- better-supabase module: memory (0.5.1)
+-- better-supabase module: memory (0.8.0)
 -- @bs-module memory@2 managed
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Memory for AI assistants. Core memory is a small set of files under
@@ -141,6 +172,9 @@ declare
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_create.ns ->> 'scope', 'user');
   v_agent := (memory_create.ns ->> 'agent_id')::uuid;
   v_chat := (memory_create.ns ->> 'chat_id')::uuid;
@@ -206,6 +240,9 @@ declare
   v_row "better_supabase"."memories"%rowtype;
   v_matches integer;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_str_replace.ns ->> 'scope', 'user');
   v_agent := (memory_str_replace.ns ->> 'agent_id')::uuid;
   v_chat := (memory_str_replace.ns ->> 'chat_id')::uuid;
@@ -273,6 +310,9 @@ declare
   v_lines text[];
   v_content text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_insert.ns ->> 'scope', 'user');
   v_agent := (memory_insert.ns ->> 'agent_id')::uuid;
   v_chat := (memory_insert.ns ->> 'chat_id')::uuid;
@@ -332,6 +372,9 @@ declare
   v_owner uuid;
   v_count integer;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_delete.ns ->> 'scope', 'user');
   v_agent := (memory_delete.ns ->> 'agent_id')::uuid;
   v_chat := (memory_delete.ns ->> 'chat_id')::uuid;
@@ -379,6 +422,9 @@ declare
   v_count integer;
   v_prefix text := replace(replace(memory_rename.old_path, '_', '\_'), '%', '\%') || '/%';
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_rename.ns ->> 'scope', 'user');
   v_agent := (memory_rename.ns ->> 'agent_id')::uuid;
   v_chat := (memory_rename.ns ->> 'chat_id')::uuid;
@@ -494,6 +540,9 @@ declare
   v_owner uuid;
   v_row "better_supabase"."memories"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   v_scope := coalesce(memory_save.ns ->> 'scope', 'user');
   v_agent := (memory_save.ns ->> 'agent_id')::uuid;
   v_chat := (memory_save.ns ->> 'chat_id')::uuid;
@@ -618,6 +667,9 @@ as $$
 declare
   v_row "better_supabase"."memories"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_forget.memory_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or (v_row."scope" = 'organization' and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false))) then
     return false;
@@ -865,6 +917,24 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."set_memory_embedding"(uuid, extensions.vector, text);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."memory_view"(tenant uuid, path text default '/memories', ns jsonb default '{}')
 returns jsonb

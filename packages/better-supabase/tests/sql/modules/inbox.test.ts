@@ -24,8 +24,6 @@ describe("inbox module", () => {
     for (const table of [
       "inboxes",
       "inbox_members",
-      "inbox_teams",
-      "inbox_team_members",
       "contacts",
       "contact_identities",
       "conversations",

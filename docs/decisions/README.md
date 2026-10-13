@@ -23,3 +23,5 @@ add one, and link it from the code or config it explains.
 | [0015](0015-block-extension-model.md)           | Blocks extend through `fields`, `hooks`, transport middleware and `extendBlock`              |
 | [0016](0016-typegen-peer-range.md)              | `@supabase/postgrest-typegen` is a peer range; the default catalog stays exact               |
 | [0017](0017-spec-documents.md)                  | One `ApiModel` renders every spec version and serves the routes; 3.3 is an opt-in preview    |
+| [0018](0018-subject-bound-blocks.md)            | A subject binding can name the adopted table its rows live in                                |
+| [0019](0019-read-only-actors.md)                | Security definer writes refuse a read-only support or impersonation session                  |

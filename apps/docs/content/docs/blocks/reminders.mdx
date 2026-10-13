@@ -1,0 +1,25 @@
+---
+title: Reminders
+description: RFC 5545 recurrence and reminders, expanded in TypeScript and delivered through notifications.
+---
+
+`reminders` stores a recurrence rule, a reminder (who, how, how long before) and one delivery row per occurrence. Expansion runs in the app with `expandRule`, on `Temporal.ZonedDateTime`, so a local time stays put across a daylight-saving change. `list_reminder_schedule` returns each reminder with its rule. `planReminderDeliveries` expands a horizon and returns one delayed job per occurrence, with a dedupe key of reminder id and occurrence. `deliverReminder` calls `mark_reminder_sent`, which records `reminder.sent`, then your notify function.
+
+```bash
+better-supabase sql add reminders
+```
+
+```ts
+import {
+  createReminders,
+  planReminderDeliveries,
+} from "better-supabase/blocks/reminders";
+```
+
+`options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
+
+`expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
+
+## Adopt mode
+
+Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.

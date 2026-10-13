@@ -1,5 +1,6 @@
 import type { SqlModule } from "../module-types.ts";
 
+import { actorWriteFunctions } from "../actor-guard.ts";
 import { SCHEMA } from "../shared.ts";
 
 export const ACTOR: SqlModule = {
@@ -75,5 +76,9 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.track_actor(regclass, text, text, text) from public, anon, authenticated;`,
+revoke execute on function better_supabase.track_actor(regclass, text, text, text) from public, anon, authenticated;
+
+-- False for a support or impersonation act, and for an act that only carries
+-- session_id, unless act.read_only is false. A token without act may write.
+${actorWriteFunctions()}`,
 };

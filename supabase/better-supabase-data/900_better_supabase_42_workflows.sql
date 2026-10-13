@@ -1,4 +1,4 @@
--- better-supabase module: workflows (0.5.1)
+-- better-supabase module: workflows (0.8.0)
 -- @bs-module-data workflows
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.

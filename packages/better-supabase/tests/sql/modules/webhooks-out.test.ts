@@ -83,7 +83,7 @@ describe("webhooks-out module", () => {
     )!.contents;
     expect(sql).toContain("better_supabase.can('tenant', ");
     expect(sql).toContain(
-      `using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))`,
+      `using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
     );
     expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");

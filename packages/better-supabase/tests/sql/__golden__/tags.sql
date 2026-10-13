@@ -1,0 +1,1314 @@
+-- ==== alone: schema supabase/schemas/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module tags@1 managed
+-- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."tags" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "kind" text not null,
+  "name" text not null check (length("name") between 1 and 80),
+  "slug" text not null,
+  "color" text,
+  "description" text,
+  "position" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "kind", "slug")
+);
+alter table "better_supabase"."tags" enable row level security;
+revoke all on "better_supabase"."tags" from anon, authenticated;
+grant select on "better_supabase"."tags" to authenticated;
+grant all on "better_supabase"."tags" to service_role;
+create table if not exists "better_supabase"."taggings" (
+  "tenant_id" uuid not null,
+  "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tag_id", "subject_type", "subject_id")
+);
+alter table "better_supabase"."taggings" enable row level security;
+revoke all on "better_supabase"."taggings" from anon, authenticated;
+grant select on "better_supabase"."taggings" to authenticated;
+grant all on "better_supabase"."taggings" to service_role;
+
+create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'slug', v_slug);
+end;
+$$;
+revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select "kind" into v_kind from "better_supabase"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
+  if v_kind is null then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (case tag.subject_type
+    when '' then true
+    else true
+  end) then
+    raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_tag_apply"(uuid, text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::uuid)', v_hook::oid::regproc)
+        using tag.tenant, tag.subject_type, tag.subject_id, tag.tag_id;
+    end if;
+  end;
+  case tag.subject_type
+    when '' then null;
+    else
+      insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      on conflict do nothing;
+  end case;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using tag.tag_id, tag.subject_type, tag.subject_id;
+    end if;
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = update_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_tag"(tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_tag"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."taggings"
+      where "tenant_id" = untag.tenant
+        and "tag_id" = untag.tag_id
+        and "subject_type" = untag.subject_type
+        and "subject_id" = untag.subject_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== with every module: schema supabase/schemas/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module tags@1 managed
+-- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."tags" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "kind" text not null,
+  "name" text not null check (length("name") between 1 and 80),
+  "slug" text not null,
+  "color" text,
+  "description" text,
+  "position" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "kind", "slug")
+);
+alter table "better_supabase"."tags" enable row level security;
+revoke all on "better_supabase"."tags" from anon, authenticated;
+grant select on "better_supabase"."tags" to authenticated;
+grant all on "better_supabase"."tags" to service_role;
+create table if not exists "better_supabase"."taggings" (
+  "tenant_id" uuid not null,
+  "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tag_id", "subject_type", "subject_id")
+);
+alter table "better_supabase"."taggings" enable row level security;
+revoke all on "better_supabase"."taggings" from anon, authenticated;
+grant select on "better_supabase"."taggings" to authenticated;
+grant all on "better_supabase"."taggings" to service_role;
+
+create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  returning "id" into v_id;
+  perform "better_supabase".emit_event('tag.created', jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name), 'tags/' || v_id::text, (create_tag.tenant)::text, null, 'better-supabase/tags');
+  return jsonb_build_object('id', v_id, 'slug', v_slug);
+end;
+$$;
+revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select "kind" into v_kind from "better_supabase"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
+  if v_kind is null then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (case tag.subject_type
+    when '' then true
+    else true
+  end) then
+    raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_tag_apply"(uuid, text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::uuid)', v_hook::oid::regproc)
+        using tag.tenant, tag.subject_type, tag.subject_id, tag.tag_id;
+    end if;
+  end;
+  case tag.subject_type
+    when '' then null;
+    else
+      insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      on conflict do nothing;
+  end case;
+  perform "better_supabase".emit_event('subject.tagged', jsonb_build_object('organizationId', tag.tenant, 'subjectType', tag.subject_type, 'subjectId', tag.subject_id, 'id', tag.tag_id), 'subjects/' || tag.subject_type || '/' || tag.subject_id, (tag.tenant)::text, null, 'better-supabase/tags');
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using tag.tag_id, tag.subject_type, tag.subject_id;
+    end if;
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = update_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  perform "better_supabase".emit_event('tag.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name), 'tags/' || update_tag.tag_id::text, (v_tenant)::text, null, 'better-supabase/tags');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_tag"(tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  perform "better_supabase".emit_event('tag.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_tag.tag_id), 'tags/' || delete_tag.tag_id::text, (v_tenant)::text, null, 'better-supabase/tags');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_tag"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."taggings"
+      where "tenant_id" = untag.tenant
+        and "tag_id" = untag.tag_id
+        and "subject_type" = untag.subject_type
+        and "subject_id" = untag.subject_id;
+  perform "better_supabase".emit_event('subject.untagged', jsonb_build_object('organizationId', untag.tenant, 'subjectType', untag.subject_type, 'subjectId', untag.subject_id, 'id', untag.tag_id), 'subjects/' || untag.subject_type || '/' || untag.subject_id, (untag.tenant)::text, null, 'better-supabase/tags');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module tags@1 managed
+-- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create schema if not exists "app_private";
+grant usage on schema "app_private" to anon, authenticated, service_role;
+create table if not exists "app_private"."tags" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "kind" text not null,
+  "name" text not null check (length("name") between 1 and 80),
+  "slug" text not null,
+  "color" text,
+  "description" text,
+  "position" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "kind", "slug")
+);
+alter table "app_private"."tags" enable row level security;
+revoke all on "app_private"."tags" from anon, authenticated;
+grant select on "app_private"."tags" to authenticated;
+grant all on "app_private"."tags" to service_role;
+create table if not exists "app_private"."taggings" (
+  "tenant_id" uuid not null,
+  "tag_id" uuid not null references "app_private"."tags" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tag_id", "subject_type", "subject_id")
+);
+alter table "app_private"."taggings" enable row level security;
+revoke all on "app_private"."taggings" from anon, authenticated;
+grant select on "app_private"."taggings" to authenticated;
+grant all on "app_private"."taggings" to service_role;
+
+create or replace function "app_private"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  insert into "app_private"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'slug', v_slug);
+end;
+$$;
+revoke execute on function "app_private"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "app_private"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "app_private"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select "kind" into v_kind from "app_private"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
+  if v_kind is null then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (case tag.subject_type
+    when '' then true
+    else true
+  end) then
+    raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_tag_apply"(uuid, text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::uuid)', v_hook::oid::regproc)
+        using tag.tenant, tag.subject_type, tag.subject_id, tag.tag_id;
+    end if;
+  end;
+  case tag.subject_type
+    when '' then null;
+    else
+      insert into "app_private"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      on conflict do nothing;
+  end case;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using tag.tag_id, tag.subject_type, tag.subject_id;
+    end if;
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "app_private"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "app_private"."update_tag"(tag_id uuid, name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "app_private"."tags" where "id" = update_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "app_private"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."update_tag"(uuid, text) from public, anon;
+grant execute on function "app_private"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "app_private"."delete_tag"(tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "app_private"."tags" where "id" = delete_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  delete from "app_private"."tags" where "id" = delete_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_tag"(uuid) from public, anon;
+grant execute on function "app_private"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  delete from "app_private"."taggings"
+      where "tenant_id" = untag.tenant
+        and "tag_id" = untag.tag_id
+        and "subject_type" = untag.subject_type
+        and "subject_id" = untag.subject_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "app_private"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== api schema: schema supabase/schemas/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module tags@1 managed
+-- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create table if not exists "better_supabase"."tags" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "kind" text not null,
+  "name" text not null check (length("name") between 1 and 80),
+  "slug" text not null,
+  "color" text,
+  "description" text,
+  "position" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "kind", "slug")
+);
+alter table "better_supabase"."tags" enable row level security;
+revoke all on "better_supabase"."tags" from anon, authenticated;
+grant select on "better_supabase"."tags" to authenticated;
+grant all on "better_supabase"."tags" to service_role;
+create table if not exists "better_supabase"."taggings" (
+  "tenant_id" uuid not null,
+  "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tag_id", "subject_type", "subject_id")
+);
+alter table "better_supabase"."taggings" enable row level security;
+revoke all on "better_supabase"."taggings" from anon, authenticated;
+grant select on "better_supabase"."taggings" to authenticated;
+grant all on "better_supabase"."taggings" to service_role;
+
+create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'slug', v_slug);
+end;
+$$;
+revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select "kind" into v_kind from "better_supabase"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
+  if v_kind is null then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (case tag.subject_type
+    when '' then true
+    else true
+  end) then
+    raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_tag_apply"(uuid, text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::uuid)', v_hook::oid::regproc)
+        using tag.tenant, tag.subject_type, tag.subject_id, tag.tag_id;
+    end if;
+  end;
+  case tag.subject_type
+    when '' then null;
+    else
+      insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      on conflict do nothing;
+  end case;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using tag.tag_id, tag.subject_type, tag.subject_id;
+    end if;
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = update_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_tag"(tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_tag"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."taggings"
+      where "tenant_id" = untag.tenant
+        and "tag_id" = untag.tag_id
+        and "subject_type" = untag.subject_type
+        and "subject_id" = untag.subject_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- sql.modules.tags.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_tag"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "api"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."tag"($1, $2, $3, $4) $$;
+revoke execute on function "api"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "api"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."update_tag"(tag_id uuid, name text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_tag"($1, $2) $$;
+revoke execute on function "api"."update_tag"(uuid, text) from public, anon;
+grant execute on function "api"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."delete_tag"(tag_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_tag"($1) $$;
+revoke execute on function "api"."delete_tag"(uuid) from public, anon;
+grant execute on function "api"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "api"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."untag"($1, $2, $3, $4) $$;
+revoke execute on function "api"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "api"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== adopt: schema supabase/schemas/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module tags@1 adopt
+-- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'slug', v_slug);
+end;
+$$;
+revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_kind text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select "kind" into v_kind from "better_supabase"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
+  if v_kind is null then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (case tag.subject_type
+    when '' then true
+    else true
+  end) then
+    raise exception 'tag kind is not allowed on this subject' using errcode = '22023', hint = 'TAG_KIND_MISMATCH';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_tag_apply"(uuid, text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::uuid)', v_hook::oid::regproc)
+        using tag.tenant, tag.subject_type, tag.subject_id, tag.tag_id;
+    end if;
+  end;
+  case tag.subject_type
+    when '' then null;
+    else
+      insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      on conflict do nothing;
+  end case;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using tag.tag_id, tag.subject_type, tag.subject_id;
+    end if;
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = update_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_tag"(tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_tag"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_tag"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."untag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."taggings"
+      where "tenant_id" = untag.tenant
+        and "tag_id" = untag.tag_id
+        and "subject_type" = untag.subject_type
+        and "subject_id" = untag.subject_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== adopt: data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- better-supabase module: tags
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

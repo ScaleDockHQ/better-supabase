@@ -109,6 +109,8 @@ puts the result into a policy or a module function:
 | `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}` | as `canAssign`, for another user                           |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`           | `text[]`: the permission keys `{user}` holds in `{tenant}` |
 | `canApprove`     | `{tool}`, `{tenant}`, `{scope}`           | `boolean`: the caller may decide the tool call `{tool}`    |
+| `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`     | a set of user ids that hold `{permission}` on `{tenant}`   |
+| `actorMayWrite`  | none                                      | `boolean`: the caller's session may write                  |
 
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for
@@ -181,6 +183,20 @@ allows decide the call; `{tenant}` is the chat's tenant and `{tool}` the
 tool's name. `approvals.distinctApprover: true` keeps the chat's owner, whose
 agent asked for the call, from deciding it, for four-eyes approval. Without
 `canApprove`, the chat's owner decides.
+
+`holdersOf` is the audience for `notifications.send({ permission })`: the
+user ids that hold that key on the tenant. A provider sets it from its
+manifest when the tenant scope lists `permitted_<scope>_users`, for example
+`permdock.permitted_organization_users({permission}, {tenant})`. Grant
+execute on that function to the role that owns `send_notification`, and
+never to `authenticated`. Without the template, a notification that names
+`permission` fails with `NOTIFICATION_PERMISSION_AUDIENCE_UNAVAILABLE`.
+
+`actorMayWrite` replaces the built-in read of the `act` claim. A provider
+sets it to `permdock.permdock_actor_may_write()` when the manifest lists
+that helper. Write functions and write policies call the template and not
+the built-in as well. Doctor BS413 warns when support sessions are installed
+under the provider model and this template is missing.
 
 ```ts
 functions: {

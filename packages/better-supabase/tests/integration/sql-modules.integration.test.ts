@@ -198,6 +198,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     `);
   });
   afterAll(async () => {
+    // The suite shares the local database. Installing `tenant` replaces the
+    // fixture helper, which the other integration tests read from the JWT.
+    // A fresh connection commits that restore even if a pooled client was
+    // left inside a transaction.
+    const restore = new Client({ connectionString: dbUrl });
+    await restore.connect();
+    try {
+      await restore.query(FIXTURE_TENANT_SQL);
+    } finally {
+      await restore.end();
+    }
     await pool.query(`drop table if exists ${table}`);
     await pool.query(
       `delete from better_supabase.audited_tables where target::text = $1`,
