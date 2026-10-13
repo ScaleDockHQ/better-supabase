@@ -1,0 +1,101 @@
+---
+title: CRM
+description: A deal pipeline with stages on a board, comments, tags, custom fields and follow-up reminders.
+---
+
+Deals move through a pipeline of stages. The board orders cards with rank
+keys and groups them by stage, the state machine refuses a jump the pipeline
+does not allow, and the people watching a deal hear about comments, tags and
+stage moves.
+
+## Table
+
+```sql title="supabase/schemas/deals.sql"
+create table public.deals (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  name text not null,
+  stage text not null default 'lead',
+  rank text collate "C" not null default 'V'
+);
+create index on public.deals (organization_id, stage, rank);
+alter table public.deals enable row level security;
+```
+
+Add read and update policies for the organization's members, as for any
+tenant table.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  subjects: {
+    deal: {
+      table: "public.deals",
+      idType: "uuid",
+      title: "name",
+      url: "/deals/{id}",
+      rank: { column: "rank", group: "stage" },
+    },
+  },
+  sql: {
+    modules: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      "custom-fields": {},
+      rank: {},
+      reminders: {},
+      "state-machine": {
+        options: {
+          machines: {
+            deal: {
+              table: "public.deals",
+              column: "stage",
+              initial: "lead",
+              tenant: "organization_id",
+              transitions: {
+                lead: ["qualified", "lost"],
+                qualified: ["won", "lost"],
+                won: [],
+                lost: ["lead"],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+## Event flow
+
+| The user                         | Call                                                   | Event             | Watchers get        |
+| -------------------------------- | ------------------------------------------------------ | ----------------- | ------------------- |
+| Comments on a deal               | `comments.create({ subjectType: "deal", ... })`        | `comment.created` | `subject.commented` |
+| Tags it                          | `tags.tag(organizationId, "deal", dealId, tagId)`      | `subject.tagged`  | `subject.tagged`    |
+| Drags its card to another stage  | `rank.move("deal", dealId, { previous, next, group })` | `status.changed`  | `subject.moved`     |
+| Sets a custom field (deal value) | `customFields.setValue(...)`                           | `field_value.set` | map it if you want  |
+| Gets a follow-up reminder        | `reminders.deliver(payload)`                           | `reminder.sent`   | `reminder.due`      |
+
+A drag from `lead` onto `won` fails with `STATE_TRANSITION_INVALID`: the
+rank and the stage change in one update, and the state-machine trigger
+checks it. Move the card back in the UI when `move` returns that error.
+
+## With ReUI
+
+- Kanban for the pipeline board. Each column is a stage; on drop, call
+  `rank.move` with the neighbours' ids and the new stage.
+- Data Grid for the deal table, with Filters editing the
+  [filter tree](/docs/platform/list#filter-trees) of a `defineListQuery` on
+  `deals`.
+- Timeline for the deal's history: `status_history` rows and comments,
+  newest first.
+
+The ReUI Pro CRM blocks fit the same data; their source is licensed per user,
+so copy them into your app from [reui.io](https://reui.io).

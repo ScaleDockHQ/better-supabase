@@ -1,0 +1,97 @@
+---
+title: Project management
+description: Tasks on a status board with a workflow, numbered keys, comments, tags and due-date reminders.
+---
+
+Tasks move through `todo`, `doing` and `done` on a board. Teams group the
+people, number sequences give each task a readable key, and watchers hear
+about status changes, comments and due dates.
+
+## Table
+
+```sql title="supabase/schemas/tasks.sql"
+create table public.tasks (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  title text not null,
+  status text not null default 'todo',
+  rank text collate "C" not null default 'V'
+);
+create index on public.tasks (organization_id, status, rank);
+alter table public.tasks enable row level security;
+```
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  subjects: {
+    task: {
+      table: "public.tasks",
+      idType: "uuid",
+      title: "title",
+      url: "/tasks/{id}",
+      rank: { column: "rank", group: "status" },
+    },
+  },
+  sql: {
+    modules: {
+      organizations: {},
+      teams: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      rank: {},
+      reminders: {},
+      "number-sequences": {},
+      "state-machine": {
+        options: {
+          machines: {
+            task: {
+              table: "public.tasks",
+              column: "status",
+              initial: "todo",
+              tenant: "organization_id",
+              transitions: {
+                todo: ["doing"],
+                doing: ["todo", "done"],
+                done: ["doing"],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+## Event flow
+
+| The user                    | Call                                                         | Event                                    | Watchers get        |
+| --------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ------------------- |
+| Starts a task               | `stateMachine.transition("task", taskId, "doing")`           | `status.changed`                         | `subject.moved`     |
+| Sends it back with a reason | `stateMachine.transition("task", taskId, "todo", "blocked")` | `status.changed`                         | `subject.moved`     |
+| Comments                    | `comments.create({ subjectType: "task", ... })`              | `comment.created`                        | `subject.commented` |
+| Drags it on the board       | `rank.move("task", taskId, { previous, next, group })`       | `status.changed` when the column changes | `subject.moved`     |
+| Reaches the due date        | `reminders.deliver(payload)`                                 | `reminder.sent`                          | `reminder.due`      |
+
+`status.changed` carries the previous status in `from` and the reason, so a
+notification can say "moved back to todo: blocked". Every change also writes
+a `status_history` row. A reminder delivers once per occurrence: a second
+`deliver` for the same occurrence returns `false` and notifies no one.
+
+## With ReUI
+
+- Kanban for the status board, calling `rank.move` on drop.
+- Data Grid for the task list, with Filters on a `defineListQuery`.
+- Gantt when tasks get dates; rank keys keep the row order.
+- Stepper for the workflow on the task page, from the machine's
+  `transitions`.
+
+ReUI's Tempo template shows a full task product on these components. The
+Pro blocks are licensed per user, so copy them from
+[reui.io](https://reui.io).
