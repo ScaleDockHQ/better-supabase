@@ -1,7 +1,9 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { RankNeighbors } from "../../core/rank-result.ts";
 
+import { rankBetweenResult } from "../../core/rank-result.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { blockCall, recordOf, textOf } from "../shared.ts";
 
 export interface CustomFieldsOptions {
@@ -24,6 +26,11 @@ export interface CustomFields {
     sensitive?: boolean,
   ): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;
+  /**
+   * Moves a definition between the definitions with rank keys `previous`
+   * and `next`. Resolves to its new key.
+   */
+  reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   readValues(
     organizationId: string,
     subjectType: string,
@@ -57,6 +64,15 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         },
         idOf("save_field_definition"),
       ),
+    reorderDefinition: (id, neighbors) => {
+      const key = rankBetweenResult(neighbors);
+      if (!key.ok) return AsyncResult.err(key.error);
+      return call(
+        "rank_field_definition",
+        { definition: id, rank: key.data },
+        () => key.data,
+      );
+    },
     deleteDefinition: (id) =>
       call(
         "delete_field_definition",

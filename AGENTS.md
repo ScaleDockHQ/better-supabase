@@ -315,6 +315,7 @@ standard or sets how the repo works.
 - 0018: a subject binding can name the adopted table its rows live in.
 - 0019: security definer writes refuse a read-only support or impersonation session.
 - 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
+- 0021: rows are ordered by base-62 fractional rank keys (`rank_between`, `rankBetween`); `move()` runs as the caller.
 
 ## Pre-release pins
 

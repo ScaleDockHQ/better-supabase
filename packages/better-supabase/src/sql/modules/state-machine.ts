@@ -109,8 +109,11 @@ function machine(name: string, entry: unknown): Machine {
   if (typeof table !== "string" || typeof column !== "string") {
     throw new TypeError(`${where} needs table and column`);
   }
-  if (typeof initial !== "string" || !NAME.test(column)) {
+  if (!NAME.test(column)) {
     throw new TypeError(`${where}.column must be a column name`);
+  }
+  if (typeof initial !== "string") {
+    throw new TypeError(`${where}.initial must be a status`);
   }
   if (
     typeof transitions !== "object" ||

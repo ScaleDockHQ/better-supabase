@@ -20,3 +20,7 @@ A sensitive value is returned only when `can` passes for the field's `permission
 ## Adopt mode
 
 Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to `null` when the existing table does not have it. For the inline layout, map `values.definition` to `null` and set `layout` to `inline`.
+
+## Order
+
+Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.

@@ -26,3 +26,4 @@ add one, and link it from the code or config it explains.
 | [0018](0018-subject-bound-blocks.md)            | A subject binding can name the adopted table its rows live in                                |
 | [0019](0019-read-only-actors.md)                | Security definer writes refuse a read-only support or impersonation session                  |
 | [0020](0020-subject-registry.md)                | Subject types are declared once in `config.subjects`; modules fall back to the registry      |
+| [0021](0021-rank-keys.md)                       | Rows are ordered by base-62 fractional rank keys; `move()` changes the group as the caller   |

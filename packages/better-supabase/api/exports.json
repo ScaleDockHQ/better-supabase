@@ -3430,6 +3430,24 @@
       "RunImportResult"
     ]
   },
+  "./blocks/rank": {
+    "values": [
+      "createRank",
+      "isRankKey",
+      "RANK_ALPHABET",
+      "RANK_REBALANCE_QUEUE",
+      "rankBetween",
+      "rankBetweenResult",
+      "rankKeys"
+    ],
+    "types": [
+      "MoveTarget",
+      "Rank",
+      "RankNeighbors",
+      "RankOptions",
+      "RankRebalancePayload"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

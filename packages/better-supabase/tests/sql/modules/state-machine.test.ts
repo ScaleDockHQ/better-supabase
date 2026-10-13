@@ -31,4 +31,22 @@ describe("state machine", () => {
     expect(sql).toContain("cleared_at");
     expect(sql).toContain("STATE_TRANSITION_INVALID");
   });
+
+  it("names the missing initial status", () => {
+    expect(() =>
+      sqlOf({
+        "state-machine": {
+          options: {
+            machines: {
+              quote: {
+                table: "public.quotes",
+                column: "status",
+                transitions: { draft: ["sent"] },
+              },
+            },
+          },
+        },
+      }),
+    ).toThrow("machines.quote.initial must be a status");
+  });
 });

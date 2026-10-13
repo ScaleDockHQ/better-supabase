@@ -164,4 +164,40 @@ describe("saas block clients", () => {
         .id,
     ).toBe("v1");
   });
+
+  it("reorders tags and field definitions with a key between the neighbours", async () => {
+    const calls: { fn: string; args: unknown }[] = [];
+    const transport = {
+      call(_schema: string, fn: string, args: unknown) {
+        calls.push({ fn, args });
+        return Promise.resolve(true);
+      },
+    };
+    const tags = createTags({ transport });
+    expect(
+      await tags.reorder("g1", { previous: "V", next: "W" }).orThrow(),
+    ).toBe("VV");
+    const fields = createCustomFields({ transport });
+    expect(await fields.reorderDefinition("d1", { next: "V" }).orThrow()).toBe(
+      "F",
+    );
+    expect(calls).toEqual([
+      { fn: "rank_tag", args: { tag_id: "g1", rank: "VV" } },
+      { fn: "rank_field_definition", args: { definition: "d1", rank: "F" } },
+    ]);
+
+    const wrong = await tags.reorder("g1", { previous: "W", next: "V" });
+    expect(wrong.ok ? null : wrong.error).toMatchObject({
+      kind: "invalid_request",
+      hint: "RANK_KEY_INVALID",
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("returns a tag's rank key when the database sends one", async () => {
+    const tags = createTags(
+      options({ create_tag: { id: "g1", slug: "gold", rank: "V" } }),
+    );
+    expect((await tags.create("org", "deal", "Gold").orThrow()).rank).toBe("V");
+  });
 });

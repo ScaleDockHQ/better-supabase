@@ -45,6 +45,7 @@ import { OUTBOX } from "./modules/outbox.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PUSH } from "./modules/push.ts";
+import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
@@ -163,6 +164,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(REMINDERS),
       built(IMPORTS),
       built(SUBJECTS),
+      built(RANK),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
