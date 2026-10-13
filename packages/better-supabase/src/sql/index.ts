@@ -35,6 +35,7 @@ export {
   adoptedTables,
 } from "./adopted-columns.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
+export { subjectColumns } from "./subject-registry.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export {
   declaredTables,

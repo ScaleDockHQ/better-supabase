@@ -56,6 +56,7 @@ import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
+import { SUBJECTS } from "./modules/subjects.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
@@ -161,6 +162,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SHARE_LINKS),
       built(REMINDERS),
       built(IMPORTS),
+      built(SUBJECTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

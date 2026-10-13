@@ -1,3 +1,4 @@
+import type { SubjectConfig } from "../config/types/subjects.ts";
 import type { ModuleContext } from "./context.ts";
 import type { ModuleAccessProvider } from "./module-types.ts";
 
@@ -59,24 +60,100 @@ export function subjectIdMatches(subject: Subject, value: string): string {
     : `${column} = (${value})::${subject.idType}`;
 }
 
+/** The keys of a registry entry (`config.subjects.<type>`) a module reads. */
+function fromRegistry(
+  entry: SubjectConfig,
+  extraKeys: readonly string[],
+): Record<string, unknown> {
+  const read = entry.permissions?.["read"];
+  return {
+    table: entry.table,
+    ...(entry.id !== undefined && { id: entry.id }),
+    ...(entry.idType !== undefined && { idType: entry.idType }),
+    ...(entry.tenant !== undefined && { tenant: entry.tenant }),
+    ...(read !== undefined && { permission: read }),
+    ...(entry.cascade === true && { cascade: true }),
+    ...(entry.scope !== undefined &&
+      extraKeys.includes("scope") && { scope: entry.scope }),
+  };
+}
+
+/**
+ * The module's subject entries before they are checked: `options.subjects`
+ * as an object (entries for registered types merge onto the registry's), as
+ * a list of registered type names, or, when unset, every registered type the
+ * module can hold.
+ */
+function rawSubjects(
+  ctx: ModuleContext,
+  where: string,
+  extraKeys: readonly string[],
+  allow: { readonly tenantless?: boolean; readonly fallback?: boolean },
+): Record<string, unknown> {
+  const registry = ctx.subjects;
+  const raw = ctx.option("subjects");
+  const tenantless = allow.tenantless === true;
+  if (raw === undefined) {
+    if (allow.fallback === false) return {};
+    return Object.fromEntries(
+      Object.entries(registry)
+        .filter(([, entry]) => tenantless || entry.tenant !== false)
+        .map(([type, entry]) => [type, fromRegistry(entry, extraKeys)]),
+    );
+  }
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) {
+      throw new TypeError(
+        `${where}: list at least one config.subjects type, or pass an object of subject type to { table, ... }`,
+      );
+    }
+    return Object.fromEntries(
+      raw.map((type: unknown) => {
+        if (typeof type !== "string" || !Object.hasOwn(registry, type)) {
+          throw new TypeError(
+            `${where}: "${String(type)}" is not a subject type in config.subjects. Types: ${Object.keys(registry).join(", ") || "none"}`,
+          );
+        }
+        return [type, fromRegistry(registry[type]!, extraKeys)];
+      }),
+    );
+  }
+  if (!isObject(raw)) {
+    throw new TypeError(
+      `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(raw).map(([type, entry]) => {
+      const registered = Object.hasOwn(registry, type)
+        ? registry[type]
+        : undefined;
+      return [
+        type,
+        registered && isObject(entry)
+          ? { ...fromRegistry(registered, extraKeys), ...entry }
+          : entry,
+      ];
+    }),
+  );
+}
+
 /**
  * `sql.modules.<module>.options.subjects`: subject type to
  * `{ table, id?, tenant?, permission?, cascade? }` plus the `extra` keys the
- * module reads.
+ * module reads, falling back to the app-wide `config.subjects` registry.
  */
 export function subjectsOption(
   ctx: ModuleContext,
   extraKeys: readonly string[] = [],
-  allow: { readonly tenantless?: boolean } = {},
+  allow: {
+    readonly tenantless?: boolean;
+    /** `false`: read the registry only for the types `options.subjects` names. */
+    readonly fallback?: boolean;
+  } = {},
 ): readonly [string, Subject][] {
   const where = `sql.modules.${ctx.module}.options.subjects`;
-  const raw = ctx.option("subjects");
-  if (raw === undefined) return [];
-  if (!isObject(raw)) {
-    throw new TypeError(
-      `${where}: pass an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
-    );
-  }
+  const raw = rawSubjects(ctx, where, extraKeys, allow);
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
     if (!SUBJECT_TYPE.test(type)) {
       throw new TypeError(

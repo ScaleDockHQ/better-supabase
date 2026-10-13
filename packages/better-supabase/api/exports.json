@@ -288,6 +288,8 @@
       "SourceConfig",
       "SqlConfig",
       "StandardSchemaGeneratorOptions",
+      "SubjectConfig",
+      "SubjectsConfig",
       "TableConfig",
       "TenantConfig",
       "TimestampsConfig",
@@ -3729,6 +3731,7 @@
       "scopeProblems",
       "sharedRolesProblems",
       "SQL_MODULES",
+      "subjectColumns",
       "templateFunctions",
       "upgradePlan"
     ],

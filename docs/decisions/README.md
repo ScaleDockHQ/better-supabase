@@ -25,3 +25,4 @@ add one, and link it from the code or config it explains.
 | [0017](0017-spec-documents.md)                  | One `ApiModel` renders every spec version and serves the routes; 3.3 is an opt-in preview    |
 | [0018](0018-subject-bound-blocks.md)            | A subject binding can name the adopted table its rows live in                                |
 | [0019](0019-read-only-actors.md)                | Security definer writes refuse a read-only support or impersonation session                  |
+| [0020](0020-subject-registry.md)                | Subject types are declared once in `config.subjects`; modules fall back to the registry      |

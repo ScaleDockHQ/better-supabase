@@ -260,6 +260,9 @@ const RESERVED_EXPORTS = [
   "OrderTermOf",
   "buckets",
   "topics",
+  "subjectTypes",
+  "SubjectType",
+  "SubjectRef",
   "schema",
 ];
 
@@ -383,9 +386,23 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "",
     );
   }
-  lines.push(
-    "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
-    "",
-  );
+  const subjects = Object.keys(model.config.subjects);
+  if (subjects.length > 0) {
+    lines.push(
+      "/** The app's subject types, from `config.subjects`. */",
+      `export const subjectTypes = [${subjects.map(q).join(", ")}] as const;`,
+      "export type SubjectType = (typeof subjectTypes)[number];",
+      "/** One subject: its type and its id as text. */",
+      "export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };",
+      "",
+      "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
+      "",
+    );
+  } else {
+    lines.push(
+      "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
+      "",
+    );
+  }
   return lines.join("\n");
 }

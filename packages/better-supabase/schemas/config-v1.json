@@ -1031,6 +1031,72 @@
         ]
       }
     },
+    "subjects": {
+      "description": "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["table"],
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "`schema.table`, or a table in `public`."
+          },
+          "id": { "type": "string", "default": "id" },
+          "idType": {
+            "type": "string",
+            "description": "The id column's type, such as `uuid` or `bigint`."
+          },
+          "tenant": {
+            "oneOf": [{ "type": "string" }, { "const": false }],
+            "default": "organization_id",
+            "description": "The tenant column, or `false` for a subject without a tenant."
+          },
+          "title": {
+            "type": "string",
+            "description": "The column `subject_title` returns."
+          },
+          "url": {
+            "type": "string",
+            "description": "The path `subject_url` returns, with `{column}` placeholders."
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "A permission key per action that `can_subject` checks in the subject's tenant."
+          },
+          "scope": {
+            "type": "string",
+            "description": "An authorization provider scope whose ids are this subject's ids."
+          },
+          "cascade": { "type": "boolean", "default": false },
+          "deletedAt": {
+            "type": "string",
+            "description": "The soft-delete column."
+          },
+          "search": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": { "type": "string" },
+              "body": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "rank": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["column"],
+            "description": "The rank key column and the column it is grouped by, for `move()`.",
+            "properties": {
+              "column": { "type": "string" },
+              "group": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "realtime": {
       "description": "Live query change broadcasts.",
       "type": "object",
@@ -1437,6 +1503,7 @@
         "entitlements": { "$ref": "#/properties/entitlements" },
         "authorization": { "$ref": "#/properties/authorization" },
         "vectorSearch": { "$ref": "#/properties/vectorSearch" },
+        "subjects": { "$ref": "#/properties/subjects" },
         "realtime": { "$ref": "#/properties/realtime" },
         "sql": { "$ref": "#/properties/sql" },
         "seed": { "$ref": "#/properties/seed" },

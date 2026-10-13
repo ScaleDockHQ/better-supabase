@@ -1,3 +1,4 @@
+import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventMap, BlockEventType } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
@@ -203,6 +204,8 @@ export interface ModuleContext {
   readonly idType: ModuleIdType;
   readonly claims: ClaimsMeta;
   readonly modules: ModulesConfig;
+  /** The app-wide subject registry (`config.subjects`). */
+  readonly subjects: SubjectsConfig;
   /** `schema.name` of a module function, quoted. */
   fn(name: string): string;
   /** `schema.table` of a logical table, quoted. */
@@ -318,6 +321,8 @@ const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface ModuleContextSource {
   readonly modules?: ModulesConfig;
+  /** `config.subjects`, which `subjectsOption` falls back to. */
+  readonly subjects?: SubjectsConfig;
   readonly claims?: ClaimsMeta;
   /** The modules being installed together. */
   readonly installed?: readonly string[];
@@ -616,6 +621,7 @@ export function createModuleContext(
     schemaName: config.schema,
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
+    subjects: source.subjects ?? {},
     modules,
     manages: config.mode === "managed",
     names,

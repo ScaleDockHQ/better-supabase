@@ -412,6 +412,41 @@ const ENTRIES = {
       ]),
     ),
   ),
+  subjects: v.optional(
+    v.record(
+      v.pipe(
+        v.string(),
+        v.regex(
+          /^[a-z][a-z0-9_]{0,62}$/,
+          "a subject type is lowercase letters, digits and underscores",
+        ),
+      ),
+      v.strictObject({
+        table: v.string(),
+        id: v.optional(v.string()),
+        idType: v.optional(v.string()),
+        tenant: v.optional(v.union([v.string(), v.literal(false)])),
+        title: v.optional(v.string()),
+        url: v.optional(v.string()),
+        permissions: v.optional(v.record(v.string(), v.string())),
+        scope: v.optional(v.string()),
+        cascade: v.optional(v.boolean()),
+        deletedAt: v.optional(v.string()),
+        search: v.optional(
+          v.strictObject({
+            title: v.optional(v.string()),
+            body: v.optional(strings),
+          }),
+        ),
+        rank: v.optional(
+          v.strictObject({
+            column: v.string(),
+            group: v.optional(v.string()),
+          }),
+        ),
+      }),
+    ),
+  ),
   sql: v.optional(
     v.strictObject({
       dir: v.optional(v.string()),

@@ -596,6 +596,7 @@ describe("config JSON Schema", () => {
       entitlements: true,
       authorization: true,
       vectorSearch: true,
+      subjects: true,
       sensitive: true,
       storagePaths: true,
       functions: true,

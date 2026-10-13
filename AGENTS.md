@@ -314,6 +314,7 @@ standard or sets how the repo works.
 - 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version and serves the routes; `3.3-preview` is opt-in.
 - 0018: a subject binding can name the adopted table its rows live in.
 - 0019: security definer writes refuse a read-only support or impersonation session.
+- 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
 
 ## Pre-release pins
 
