@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { money } from "../../../src/blocks/commerce/index.ts";
-import { createInventory } from "../../../src/blocks/inventory/index.ts";
+import {
+  createInventory,
+  type Inventory,
+} from "../../../src/blocks/inventory/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];
@@ -177,5 +180,60 @@ describe("inventory block", () => {
       .orThrow();
     expect(calls[0]?.args).toMatchObject({ note: "checked" });
     expect(seen).toEqual(["createTransfer true"]);
+  });
+
+  it("calls one function per method", async () => {
+    const cases: [
+      string,
+      unknown,
+      (inventory: Inventory) => Promise<unknown>,
+    ][] = [
+      [
+        "set_location_active",
+        true,
+        (i) => i.setLocationActive("l1", false).orThrow(),
+      ],
+      ["delete_location", true, (i) => i.deleteLocation("l1").orThrow()],
+      [
+        "set_reorder_point",
+        true,
+        (i) => i.setReorderPoint("v1", "l1", 10).orThrow(),
+      ],
+      [
+        "release_reservation",
+        true,
+        (i) => i.releaseReservation("r1").orThrow(),
+      ],
+      ["ship_transfer", true, (i) => i.shipTransfer("t1").orThrow()],
+      ["receive_transfer", true, (i) => i.receiveTransfer("t1").orThrow()],
+      ["cancel_transfer", true, (i) => i.cancelTransfer("t1").orThrow()],
+      [
+        "place_purchase_order",
+        true,
+        (i) => i.placePurchaseOrder("po1").orThrow(),
+      ],
+      [
+        "cancel_purchase_order",
+        true,
+        (i) => i.cancelPurchaseOrder("po1").orThrow(),
+      ],
+    ];
+    for (const [fn, result, run] of cases) {
+      const { calls, transport } = recorder(result);
+      await run(createInventory({ transport }));
+      expect(calls.map((call) => call.fn)).toEqual([fn]);
+    }
+  });
+
+  it("runs the job with no payload", async () => {
+    const { calls, transport } = recorder(0);
+    await createInventory({ transport }).job(
+      undefined,
+      Object.create(null),
+      new AbortController().signal,
+    );
+    expect(calls).toEqual([
+      { fn: "expire_reservations", args: { max_rows: null } },
+    ]);
   });
 });

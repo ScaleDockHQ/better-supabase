@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   catalogSubjects,
   createCatalog,
+  type Catalog,
 } from "../../../src/blocks/catalog/index.ts";
 import { money } from "../../../src/blocks/commerce/index.ts";
 
@@ -246,5 +247,81 @@ describe("catalog block", () => {
       search: { title: "title", body: ["description", "slug"] },
     });
     expect(subjects["product_variant"]?.title).toBe("sku");
+  });
+
+  it("calls one function per method", async () => {
+    const cases: [string, unknown, (catalog: Catalog) => Promise<unknown>][] = [
+      [
+        "set_product_status",
+        { status: "active", from: "draft" },
+        (c) => c.setProductStatus("p1", "active").orThrow(),
+      ],
+      ["delete_product_option", true, (c) => c.deleteOption("o1").orThrow()],
+      [
+        "save_variant",
+        { id: "x1", sku: "S", rank: "V" },
+        (c) => c.updateVariant("p1", "x1", { sku: "S" }).orThrow(),
+      ],
+      ["delete_variant", true, (c) => c.deleteVariant("x1").orThrow()],
+      [
+        "save_price_list",
+        { id: "l1" },
+        (c) => c.savePriceList("org", { name: "B2B" }).orThrow(),
+      ],
+      ["delete_price_list", true, (c) => c.deletePriceList("l1").orThrow()],
+      ["delete_price", true, (c) => c.deletePrice("r1").orThrow()],
+      [
+        "save_category",
+        { id: "c1", slug: "shirts", rank: "V" },
+        (c) => c.saveCategory("org", { name: "Shirts" }).orThrow(),
+      ],
+      ["delete_category", true, (c) => c.deleteCategory("c1").orThrow()],
+      [
+        "set_product_categories",
+        true,
+        (c) => c.setProductCategories("p1", ["c1"]).orThrow(),
+      ],
+      [
+        "save_collection",
+        { id: "k1", slug: "new", kind: "manual" },
+        (c) =>
+          c.saveCollection("org", { title: "New", kind: "manual" }).orThrow(),
+      ],
+      ["delete_collection", true, (c) => c.deleteCollection("k1").orThrow()],
+      [
+        "add_to_collection",
+        "k",
+        (c) =>
+          c
+            .addToCollection("k1", "p1", { previous: "V", next: null })
+            .orThrow(),
+      ],
+      [
+        "remove_from_collection",
+        true,
+        (c) => c.removeFromCollection("k1", "p1").orThrow(),
+      ],
+      [
+        "publish_storefront",
+        true,
+        (c) => c.publishStorefront("org", true).orThrow(),
+      ],
+    ];
+    for (const [fn, result, run] of cases) {
+      const { calls, transport } = recorder(result);
+      await run(createCatalog({ transport }));
+      expect(calls.map((call) => call.fn)).toEqual([fn]);
+    }
+  });
+
+  it("refuses neighbors out of order without a call", async () => {
+    const { calls, transport } = recorder(true);
+    const catalog = createCatalog({ transport });
+    const backwards = { previous: "V", next: "A" };
+    expect((await catalog.moveCategory("c1", null, backwards)).ok).toBe(false);
+    expect((await catalog.addToCollection("k1", "p1", backwards)).ok).toBe(
+      false,
+    );
+    expect(calls).toEqual([]);
   });
 });

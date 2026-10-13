@@ -11,7 +11,7 @@ export interface InventoryNames {
 }
 
 /** The reasons `adjust_stock` accepts; the other functions write their own. */
-export const ADJUST_REASONS = [
+const ADJUST_REASONS = [
   "adjustment",
   "damage",
   "loss",
@@ -45,7 +45,7 @@ export function strict(ctx: ModuleContext, variant: string): string {
  * Raises unless the variant is in the tenant, so a level never joins a
  * variant and a location from two organizations.
  */
-export function variantCheck(
+function variantCheck(
   ctx: ModuleContext,
   variant: string,
   tenant: string,

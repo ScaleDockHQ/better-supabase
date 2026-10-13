@@ -481,10 +481,11 @@ using (${condition});`;
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
+  const { catalog: keys } = MODULE_PERMISSIONS;
   const names: Names = {
     fn: (name) => ctx.fn(name),
-    manage: ctx.permission("manage", MODULE_PERMISSIONS.catalog.manage),
-    read: ctx.permission("read", MODULE_PERMISSIONS.catalog.read),
+    manage: ctx.permission("manage", keys.manage),
+    read: ctx.permission("read", keys.read),
   };
   storefrontOption(ctx);
   return `${schemaPreamble(ctx)}

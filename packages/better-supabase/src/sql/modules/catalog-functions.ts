@@ -10,7 +10,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const SLUG = "'^[a-z0-9]+(?:-[a-z0-9]+)*$'";
 
 /** The default product statuses and their transitions, without a state machine. */
-export const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
+const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
   draft: ["active", "archived"],
   active: ["draft", "archived"],
   archived: ["draft"],
@@ -36,7 +36,7 @@ export function storefrontOption(ctx: ModuleContext): boolean {
  * column: `set_product_status` then writes the status and leaves the
  * transition rules, history and `status.changed` to the machine's trigger.
  */
-export function machineGoverns(ctx: ModuleContext): boolean {
+function machineGoverns(ctx: ModuleContext): boolean {
   if (!ctx.installed("state-machine")) return false;
   const raw = ctx.of("state-machine").option("machines");
   if (typeof raw !== "object" || raw === null) return false;
