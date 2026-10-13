@@ -42,6 +42,16 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_access_grant",
   ],
   documents: ["before_document_create", "after_document_create"],
+  drive: [
+    "before_drive_node_create",
+    "after_drive_node_create",
+    "before_drive_node_move",
+    "after_drive_node_move",
+    "before_drive_node_rename",
+    "after_drive_node_rename",
+    "before_drive_node_share",
+    "after_drive_node_share",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

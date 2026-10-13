@@ -365,7 +365,13 @@ export type SubjectEventType =
   | "approval.rejected"
   | "approval.cancelled"
   | "approval.expired"
-  | "approval.delegated";
+  | "approval.delegated"
+  | "drive.node_created"
+  | "drive.node_renamed"
+  | "drive.node_moved"
+  | "drive.node_shared"
+  | "drive.node_unshared"
+  | "drive.node_purged";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -432,6 +438,30 @@ export interface DocumentEventData extends SubjectEventData {
   /** The document. */
   readonly id: string;
   readonly name: string;
+}
+
+/** Events from the drive module. `subjectId` is the node. */
+export interface DriveEventData extends SubjectEventData {
+  /** For `drive.node_created`: `folder` or `file`. */
+  readonly kind?: "folder" | "file";
+  /** For `drive.node_created` and `drive.node_renamed`. */
+  readonly name?: string;
+  /** For `drive.node_renamed`. */
+  readonly previousName?: string;
+  /** For `drive.node_created` and `drive.node_moved`; `null` at the root. */
+  readonly parentId?: string | null;
+  /** For `drive.node_moved`. */
+  readonly previousParentId?: string | null;
+  /** For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or `role`. */
+  readonly principalType?: string;
+  readonly principalId?: string;
+  /** For `drive.node_shared`. */
+  readonly role?: string;
+  /** For `drive.node_purged`: the stored objects to delete, as `{ bucket, path }`. */
+  readonly objects?: readonly {
+    readonly bucket: string;
+    readonly path: string;
+  }[];
 }
 
 /** Every block event type and its data. */
@@ -585,6 +615,12 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "drive.node_created": DriveEventData;
+  "drive.node_renamed": DriveEventData;
+  "drive.node_moved": DriveEventData;
+  "drive.node_shared": DriveEventData;
+  "drive.node_unshared": DriveEventData;
+  "drive.node_purged": DriveEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

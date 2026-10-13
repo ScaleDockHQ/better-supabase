@@ -27,6 +27,7 @@ import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
+import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -137,6 +138,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(USAGE),
       built(BILLING),
       built(FLAGS),
+      built(DRIVE),
       built(COMMENTS),
       built(ATTACHMENTS),
       built(DATA_LIFECYCLE),
@@ -177,6 +179,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(APPROVALS),
       built(ACCESS_REQUESTS),
       built(DOCUMENTS),
+      built(DRIVE_FILES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
