@@ -1930,6 +1930,7 @@
       "BlockEventType",
       "CloudEvent",
       "CloudEventOptions",
+      "CollaborationEventData",
       "CommentEventData",
       "ConnectorEventData",
       "CredentialEventData",
@@ -3457,6 +3458,31 @@
       "RankNeighbors",
       "RankOptions",
       "RankRebalancePayload"
+    ]
+  },
+  "./blocks/versions": {
+    "values": [
+      "applyPatch",
+      "createPatch",
+      "createVersions",
+      "dbTransport",
+      "jsonEqual",
+      "JsonPatchError",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "JsonPatchOperation",
+      "JsonValue",
+      "RestoreResult",
+      "SnapshotInput",
+      "SnapshotResult",
+      "Version",
+      "VersionListOptions",
+      "Versions",
+      "VersionsOptions",
+      "VersionSource"
     ]
   },
   "./blocks/announcements/react": {

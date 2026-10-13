@@ -15,6 +15,9 @@ const SUBJECT_EVENTS = [
   "share_link.created",
   "subject.viewed",
   "reminder.sent",
+  "version.created",
+  "version.restored",
+  "version.deleted",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;

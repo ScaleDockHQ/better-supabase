@@ -21,6 +21,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   "number-sequences": ["before_number_assign", "after_number_assign"],
   teams: ["before_team_create", "after_team_create"],
   tags: ["before_tag_apply", "after_tag_apply"],
+  versions: [
+    "before_version_snapshot",
+    "after_version_snapshot",
+    "before_version_restore",
+    "after_version_restore",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

@@ -350,7 +350,10 @@ export type SubjectEventType =
   | "field_value.set"
   | "share_link.created"
   | "subject.viewed"
-  | "reminder.sent";
+  | "reminder.sent"
+  | "version.created"
+  | "version.restored"
+  | "version.deleted";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -374,6 +377,15 @@ export interface SaasEventData {
   readonly count?: number;
   readonly role?: string;
   readonly error?: string | null;
+}
+
+/** Events from the collaboration blocks (versions, trash, reactions, approvals, access requests, documents). */
+export interface CollaborationEventData extends SubjectEventData {
+  readonly id?: string;
+  readonly number?: number;
+  readonly label?: string | null;
+  readonly source?: string;
+  readonly restoredFrom?: number;
 }
 
 /** Every block event type and its data. */
@@ -509,6 +521,9 @@ export interface BlockEventMap {
   "reminder.sent": SaasSubjectEventData;
   "import.completed": SaasEventData;
   "import.failed": SaasEventData;
+  "version.created": CollaborationEventData;
+  "version.restored": CollaborationEventData;
+  "version.deleted": CollaborationEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

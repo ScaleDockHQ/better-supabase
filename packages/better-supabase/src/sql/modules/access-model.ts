@@ -36,6 +36,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "share_links.*",
     "reminders.*",
     "imports.*",
+    "versions.*",
   ],
   member: [
     "organization.read",
@@ -62,6 +63,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "tags.read",
     "share_links.read",
     "reminders.read",
+    "versions.read",
+    "versions.create",
+    "versions.restore",
   ],
   viewer: ["organization.read"],
 };
@@ -190,6 +194,12 @@ export const MODULE_PERMISSIONS = {
   "share-links": { create: "share_links.create", read: "share_links.read" },
   reminders: { manage: "reminders.manage", read: "reminders.read" },
   imports: { manage: "imports.manage" },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
 } as const;
 
 /**
@@ -295,6 +305,12 @@ export const MODULE_PERMISSION_SCOPES: {
   "share-links": { create: "tenant", read: "tenant" },
   reminders: { manage: "tenant", read: "tenant" },
   imports: { manage: "tenant" },
+  versions: {
+    read: "tenant",
+    create: "tenant",
+    restore: "tenant",
+    manage: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

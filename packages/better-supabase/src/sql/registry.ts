@@ -65,6 +65,7 @@ import { TENANT } from "./modules/tenant.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
+import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
@@ -165,6 +166,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IMPORTS),
       built(SUBJECTS),
       built(RANK),
+      built(VERSIONS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

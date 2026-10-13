@@ -70,6 +70,7 @@ validates the output against a vendored copy of it.
 | [AsyncAPI 3.0 and 3.1](https://www.asyncapi.com/docs/reference/specification/v3.0.0)                                                                                                                     | Adopted (pinned) | [`/asyncapi`](/docs/standards/asyncapi): Realtime topics, table broadcasts and events                                                           | `asyncapi.test.ts`                            |
 | [RFC 5545 recurrence](https://www.rfc-editor.org/rfc/rfc5545)                                                                                                                                            | Adopted (pinned) | `expandRule()` in the [reminders block](/docs/blocks/reminders)                                                                                 | `rfc5545.test.ts`                             |
 | [RFC 4180 CSV](https://www.rfc-editor.org/rfc/rfc4180)                                                                                                                                                   | Adopted (pinned) | `parseCsv()` and `toCsv()`                                                                                                                      | `rfc4180.test.ts`                             |
+| [RFC 6902 JSON Patch](https://www.rfc-editor.org/rfc/rfc6902)                                                                                                                                            | Adopted (pinned) | `createPatch()` and `applyPatch()` in the [versions block](/docs/blocks/versions)                                                               | `rfc6902.test.ts`                             |
 
 ## Pins
 
@@ -109,4 +110,5 @@ SPEC_PINS.aiSdkUiMessageStream; // AI SDK UI message stream protocol that `creat
 SPEC_PINS.anthropicMemoryTool; // version of Anthropic's memory tool whose commands the memory block runs
 SPEC_PINS.rfc5545; // RFC 5545 recurrence rules the reminders block expands
 SPEC_PINS.rfc4180; // RFC 4180 CSV that parseCsv reads and toCsv writes
+SPEC_PINS.rfc6902; // RFC 6902 JSON Patch that the versions block writes and applies
 ```
