@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { membershipDisabledAt, SERVICE_CALLER } from "../shared.ts";
+import { membershipDisabledAt, SERVICE_CALLER, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 
 export interface SuspensionHelpers {
@@ -37,7 +37,7 @@ drop function if exists ${ctx.fn("resume_member")}(${id}, uuid);
     select 1 from ${n.m} o
     where o.${n.tenant} = organization and o.${n.user} <> member and ${helpers.isOwner("o")} and o.${disabledAt} is null
   ) then
-    raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
+    ${fail("ORGANIZATION_OWNER_REQUIRED", "An organization needs an owner", "23514")}
   end if;`
       : "";
     return `
@@ -53,22 +53,22 @@ declare
   is_owner boolean;
 begin
   if member = auth.uid() then
-    raise exception 'You cannot ${suspend ? "suspend" : "resume"} yourself' using errcode = '22023', hint = 'ORGANIZATION_SELF';
+    ${fail("ORGANIZATION_SELF", `You cannot ${suspend ? "suspend" : "resume"} yourself`, "22023")}
   end if;
   if not ${allowed}${helpers.platformOverride} then
-    raise exception 'Not allowed to ${suspend ? "suspend" : "resume"} members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+    ${fail("ORGANIZATION_FORBIDDEN", `Not allowed to ${suspend ? "suspend" : "resume"} members`)}
   end if;
   if not (${helpers.activeOrganization("organization")}) then
-    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
+    ${fail("ORGANIZATION_DISABLED", "The organization is unavailable")}
   end if;
   perform 1 from ${n.organization} o where o.${n.id} = organization for update;
   select ${helpers.assignableRole(`m.${n.role}`)}, ${helpers.isOwner("m")} into current_role_value, is_owner
   from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
   if not better_supabase.can_assign(organization, current_role_value) then
-    raise exception 'That member''s role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+    ${fail("ORGANIZATION_ROLE_CEILING", "That member's role is above your own")}
   end if;${lastOwner}
   update ${n.m} set ${disabledAt} = ${suspend ? "now()" : "null"}
   where ${n.tenant} = organization and ${n.user} = member and ${disabledAt} is ${suspend ? "" : "not "}null;

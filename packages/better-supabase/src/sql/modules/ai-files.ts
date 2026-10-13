@@ -14,6 +14,8 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
+  lockTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -244,7 +246,7 @@ create index if not exists ai_files_tenant_idx on ${files} (${f.tenant});
 create index if not exists ai_files_chat_idx on ${files} (${f.chat}) where ${f.chat} is not null;
 create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';
 alter table ${files} enable row level security;
-revoke all on ${files} from anon, authenticated;
+${revokeTable(files)}
 grant select on ${files} to authenticated;
 grant all on ${files} to service_role;
 drop policy if exists ai_files_read on ${files};
@@ -262,9 +264,7 @@ create table if not exists ${providerFiles} (
   primary key (${pf.file}, ${pf.provider})
 );
 create index if not exists ai_provider_files_expires_idx on ${providerFiles} (${pf.expiresAt}) where ${pf.expiresAt} is not null;
-alter table ${providerFiles} enable row level security;
-revoke all on ${providerFiles} from anon, authenticated;
-grant all on ${providerFiles} to service_role;
+${lockTable(providerFiles)}
 
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images), with every version kept.
@@ -283,7 +283,7 @@ create index if not exists ai_documents_owner_idx on ${documents} (${d.owner});
 create index if not exists ai_documents_tenant_idx on ${documents} (${d.tenant});
 create index if not exists ai_documents_chat_idx on ${documents} (${d.chat}) where ${d.chat} is not null;
 alter table ${documents} enable row level security;
-revoke all on ${documents} from anon, authenticated;
+${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;
 drop policy if exists ai_documents_read on ${documents};
@@ -303,7 +303,7 @@ create table if not exists ${versions} (
 );
 create index if not exists ai_document_versions_created_by_idx on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;
 alter table ${versions} enable row level security;
-revoke all on ${versions} from anon, authenticated;
+${revokeTable(versions)}
 grant select on ${versions} to authenticated;
 grant all on ${versions} to service_role;
 drop policy if exists ai_document_versions_read on ${versions};
@@ -325,7 +325,7 @@ create table if not exists ${suggestions} (
 create index if not exists ai_suggestions_document_idx on ${suggestions} (${sg.document});
 create index if not exists ai_suggestions_created_by_idx on ${suggestions} (${sg.createdBy}) where ${sg.createdBy} is not null;
 alter table ${suggestions} enable row level security;
-revoke all on ${suggestions} from anon, authenticated;
+${revokeTable(suggestions)}
 grant select on ${suggestions} to authenticated;
 grant all on ${suggestions} to service_role;
 drop policy if exists ai_suggestions_read on ${suggestions};

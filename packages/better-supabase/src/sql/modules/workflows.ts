@@ -14,6 +14,9 @@ import {
   serviceGrant,
   tenantIn,
   pageSize,
+  revokeTable,
+  lockTable,
+  fail,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -238,7 +241,7 @@ create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${
 create index if not exists workflow_runs_actor_idx on ${r} (${cr("actor")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${cr("completedAt")});
 alter table ${r} enable row level security;
-revoke all on ${r} from anon, authenticated;
+${revokeTable(r)}
 grant select on ${r} to authenticated;
 grant all on ${r} to service_role;
 drop policy if exists workflow_runs_read on ${r};
@@ -270,7 +273,7 @@ create table if not exists ${s} (
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
 alter table ${s} enable row level security;
-revoke all on ${s} from anon, authenticated;
+${revokeTable(s)}
 grant select on ${s} to authenticated;
 grant all on ${s} to service_role;
 drop policy if exists workflow_schedules_read on ${s};
@@ -286,9 +289,7 @@ create table if not exists ${m} (
   ${cm("expiresAt")} timestamptz not null,
   primary key (${cm("key")}, ${cm("holder")})
 );
-alter table ${m} enable row level security;
-revoke all on ${m} from anon, authenticated;
-grant all on ${m} to service_role;
+${lockTable(m)}
 
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
@@ -311,9 +312,7 @@ create table if not exists ${q} (
 create index if not exists workflow_start_requests_key_idx on ${q} (${cq("key")}, ${cq("status")});
 create index if not exists workflow_start_requests_due_idx on ${q} (${cq("notBefore")}) where ${cq("status")} = 'pending';
 create index if not exists workflow_start_requests_actor_idx on ${q} (${cq("actor")});
-alter table ${q} enable row level security;
-revoke all on ${q} from anon, authenticated;
-grant all on ${q} to service_role;
+${lockTable(q)}
 
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox.
@@ -452,7 +451,7 @@ begin
   if not (${SERVICE_CALLER}
     or v_run.${cr("actor")} = (select auth.uid())
     or (v_run.${cr("tenant")} is not null and ${can(`v_run.${cr("tenant")}`, "admin")})) then
-    raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    ${fail("WORKFLOW_FORBIDDEN", "You may not cancel this run")}
   end if;
   if v_run.${cr("status")} in ${TERMINAL} then
     return ${runJson("v_run")};
@@ -518,7 +517,7 @@ declare
   v_row ${s}%rowtype;
 begin
   if not (${SERVICE_CALLER} or (tenant is not null and ${can("tenant", "admin")})) then
-    raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    ${fail("WORKFLOW_FORBIDDEN", "You may not schedule workflows here")}
   end if;
   insert into ${s} as x (${cs("tenant")}, ${cs("name")}, ${cs("workflow")}, ${cs("input")}, ${cs("cron")}, ${cs("timezone")}, ${cs("nextRunAt")}, ${cs("createdBy")})
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))

@@ -55,11 +55,11 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
 
 const SCHEDULE = [5, 300, 1800, 7200, 18_000, 36_000] as const;
 
-const defaultBackoff = (attempt: number): number =>
-  Math.round(
-    Math.random() *
-      SCHEDULE[Math.min(Math.max(attempt, 1), SCHEDULE.length) - 1]!,
-  );
+/** Equal jitter: at least half the step, and never under a second. */
+const defaultBackoff = (attempt: number): number => {
+  const step = SCHEDULE[Math.min(Math.max(attempt, 1), SCHEDULE.length) - 1]!;
+  return Math.max(1, Math.round(step / 2 + (Math.random() * step) / 2));
+};
 
 const MAX_RETRY_AFTER = 86_400;
 

@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, pageSize } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  pageSize,
+  revokeTable,
+} from "../shared.ts";
 
 const NAMES: ModuleNames = {
   options: ["topic"],
@@ -89,7 +94,7 @@ create index if not exists streams_owner_idx on ${s} (${cs("owner")});
 create index if not exists streams_tenant_idx on ${s} (${cs("tenant")});
 create index if not exists streams_expires_idx on ${s} (${cs("expiresAt")});
 alter table ${s} enable row level security;
-revoke all on ${s} from anon, authenticated;
+${revokeTable(s)}
 grant select on ${s} to authenticated;
 grant all on ${s} to service_role;
 drop policy if exists streams_owner_read on ${s};
@@ -103,7 +108,7 @@ create table if not exists ${c} (
   primary key (${cc("stream")}, ${cc("idx")})
 );
 alter table ${c} enable row level security;
-revoke all on ${c} from anon, authenticated;
+${revokeTable(c)}
 grant select on ${c} to authenticated;
 grant all on ${c} to service_role;
 drop policy if exists stream_chunks_owner_read on ${c};

@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { schemaPreamble, updatedAt } from "../shared.ts";
+import { schemaPreamble, updatedAt, lockTable } from "../shared.ts";
 import {
   functions,
   type HookNames,
@@ -161,9 +161,7 @@ create table if not exists ${n.table("endpoints")} (
   ].join(",\n  ")}
 );
 create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
-${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}alter table ${n.table("endpoints")} enable row level security;
-revoke all on ${n.table("endpoints")} from anon, authenticated;
-grant all on ${n.table("endpoints")} to service_role;${
+${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
       ? `
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
@@ -201,9 +199,7 @@ create table if not exists ${n.table("secrets")} (
   ].join(",\n  ")}
 );
 create index if not exists webhook_endpoint_secrets_endpoint_idx on ${n.table("secrets")} (${s("endpoint")});
-alter table ${n.table("secrets")} enable row level security;
-revoke all on ${n.table("secrets")} from anon, authenticated;
-grant all on ${n.table("secrets")} to service_role;`;
+${lockTable(n.table("secrets"))}`;
 
   const deliveries = `
 create table if not exists ${n.table("deliveries")} (
@@ -242,9 +238,7 @@ create index if not exists webhook_deliveries_tenant_created_idx on ${n.table("d
 create unique index if not exists webhook_deliveries_endpoint_event_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null;`
       : ""
   }
-alter table ${n.table("deliveries")} enable row level security;
-revoke all on ${n.table("deliveries")} from anon, authenticated;
-grant all on ${n.table("deliveries")} to service_role;${
+${lockTable(n.table("deliveries"))}${
     scoped
       ? `
 grant select on ${n.table("deliveries")} to authenticated;${policy(

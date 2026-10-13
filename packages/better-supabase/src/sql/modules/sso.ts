@@ -11,6 +11,9 @@ import {
   memberAddedRecord,
   SERVICE_CALLER,
   schemaPreamble,
+  lockTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
@@ -290,7 +293,7 @@ function build(ctx: ModuleContext): string {
   const verifiedFor = (tenantExpr: string, email: string): string =>
     `exists (select 1 from ${d} vd where vd.${cd("tenant")} = ${tenantExpr} and vd.${cd("verifiedAt")} is not null and vd.${cd("domain")} = ${emailDomain(email)})`;
   const serviceOnly = (what: string): string => `if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role ${what}' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", `Only the service role ${what}`)}
   end if;`;
 
   const names: ScimSqlNames = {
@@ -339,9 +342,7 @@ create table if not exists ${d} (
 );
 create unique index if not exists organization_domains_verified_idx on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
 create index if not exists organization_domains_created_by_idx on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
-alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
-grant all on ${d} to service_role;
+${lockTable(d)}
 
 -- SAML identity providers registered with Supabase Auth for an organization.
 create table if not exists ${p} (
@@ -353,9 +354,7 @@ create table if not exists ${p} (
   ${cp("createdAt")} timestamptz not null default now()
 );
 create index if not exists organization_sso_providers_tenant_idx on ${p} (${cp("tenant")});
-alter table ${p} enable row level security;
-revoke all on ${p} from anon, authenticated;
-grant all on ${p} to service_role;
+${lockTable(p)}
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
 -- A user links to an account whose confirmed email is at a verified domain
@@ -381,9 +380,7 @@ create unique index if not exists scim_users_external_id_idx on ${u} (${cu("tena
 create unique index if not exists scim_users_user_idx on ${u} (${cu("tenant")}, ${cu("user")}) where ${cu("user")} is not null;
 create index if not exists scim_users_email_idx on ${u} (${cu("email")}) where ${cu("user")} is null;
 create index if not exists scim_users_account_idx on ${u} (${cu("user")}) where ${cu("user")} is not null;
-alter table ${u} enable row level security;
-revoke all on ${u} from anon, authenticated;
-grant all on ${u} to service_role;
+${lockTable(u)}
 
 create table if not exists ${g} (
   ${cg("id")} uuid primary key default gen_random_uuid(),
@@ -397,9 +394,7 @@ create table if not exists ${g} (
 );
 create unique index if not exists scim_groups_display_name_idx on ${g} (${cg("tenant")}, lower(${cg("displayName")}));
 create unique index if not exists scim_groups_external_id_idx on ${g} (${cg("tenant")}, ${cg("externalId")}) where ${cg("externalId")} is not null;
-alter table ${g} enable row level security;
-revoke all on ${g} from anon, authenticated;
-grant all on ${g} to service_role;
+${lockTable(g)}
 
 create table if not exists ${gm} (
   ${cm("group")} uuid not null references ${g} (${cg("id")}) on delete cascade,
@@ -407,9 +402,7 @@ create table if not exists ${gm} (
   primary key (${cm("group")}, ${cm("member")})
 );
 create index if not exists scim_group_members_member_idx on ${gm} (${cm("member")});
-alter table ${gm} enable row level security;
-revoke all on ${gm} from anon, authenticated;
-grant all on ${gm} to service_role;
+${lockTable(gm)}
 
 -- The role a SCIM group grants: groupRoles by name, else a group named
 -- like an assignable role, else none.
@@ -488,10 +481,10 @@ declare
   v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
 begin
   if not ${can("add_organization_domain.tenant")} then
-    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's domains")}
   end if;
   if v_domain !~ ${sqlString(DOMAIN)} then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    ${raise("Not a domain name: %", "22023", "SSO_DOMAIN_INVALID", "add_organization_domain.domain")}
   end if;
   insert into ${d} as x (${cd("tenant")}, ${cd("domain")}) values (add_organization_domain.tenant, v_domain)
   on conflict (${cd("tenant")}, ${cd("domain")}) do update set ${cd("domain")} = x.${cd("domain")}
@@ -510,7 +503,7 @@ set search_path = ''
 as $$
 begin
   if not (${SERVICE_CALLER}) and not ${can("list_organization_domains.tenant")} then
-    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's domains")}
   end if;
   return (
     select coalesce(jsonb_agg(${withRecord("x")} order by x.${cd("domain")}), '[]'::jsonb)
@@ -550,18 +543,18 @@ declare
 begin
   select * into v_row from ${d} x where x.${cd("id")} = update_organization_domain.id for update;
   if v_row.${cd("id")} is null or not ${can(`v_row.${cd("tenant")}`)} then
-    raise exception 'No domain you manage has this id' using errcode = 'P0002', hint = 'SSO_DOMAIN_NOT_FOUND';
+    ${fail("SSO_DOMAIN_NOT_FOUND", "No domain you manage has this id", "P0002")}
   end if;
   if update_organization_domain.auto_join_role is not null and not (update_organization_domain.auto_join_role = any (${assignable})) then
-    raise exception 'Auto-join cannot assign role %', update_organization_domain.auto_join_role using errcode = '22023', hint = 'SSO_ROLE_INVALID';
+    ${raise("Auto-join cannot assign role %", "22023", "SSO_ROLE_INVALID", "update_organization_domain.auto_join_role")}
   end if;
   if update_organization_domain.auto_join_role is not null
     and not (${SERVICE_CALLER})
     and not coalesce(better_supabase.can_assign(v_row.${cd("tenant")}, update_organization_domain.auto_join_role), false) then
-    raise exception 'You may not assign role %', update_organization_domain.auto_join_role using errcode = '42501', hint = 'SSO_ROLE_FORBIDDEN';
+    ${raise("You may not assign role %", "42501", "SSO_ROLE_FORBIDDEN", "update_organization_domain.auto_join_role")}
   end if;
   if (update_organization_domain.enforce_sso or update_organization_domain.auto_join_role is not null) and v_row.${cd("verifiedAt")} is null then
-    raise exception 'Verify the domain first' using errcode = '22023', hint = 'SSO_DOMAIN_NOT_VERIFIED';
+    ${fail("SSO_DOMAIN_NOT_VERIFIED", "Verify the domain first", "22023")}
   end if;
   update ${d} x set ${cd("autoJoinRole")} = update_organization_domain.auto_join_role, ${cd("enforceSso")} = update_organization_domain.enforce_sso
   where x.${cd("id")} = v_row.${cd("id")}
@@ -585,7 +578,7 @@ begin
     return false;
   end if;
   if exists (select 1 from ${p} sp where sp.${cp("tenant")} = v_row.${cd("tenant")} and v_row.${cd("domain")} = any (sp.${cp("domains")})) then
-    raise exception 'An SSO provider uses this domain; remove it first' using errcode = '23503', hint = 'SSO_DOMAIN_IN_USE';
+    ${fail("SSO_DOMAIN_IN_USE", "An SSO provider uses this domain; remove it first", "23503")}
   end if;
   delete from ${d} x where x.${cd("id")} = v_row.${cd("id")};
   ${domainEvent("organization.domain_removed", "auth.uid()")}
@@ -607,13 +600,13 @@ begin
   ${serviceOnly("verifies domains")}
   select * into v_row from ${d} x where x.${cd("id")} = verify_organization_domain.id for update;
   if v_row.${cd("id")} is null or not ${actorCan(`v_row.${cd("tenant")}`, "verify_organization_domain.actor")} then
-    raise exception 'No domain you manage has this id' using errcode = 'P0002', hint = 'SSO_DOMAIN_NOT_FOUND';
+    ${fail("SSO_DOMAIN_NOT_FOUND", "No domain you manage has this id", "P0002")}
   end if;
   if v_row.${cd("verifiedAt")} is not null then
     return ${withRecord("v_row")};
   end if;
   if exists (select 1 from ${d} x where x.${cd("domain")} = v_row.${cd("domain")} and x.${cd("verifiedAt")} is not null) then
-    raise exception 'Another organization has verified %', v_row.${cd("domain")} using errcode = '23505', hint = 'SSO_DOMAIN_TAKEN';
+    ${raise("Another organization has verified %", "23505", "SSO_DOMAIN_TAKEN", `v_row.${cd("domain")}`)}
   end if;
   update ${d} x set ${cd("verifiedAt")} = now() where x.${cd("id")} = v_row.${cd("id")} returning * into v_row;
   ${domainEvent("organization.domain_verified", "verify_organization_domain.actor")}
@@ -633,7 +626,7 @@ as $$
 begin
   ${serviceOnly("registers SSO providers")}
   if not ${actorCan("check_sso_provider.tenant", "check_sso_provider.actor")} then
-    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
   if cardinality(check_sso_provider.domains) = 0 or exists (
     select 1 from unnest(check_sso_provider.domains) as w(domain)
@@ -641,7 +634,7 @@ begin
       select 1 from ${d} x where x.${cd("tenant")} = check_sso_provider.tenant and x.${cd("domain")} = lower(w.domain) and x.${cd("verifiedAt")} is not null
     )
   ) then
-    raise exception 'Every SSO domain must be a verified domain of the organization' using errcode = '22023', hint = 'SSO_DOMAIN_NOT_VERIFIED';
+    ${fail("SSO_DOMAIN_NOT_VERIFIED", "Every SSO domain must be a verified domain of the organization", "22023")}
   end if;
 end;
 $$;
@@ -664,7 +657,7 @@ begin
   where x.${cp("tenant")} = excluded.${cp("tenant")}
   returning * into v_row;
   if v_row.${cp("id")} is null then
-    raise exception 'The provider belongs to another organization' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "The provider belongs to another organization")}
   end if;
   ${providerEvent("sso_provider.registered", "register_sso_provider.actor")}
   return to_jsonb(v_row);
@@ -689,7 +682,7 @@ begin
     return null;
   end if;
   if not ${actorCan(`v_row.${cp("tenant")}`, "sso_provider.actor")} then
-    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
   return to_jsonb(v_row);
 end;
@@ -711,7 +704,7 @@ begin
     return null;
   end if;
   if not ${actorCan(`v_row.${cp("tenant")}`, "unregister_sso_provider.actor")} then
-    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
   delete from ${p} x where x.${cp("id")} = v_row.${cp("id")};
   ${providerEvent("sso_provider.unregistered", "unregister_sso_provider.actor")}
@@ -728,7 +721,7 @@ set search_path = ''
 as $$
 begin
   if not (${SERVICE_CALLER}) and not ${can("list_sso_providers.tenant")} then
-    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
   return (
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${cp("createdAt")}), '[]'::jsonb)

@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, splitTable } from "../shared.ts";
+import { SERVICE_CALLER, splitTable, fail } from "../shared.ts";
 
 interface AnonymizeRule {
   /** `schema.table`, unquoted, for the result keys. */
@@ -141,7 +141,7 @@ declare${
   v_done jsonb := '{}'::jsonb;
 begin
   if not (${SERVICE_CALLER}) then
-    raise exception 'Only the service role anonymizes rows' using errcode = '42501', hint = 'DATA_ANONYMIZE_FORBIDDEN';
+    ${fail("DATA_ANONYMIZE_FORBIDDEN", "Only the service role anonymizes rows")}
   end if;${blocks.join("")}
   return v_done;
 end;

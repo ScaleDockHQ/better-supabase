@@ -12,6 +12,10 @@ import {
   SERVICE_CALLER,
   tenantIn,
   pageSize,
+  revokeTable,
+  lockTable,
+  fail,
+  raise,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 import {
@@ -133,7 +137,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const meterCheck = meters
     ? `
   if not (${fn("usage_meters")}() ? meter) then
-    raise exception 'Unknown meter %', meter using errcode = '22023', hint = 'USAGE_METER_UNKNOWN';
+    ${raise("Unknown meter %", "22023", "USAGE_METER_UNKNOWN", "meter")}
   end if;`
     : "";
   const billingHook = sqlString(
@@ -170,7 +174,7 @@ alter table ${counters} alter column ${cc("reported")} type numeric;
 create index if not exists usage_counters_unreported_idx on ${counters} (${cc("day")})
   where ${cc("value")} > ${cc("reported")};
 alter table ${counters} enable row level security;
-revoke all on ${counters} from anon, authenticated;
+${revokeTable(counters)}
 grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
 drop policy if exists "usage_counters_read" on ${counters};
@@ -204,7 +208,7 @@ create table if not exists ${history} (
 );
 create index if not exists usage_history_tenant_idx on ${history} (${hc("tenant")}, ${hc("recordedAt")} desc, ${hc("id")} desc);
 alter table ${history} enable row level security;
-revoke all on ${history} from anon, authenticated;
+${revokeTable(history)}
 grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
 drop policy if exists "usage_history_read" on ${history};
@@ -214,9 +218,7 @@ create policy "usage_history_read" on ${history} for select to authenticated
     : ""
 }
 create index if not exists usage_events_recorded_at_idx on ${events} (${ec("recordedAt")});
-alter table ${events} enable row level security;
-revoke all on ${events} from anon, authenticated;
-grant all on ${events} to service_role;
+${lockTable(events)}
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
@@ -236,7 +238,7 @@ alter table ${quotas} alter column ${qc("limit")} drop not null;
 alter table ${quotas} drop constraint if exists ${periodConstraint};
 alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});
 alter table ${quotas} enable row level security;
-revoke all on ${quotas} from anon, authenticated;
+${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
 drop policy if exists "usage_quotas_read" on ${quotas};
@@ -384,7 +386,7 @@ declare
   win record;
 begin
   if not ${canRead("tenant")} then
-    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
   select * into win from ${fn("usage_window")}(tenant, coalesce(quota.period, 'month'));
@@ -411,7 +413,7 @@ set search_path = ''
 as $$
 begin
   if not ${canRead("tenant")} then
-    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   return (
     select coalesce(jsonb_agg(${fn("usage_status")}(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)
@@ -477,10 +479,10 @@ declare
   today date := (now() at time zone 'utc')::date;
 begin
   if not ${canRecord("tenant")} then
-    raise exception 'Not allowed to record usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to record usage in this tenant")}
   end if;
   if quantity is null or quantity < 0 then
-    raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
+    ${fail("USAGE_QUANTITY", "quantity must be zero or more", "22023")}
   end if;${meterCheck}
   if idempotency_key is not null then
     insert into ${events} (${ec("tenant")}, ${ec("meter")}, ${ec("key")}, ${ec("quantity")})
@@ -531,7 +533,7 @@ declare
   win record;
 begin
   if not ${canRecord("tenant")} then
-    raise exception 'Not allowed to record usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to record usage in this tenant")}
   end if;${meterCheck}
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
@@ -590,11 +592,11 @@ begin
     entries := (entries #>> '{}')::jsonb;
   end if;
   if jsonb_typeof(entries) <> 'array' or jsonb_array_length(entries) = 0 then
-    raise exception 'entries must be a non-empty array of { meter, quantity }' using errcode = '22023', hint = 'USAGE_ENTRIES';
+    ${fail("USAGE_ENTRIES", "entries must be a non-empty array of { meter, quantity }", "22023")}
   end if;
   for entry in select value from jsonb_array_elements(entries) loop
     if jsonb_typeof(entry -> 'meter') <> 'string' then
-      raise exception 'Every entry needs a meter' using errcode = '22023', hint = 'USAGE_ENTRIES';
+      ${fail("USAGE_ENTRIES", "Every entry needs a meter", "22023")}
     end if;
     if record_usage_batch."check" then
       outcome := ${fn("consume_quota")}(tenant, entry ->> 'meter', coalesce((entry ->> 'quantity')::numeric, 1),
@@ -687,7 +689,7 @@ set search_path = ''
 as $$
 begin
   if not ${canRead("tenant")} then
-    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   ${
     keepHistory
@@ -725,7 +727,7 @@ declare
   win record;
 begin
   if not ${canRead("tenant")} then
-    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
   select * into win from ${fn("usage_window")}(tenant, coalesce(quota.period, 'month'));

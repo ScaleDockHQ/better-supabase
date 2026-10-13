@@ -8,6 +8,8 @@ import {
   sha256Hex,
   updatedAt,
   fail,
+  revokeTable,
+  raise,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -179,7 +181,7 @@ create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subjec
 create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
 ${updatedAt(t, "updated_at")}${cleanup}
 alter table ${t} enable row level security;
-revoke all on ${t} from anon, authenticated;
+${revokeTable(t)}
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on ${t} to authenticated;
 grant all on ${t} to service_role;
@@ -303,7 +305,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if rotate_secret then
     v_secret := ${newSecret("previous.verify")};
@@ -343,7 +345,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   v_secret := ${newSecret("previous.verify")};
   if v_secret is null then
@@ -389,7 +391,7 @@ declare
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
   if previous.id is null or not ${can("previous.tenant", "update")} then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if name is not null and btrim(name) = '' then
     ${fail("WEBHOOK_IN_NAME_REQUIRED", "An endpoint needs a name", "22023")}

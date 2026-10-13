@@ -48,7 +48,8 @@ export async function writeLine(
   contents: string,
   shown: string,
   suffix = "",
+  options: { readonly mode?: number } = {},
 ): Promise<{ readonly wrote: boolean; readonly line: string }> {
-  const wrote = await writeIfChanged(path, contents);
+  const wrote = await writeIfChanged(path, contents, options);
   return { wrote, line: `${wrote ? "Wrote" : "Unchanged"} ${shown}${suffix}` };
 }

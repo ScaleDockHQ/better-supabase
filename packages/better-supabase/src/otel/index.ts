@@ -205,6 +205,37 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
       };
       const baseMetric: Attributes = { ...server, "db.system.name": system };
       const rpc = executor.rpc?.bind(executor);
+      const batch = executor.batch?.bind(executor);
+      /** Semantic conventions name a batch `BATCH <operation>` when every operation shares it. */
+      const describeBatch = (ops: readonly Operation[]) => {
+        const [only, ...others] = new Set(ops.map(operationName));
+        const operation =
+          only && others.length === 0 ? `BATCH ${only}` : "BATCH";
+        const [first, ...otherTables] = new Set(ops.map((op) => op.table));
+        const table = otherTables.length === 0 ? first : undefined;
+        const summary = table ? `${operation} ${table.name}` : operation;
+        const shared: Attributes = {
+          "db.operation.name": operation,
+          ...(table ? { "db.collection.name": table.name } : {}),
+        };
+        return {
+          summary,
+          attributes: {
+            ...base,
+            ...(table
+              ? {
+                  "db.namespace": database
+                    ? `${database}|${table.schema}`
+                    : table.schema,
+                }
+              : {}),
+            ...shared,
+            "db.query.summary": summary,
+            "db.operation.batch.size": ops.length,
+          },
+          metric: { ...baseMetric, ...shared },
+        };
+      };
       return {
         ...executor,
         name: executor.name,
@@ -249,6 +280,33 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                   () => rpc(name, args, rpcContext),
                   (span, result) =>
                     result.ok ? undefined : failed(span, result.error),
+                );
+              },
+            }
+          : {}),
+        ...(batch
+          ? {
+              batch(ops, executeContext) {
+                const { summary, attributes, metric } = describeBatch(ops);
+                return traced(
+                  summary,
+                  attributes,
+                  metric,
+                  () => batch(ops, executeContext),
+                  (span, results) => {
+                    const failure = results.find((result) => !result.ok);
+                    if (failure) return failed(span, failure.error);
+                    if (span.isRecording())
+                      span.setAttribute(
+                        "db.response.returned_rows",
+                        results.reduce(
+                          (rows, result) =>
+                            rows + (result.ok ? result.data.rows.length : 0),
+                          0,
+                        ),
+                      );
+                    return;
+                  },
                 );
               },
             }

@@ -485,7 +485,7 @@ describe("createNext", () => {
           await signer.sign({ sub: USER, expiresIn: 20 }),
           "ip-1",
         ),
-        headers: { "x-forwarded-for": "203.0.113.7, 10.0.0.1" },
+        headers: { "x-forwarded-for": "198.51.100.9, 203.0.113.7" },
       }),
     );
     const init = fresh.mock.calls[0]![1]!;

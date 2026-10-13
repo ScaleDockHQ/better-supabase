@@ -181,7 +181,7 @@ export interface ResolveAuthOptions {
    * The caller's IP, sent to Auth as `Sb-Forwarded-For` on refreshes so its
    * per-IP rate limit counts users, not your server. Only with a secret key
    * (`env.secretKey`), which Auth requires for the header. Defaults to
-   * `clientIp` (the first `x-forwarded-for` hop); `false` turns it off.
+   * `clientIp` (the last `x-forwarded-for` hop); `false` turns it off.
    */
   readonly clientIp?: ((request: Request) => string | undefined) | false;
   /** Called after every refresh attempt (metrics, logging). */
@@ -634,10 +634,18 @@ function resolution(
 
 const IP = /^[0-9a-f:.]+$/i;
 
-/** The first `x-forwarded-for` hop, the client as your edge saw it. */
+/**
+ * The last `x-forwarded-for` hop, the one your own edge appended. Hops to its
+ * left come from the client and can be forged. Behind more than one proxy,
+ * pass your own reader to `clientIp`.
+ */
 export function clientIp(request: Request): string | undefined {
-  const first = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return first && IP.test(first) ? first : undefined;
+  const last = request.headers
+    .get("x-forwarded-for")
+    ?.split(",")
+    .at(-1)
+    ?.trim();
+  return last && IP.test(last) ? last : undefined;
 }
 
 /**

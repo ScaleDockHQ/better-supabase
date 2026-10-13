@@ -131,8 +131,9 @@ lease holds it. `shouldDeliver` returning `false` and disabling the endpoint
 leave it `canceled`.
 
 Retries follow the Svix schedule: 5 seconds, 5 minutes, 30 minutes, 2
-hours, 5 hours, then 10 hours, each with full jitter (a random wait up to
-that long) so failed receivers aren't hit in bursts. A `Retry-After` header
+hours, 5 hours, then 10 hours, each with equal jitter (half the step plus a
+random share of the other half, and never under a second) so failed
+receivers aren't hit in bursts and a retry never fires at once. A `Retry-After` header
 on the response wins when it asks for longer, up to a day.
 
 An endpoint whose deliveries keep failing for `disableAfter` (5 days)

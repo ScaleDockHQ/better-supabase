@@ -302,8 +302,11 @@ refresh looks like it came from one IP. When the server has a secret key
 `Sb-Forwarded-For` and authenticate with the secret key, so Auth rate-limits
 per user instead.
 
-The IP comes from `clientIp(request)`, the first `x-forwarded-for` hop, which
-is right on Vercel and behind most proxies. Pass your own reader or turn it
+The IP comes from `clientIp(request)`, the last `x-forwarded-for` hop, the
+one your own edge appended. Hops to its left come from the client, which can
+send any value, so reading them would let a client spend another IP's refresh
+limit. The last hop is right on Vercel, which overwrites the header, and
+behind one proxy. Behind several proxies, pass your own reader, or turn it
 off:
 
 ```ts

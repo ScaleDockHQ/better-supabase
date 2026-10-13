@@ -6,7 +6,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, lockTable, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -70,7 +70,7 @@ function build(ctx: ModuleContext): string {
     ctx.permission("manage", MODULE_PERMISSIONS.flags.manage),
   );
   const denied = `if not ${manage} then
-    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
+    ${fail("FLAGS_FORBIDDEN", "Not allowed to manage feature flags")}
   end if;`;
   const flagEvent = (type: string, key: string): string =>
     ctx.record({
@@ -114,9 +114,7 @@ create table if not exists ${flags} (
   check (${f("variants")} ? ${f("defaultVariant")}),
   check (${f("rolloutVariant")} is null or ${f("variants")} ? ${f("rolloutVariant")})
 );
-alter table ${flags} enable row level security;
-revoke all on ${flags} from anon, authenticated;
-grant all on ${flags} to service_role;
+${lockTable(flags)}
 
 -- A variant for one tenant or one user; a user override beats a tenant one.
 create table if not exists ${overrides} (
@@ -130,9 +128,7 @@ create table if not exists ${overrides} (
   unique nulls not distinct (${o("flag")}, ${o("tenant")}, ${o("user")})
 );
 create index if not exists flag_overrides_user_idx on ${overrides} (${o("user")});
-alter table ${overrides} enable row level security;
-revoke all on ${overrides} from anon, authenticated;
-grant all on ${overrides} to service_role;
+${lockTable(overrides)}
 
 -- The rollout bucket of target for flag: the first 32 bits of
 -- SHA-256(flag || '.' || target), modulo 10000, so 0.00 to 99.99 percent.
@@ -346,7 +342,7 @@ as $$
 begin
   ${denied}
   if (tenant is null) = (member is null) then
-    raise exception 'Pass a tenant or a member, not both' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';
+    ${fail("FLAGS_OVERRIDE_TARGET", "Pass a tenant or a member, not both", "22023")}
   end if;
   if variant is null then
     delete from ${overrides} v

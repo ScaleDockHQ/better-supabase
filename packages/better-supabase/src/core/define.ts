@@ -449,6 +449,7 @@ export class BetterSupabase<
     for (const plugin of plugins) {
       if (plugin.wrapExecutor) executor = plugin.wrapExecutor(executor);
     }
+    const wrapped = executor;
     executor = recordStats(executor, recorder);
     const errorMappers = this.#errorMappersFor(plugins);
     const runner = new OperationRunner({
@@ -565,7 +566,8 @@ export class BetterSupabase<
           );
         }
         const active = usePlugins ? plugins : [];
-        const batch = base.batch?.bind(base);
+        const batchSource = usePlugins ? wrapped : base;
+        const batch = batchSource.batch?.bind(batchSource);
         const batching =
           batch && specs.length > 1
             ? batchingExecutor({ ...base, batch }, specs.length)

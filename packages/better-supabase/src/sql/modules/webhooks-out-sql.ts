@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, fail } from "../shared.ts";
+import { SERVICE_CALLER, fail, serviceGrant } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 export interface HookNames {
@@ -138,8 +138,13 @@ export function hookNames(ctx: ModuleContext): HookNames {
 const VARIABLES = "#variable_conflict use_column";
 
 function grants(fn: string, args: string, clients: boolean): string {
-  return `revoke execute on function ${fn}(${args}) from public, anon, authenticated;
-grant execute on function ${fn}(${args}) to ${clients ? "authenticated, service_role" : "service_role"};`;
+  const signature = `${fn}(${args})`;
+  // Not userGrant: this also revokes from authenticated, and changing the
+  // text would change the SQL every app has already generated.
+  return clients
+    ? `revoke execute on function ${signature} from public, anon, authenticated;
+grant execute on function ${signature} to authenticated, service_role;`
+    : serviceGrant(signature);
 }
 
 /** Raises unless the caller is the service or may `action` in `tenant`. */

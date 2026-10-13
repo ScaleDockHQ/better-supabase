@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { SCHEMA, serviceOnly } from "../shared.ts";
+import { SCHEMA, serviceOnly, revokeTable } from "../shared.ts";
 
 export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
@@ -381,7 +381,7 @@ alter table better_supabase.job_messages add column if not exists max_attempts i
 create index if not exists job_messages_exhausted_idx
   on better_supabase.job_messages (queue, visible_at) where archived_at is null and attempts >= max_attempts;
 alter table better_supabase.job_messages enable row level security;
-revoke all on better_supabase.job_messages from anon, authenticated;
+${revokeTable("better_supabase.job_messages")}
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
 -- returns its id. With dedupe_running false only a message no worker has
@@ -797,7 +797,7 @@ alter table better_supabase.job_schedules alter column next_run drop not null;
 create index if not exists job_schedules_due_idx on better_supabase.job_schedules (next_run);
 create index if not exists job_schedules_tenant_idx on better_supabase.job_schedules (tenant) where tenant is not null;
 alter table better_supabase.job_schedules enable row level security;
-revoke all on better_supabase.job_schedules from anon, authenticated;
+${revokeTable("better_supabase.job_schedules")}
 
 -- jobs.schedule passes the next cron time. Without next_run, the next drain
 -- computes the first run after now. Writing a schedule again with the same

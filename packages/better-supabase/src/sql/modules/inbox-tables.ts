@@ -1,7 +1,7 @@
 import type { InboxSql } from "./inbox-names.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { updatedAt } from "../shared.ts";
+import { updatedAt, lockTable } from "../shared.ts";
 import { topics } from "./inbox-names.ts";
 
 const CHANNELS = [
@@ -58,12 +58,6 @@ export function inboxTables(q: InboxSql): string {
     inbound: q.t("inbound"),
     templates: q.t("templates"),
   };
-  const lock = (
-    table: string,
-    read: boolean,
-  ): string => `alter table ${table} enable row level security;
-revoke all on ${table} from anon, authenticated;
-${read ? `grant select on ${table} to authenticated;\n` : ""}grant all on ${table} to service_role;`;
   const policy = (table: string, name: string, using: string): string =>
     `drop policy if exists ${name} on ${table};
 create policy ${name} on ${table} for select to authenticated
@@ -88,7 +82,7 @@ create table if not exists ${T.inboxes} (
 create index if not exists inboxes_tenant_idx on ${T.inboxes} (${ib("tenant")});
 create unique index if not exists inboxes_address_idx on ${T.inboxes} (${ib("channel")}, ${ib("address")}) where ${ib("address")} is not null and ${ib("archivedAt")} is null;
 ${updatedAt(T.inboxes, ib("updatedAt"))}
-${lock(T.inboxes, true)}
+${lockTable(T.inboxes, { read: true })}
 ${policy(T.inboxes, "inboxes_staff_read", q.staff(ib("tenant")))}
 
 create table if not exists ${T.members} (
@@ -99,7 +93,7 @@ create table if not exists ${T.members} (
   primary key (${mb("inbox")}, ${mb("user")})
 );
 create index if not exists inbox_members_user_idx on ${T.members} (${mb("user")});
-${lock(T.members, true)}
+${lockTable(T.members, { read: true })}
 ${policy(T.members, "inbox_members_staff_read", `exists (select 1 from ${T.inboxes} i where i.${ib("id")} = ${mb("inbox")} and ${q.staff(`i.${ib("tenant")}`)})`)}
 
 create table if not exists ${T.teams} (
@@ -109,7 +103,7 @@ create table if not exists ${T.teams} (
   ${tm("createdAt")} timestamptz not null default now(),
   unique (${tm("tenant")}, ${tm("name")})
 );
-${lock(T.teams, true)}
+${lockTable(T.teams, { read: true })}
 ${policy(T.teams, "inbox_teams_staff_read", q.staff(tm("tenant")))}
 
 create table if not exists ${T.teamMembers} (
@@ -119,7 +113,7 @@ create table if not exists ${T.teamMembers} (
   primary key (${tmm("team")}, ${tmm("user")})
 );
 create index if not exists inbox_team_members_user_idx on ${T.teamMembers} (${tmm("user")});
-${lock(T.teamMembers, true)}
+${lockTable(T.teamMembers, { read: true })}
 ${policy(T.teamMembers, "inbox_team_members_staff_read", `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
@@ -139,7 +133,7 @@ create unique index if not exists contacts_user_idx on ${T.contacts} (${ct("tena
 create index if not exists contacts_email_idx on ${T.contacts} (${ct("tenant")}, lower(${ct("email")}));
 create index if not exists contacts_user_id_idx on ${T.contacts} (${ct("user")});
 ${updatedAt(T.contacts, ct("updatedAt"))}
-${lock(T.contacts, true)}
+${lockTable(T.contacts, { read: true })}
 ${policy(T.contacts, "contacts_read", `${q.staff(ct("tenant"))} or ${ct("user")} = (select auth.uid())`)}
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -153,7 +147,7 @@ create table if not exists ${T.identities} (
   unique (${ci("tenant")}, ${ci("channel")}, ${ci("externalId")})
 );
 create index if not exists contact_identities_contact_idx on ${T.identities} (${ci("contact")});
-${lock(T.identities, true)}
+${lockTable(T.identities, { read: true })}
 ${policy(T.identities, "contact_identities_staff_read", q.staff(ci("tenant")))}
 
 -- One conversation per channel thread (thread_id is the Chat SDK thread id),
@@ -185,7 +179,7 @@ create index if not exists conversations_contact_idx on ${T.conversations} (${cv
 create index if not exists conversations_inbox_idx on ${T.conversations} (${cv("inbox")});
 create index if not exists conversations_team_idx on ${T.conversations} (${cv("team")}) where ${cv("team")} is not null;
 ${updatedAt(T.conversations, cv("updatedAt"))}
-${lock(T.conversations, true)}
+${lockTable(T.conversations, { read: true })}
 
 create table if not exists ${T.participants} (
   ${pa("conversation")} uuid not null references ${T.conversations} (${cv("id")}) on delete cascade,
@@ -195,7 +189,7 @@ create table if not exists ${T.participants} (
   primary key (${pa("conversation")}, ${pa("user")})
 );
 create index if not exists conversation_participants_user_idx on ${T.participants} (${pa("user")});
-${lock(T.participants, true)}
+${lockTable(T.participants, { read: true })}
 ${policy(T.participants, "conversation_participants_staff_read", `exists (select 1 from ${T.conversations} c where c.${cv("id")} = ${pa("conversation")} and ${q.staff(`c.${cv("tenant")}`)})`)}
 
 -- The activity of a conversation: assignments, status and bot hand-offs.
@@ -210,7 +204,7 @@ create table if not exists ${T.events} (
 );
 create index if not exists conversation_events_conversation_idx on ${T.events} (${ev("conversation")}, ${ev("id")});
 create index if not exists conversation_events_actor_idx on ${T.events} (${ev("actor")});
-${lock(T.events, true)}
+${lockTable(T.events, { read: true })}
 ${policy(T.events, "conversation_events_staff_read", q.staff(ev("tenant")))}
 
 create table if not exists ${T.reads} (
@@ -220,7 +214,7 @@ create table if not exists ${T.reads} (
   primary key (${rd("conversation")}, ${rd("user")})
 );
 create index if not exists conversation_reads_user_idx on ${T.reads} (${rd("user")});
-${lock(T.reads, true)}
+${lockTable(T.reads, { read: true })}
 ${policy(T.reads, "conversation_reads_own", `${rd("user")} = (select auth.uid())`)}
 
 -- Messages and internal notes. Contacts read the messages of their own
@@ -250,7 +244,7 @@ create unique index if not exists inbox_messages_external_idx on ${T.messages} (
 create index if not exists inbox_messages_conversation_idx on ${T.messages} (${ms("conversation")}, ${ms("createdAt")}, ${ms("id")});
 create index if not exists inbox_messages_author_idx on ${T.messages} (${ms("author")});
 create index if not exists inbox_messages_reply_idx on ${T.messages} (${ms("replyTo")}) where ${ms("replyTo")} is not null;
-${lock(T.messages, true)}
+${lockTable(T.messages, { read: true })}
 
 -- What happened to an outbound message on its channel. Status only moves
 -- forward: queued, sent, delivered, read; failed before delivery.
@@ -268,7 +262,7 @@ create table if not exists ${T.deliveries} (
 );
 create index if not exists message_deliveries_external_idx on ${T.deliveries} (${dl("channel")}, ${dl("externalId")}) where ${dl("externalId")} is not null;
 ${updatedAt(T.deliveries, dl("updatedAt"))}
-${lock(T.deliveries, true)}
+${lockTable(T.deliveries, { read: true })}
 ${policy(T.deliveries, "message_deliveries_staff_read", q.staff(dl("tenant")))}
 
 create table if not exists ${T.mentions} (
@@ -279,7 +273,7 @@ create table if not exists ${T.mentions} (
   primary key (${mn("message")}, ${mn("user")})
 );
 create index if not exists inbox_mentions_user_idx on ${T.mentions} (${mn("user")}, ${mn("createdAt")} desc);
-${lock(T.mentions, true)}
+${lockTable(T.mentions, { read: true })}
 ${policy(T.mentions, "inbox_mentions_staff_read", q.staff(mn("tenant")))}
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -301,7 +295,7 @@ create table if not exists ${T.inbound} (
 create unique index if not exists inbound_events_external_idx on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
 create index if not exists inbound_events_status_idx on ${T.inbound} (${ie("status")}, ${ie("receivedAt")});
 create index if not exists inbound_events_inbox_idx on ${T.inbound} (${ie("inbox")});
-${lock(T.inbound, false)}
+${lockTable(T.inbound)}
 
 -- Approved templates for channels that need one outside a reply window
 -- (WhatsApp after 24 hours). external_id is the platform's template name.
@@ -320,7 +314,7 @@ create table if not exists ${T.templates} (
 );
 create index if not exists message_templates_inbox_idx on ${T.templates} (${tp("inbox")});
 ${updatedAt(T.templates, tp("updatedAt"))}
-${lock(T.templates, true)}
+${lockTable(T.templates, { read: true })}
 ${policy(T.templates, "message_templates_staff_read", q.staff(tp("tenant")))}`;
 }
 

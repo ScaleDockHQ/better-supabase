@@ -2,7 +2,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { type ModuleContext } from "../context.ts";
-import { SCHEMA } from "../shared.ts";
+import { SCHEMA, raise } from "../shared.ts";
 
 const RESERVED_SLUGS_SEED = `insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'system'
@@ -107,9 +107,9 @@ declare
   problem text := better_supabase.slug_problem(value);
 begin
   if problem = 'invalid' then
-    raise exception 'Invalid slug "%"', value using errcode = '23514', hint = 'SLUG_INVALID';
+    ${raise(`Invalid slug "%"`, "23514", "SLUG_INVALID", "value")}
   elsif problem = 'reserved' then
-    raise exception 'The slug "%" is reserved', value using errcode = '23514', hint = 'SLUG_RESERVED';
+    ${raise(`The slug "%" is reserved`, "23514", "SLUG_RESERVED", "value")}
   end if;
   return new;
 end;

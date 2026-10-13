@@ -44,6 +44,11 @@ PostgREST's own codes such as `PGRST116`.
 `db.$rpc` calls get a span named `EXECUTE <function>`, with
 `db.operation.name` set to `EXECUTE` and the function in
 `db.stored_procedure.name`. The reads in one `db.$many` call keep a span each.
+When the executor runs them together (the direct Postgres executor does, in
+one transaction), the round trip gets one more span, `BATCH SELECT <table>`,
+with `db.operation.batch.size` set to the number of reads. A batch over
+several tables is named `BATCH SELECT`, and a batch of mixed operations is
+named `BATCH`. It is marked failed when any read in it fails.
 
 Filter values, row data and query text are never recorded, so spans carry no
 personal data by default.

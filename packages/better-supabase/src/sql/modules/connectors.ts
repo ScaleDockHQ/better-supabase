@@ -9,6 +9,7 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
@@ -199,7 +200,7 @@ create table if not exists ${servers} (
 create index if not exists connector_servers_tenant_idx on ${servers} (${v.tenant});
 create index if not exists connector_servers_created_by_idx on ${servers} (${v.createdBy});
 alter table ${servers} enable row level security;
-revoke all on ${servers} from anon, authenticated;
+${revokeTable(servers)}
 grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
 drop policy if exists connector_servers_read on ${servers};
@@ -223,7 +224,7 @@ create unique index if not exists connector_grants_active_idx on ${grants} (${g.
 create index if not exists connector_grants_server_idx on ${grants} (${g.server});
 create index if not exists connector_grants_user_idx on ${grants} (${g.user});
 alter table ${grants} enable row level security;
-revoke all on ${grants} from anon, authenticated;
+${revokeTable(grants)}
 grant select on ${grants} to authenticated;
 grant all on ${grants} to service_role;
 drop policy if exists connector_grants_read on ${grants};
@@ -245,7 +246,7 @@ create table if not exists ${sessions} (
 create index if not exists connector_sessions_expires_idx on ${sessions} (${n.expiresAt});
 create index if not exists connector_sessions_user_idx on ${sessions} (${n.user});
 alter table ${sessions} enable row level security;
-revoke all on ${sessions} from anon, authenticated;
+${revokeTable(sessions)}
 grant select on ${sessions} to authenticated;
 grant all on ${sessions} to service_role;
 drop policy if exists connector_sessions_read on ${sessions};
@@ -266,7 +267,7 @@ create table if not exists ${fingerprints} (
 );
 create index if not exists connector_tool_fingerprints_approved_by_idx on ${fingerprints} (${f.approvedBy});
 alter table ${fingerprints} enable row level security;
-revoke all on ${fingerprints} from anon, authenticated;
+${revokeTable(fingerprints)}
 grant select on ${fingerprints} to authenticated;
 grant all on ${fingerprints} to service_role;
 drop policy if exists connector_tool_fingerprints_read on ${fingerprints};

@@ -6,7 +6,13 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  revokeTable,
+  fail,
+  raise,
+} from "../shared.ts";
 
 const EVENTS: ModuleEvents = {
   "push.device_registered": {
@@ -72,10 +78,10 @@ function build(ctx: ModuleContext): string {
   });
   const serviceOnly = (name: string): string => `
   if not (${SERVICE_CALLER}) then
-    raise exception 'only the service role reads push tokens' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+    ${fail("PUSH_FORBIDDEN", "only the service role reads push tokens")}
   end if;
   if ${name} is null or cardinality(${name}) > 1000 then
-    raise exception 'pass at most 1000 values' using errcode = '22023', hint = 'PUSH_TOO_MANY';
+    ${fail("PUSH_TOO_MANY", "pass at most 1000 values", "22023")}
   end if;`;
 
   return `${schemaPreamble(ctx)}
@@ -97,7 +103,7 @@ create table if not exists ${d} (
 );
 create index if not exists push_devices_user_idx on ${d} (${c("user")});
 alter table ${d} enable row level security;
-revoke all on ${d} from anon, authenticated;
+${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
 grant all on ${d} to service_role;
 drop policy if exists "push_devices_own_read" on ${d};
@@ -127,16 +133,16 @@ declare
   v_new boolean;
 begin
   if v_user is null then
-    raise exception 'Sign in first' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+    ${fail("PUSH_FORBIDDEN", "Sign in first")}
   end if;
   if register_push_device.platform is null or register_push_device.platform not in (${list(PLATFORMS)}) then
-    raise exception 'Unknown push platform %', register_push_device.platform using errcode = '22023', hint = 'PUSH_PLATFORM';
+    ${raise("Unknown push platform %", "22023", "PUSH_PLATFORM", "register_push_device.platform")}
   end if;
   if register_push_device.provider is null or register_push_device.provider not in (${list(PROVIDERS)}) then
-    raise exception 'Unknown push provider %', register_push_device.provider using errcode = '22023', hint = 'PUSH_PROVIDER';
+    ${raise("Unknown push provider %", "22023", "PUSH_PROVIDER", "register_push_device.provider")}
   end if;
   if register_push_device.token is null or length(register_push_device.token) not between 1 and 4096 then
-    raise exception 'A push token is 1 to 4096 characters' using errcode = '22023', hint = 'PUSH_TOKEN';
+    ${fail("PUSH_TOKEN", "A push token is 1 to 4096 characters", "22023")}
   end if;
   insert into ${d} as x (${c("user")}, ${c("token")}, ${c("platform")}, ${c("provider")}, ${c("deviceName")}, ${c("appVersion")})
   values (
@@ -176,7 +182,7 @@ declare
   v_id uuid;
 begin
   if v_user is null and not (${SERVICE_CALLER}) then
-    raise exception 'Sign in first' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+    ${fail("PUSH_FORBIDDEN", "Sign in first")}
   end if;
   delete from ${d} x
   where x.${c("token")} = unregister_push_device.token

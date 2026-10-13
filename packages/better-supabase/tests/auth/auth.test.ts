@@ -430,7 +430,7 @@ describe("resolveAuth", async () => {
     );
     const request = (refresh: string) =>
       cookieRequest(sessionFor(stale, refresh), {
-        "x-forwarded-for": "2001:db8::1, 10.0.0.1",
+        "x-forwarded-for": "10.0.0.1, 2001:db8::1",
       });
     const secretEnv = { ...options, env, refresh: true, fetch: fetchSpy };
     await resolveAuth(request("ip-a"), secretEnv);
@@ -452,14 +452,16 @@ describe("resolveAuth", async () => {
     );
   });
 
-  it("reads the first x-forwarded-for hop and ignores junk", () => {
+  it("reads the last x-forwarded-for hop and ignores junk", () => {
     const ip = (value: string) =>
       clientIp(
         new Request("https://a.test/", {
           headers: { "x-forwarded-for": value },
         }),
       );
-    expect(ip(" 203.0.113.7 , 10.0.0.1")).toBe("203.0.113.7");
+    expect(ip("6.6.6.6 , 203.0.113.7 ")).toBe("203.0.113.7");
+    expect(ip("203.0.113.7")).toBe("203.0.113.7");
+    expect(ip("203.0.113.7, unknown")).toBeUndefined();
     expect(ip("unknown")).toBeUndefined();
     expect(clientIp(new Request("https://a.test/"))).toBeUndefined();
   });

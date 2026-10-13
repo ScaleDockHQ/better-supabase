@@ -14,7 +14,8 @@
 
 ## Scripts and hooks
 
-- `pnpm verify` is the gate. There is no `pnpm check` script.
+- `pnpm verify` is the gate. `pnpm check` runs a quick subset (format
+  check, lint and typecheck) and never replaces it.
 - Lefthook formats and lints staged files on commit, runs commitlint on the
   message, and runs `turbo run lint typecheck test --affected` on push.
 - Commit headers stay under 73 characters and body lines under 101.

@@ -6,7 +6,14 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  tenantIn,
+  revokeTable,
+  fail,
+  raise,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -135,16 +142,16 @@ function build(ctx: ModuleContext): string {
   const scopeCheck = (fnName: string): string => `
   v_scope := ${lookup(`${fnName}.checklist`, `${fnName}.step`)};
   if v_scope is null then
-    raise exception 'Unknown onboarding step %.%', ${fnName}.checklist, coalesce(${fnName}.step, '*') using errcode = '22023', hint = 'ONBOARDING_STEP_UNKNOWN';
+    ${raise("Unknown onboarding step %.%", "22023", "ONBOARDING_STEP_UNKNOWN", `${fnName}.checklist`, `coalesce(${fnName}.step, '*')`)}
   end if;
   if v_scope = 'organization' then
     if ${fnName}.tenant is null then
-      raise exception 'Checklist % belongs to an organization', ${fnName}.checklist using errcode = '22023', hint = 'ONBOARDING_SCOPE';
+      ${raise("Checklist % belongs to an organization", "22023", "ONBOARDING_SCOPE", `${fnName}.checklist`)}
     end if;
   elsif ${fnName}.tenant is not null then
-    raise exception 'Checklist % belongs to a user', ${fnName}.checklist using errcode = '22023', hint = 'ONBOARDING_SCOPE';
+    ${raise("Checklist % belongs to a user", "22023", "ONBOARDING_SCOPE", `${fnName}.checklist`)}
   elsif auth.uid() is null then
-    raise exception 'Sign in first' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
+    ${fail("ONBOARDING_FORBIDDEN", "Sign in first")}
   end if;`;
   const subject = (fnName: string): string =>
     `x.${c("checklist")} = ${fnName}.checklist
@@ -170,7 +177,7 @@ create index if not exists onboarding_progress_user_idx on ${p} (${c("user")});
 create index if not exists onboarding_progress_tenant_idx on ${p} (${c("tenant")});
 create index if not exists onboarding_progress_completed_by_idx on ${p} (${c("completedBy")});
 alter table ${p} enable row level security;
-revoke all on ${p} from anon, authenticated;
+${revokeTable(p)}
 grant select on ${p} to authenticated;
 grant all on ${p} to service_role;
 drop policy if exists "onboarding_progress_read" on ${p};
@@ -194,17 +201,17 @@ declare
 begin
   v_scope := ${lookup("onboarding_progress.checklist", "null::text")};
   if v_scope is null then
-    raise exception 'Unknown onboarding checklist %', onboarding_progress.checklist using errcode = '22023', hint = 'ONBOARDING_STEP_UNKNOWN';
+    ${raise("Unknown onboarding checklist %", "22023", "ONBOARDING_STEP_UNKNOWN", "onboarding_progress.checklist")}
   end if;
   if v_scope = 'organization' then
     if onboarding_progress.tenant is null then
-      raise exception 'Checklist % belongs to an organization', onboarding_progress.checklist using errcode = '22023', hint = 'ONBOARDING_SCOPE';
+      ${raise("Checklist % belongs to an organization", "22023", "ONBOARDING_SCOPE", "onboarding_progress.checklist")}
     end if;
     if not ${can("onboarding_progress.tenant", "read")} then
-      raise exception 'You may not see this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
+      ${fail("ONBOARDING_FORBIDDEN", "You may not see this organization's onboarding")}
     end if;
   elsif onboarding_progress.tenant is not null then
-    raise exception 'Checklist % belongs to a user', onboarding_progress.checklist using errcode = '22023', hint = 'ONBOARDING_SCOPE';
+    ${raise("Checklist % belongs to a user", "22023", "ONBOARDING_SCOPE", "onboarding_progress.checklist")}
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -232,7 +239,7 @@ declare
   v_count integer;
 begin${scopeCheck("complete_onboarding_step")}
   if v_scope = 'organization' and not ${can("complete_onboarding_step.tenant", "complete")} then
-    raise exception 'You may not complete this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
+    ${fail("ONBOARDING_FORBIDDEN", "You may not complete this organization's onboarding")}
   end if;
   insert into ${p} (${c("checklist")}, ${c("step")}, ${c("user")}, ${c("tenant")}, ${c("completedBy")})
   values (
@@ -260,7 +267,7 @@ declare
   v_count integer;
 begin${scopeCheck("reset_onboarding_step")}
   if v_scope = 'organization' and not ${can("reset_onboarding_step.tenant", "complete")} then
-    raise exception 'You may not change this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
+    ${fail("ONBOARDING_FORBIDDEN", "You may not change this organization's onboarding")}
   end if;
   delete from ${p} x
   where x.${c("step")} = reset_onboarding_step.step and ${subject("reset_onboarding_step")};

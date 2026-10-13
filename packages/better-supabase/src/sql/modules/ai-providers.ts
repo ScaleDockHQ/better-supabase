@@ -10,6 +10,7 @@ import {
   serviceGrant,
   tenantIn,
   userGrant,
+  revokeTable,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
@@ -152,7 +153,7 @@ create table if not exists ${keys} (
 );
 create index if not exists ai_provider_keys_created_by_idx on ${keys} (${k.createdBy});
 alter table ${keys} enable row level security;
-revoke all on ${keys} from anon, authenticated;
+${revokeTable(keys)}
 grant select on ${keys} to authenticated;
 grant all on ${keys} to service_role;
 drop policy if exists ai_provider_keys_read on ${keys};
@@ -185,7 +186,7 @@ create index if not exists ai_batches_due_idx on ${batches} (${b.nextPollAt}) wh
 create index if not exists ai_batches_tenant_idx on ${batches} (${b.tenant}, ${b.createdAt} desc);
 create index if not exists ai_batches_user_idx on ${batches} (${b.user});
 alter table ${batches} enable row level security;
-revoke all on ${batches} from anon, authenticated;
+${revokeTable(batches)}
 grant select on ${batches} to authenticated;
 grant all on ${batches} to service_role;
 drop policy if exists ai_batches_read on ${batches};
@@ -205,7 +206,7 @@ create table if not exists ${items} (
 );
 create index if not exists ai_batch_items_tenant_idx on ${items} (${i.tenant});
 alter table ${items} enable row level security;
-revoke all on ${items} from anon, authenticated;
+${revokeTable(items)}
 grant select on ${items} to authenticated;
 grant all on ${items} to service_role;
 drop policy if exists ai_batch_items_read on ${items};

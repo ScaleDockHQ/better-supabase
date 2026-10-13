@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   WebhookRequest,
@@ -171,6 +171,40 @@ describe("createWebhooks: deliver", () => {
         },
       },
     ]);
+  });
+
+  it("waits at least half the step, and at least a second, before a retry", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const { webhooks, calls } = setup(
+        [row(), row({ id: "del-2", attempt: 3 })],
+        () => ({ status: 503, body: "" }),
+      );
+      const before = Date.now();
+      await webhooks.deliver();
+      const waits = ["del-1", "del-2"].map(
+        (id) =>
+          (Date.parse(String(outcomeOf(calls, id)!["retry_at"])) - before) /
+          1000,
+      );
+      expect(waits[0]).toBeGreaterThanOrEqual(1.5);
+      expect(waits[0]).toBeLessThan(4);
+      expect(waits[1]).toBeGreaterThanOrEqual(899);
+      expect(waits[1]).toBeLessThan(902);
+      random.mockReturnValue(0.999_999);
+      const { webhooks: later, calls: laterCalls } = setup([row()], () => ({
+        status: 503,
+        body: "",
+      }));
+      const start = Date.now();
+      await later.deliver();
+      const wait =
+        Date.parse(String(outcomeOf(laterCalls, "del-1")!["retry_at"])) - start;
+      expect(wait).toBeGreaterThanOrEqual(4000);
+      expect(wait).toBeLessThan(6000);
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it("retries retryable statuses with backoff and dead-letters after maxAttempts", async () => {

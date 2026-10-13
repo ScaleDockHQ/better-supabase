@@ -582,6 +582,22 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
 ${statements.join("\n\n")}\n`;
 }
 
+/** SQL that takes every privilege on a table from `anon` and `authenticated`. */
+export const revokeTable = (table: string): string =>
+  `revoke all on ${table} from anon, authenticated;`;
+
+/**
+ * SQL that turns on RLS for a table the module manages, takes it from `anon`
+ * and `authenticated` and gives it to the service role. `read` grants
+ * `select` back to `authenticated`, for tables its policies expose.
+ */
+export const lockTable = (
+  table: string,
+  options: { readonly read?: boolean } = {},
+): string => `alter table ${table} enable row level security;
+${revokeTable(table)}
+${options.read ? `grant select on ${table} to authenticated;\n` : ""}grant all on ${table} to service_role;`;
+
 /** SQL that grants a function to signed-in users and the service role. */
 export const userGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon;
@@ -606,14 +622,18 @@ export function serviceOnly(
     .join("\n");
 }
 
-/** `raise exception` with an errcode and a hint the TypeScript side maps. */
+/**
+ * `raise exception` with an errcode and, when given, a hint the TypeScript side maps.
+ * Sites that put `using` on its own line, raise without an errcode or compute
+ * the hint stay inline: this one-line form would change SQL apps have generated.
+ */
 export const raise = (
   message: string,
   errcode: string,
-  hint: string,
+  hint?: string,
   ...args: readonly string[]
 ): string =>
-  `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}', hint = '${hint}';`;
+  `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}'${hint === undefined ? "" : `, hint = '${hint}'`};`;
 
 /** `raise` for a module function: the hint first, the errcode defaulting to insufficient privilege. */
 export const fail = (

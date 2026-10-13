@@ -108,6 +108,17 @@ describe("postgresExecutor", () => {
       /^select count\(\*\)::int as count from "public"\."customers"/,
     );
     expect(fake.calls[1]!.values).toEqual(["Acme"]);
+    expect(fake.transactions).toBe(1);
+  });
+
+  it("reads rows without a count outside a transaction", async () => {
+    const fake = fakeSql([[/^select /, rowsOf({ id: "c1", name: "Acme" })]]);
+    await postgresExecutor(fake.sql).execute(select(), context);
+    await postgresExecutor(fake.sql).execute(
+      select({ head: true, count: "exact" }),
+      context,
+    );
+    expect(fake.transactions).toBe(0);
   });
 
   it("counts zero when the count query returns no row, and head selects no rows", async () => {
@@ -579,5 +590,77 @@ describe("postgresExecutor rpc", () => {
         { schema: "public", errorMappers: [], signal: aborted.signal },
       ),
     ).toMatchObject({ ok: false, error: { kind: "aborted" } });
+  });
+
+  it("looks a function up once, and again after an error that says it changed", async () => {
+    let fail = false;
+    const fake = fakeSql([
+      ["pg_proc", [{ returns_set: false, returns_void: false }]],
+      [
+        "to_json(bs_call)",
+        () =>
+          fail
+            ? { throws: pgError("42883", "function does not exist") }
+            : [{ value: 1 }],
+      ],
+    ]);
+    const executor = postgresExecutor(fake.sql);
+    const call = () =>
+      executor.rpc!("probe", {}, { schema: "public", errorMappers: [] });
+    const lookups = () =>
+      fake.texts().filter((text) => text.includes("pg_proc")).length;
+    await call();
+    await call();
+    expect(lookups()).toBe(1);
+    fail = true;
+    expect((await call()).ok).toBe(false);
+    fail = false;
+    await call();
+    expect(lookups()).toBe(2);
+    await postgresExecutor(fake.sql).rpc!(
+      "probe",
+      {},
+      { schema: "public", errorMappers: [] },
+    );
+    expect(lookups()).toBe(3);
+  });
+
+  it("looks a missing function up again on the next call", async () => {
+    const fake = fakeSql();
+    const executor = postgresExecutor(fake.sql);
+    const call = () =>
+      executor.rpc!("later", {}, { schema: "public", errorMappers: [] });
+    await call();
+    await call();
+    expect(
+      fake.texts().filter((text) => text.includes("pg_proc")),
+    ).toHaveLength(2);
+  });
+
+  it("drops arguments for OUT and TABLE parameters, as PostgREST does", async () => {
+    const fake = fakeSql([
+      [
+        "pg_proc",
+        [
+          {
+            returns_set: true,
+            returns_void: false,
+            arg_names: ["p_status", "total", "id"],
+            arg_modes: ["i", "o", "t"],
+            arg_types: ["text"],
+          },
+        ],
+      ],
+      ["to_json(bs_call)", [{ value: { total: 1 } }]],
+    ]);
+    await postgresExecutor(fake.sql).rpc!(
+      "totals",
+      { p_status: "active", total: 5, id: "x", typo: 1 },
+      { schema: "public", errorMappers: [] },
+    );
+    expect(fake.calls[1]).toEqual({
+      text: 'select to_json(bs_call) as value from "public"."totals"("p_status" => $1, "typo" => $2) as bs_call',
+      values: ["active", 1],
+    });
   });
 });
