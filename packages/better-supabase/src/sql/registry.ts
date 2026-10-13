@@ -42,6 +42,7 @@ import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
+import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PGTAP } from "./modules/pgtap.ts";
@@ -169,6 +170,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RANK),
       built(CATALOG),
       built(INVENTORY),
+      built(ORDERS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

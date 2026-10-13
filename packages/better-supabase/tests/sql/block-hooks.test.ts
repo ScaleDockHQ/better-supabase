@@ -35,6 +35,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_stock_reserve",
     "after_stock_reserve",
   ],
+  orders: [
+    "before_order_place",
+    "after_order_place",
+    "before_fulfillment_create",
+    "after_fulfillment_create",
+    "before_refund_create",
+    "after_refund_create",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

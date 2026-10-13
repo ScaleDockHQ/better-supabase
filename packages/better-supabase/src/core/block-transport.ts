@@ -28,8 +28,13 @@ export function sqlTransport(client: SqlClient): BlockTransport {
       const entries = Object.entries(args).filter(
         ([, value]) => value !== undefined,
       );
+      // pg sends an array as a Postgres array literal; an array of objects
+      // is a jsonb argument, so it goes as JSON.
       const params = entries.map(([, value]) =>
-        value !== null && typeof value === "object" && !Array.isArray(value)
+        value !== null &&
+        typeof value === "object" &&
+        (!Array.isArray(value) ||
+          value.some((entry) => entry !== null && typeof entry === "object"))
           ? JSON.stringify(value)
           : value,
       );

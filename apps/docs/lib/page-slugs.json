@@ -54,6 +54,7 @@
   "blocks/notifications",
   "blocks/number-sequences",
   "blocks/onboarding",
+  "blocks/orders",
   "blocks/organizations",
   "blocks/outbox",
   "blocks/profiles",
