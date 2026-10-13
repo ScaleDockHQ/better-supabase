@@ -29,6 +29,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   ],
   trash: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
   reactions: ["before_react", "after_react"],
+  approvals: [
+    "before_approval_request",
+    "after_approval_request",
+    "before_approval_decide",
+    "after_approval_decide",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

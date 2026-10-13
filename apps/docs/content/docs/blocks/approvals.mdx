@@ -1,0 +1,101 @@
+---
+title: Approvals
+description: Approval requests with steps per subject type and action, approvers by permission, role, team or user, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
+---
+
+`approvals` files a request for an action on a subject (send an invoice, publish a page), asks each step's approvers in turn, and runs what the policy unlocks once the last step is approved. Requests snapshot their policy, so a config change leaves pending requests alone. Filing a request needs `approvals.request` and read access to the subject, reading other people's requests needs `approvals.read`, and cancelling someone else's request needs `approvals.manage`. Who may decide a step comes from the policy, not from a permission key.
+
+```bash
+better-supabase sql add approvals
+```
+
+```ts
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const approvals = createApprovals({ transport });
+const request = await approvals
+  .request({
+    organizationId,
+    subjectType: "invoice",
+    subjectId: invoiceId,
+    action: "send",
+    reason: "Q3 invoice",
+  })
+  .orThrow();
+const waiting = await approvals
+  .list(organizationId, { assigned: true })
+  .orThrow();
+await approvals.approve(request.id, "Looks right").orThrow();
+```
+
+## Configure policies
+
+`options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.subjects`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    approvals: {
+      options: {
+        policies: {
+          invoice: {
+            send: {
+              steps: [
+                { approvers: { permission: "invoices.approve" }, required: 2 },
+                { approvers: { users: ["8b0f6c1e-0000-4000-8000-000000000001"] }, required: "all" },
+              ],
+              expiresIn: "P7D",
+              run: { transition: "sent" },
+            },
+          },
+        },
+      },
+    },
+  },
+},
+```
+
+| Option              | Default | What it does                                                                                                                                      |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps[].approvers` | none    | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id) or `users`; any match may decide                                |
+| `steps[].required`  | `1`     | Approvals the step needs; `"all"` with `users` means every listed user                                                                            |
+| `expiresIn`         | none    | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                              |
+| `selfApproval`      | `false` | Whether the requester may decide a step                                                                                                           |
+| `run`               | none    | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/jobs) |
+
+A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
+
+## Run the approved action
+
+With `run: { transition }`, the final approval calls `transition()` for the subject. Mark the edge with `requiresApproval` on the machine so nobody can skip the request:
+
+```ts title="better-supabase.config.ts"
+"state-machine": {
+  options: {
+    machines: {
+      invoice: { table: "public.invoices", column: "status", initial: "draft", transitions: { draft: ["sent"] }, requiresApproval: { draft: ["sent"] } },
+    },
+  },
+},
+```
+
+With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subjectType, subjectId, action)` or handle `approval.approved`.
+
+## Expiry and reminders
+
+Schedule both functions with pg_cron or the [jobs](/docs/blocks/jobs) drain. `remind_approvals(after)` asks the current step's approvers again for requests pending longer than `after` (default one day), once per `after`.
+
+```sql
+select cron.schedule('expire-approvals', '*/15 * * * *', 'select better_supabase.expire_approvals()');
+select cron.schedule('remind-approvals', '0 9 * * *', 'select better_supabase.remind_approvals()');
+```
+
+## Notifications, events and hooks
+
+With the [notifications](/docs/blocks/notifications) module, the current step's approvers get `approval.requested` (and `approval.reminder`), a delegate gets `approval.delegated`, and the requester gets `approval.approved`, `approval.rejected` or `approval.expired`. Approvers named by permission are reached through the notification's permission audience.
+
+The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired` and `approval.delegated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
+
+## With ReUI
+
+An approvals inbox renders `list(organizationId, { assigned: true })` in a ReUI data grid with approve and reject actions. A request sheet shows `get(id)`: the steps as a stepper with the current `step` highlighted, and `decisions` as a timeline. Show the approve buttons only when `canDecide` is true.

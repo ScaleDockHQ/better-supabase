@@ -626,6 +626,11 @@
       "types": "./dist/blocks/reactions/index.d.ts",
       "default": "./dist/blocks/reactions/index.js"
     },
+    "./blocks/approvals": {
+      "@better-supabase/source": "./src/blocks/approvals/index.ts",
+      "types": "./dist/blocks/approvals/index.d.ts",
+      "default": "./dist/blocks/approvals/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1207,6 +1212,10 @@
       "./blocks/reactions": {
         "types": "./dist/blocks/reactions/index.d.ts",
         "default": "./dist/blocks/reactions/index.js"
+      },
+      "./blocks/approvals": {
+        "types": "./dist/blocks/approvals/index.d.ts",
+        "default": "./dist/blocks/approvals/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

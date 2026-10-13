@@ -3519,6 +3519,27 @@
       "ReactOptions"
     ]
   },
+  "./blocks/approvals": {
+    "values": [
+      "createApprovals",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "ApprovalApprovers",
+      "ApprovalDecision",
+      "ApprovalListOptions",
+      "ApprovalRequest",
+      "ApprovalRequestDetail",
+      "ApprovalRequestInput",
+      "Approvals",
+      "ApprovalsOptions",
+      "ApprovalStatus",
+      "ApprovalStep",
+      "BlockTransport"
+    ]
+  },
   "./blocks/reactions/react": {
     "values": [
       "useReactions"

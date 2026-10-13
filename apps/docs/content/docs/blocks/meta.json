@@ -53,6 +53,7 @@
     "rank",
     "versions",
     "trash",
-    "reactions"
+    "reactions",
+    "approvals"
   ]
 }

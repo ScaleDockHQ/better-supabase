@@ -1,0 +1,312 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTransport } from "../../core/block-transport.ts";
+import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { AsyncResult } from "../../core/result.ts";
+
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  applyTemporal,
+  blockCall,
+  type BlockTemporalOptions,
+  optionalText,
+  recordOf,
+  recordsOf,
+  requiredInstant,
+  textOf,
+} from "../shared.ts";
+
+export interface ApprovalsOptions extends BlockTemporalOptions {
+  readonly transport: BlockTransport;
+  /** `sql.modules.approvals.schema`, or the API schema of its wrappers. */
+  readonly schema?: string;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<Approvals>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+  readonly mappers?: readonly ErrorMapper[];
+}
+
+export type ApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "expired";
+
+/** Who may decide a step. Any match is enough. */
+export interface ApprovalApprovers {
+  readonly permission?: string;
+  readonly role?: string;
+  readonly team?: string;
+  readonly users?: readonly string[];
+}
+
+export interface ApprovalStep {
+  readonly approvers: ApprovalApprovers;
+  readonly required: number;
+}
+
+export interface ApprovalRequest {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly action: string;
+  readonly status: ApprovalStatus;
+  /** The current step, from 0. */
+  readonly step: number;
+  /** The policy's steps when the request was made. */
+  readonly steps: readonly ApprovalStep[];
+  readonly requestedBy?: string;
+  readonly reason?: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly expiresAt?: Temporal.Instant;
+  readonly decidedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
+export interface ApprovalDecision {
+  readonly id: string;
+  readonly step: number;
+  readonly approver?: string;
+  readonly decision: "approved" | "rejected" | "delegated";
+  readonly delegateTo?: string;
+  readonly comment?: string;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** A request with its decisions, from `get`. */
+export interface ApprovalRequestDetail extends ApprovalRequest {
+  /** Whether the caller can decide the current step. */
+  readonly canDecide: boolean;
+  readonly decisions: readonly ApprovalDecision[];
+}
+
+export interface ApprovalRequestInput {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** An action `options.policies` names for the subject type. */
+  readonly action: string;
+  readonly reason?: string;
+  /** Passed to the job the final approval enqueues. */
+  readonly payload?: Readonly<Record<string, unknown>>;
+}
+
+export interface ApprovalListOptions {
+  /** `null` lists every status. Default: `pending`. */
+  readonly status?: ApprovalStatus | null;
+  /** Only requests whose current step the caller can decide. */
+  readonly assigned?: boolean;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly pageSize?: number;
+  /** Requests made before this time, for the next page. */
+  readonly before?: Temporal.Instant;
+}
+
+export interface Approvals {
+  /** Files a request under the subject type's policy for the action. */
+  request(input: ApprovalRequestInput): AsyncResult<ApprovalRequest>;
+  /** Approves the current step; the last step runs the policy's action. */
+  approve(id: string, comment?: string): AsyncResult<ApprovalRequest>;
+  /** Rejects the request. */
+  reject(id: string, comment?: string): AsyncResult<ApprovalRequest>;
+  /** Hands the caller's place on the current step to another member. */
+  delegate(
+    id: string,
+    userId: string,
+    comment?: string,
+  ): AsyncResult<ApprovalRequest>;
+  /** The requester or a manager closes a pending request. */
+  cancel(id: string): AsyncResult<ApprovalRequest>;
+  get(id: string): AsyncResult<ApprovalRequestDetail>;
+  /** Newest first. */
+  list(
+    organizationId: string,
+    options?: ApprovalListOptions,
+  ): AsyncResult<readonly ApprovalRequest[]>;
+  /** Whether the subject's latest request for the action was approved. */
+  isApproved(
+    subjectType: string,
+    subjectId: string,
+    action: string,
+  ): AsyncResult<boolean>;
+}
+
+const STATUSES: readonly ApprovalStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
+  "cancelled",
+  "expired",
+];
+
+const DECISIONS: readonly ApprovalDecision["decision"][] = [
+  "approved",
+  "rejected",
+  "delegated",
+];
+
+function statusOf(value: unknown): ApprovalStatus {
+  const status = STATUSES.find((item) => item === value);
+  if (status === undefined) {
+    throw new TypeError(`unknown approval status ${String(value)}`);
+  }
+  return status;
+}
+
+function decisionKind(value: unknown): ApprovalDecision["decision"] {
+  const decision = DECISIONS.find((item) => item === value);
+  if (decision === undefined) {
+    throw new TypeError(`unknown approval decision ${String(value)}`);
+  }
+  return decision;
+}
+
+const instant = (
+  value: unknown,
+  name: string,
+): { readonly [key: string]: Temporal.Instant } =>
+  value === null || value === undefined
+    ? {}
+    : { [name]: requiredInstant(value, name) };
+
+function approversOf(value: unknown): ApprovalApprovers {
+  const row = recordOf(value, "approvers");
+  const permission = optionalText(row["permission"]);
+  const role = optionalText(row["role"]);
+  const team = optionalText(row["team"]);
+  return {
+    ...(permission === undefined ? {} : { permission }),
+    ...(role === undefined ? {} : { role }),
+    ...(team === undefined ? {} : { team }),
+    ...(Array.isArray(row["users"])
+      ? { users: row["users"].map((user) => textOf(user)) }
+      : {}),
+  };
+}
+
+function requestOf(value: unknown, fn: string): ApprovalRequest {
+  const row = recordOf(value, fn);
+  const requestedBy = optionalText(row["requestedBy"]);
+  const reason = optionalText(row["reason"]);
+  const payload = row["payload"];
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    subjectType: textOf(row["subjectType"]),
+    subjectId: textOf(row["subjectId"]),
+    action: textOf(row["action"]),
+    status: statusOf(row["status"]),
+    step: Number(row["step"]),
+    steps: recordsOf(row["steps"] ?? [], fn).map((step) => ({
+      approvers: approversOf(step["approvers"]),
+      required: Number(step["required"]),
+    })),
+    payload:
+      typeof payload === "object" && payload !== null && !Array.isArray(payload)
+        ? recordOf(payload, fn)
+        : {},
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...(requestedBy === undefined ? {} : { requestedBy }),
+    ...(reason === undefined ? {} : { reason }),
+    ...instant(row["expiresAt"], "expiresAt"),
+    ...instant(row["decidedAt"], "decidedAt"),
+  };
+}
+
+function decisionOf(
+  value: Readonly<Record<string, unknown>>,
+): ApprovalDecision {
+  const approver = optionalText(value["approver"]);
+  const delegateTo = optionalText(value["delegateTo"]);
+  const comment = optionalText(value["comment"]);
+  return {
+    id: textOf(value["id"]),
+    step: Number(value["step"]),
+    decision: decisionKind(value["decision"]),
+    createdAt: requiredInstant(value["createdAt"], "createdAt"),
+    ...(approver === undefined ? {} : { approver }),
+    ...(delegateTo === undefined ? {} : { delegateTo }),
+    ...(comment === undefined ? {} : { comment }),
+  };
+}
+
+/** The `approvals` SQL module as typed calls. */
+export function createApprovals(options: ApprovalsOptions): Approvals {
+  applyTemporal(options);
+  const call = blockCall(options.transport, options.schema, options.mappers);
+  const decide = (id: string, decision: string, comment?: string) =>
+    call(
+      "decide_approval",
+      { request_id: id, decision, comment: comment ?? null },
+      (value) => requestOf(value, "decide_approval"),
+    );
+  const client: Approvals = {
+    request: (input) =>
+      call(
+        "request_approval",
+        {
+          tenant: input.organizationId,
+          subject_type: input.subjectType,
+          subject_id: input.subjectId,
+          action: input.action,
+          reason: input.reason ?? null,
+          payload: input.payload ?? {},
+        },
+        (value) => requestOf(value, "request_approval"),
+      ),
+    approve: (id, comment) => decide(id, "approved", comment),
+    reject: (id, comment) => decide(id, "rejected", comment),
+    delegate: (id, userId, comment) =>
+      call(
+        "delegate_approval",
+        { request_id: id, to_user: userId, comment: comment ?? null },
+        (value) => requestOf(value, "delegate_approval"),
+      ),
+    cancel: (id) =>
+      call("cancel_approval", { request_id: id }, (value) =>
+        requestOf(value, "cancel_approval"),
+      ),
+    get: (id) =>
+      call("get_approval", { request_id: id }, (value) => {
+        const row = recordOf(value, "get_approval");
+        return {
+          ...requestOf(row, "get_approval"),
+          canDecide: row["canDecide"] === true,
+          decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
+            decisionOf,
+          ),
+        };
+      }),
+    list: (organizationId, list = {}) =>
+      call(
+        "list_approvals",
+        {
+          tenant: organizationId,
+          status: list.status === undefined ? "pending" : list.status,
+          assigned: list.assigned ?? false,
+          subject_type: list.subjectType ?? null,
+          subject_id: list.subjectId ?? null,
+          page_size: list.pageSize ?? null,
+          before: list.before?.toString() ?? null,
+        },
+        (value) =>
+          recordsOf(value, "list_approvals").map((row) =>
+            requestOf(row, "list_approvals"),
+          ),
+      ),
+    isApproved: (subjectType, subjectId, action) =>
+      call(
+        "is_approved",
+        { subject_type: subjectType, subject_id: subjectId, action },
+        (value) => value === true,
+      ),
+  };
+  return withBlockHooks(client, options.hooks, {
+    block: "approvals",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+}

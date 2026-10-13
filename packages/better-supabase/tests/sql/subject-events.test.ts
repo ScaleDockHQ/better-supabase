@@ -23,6 +23,12 @@ const SUBJECT_EVENTS = [
   "subject.purged",
   "reaction.added",
   "reaction.removed",
+  "approval.requested",
+  "approval.approved",
+  "approval.rejected",
+  "approval.cancelled",
+  "approval.expired",
+  "approval.delegated",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;

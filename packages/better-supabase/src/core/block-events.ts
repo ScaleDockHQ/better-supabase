@@ -358,7 +358,13 @@ export type SubjectEventType =
   | "subject.restored"
   | "subject.purged"
   | "reaction.added"
-  | "reaction.removed";
+  | "reaction.removed"
+  | "approval.requested"
+  | "approval.approved"
+  | "approval.rejected"
+  | "approval.cancelled"
+  | "approval.expired"
+  | "approval.delegated";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -397,6 +403,12 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly emoji?: string;
   /** Who reacted: a user id, or the name the service passed. */
   readonly actor?: string;
+  /** The action an approval request is for, such as `publish`. */
+  readonly action?: string;
+  /** An approval request's status after the event. */
+  readonly status?: string;
+  /** The approval step the request is on, from 0. */
+  readonly step?: number;
 }
 
 /** Every block event type and its data. */
@@ -540,6 +552,12 @@ export interface BlockEventMap {
   "subject.purged": CollaborationEventData;
   "reaction.added": CollaborationEventData;
   "reaction.removed": CollaborationEventData;
+  "approval.requested": CollaborationEventData;
+  "approval.approved": CollaborationEventData;
+  "approval.rejected": CollaborationEventData;
+  "approval.cancelled": CollaborationEventData;
+  "approval.expired": CollaborationEventData;
+  "approval.delegated": CollaborationEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -15,6 +15,7 @@ import { AI_PROVIDERS } from "./modules/ai-providers.ts";
 import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
+import { APPROVALS } from "./modules/approvals.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
@@ -171,6 +172,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(VERSIONS),
       built(TRASH),
       built(REACTIONS),
+      built(APPROVALS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
