@@ -36,14 +36,14 @@ export interface RelationKind {
 }
 
 /** The kinds `options.kinds` falls back to. */
-export const DEFAULT_RELATION_KINDS: Readonly<Record<string, RelationKind>> = {
+const DEFAULT_RELATION_KINDS: Readonly<Record<string, RelationKind>> = {
   blocks: { inverse: "blocked_by", acyclic: true },
   parent: { inverse: "children", cardinality: "one", acyclic: true },
   relates: { symmetric: true },
 };
 
 /** The aggregates `rollup` accepts. */
-export const RELATION_ROLLUPS = ["count", "sum", "avg", "min", "max"] as const;
+const RELATION_ROLLUPS = ["count", "sum", "avg", "min", "max"] as const;
 
 const NAME: RegExp = /^[a-z][a-z0-9_]{0,62}$/;
 const MAX_DATA_BYTES = 8192;
@@ -110,7 +110,7 @@ interface ResolvedKind {
 }
 
 /** `options.kinds`, checked: names, inverses that clash, and symmetric kinds without direction. */
-export function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
+function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
   const where = "sql.modules.relations.options.kinds";
   const raw: unknown = ctx.option("kinds") ?? DEFAULT_RELATION_KINDS;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

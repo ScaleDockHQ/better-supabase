@@ -66,7 +66,7 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.actions`: an app's own actions, each a `schema.function(tenant, subject_type, id, args)`. */
-export function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
+function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
   const where = "sql.modules.bulk.options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
