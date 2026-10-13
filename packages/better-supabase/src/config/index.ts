@@ -29,6 +29,7 @@ export type {
   ResolvedSqlConfig,
   SeedConfig,
   SqlConfig,
+  TopicTriggerConfig,
   VectorDistance,
   VectorSearchConfig,
 } from "./types/database.ts";

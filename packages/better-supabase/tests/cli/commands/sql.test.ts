@@ -180,6 +180,59 @@ export const notATopic = { template: "x" };
     ).rejects.toThrow(/exports no topic/);
   });
 
+  it("writes the broadcast triggers of realtime.triggers after the policies", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const quotes = defineTopic("organization:{organizationId}:quotes");
+`,
+    );
+    const output = "supabase/schemas/905_topics.sql";
+    const policies = { from: ["topics.ts"], output };
+    const triggers = [
+      {
+        topic: "organization:{organizationId}:quotes",
+        table: "public.quotes",
+        event: "quote.changed",
+      },
+    ];
+    await sql(["sync"], {
+      realtime: { policies, triggers },
+      sql: { modules: ["realtime-tables"] },
+    });
+    const written = await readFile(join(root, output), "utf8");
+    expect(written.indexOf("create policy")).toBeLessThan(
+      written.indexOf("create trigger"),
+    );
+    expect(written).toContain(
+      "better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');",
+    );
+    await expect(
+      sql(["sync"], { realtime: { policies, triggers } }),
+    ).rejects.toThrow("add realtime-tables to sql.modules");
+    await expect(
+      sql(["sync"], {
+        realtime: { triggers },
+        sql: { modules: ["realtime-tables"] },
+      }),
+    ).rejects.toThrow("realtime.triggers needs realtime.policies");
+    await expect(
+      sql(["sync"], {
+        realtime: {
+          policies,
+          triggers: [{ topic: "board:{boardId}", table: "cards" }],
+        },
+        sql: { modules: ["realtime-tables"] },
+      }),
+    ).rejects.toThrow(
+      'realtime.triggers: no topic "board:{boardId}" in topics.ts',
+    );
+  });
+
   it("skips the topics whose receive policy a module writes", async () => {
     const realtime = resolve(
       import.meta.dirname,

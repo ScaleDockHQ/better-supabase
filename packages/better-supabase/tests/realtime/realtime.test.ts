@@ -986,3 +986,40 @@ describe("rowChange", () => {
     ).toBeNull();
   });
 });
+
+describe("trigger", () => {
+  it("calls broadcast_topic with the placeholders in snake_case", () => {
+    const quotes = defineTopic("organization:{organizationId}:quotes");
+    expect(quotes.trigger("quotes", { event: "quote.changed" })).toBe(
+      [
+        "-- better-supabase: broadcast public.quotes changes to organization:{organizationId}:quotes",
+        'drop trigger if exists "bs_broadcast_organization_quotes" on "public"."quotes";',
+        'create trigger "bs_broadcast_organization_quotes" after insert or update or delete on "public"."quotes"',
+        "  for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("maps columns, limits the operations and passes 'false' for a public topic", () => {
+    const board = defineTopic("board:{boardId}", { private: false });
+    const sql = board.trigger("app.cards", {
+      values: { boardId: "board" },
+      events: ["insert", "delete"],
+    });
+    expect(sql).toContain(
+      "after insert or delete on \"app\".\"cards\"\n  for each row execute function better_supabase.broadcast_topic('board:{board}', '', 'false');",
+    );
+  });
+
+  it("rejects a value for no placeholder and a column with braces", () => {
+    const board = defineTopic("board:{boardId}");
+    expect(() =>
+      // @ts-expect-error not a placeholder
+      board.trigger("cards", { values: { cardId: "id" } }),
+    ).toThrow('"cardId" is not a placeholder of the topic');
+    expect(() =>
+      board.trigger("cards", { values: { boardId: "a}b" } }),
+    ).toThrow("the column for {boardId} can't contain braces");
+  });
+});

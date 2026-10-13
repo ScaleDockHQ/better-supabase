@@ -189,6 +189,78 @@ describe.skipIf(!live)("Realtime module", async () => {
     }
   });
 
+  it("sends row changes through broadcast_topic() from a topic.trigger()", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const quotes = defineTopic("organization:{organizationId}:quotes");
+      const byKvk = defineTopic("kvk:{kvk}", { private: false });
+      await client.query(
+        quotes.trigger("customers", { event: "customer.changed" }),
+      );
+      await client.query(byKvk.trigger("customers", { events: ["insert"] }));
+      const { rows: created } = await client.query<{ id: string }>(
+        "insert into public.customers (organization_id, name) values ($1, 'Trigger Co') returning id::text",
+        [ACME],
+      );
+      const id = created[0]!.id;
+      await client.query(
+        "update public.customers set name = 'Trigger BV' where id = $1",
+        [id],
+      );
+      const { rows } = await client.query<{
+        event: string;
+        payload: {
+          operation: string;
+          record: { name: string };
+          old_record: { name: string } | null;
+        };
+        private: boolean;
+      }>(
+        "select event, payload, private from realtime.messages where topic = $1 order by id",
+        [`organization:${ACME}:quotes`],
+      );
+      expect(
+        rows.map((row) => [
+          row.event,
+          row.payload.operation,
+          row.payload.record.name,
+          row.payload.old_record?.name ?? null,
+          row.private,
+        ]),
+      ).toEqual([
+        ["customer.changed", "INSERT", "Trigger Co", null, true],
+        ["customer.changed", "UPDATE", "Trigger BV", "Trigger Co", true],
+      ]);
+      const { rows: kvk } = await client.query(
+        "select 1 from realtime.messages where topic like 'kvk:%'",
+      );
+      expect(kvk).toEqual([]);
+      await client.query(
+        "insert into public.customers (organization_id, name, kvk) values ($1, 'Kvk Co', $2)",
+        [ACME, "012345678"],
+      );
+      const { rows: sent } = await client.query<{
+        event: string;
+        private: boolean;
+      }>("select event, private from realtime.messages where topic = $1", [
+        "kvk:012345678",
+      ]);
+      expect(sent).toEqual([{ event: "INSERT", private: false }]);
+      await client.query("savepoint bad");
+      await expect(
+        client.query(
+          "insert into public.customers (organization_id, name, kvk) values ($1, 'Bad Co', 'a b')",
+          [ACME],
+        ),
+      ).rejects.toThrow("contains characters topics do not allow");
+      await client.query("rollback to savepoint bad");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("broadcasts row changes to the tenant topic", async () => {
     let retry: ReturnType<typeof setInterval> | undefined;
     let attempt = 0;

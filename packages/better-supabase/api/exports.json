@@ -291,6 +291,7 @@
       "TableConfig",
       "TenantConfig",
       "TimestampsConfig",
+      "TopicTriggerConfig",
       "ValibotGeneratorOptions",
       "VectorDistance",
       "VectorSearchConfig",
@@ -1859,6 +1860,7 @@
       "TopicSqlOptions",
       "TopicSubscribeOptions",
       "TopicSubscription",
+      "TopicTriggerOptions",
       "TriggerLookup",
       "TriggerOptions",
       "TriggerValue"

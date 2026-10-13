@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type {
   AuthorizationFunctions,
   ResolvedConfig,
+  TopicTriggerConfig,
 } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
@@ -12,6 +13,10 @@ import { importFresh } from "./fresh-import.ts";
 interface TopicLike {
   readonly template: string;
   sql(options?: { readonly functions?: AuthorizationFunctions }): string;
+  trigger(
+    table: string,
+    options?: Omit<TopicTriggerConfig, "topic" | "table">,
+  ): string;
 }
 
 const isTopic = (value: unknown): value is TopicLike =>
@@ -21,7 +26,8 @@ const isTopic = (value: unknown): value is TopicLike =>
   typeof value.template === "string" &&
   "sql" in value &&
   typeof value.sql === "function" &&
-  "triggerSql" in value;
+  "trigger" in value &&
+  typeof value.trigger === "function";
 
 const literalParts = (template: string): string =>
   template.replaceAll(/\{[^}]+\}/g, "{}");
@@ -40,7 +46,23 @@ export async function topicPolicyFile(
   owned: readonly ModuleTopic[] = [],
 ): Promise<{ readonly path: string; readonly contents: string } | undefined> {
   const policies = config.realtime.policies;
-  if (policies === undefined) return undefined;
+  const triggers = config.realtime.triggers;
+  if (policies === undefined) {
+    if (triggers.length > 0) {
+      throw new Error(
+        "realtime.triggers needs realtime.policies: the triggers go to its output, for topics its from files export",
+      );
+    }
+    return undefined;
+  }
+  if (
+    triggers.length > 0 &&
+    !config.sql.moduleNames.includes("realtime-tables")
+  ) {
+    throw new Error(
+      "realtime.triggers call better_supabase.broadcast_topic(): add realtime-tables to sql.modules",
+    );
+  }
   const topics: TopicLike[] = [];
   for (const entry of policies.from) {
     const loaded = await importFresh(resolve(config.root, entry));
@@ -65,6 +87,15 @@ export async function topicPolicyFile(
     );
     return false;
   });
+  const triggerSql = triggers.map(({ topic: template, table, ...options }) => {
+    const topic = topics.find((candidate) => candidate.template === template);
+    if (topic === undefined) {
+      throw new Error(
+        `realtime.triggers: no topic "${template}" in ${policies.from.join(", ")}`,
+      );
+    }
+    return topic.trigger(table, options);
+  });
   const header = [
     "-- better-supabase: realtime topic policies",
     `-- Written by \`better-supabase sql sync\` from ${policies.from.join(", ")}; edit the topics, not this file.`,
@@ -72,6 +103,6 @@ export async function topicPolicyFile(
   ].join("\n");
   return {
     path: policies.output,
-    contents: `${header}\n\n${written.map(sqlOf).join("\n")}`,
+    contents: `${header}\n\n${[...written.map(sqlOf), ...triggerSql].join("\n")}`,
   };
 }

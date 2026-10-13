@@ -81,6 +81,26 @@ export interface RealtimeConfig {
    * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
    */
   readonly policies?: TopicPoliciesConfig;
+  /**
+   * Broadcast triggers that `sql sync` writes to `policies.output` next to
+   * the policies: each one calls `better_supabase.broadcast_topic()` (the
+   * `realtime-tables` module) for a topic that `policies.from` exports.
+   */
+  readonly triggers?: readonly TopicTriggerConfig[];
+}
+
+/** One `realtime.triggers` entry: a table whose row changes go to a topic. */
+export interface TopicTriggerConfig {
+  /** The template of a topic that `realtime.policies.from` exports. */
+  readonly topic: string;
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  /** The column per placeholder. Defaults to the placeholder in snake_case. */
+  readonly values?: Readonly<Record<string, string>>;
+  /** Defaults to all three. */
+  readonly events?: readonly ("insert" | "update" | "delete")[];
+  /** The broadcast event name. Defaults to the operation. */
+  readonly event?: string;
 }
 
 /** `realtime.policies`: where topic policies come from and go. */

@@ -21,6 +21,7 @@ export type {
   TopicSqlOptions,
   TopicSubscribeOptions,
   TopicSubscription,
+  TopicTriggerOptions,
   TriggerLookup,
   TriggerOptions,
   TriggerValue,

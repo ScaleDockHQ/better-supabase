@@ -186,6 +186,7 @@ export function resolveConfig(
       tables: config.realtime?.tables ?? [],
       global: config.realtime?.global ?? [],
       users: config.realtime?.users ?? {},
+      triggers: config.realtime?.triggers ?? [],
       ...(config.realtime?.policies === undefined
         ? {}
         : { policies: config.realtime.policies }),
