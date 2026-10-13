@@ -1,3 +1,9 @@
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
+export type { BlockTransport } from "../../core/block-transport.ts";
 export { assertCron, nextCronRun } from "./cron.ts";
 export { devDrain, devDrainSecret } from "./dev.ts";
 export type { DevDrain, DevDrainOptions } from "./dev.ts";
@@ -20,7 +26,11 @@ export type {
   WebhookInboxProcessOptions,
   WebhookInboxPurgeOptions,
 } from "./webhook-inbox.ts";
-export { pgmqPublicBackend, sqlQueueBackend } from "./backends.ts";
+export {
+  pgmqPublicBackend,
+  sqlQueueBackend,
+  transportQueueBackend,
+} from "./backends.ts";
 export type {
   DeadJobRow,
   DueSchedule,
@@ -29,8 +39,10 @@ export type {
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
+  TransportQueueBackendOptions,
 } from "./backends.ts";
 export { createJobs } from "./queue.ts";
+export type { JobsSource } from "./queue.ts";
 export { createRateLimit, rateLimited } from "./rate-limit.ts";
 export type {
   RateLimit,

@@ -1,6 +1,8 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   problemResponse,
@@ -12,6 +14,7 @@ import {
   seconds,
   type BlockTemporalOptions,
 } from "../shared.ts";
+import { transportRows } from "./backends.ts";
 
 export interface IdempotencyOptions
   extends BlockProblemOptions, BlockTemporalOptions {
@@ -30,6 +33,8 @@ export interface IdempotencyOptions
   readonly required?: boolean;
   /** Defaults to `Idempotency-Key`. */
   readonly header?: string;
+  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  readonly schema?: string;
 }
 
 export type IdempotencyState = "started" | "replay" | "running" | "mismatch";
@@ -99,9 +104,100 @@ interface StoredResponse {
   readonly contentType: string | null;
 }
 
-/** HTTP idempotency keys (IETF `Idempotency-Key` header) over the `idempotency` SQL module. */
+interface BeginRow {
+  readonly state: IdempotencyState;
+  readonly status_code: number | null;
+  readonly response: unknown;
+  readonly holder: string | null;
+}
+
+/** The three calls `createIdempotency` makes, over SQL or a transport. */
+interface IdempotencyCalls {
+  begin(
+    scope: string,
+    key: string,
+    fingerprint: string,
+    ttl: string,
+    lock: string,
+  ): Promise<BeginRow | undefined>;
+  complete(
+    scope: string,
+    key: string,
+    holder: string,
+    status: number,
+    body: unknown,
+  ): Promise<boolean>;
+  release(scope: string, key: string, holder: string): Promise<boolean>;
+}
+
+function sqlCalls(sql: SqlClient): IdempotencyCalls {
+  return {
+    async begin(scope, key, fingerprint, ttl, lock) {
+      const [row] = await sql.queryRaw<BeginRow>(
+        "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
+        [scope, key, fingerprint, ttl, lock],
+      );
+      return row;
+    },
+    async complete(scope, key, holder, status, body) {
+      const [row] = await sql.queryRaw<{ done: boolean }>(
+        "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
+        [scope, key, holder, status, JSON.stringify(body)],
+      );
+      return row?.done === true;
+    },
+    async release(scope, key, holder) {
+      const [row] = await sql.queryRaw<{ done: boolean }>(
+        "select better_supabase.release_idempotent($1, $2, $3) as done",
+        [scope, key, holder],
+      );
+      return row?.done === true;
+    },
+  };
+}
+
+function transportCalls(
+  transport: BlockTransport,
+  schema: string,
+): IdempotencyCalls {
+  return {
+    async begin(scope, key, fingerprint, ttl, lock) {
+      const [row] = transportRows<BeginRow>(
+        "begin_idempotent",
+        await transport.call(schema, "begin_idempotent", {
+          scope,
+          key,
+          request_hash: fingerprint,
+          ttl,
+          lock,
+        }),
+      );
+      return row;
+    },
+    complete: async (scope, key, holder, status, body) =>
+      (await transport.call(schema, "complete_idempotent", {
+        scope,
+        key,
+        holder,
+        status_code: status,
+        response: body,
+      })) === true,
+    release: async (scope, key, holder) =>
+      (await transport.call(schema, "release_idempotent", {
+        scope,
+        key,
+        holder,
+      })) === true,
+  };
+}
+
+/**
+ * HTTP idempotency keys (IETF `Idempotency-Key` header) over the
+ * `idempotency` SQL module: a service SQL connection, or a service-role
+ * `rpcTransport` over the wrappers `sql.modules.idempotency.api` writes.
+ */
 export function createIdempotency(
-  sql: SqlClient,
+  source: SqlClient | BlockTransport,
   options: IdempotencyOptions = {},
 ): Idempotency {
   applyTemporal(options);
@@ -109,23 +205,20 @@ export function createIdempotency(
   const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
+  const calls =
+    "call" in source
+      ? transportCalls(source, options.schema ?? DEFAULT_BLOCK_SCHEMA)
+      : sqlCalls(source);
 
   const begin: Idempotency["begin"] = (key, fingerprint, scope = "") =>
     run(async () => {
-      const [row] = await sql.queryRaw<{
-        state: IdempotencyState;
-        status_code: number | null;
-        response: unknown;
-        holder: string | null;
-      }>(
-        "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
-        [scope, key, fingerprint, ttl, lock],
-      );
+      const row = await calls.begin(scope, key, fingerprint, ttl, lock);
+      if (!row) throw new TypeError("begin_idempotent returned no row");
       return {
-        state: row!.state,
-        status: row!.status_code,
-        body: row!.response,
-        holder: row!.holder ?? undefined,
+        state: row.state,
+        status: row.status_code,
+        body: row.response,
+        holder: row.holder ?? undefined,
       };
     });
   const complete: Idempotency["complete"] = (
@@ -134,22 +227,9 @@ export function createIdempotency(
     status,
     body,
     scope = "",
-  ) =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
-        [scope, key, holder, status, JSON.stringify(body)],
-      );
-      return row?.done === true;
-    });
+  ) => run(() => calls.complete(scope, key, holder, status, body));
   const release: Idempotency["release"] = (key, holder, scope = "") =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.release_idempotent($1, $2, $3) as done",
-        [scope, key, holder],
-      );
-      return row?.done === true;
-    });
+    run(() => calls.release(scope, key, holder));
 
   return {
     begin,

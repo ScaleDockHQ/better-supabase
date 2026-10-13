@@ -1,6 +1,8 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { Job, ScheduleFilter, ScheduleInfo } from "./types.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { dbError, DbException } from "../../core/errors.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
@@ -200,6 +202,70 @@ function firstRun(
 }
 
 /**
+ * The due schedules among claimed rows. A row written in SQL without a next
+ * run gets its first run here; one not due yet is moved to it with `advance`.
+ */
+async function dueOf(
+  rows: readonly ScheduleRow[],
+  now: () => Temporal.Instant,
+  advance: (name: string, first: Temporal.Instant) => Promise<void>,
+): Promise<DueSchedule[]> {
+  const due: DueSchedule[] = [];
+  for (const row of rows) {
+    const schedule = {
+      name: row.job_name,
+      cron: row.schedule,
+      timeZone: row.timezone,
+      queue: row.queue,
+      payload: row.payload,
+    };
+    if (row.next_run !== null) {
+      due.push({ ...schedule, nextRun: toInstant(row.next_run) });
+      continue;
+    }
+    const first = firstRun(row, now);
+    if (first === undefined) continue;
+    if (temporal().Instant.compare(first, now()) <= 0) {
+      due.push({ ...schedule, nextRun: first });
+    } else {
+      await advance(row.job_name, first);
+    }
+  }
+  return due;
+}
+
+const scheduleInfo = (row: ScheduleListRow): ScheduleInfo => ({
+  name: row.job_name,
+  cron: row.schedule,
+  timeZone: row.timezone,
+  queue: row.queue,
+  tenant: row.tenant,
+  nextRun: instantOrNull(row.next_run),
+  lastRun: instantOrNull(row.last_run),
+  leasedUntil: instantOrNull(row.locked_until),
+  createdAt: instantOrNull(row.created_at),
+});
+
+interface StatsRow {
+  readonly ready: string | number;
+  readonly in_flight: string | number;
+  readonly delayed: string | number;
+  readonly dead: string | number;
+  readonly oldest_age_seconds: string | number | null;
+}
+
+const statsOf = (row: StatsRow | undefined): QueueStats => ({
+  ready: Number(row?.ready ?? 0),
+  inFlight: Number(row?.in_flight ?? 0),
+  delayed: Number(row?.delayed ?? 0),
+  dead: Number(row?.dead ?? 0),
+  oldestAgeSeconds:
+    row?.oldest_age_seconds === null || row?.oldest_age_seconds === undefined
+      ? null
+      : Number(row.oldest_age_seconds),
+});
+
+/**
  * The `jobs` SQL module over a service SQL connection. The same
  * functions back both `sql.modules.jobs.options.backend` values (pgmq and table)
  * and both schedulers. `now` dates a schedule's first run.
@@ -260,24 +326,11 @@ export function sqlQueueBackend(
       return row?.id === null || row?.id === undefined ? null : Number(row.id);
     },
     async stats(queue) {
-      const [row] = await sql.queryRaw<{
-        ready: string | number;
-        in_flight: string | number;
-        delayed: string | number;
-        dead: string | number;
-        oldest_age_seconds: string | number | null;
-      }>("select * from better_supabase.job_queue_stats($1)", [queue]);
-      return {
-        ready: Number(row?.ready ?? 0),
-        inFlight: Number(row?.in_flight ?? 0),
-        delayed: Number(row?.delayed ?? 0),
-        dead: Number(row?.dead ?? 0),
-        oldestAgeSeconds:
-          row?.oldest_age_seconds === null ||
-          row?.oldest_age_seconds === undefined
-            ? null
-            : Number(row.oldest_age_seconds),
-      };
+      const [row] = await sql.queryRaw<StatsRow>(
+        "select * from better_supabase.job_queue_stats($1)",
+        [queue],
+      );
+      return statsOf(row);
     },
     listDead: (queue, limit, before) =>
       sql.queryRaw<DeadJobRow>(
@@ -310,17 +363,7 @@ export function sqlQueueBackend(
         "select * from better_supabase.list_schedules($1, $2)",
         [filter.prefix ?? null, filter.tenant ?? null],
       );
-      return rows.map((row) => ({
-        name: row.job_name,
-        cron: row.schedule,
-        timeZone: row.timezone,
-        queue: row.queue,
-        tenant: row.tenant,
-        nextRun: instantOrNull(row.next_run),
-        lastRun: instantOrNull(row.last_run),
-        leasedUntil: instantOrNull(row.locked_until),
-        createdAt: instantOrNull(row.created_at),
-      }));
+      return rows.map(scheduleInfo);
     },
     async unscheduleTenant(tenant) {
       const [row] = await sql.queryRaw<{ removed: number }>(
@@ -341,31 +384,12 @@ export function sqlQueueBackend(
         "select * from better_supabase.claim_due_schedules($1, $2)",
         [lease, batch],
       );
-      const due: DueSchedule[] = [];
-      for (const row of rows) {
-        const schedule = {
-          name: row.job_name,
-          cron: row.schedule,
-          timeZone: row.timezone,
-          queue: row.queue,
-          payload: row.payload,
-        };
-        if (row.next_run !== null) {
-          due.push({ ...schedule, nextRun: toInstant(row.next_run) });
-          continue;
-        }
-        const first = firstRun(row, now);
-        if (first === undefined) continue;
-        if (temporal().Instant.compare(first, now()) <= 0) {
-          due.push({ ...schedule, nextRun: first });
-        } else {
-          await sql.queryRaw(
-            "select better_supabase.advance_schedule($1, null, $2)",
-            [row.job_name, first.toString()],
-          );
-        }
-      }
-      return due;
+      return dueOf(rows, now, async (name, first) => {
+        await sql.queryRaw(
+          "select better_supabase.advance_schedule($1, null, $2)",
+          [name, first.toString()],
+        );
+      });
     },
     async advanceSchedule(name, ran, next) {
       const [row] = await sql.queryRaw<{ advanced: boolean }>(
@@ -374,6 +398,188 @@ export function sqlQueueBackend(
       );
       return row?.advanced ?? false;
     },
+  };
+}
+
+/** The named arguments of each `jobs` function, in call order. */
+const PARAMS = {
+  enqueue_job: [
+    "queue",
+    "payload",
+    "delay",
+    "max_attempts",
+    "dedupe_key",
+    "dedupe_running",
+  ],
+  claim_jobs: ["queue", "lease", "batch"],
+  complete_job: ["queue", "job_id", "attempt"],
+  fail_job: ["queue", "job_id", "attempt", "error", "retry_in"],
+  extend_job_lease: ["queue", "job_id", "attempt", "lease"],
+  replay_dead_job: ["queue", "job_id"],
+  job_queue_stats: ["queue"],
+  list_dead_jobs: ["queue", "max_rows", "before_id"],
+  retry_dead_jobs: ["queue", "ids", "batch"],
+  schedule_job: [
+    "job_name",
+    "schedule",
+    "queue",
+    "payload",
+    "timezone",
+    "next_run",
+    "tenant",
+  ],
+  unschedule_job: ["job_name"],
+  list_schedules: ["name_prefix", "for_tenant"],
+  unschedule_tenant: ["tenant"],
+  claim_due_schedules: ["lease", "batch"],
+  advance_schedule: ["job_name", "ran", "next_run"],
+  purge_job_archive: ["queue", "older_than", "batch", "dead_older_than"],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+/** A `jobs` SQL module function `transportQueueBackend` calls. */
+type JobsFunction = keyof typeof PARAMS;
+
+/** Options for `transportQueueBackend`. */
+export interface TransportQueueBackendOptions {
+  /** The schema the functions live in. Defaults to `better_supabase`. */
+  readonly schema?: string;
+  /** Dates a schedule's first run. */
+  readonly now?: () => Temporal.Instant;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The rows a set-returning function answered with. PostgREST and `dbTransport`
+ * return an array; a single object is one row.
+ */
+export function transportRows<T>(fn: string, value: unknown): readonly T[] {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value)) {
+    // SAFETY: T is the row type the caller declares for this function's result.
+    return value as T[];
+  }
+  if (isRecord(value)) {
+    // SAFETY: T is the row type the caller declares for this function's result.
+    return [value as T];
+  }
+  throw new TypeError(
+    `${fn} returned ${typeof value}, not rows: pass a SqlClient instead of sqlTransport for set-returning functions`,
+  );
+}
+
+/**
+ * The `jobs` SQL module over a `BlockTransport`, with named arguments: a
+ * service-role `rpcTransport(supabase, { schema: "api" })` reaches the
+ * wrappers `sql.modules.jobs.api` writes, so stats, dead letters, replays
+ * and schedules work without a direct Postgres connection. Over Postgres,
+ * pass the `SqlClient` to `createJobs` instead.
+ */
+export function transportQueueBackend(
+  transport: BlockTransport,
+  options: TransportQueueBackendOptions = {},
+): QueueBackend {
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const now = options.now ?? nowInstant;
+  const call = (fn: JobsFunction, ...args: unknown[]): Promise<unknown> =>
+    transport.call(
+      schema,
+      fn,
+      Object.fromEntries(
+        PARAMS[fn].flatMap((name, index) =>
+          index < args.length ? [[name, args[index]]] : [],
+        ),
+      ),
+    );
+  const rows = async <T>(fn: JobsFunction, ...args: unknown[]) =>
+    transportRows<T>(fn, await call(fn, ...args));
+  const bool = async (fn: JobsFunction, ...args: unknown[]) =>
+    (await call(fn, ...args)) === true;
+  const count = async (fn: JobsFunction, ...args: unknown[]) =>
+    Number((await call(fn, ...args)) ?? 0);
+  const id = (value: unknown): number | null =>
+    value === null || value === undefined ? null : Number(value);
+  return {
+    apiVersion: 1,
+    name: "transport",
+    leases: true,
+    async send(queue, payload, delay, maxAttempts, dedupeKey, dedupe) {
+      const sent = id(
+        await call(
+          "enqueue_job",
+          queue,
+          payload ?? {},
+          delay,
+          maxAttempts,
+          dedupeKey ?? null,
+          dedupe !== "waiting",
+        ),
+      );
+      if (sent === null) throw new TypeError("enqueue_job returned no id");
+      return sent;
+    },
+    read: (queue, lease, batch) =>
+      rows<QueueMessageRow>("claim_jobs", queue, lease, batch),
+    complete: (job) => bool("complete_job", job.queue, job.id, job.attempts),
+    async fail(job, error, retryIn) {
+      const status = await call(
+        "fail_job",
+        job.queue,
+        job.id,
+        job.attempts,
+        error,
+        retryIn ?? null,
+      );
+      return status === "queued" || status === "dead" ? status : null;
+    },
+    extend: (job, lease) =>
+      bool("extend_job_lease", job.queue, job.id, job.attempts, lease),
+    replay: async (queue, jobId) =>
+      id(await call("replay_dead_job", queue, jobId)),
+    stats: async (queue) =>
+      statsOf((await rows<StatsRow>("job_queue_stats", queue))[0]),
+    listDead: (queue, limit, before) =>
+      rows<DeadJobRow>("list_dead_jobs", queue, limit, before ?? null),
+    retryDead: (queue, ids, limit) =>
+      count(
+        "retry_dead_jobs",
+        queue,
+        ids === undefined ? null : [...ids],
+        limit,
+      ),
+    async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
+      await call(
+        "schedule_job",
+        name,
+        cron,
+        queue,
+        payload ?? {},
+        timeZone,
+        nextRun.toString(),
+        tenant ?? null,
+      );
+    },
+    unschedule: (name) => bool("unschedule_job", name),
+    listSchedules: async (filter) =>
+      (
+        await rows<ScheduleListRow>(
+          "list_schedules",
+          filter.prefix ?? null,
+          filter.tenant ?? null,
+        )
+      ).map(scheduleInfo),
+    unscheduleTenant: (tenant) => count("unschedule_tenant", tenant),
+    dueSchedules: async (lease, batch) =>
+      dueOf(
+        await rows<ScheduleRow>("claim_due_schedules", lease, batch),
+        now,
+        async (name, first) => {
+          await call("advance_schedule", name, null, first.toString());
+        },
+      ),
+    advanceSchedule: (name, ran, next) =>
+      bool("advance_schedule", name, ran.toString(), next.toString()),
   };
 }
 

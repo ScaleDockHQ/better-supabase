@@ -158,7 +158,8 @@ await jobs.retryDead("send_email").orThrow(); // the newest 1000
 `createJobs` declared. `listDead` returns stored payloads without
 validating them, since the schema may have changed since. All three call
 `better_supabase.job_queue_stats`, `list_dead_jobs` and `retry_dead_jobs`,
-so they need a SQL connection.
+so they need a SQL connection or the API transport described in
+[Without a database connection](#without-a-database-connection).
 
 ### Actor and tenant
 
@@ -493,6 +494,40 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
   there's no heartbeat;
 - `dedupeKey`, `schedule`, `stats`, `listDead` and `retryDead` return
   `invalid_request`.
+
+To get the whole API without a direct connection, write wrappers for the
+module into an exposed schema with `sql.modules.jobs.api` and pass an
+`rpcTransport` over a service-role client. `createJobs` detects a transport
+and calls every module function by name, so leases, retries with backoff,
+dedupe keys, schedules, `stats`, `listDead` and `retryDead` all work:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { modules: { jobs: { api: "api" }, idempotency: { api: "api" } } },
+});
+```
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import {
+  createIdempotency,
+  createJobs,
+  rpcTransport,
+  withLease,
+} from "better-supabase/blocks/jobs";
+
+const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
+const jobs = createJobs(transport, { send_email: schema });
+const idempotency = createIdempotency(transport, { schema: "api" });
+await withLease(transport, "nightly-report", run, { schema: "api" });
+```
+
+`createIdempotency` and `withLease` call the functions in `better_supabase`
+unless you pass `schema`, which an `rpcTransport` with its own `schema`
+option ignores. Keep the wrappers service-only: the module functions are
+granted to `service_role`, and the wrappers inherit those grants. Over
+`sqlTransport`, a set-returning function such as `claim_jobs` returns only
+its first row, so pass the SQL client itself there.
 
 ## Idempotency keys
 

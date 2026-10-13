@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
   ClaimOptions,
@@ -48,6 +49,7 @@ import {
   pgmqPublicBackend,
   sqlOnly,
   sqlQueueBackend,
+  transportQueueBackend,
   type QueueBackend,
   type QueueMessageRow,
   type QueueRpcClient,
@@ -84,10 +86,21 @@ function toJob(queue: string, row: QueueMessageRow): Job {
 
 const QUEUE_NAME = /^[a-z_][a-z0-9_]{0,46}$/;
 
-function isBackend(
-  source: SqlClient | QueueRpcClient | QueueBackend,
-): source is QueueBackend {
+/** What `createJobs` stores jobs through. */
+export type JobsSource =
+  | SqlClient
+  | QueueRpcClient
+  | BlockTransport
+  | QueueBackend;
+
+function isBackend(source: JobsSource): source is QueueBackend {
   return "apiVersion" in source;
+}
+
+function isTransport(
+  source: SqlClient | QueueRpcClient | BlockTransport,
+): source is BlockTransport {
+  return "call" in source;
 }
 
 function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
@@ -97,12 +110,13 @@ function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
 }
 
 function backendOf(
-  source: SqlClient | QueueRpcClient | QueueBackend,
+  source: JobsSource,
   now: () => Temporal.Instant,
 ): QueueBackend {
   if (isBackend(source)) {
     return source;
   }
+  if (isTransport(source)) return transportQueueBackend(source, { now });
   return isSqlClient(source)
     ? sqlQueueBackend(source, now)
     : pgmqPublicBackend(source);
@@ -115,13 +129,13 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  * Typed jobs on Supabase Queues (pgmq), over the `jobs` SQL module.
  *
  * Pass a service SQL connection (`postgres.admin`, `ctx.sql`) for the full
- * feature set, a service-role Supabase client to go through the
- * `pgmq_public` RPCs where no direct connection exists (edge functions), or
- * any `QueueBackend`. Queue names are lowercase letters, digits and
- * underscores.
+ * feature set, a service-role `rpcTransport` over the wrappers
+ * `sql.modules.jobs.api` writes for the same features over the Data API, a
+ * service-role Supabase client to go through the `pgmq_public` RPCs, or any
+ * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
  */
 export function createJobs<const Q extends QueueSchemas>(
-  source: SqlClient | QueueRpcClient | QueueBackend,
+  source: JobsSource,
   queues: Q,
   options: JobsOptions = {},
 ): Jobs<Q> {
