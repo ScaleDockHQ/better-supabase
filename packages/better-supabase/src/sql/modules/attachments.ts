@@ -4,20 +4,20 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   ensureCheck,
   SERVICE_CALLER,
   schemaPreamble,
-  tenantIn,
   revokeTable,
   lockTable,
   fail,
 } from "../shared.ts";
 import {
   type Subject,
+  subjectAccess,
   subjectCascades,
   subjectReadable,
   subjectsOption,
@@ -211,7 +211,7 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
   const t = ctx.table("attachments");
@@ -219,13 +219,15 @@ function build(ctx: ModuleContext): string {
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.attachments;
-  const can = (tenant: string, action: keyof typeof permissions): string =>
-    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
-  const subjects = subjectsOption(ctx, ["bucket", "allowedMimeTypes"], {
-    tenantless: true,
-  });
+  const subjects = subjectsOption(
+    ctx,
+    ["bucket", "allowedMimeTypes", "permissions", "scope"],
+    {
+      tenantless: true,
+    },
+  );
   // Subject types without a tenant: their files have no organization_id, and
   // the subject's own policies decide who reads and uploads them.
   const tenantless = subjects
@@ -234,27 +236,41 @@ function build(ctx: ModuleContext): string {
   // The column comment records what the expression was built from, so a
   // changed template, or files without a tenant, rewrite the column.
   const pathComment = `better-supabase path: ${pathTemplate(ctx)}${tenantless.length > 0 ? " (tenantless)" : ""}`;
-  const inTenant = (
-    tenant: string,
-    action: keyof typeof permissions,
-  ): string =>
-    tenantless.length === 0
-      ? can(tenant, action)
-      : `(${tenant} is null or ${can(tenant, action)})`;
+  const access = subjectAccess(ctx, {
+    subjects,
+    actions: ["read", "upload", "manage"],
+    permission: (action) => ctx.permission(action, permissions[action]),
+    provider: layout.accessProvider,
+  });
+  const orTenantless = (tenant: string, check: string): string =>
+    tenantless.length === 0 ? check : `(${tenant} is null or ${check})`;
+  // row is the alias of the attachments row, or "" for the policies.
+  const at = (row: string, logical: string): string =>
+    row === "" ? c(logical) : `${row}.${c(logical)}`;
+  const inTenant = (row: string, action: keyof typeof permissions): string =>
+    orTenantless(
+      at(row, "tenant"),
+      access.canOn(
+        at(row, "tenant"),
+        at(row, "subjectType"),
+        at(row, "subjectId"),
+        action,
+      ),
+    );
   // The policy form of inTenant: the tenant_ids_with set runs once per
   // statement instead of can() once per row.
-  const memberIn = (
-    tenant: string,
-    action: keyof typeof permissions,
-  ): string => {
-    const member = tenantIn(
-      tenant,
-      ctx.permission(action, permissions[action]),
+  const memberIn = (action: keyof typeof permissions): string =>
+    orTenantless(
+      c("tenant"),
+      access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), action),
     );
-    return tenantless.length === 0
-      ? member
-      : `(${tenant} is null or ${member})`;
-  };
+  const canManage = (row: string): string =>
+    access.canOn(
+      at(row, "tenant"),
+      at(row, "subjectType"),
+      at(row, "subjectId"),
+      "manage",
+    );
   const perSubject = subjectBuckets(subjects, bucket);
   const buckets = [
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
@@ -415,17 +431,17 @@ grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}
 
 drop policy if exists "attachments_read" on ${t};
 create policy "attachments_read" on ${t} for select to authenticated
-  using (${memberIn(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "attachments_insert" on ${t};
 create policy "attachments_insert" on ${t} for insert to authenticated
   with check (
     ${c("uploadedBy")} = (select auth.uid())
-    and ${inTenant(c("tenant"), "upload")}
+    and ${inTenant("", "upload")}
     and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
 drop policy if exists "attachments_delete" on ${t};
 create policy "attachments_delete" on ${t} for delete to authenticated
-  using (${c("uploadedBy")} = (select auth.uid()) or ${tenantIn(c("tenant"), ctx.permission("manage", permissions.manage))});
+  using (${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")});
 
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a
@@ -448,9 +464,9 @@ as $$
     where a.${c("bucket")} = attachment_object_allowed.bucket and a.${c("path")} = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a.${c("status")} = 'pending' and a.${c("uploadedAt")} is null and a.${c("uploadedBy")} = auth.uid()
-        when 'select' then (${readable} and ${inTenant(`a.${c("tenant")}`, "read")})
-          or a.${c("uploadedBy")} = auth.uid() or ${can(`a.${c("tenant")}`, "manage")}
-        when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${can(`a.${c("tenant")}`, "manage")}
+        when 'select' then (${readable} and ${inTenant("a", "read")})
+          or a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
+        when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
         else false
       end
   )
@@ -764,7 +780,11 @@ function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const subjects = subjectBuckets(
-    subjectsOption(ctx, ["bucket", "allowedMimeTypes"], { tenantless: true }),
+    subjectsOption(
+      ctx,
+      ["bucket", "allowedMimeTypes", "permissions", "scope"],
+      { tenantless: true },
+    ),
     bucket,
   );
   const rows = new Map<string, readonly string[]>([[bucket, mimeTypes]]);

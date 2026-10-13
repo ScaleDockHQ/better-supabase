@@ -150,5 +150,21 @@ export function testQueueBackend(
         await backend.complete(job);
       },
     ],
+    backend.sendOnce && [
+      "sends once per key, counting completed messages, when it has sendOnce",
+      async () => {
+        const key = `once-${Date.now()}`;
+        const first = await backend.sendOnce?.(queue, { n: 5 }, 0, 3, key);
+        expect(first && !first.duplicate, "the first sendOnce must send");
+        const job = await claimOne();
+        expect(job?.id === first.id, "read must return the sent message");
+        await backend.complete(job);
+        const again = await backend.sendOnce?.(queue, { n: 5 }, 0, 3, key);
+        expect(
+          again?.duplicate === true && again.id === first.id,
+          "sendOnce after completion must return the first id as a duplicate",
+        );
+      },
+    ],
   ]);
 }

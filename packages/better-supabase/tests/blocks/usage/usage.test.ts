@@ -504,3 +504,32 @@ describe("reportUsageToStripe", () => {
     ]);
   });
 });
+
+describe("purge", () => {
+  it("purges history and idempotency keys, and runs both from purgeJob", async () => {
+    const { transport, calls } = fakeTransport((fn) =>
+      fn === "purge_usage_history" ? 5 : "2",
+    );
+    const usage = createUsage({ transport });
+    expect(
+      await usage.purgeHistory({ olderThan: "90 days", batch: 10 }).orThrow(),
+    ).toBe(5);
+    expect(await usage.purgeEvents().orThrow()).toBe(2);
+    expect(
+      await usage.purgeJob({ events: { olderThan: 60 } })(
+        {},
+        {} as never,
+        new AbortController().signal,
+      ),
+    ).toEqual({
+      history: 5,
+      events: 2,
+    });
+    expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
+      ["purge_usage_history", { older_than: "90 days", batch: 10 }],
+      ["purge_usage_events", {}],
+      ["purge_usage_history", {}],
+      ["purge_usage_events", { older_than: "60 seconds" }],
+    ]);
+  });
+});

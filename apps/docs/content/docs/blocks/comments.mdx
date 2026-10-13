@@ -78,6 +78,23 @@ subjects: {
 who may edit or delete other people's comments; authors always edit their
 own.
 
+### Access per record
+
+With `sql.modules.access.model: "provider"`, `scope` names a scope your
+[authorization provider](/docs/extending/authorization-providers) declares
+whose ids are the subject ids, such as `project`. A member then reads,
+writes or moderates the comments on a record when they hold the key in the
+tenant or on the record itself: the policies add
+`subject_id in (select ... from <idsWith at that scope>)` next to the tenant
+check. A scope the provider doesn't declare, or the tenant scope itself, is
+refused.
+
+```ts
+subjects: {
+  project: { table: "projects", idType: "uuid", scope: "project" },
+},
+```
+
 `cascade: true` on a subject writes an `after delete` trigger on its table
 that deletes the subject's comments, which stands in for a foreign key, since
 `subject_id` is text. The subject table must exist before the module file.
@@ -183,6 +200,19 @@ is notified only when they hold the subject type's read key
 (`permissions.read`, else `comments.read`) and its `permission` in the
 tenant, and `readableBy` holds for them (`{user}` is their id). The others
 stay in the comment's `mentions` but get nothing.
+
+`readableBy` also takes `{ sql, enforce: true }`. The read policy then
+applies the same SQL to the caller (`{user}` becomes `auth.uid()`), so a
+member who can't read a private task doesn't see its comments either:
+
+```ts
+subjects: {
+  task: {
+    table: "public.tasks",
+    readableBy: { sql: "not {row}.private or {row}.owner_id = {user}", enforce: true },
+  },
+},
+```
 
 ### Group mentions
 

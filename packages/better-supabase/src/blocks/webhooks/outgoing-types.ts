@@ -5,6 +5,7 @@ import type { RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { JobHandler } from "../jobs/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { WebhookTransport } from "./http.ts";
 import type { RotateSecretOptions, WebhookSecretStore } from "./secrets.ts";
@@ -147,6 +148,23 @@ export interface Webhooks {
    * (`dev.better-supabase` by default, the relay's default) and the dot.
    */
   sink(options?: WebhookSinkOptions): EventSink;
+  /**
+   * Deletes up to `batch` finished deliveries created before `olderThan`
+   * (`purge_webhook_deliveries`); returns how many. Keep `olderThan` above
+   * the window you republish in: a purged event id can be queued again.
+   */
+  purge(options?: PurgeWebhookDeliveriesOptions): AsyncResult<number>;
+  /** A job handler that runs `purge`; schedule it nightly. */
+  purgeJob(options?: PurgeWebhookDeliveriesOptions): JobHandler<unknown>;
+}
+
+export interface PurgeWebhookDeliveriesOptions {
+  /** Seconds, or an interval such as `"30 days"`. Defaults to 30 days. */
+  readonly olderThan?: number | string;
+  /** Also delete dead deliveries. Defaults to false. */
+  readonly includeDead?: boolean;
+  /** Defaults to 10000. */
+  readonly batch?: number;
 }
 
 export interface WebhookSinkOptions {

@@ -128,6 +128,7 @@ export function withProvider(patch: {
 export const moduleProvider: ModuleAccessProvider = {
   name: "stub",
   scope: "organization",
+  scopes: ["organization", "project"],
   idType: "uuid",
   functions: stubProvider.functions,
 };

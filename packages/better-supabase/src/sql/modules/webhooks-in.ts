@@ -54,15 +54,64 @@ const newSecret = (mode: string): string => `case ${mode}
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end`;
 
+const ENDPOINT_COLUMNS = {
+  id: "id",
+  tenant: "tenant",
+  name: "name",
+  tokenHash: "token_hash",
+  verify: "verify",
+  secret: "secret",
+  secretId: "secret_id",
+  previousSecret: "previous_secret",
+  previousSecretId: "previous_secret_id",
+  previousSecretExpiresAt: "previous_secret_expires_at",
+  signatureHeader: "signature_header",
+  enabled: "enabled",
+  maxBodyBytes: "max_body_bytes",
+  receiveCount: "receive_count",
+  lastReceivedAt: "last_received_at",
+  lastStatus: "last_status",
+  metadata: "metadata",
+  subjectType: "subject_type",
+  subjectId: "subject_id",
+  createdBy: "created_by",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+} as const;
+
+type EndpointColumn = keyof typeof ENDPOINT_COLUMNS;
+
+/** The previous-secret columns a grace rotation needs, by secret storage. */
+const graceColumns = (vault: boolean): readonly EndpointColumn[] => [
+  vault ? "previousSecretId" : "previousSecret",
+  "previousSecretExpiresAt",
+];
+
 function webhooksInSql(ctx: ModuleContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
-  if (renamed.length > 0) {
+  if (ctx.manages && renamed.length > 0) {
     throw new TypeError(
-      `sql.modules.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed`,
+      `sql.modules.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
     );
   }
   const id = ctx.idType;
   const t = ctx.table("endpoints");
+  const c = (logical: EndpointColumn) => ctx.col("endpoints", logical);
+  const has = (logical: EndpointColumn) => ctx.has("endpoints", logical);
+  const e = (logical: EndpointColumn) => `e.${c(logical)}`;
+  /** A column for an `assign` value, which `assign` drops when it's missing. */
+  const cv = (logical: EndpointColumn) => (has(logical) ? c(logical) : "null");
+  const ev = (logical: EndpointColumn) => `e.${cv(logical)}`;
+  /** `alias.column` when the column exists, else `fallback`. */
+  const read = (alias: string, logical: EndpointColumn, fallback = "null") =>
+    has(logical) ? `${alias}.${c(logical)}` : fallback;
+  /** `column = value` assignments for the columns that exist. */
+  const assign = (
+    pairs: readonly (readonly [EndpointColumn, string])[],
+  ): string[] =>
+    pairs
+      .filter(([logical]) => has(logical))
+      .map(([logical, value]) => `${c(logical)} = ${value}`);
   const p = MODULE_PERMISSIONS["webhooks-in"];
   const key = (action: "create" | "update" | "delete") =>
     sqlString(modulePermissionKey(ctx, action, p[action]));
@@ -70,9 +119,17 @@ function webhooksInSql(ctx: ModuleContext): string {
   const verify = INCOMING_VERIFY.map((mode) => `'${mode}'`).join(", ");
   const maxBody = ctx.number("maxBodyBytes", 1_048_576);
   const vault = secretStorage(ctx);
+  // The column the secret is kept in must exist; the other one is optional.
+  c(vault ? "secretId" : "secret");
+  const grace = graceColumns(vault).every(has);
   const stored = (secret: string, endpoint: string) =>
     vault ? vaultSecret(secret, endpoint) : "null";
   const plain = (secret: string) => (vault ? "null" : secret);
+  const vaultIds = (row: string) =>
+    [
+      `${row}.${c("secretId")}`,
+      ...(has("previousSecretId") ? [`${row}.${c("previousSecretId")}`] : []),
+    ].join(", ");
   const cleanupTrigger = ctx.trigger("incoming_webhook_vault");
   const cleanup = vault
     ? `
@@ -84,14 +141,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);
+  delete from vault.secrets vs where vs.id in (${vaultIds("old")});
   return null;
 end;
 $$;
 revoke execute on function ${ctx.fn("drop_incoming_webhook_secret")}() from public, anon, authenticated;
 drop trigger if exists ${cleanupTrigger} on ${t};
 create trigger ${cleanupTrigger} after delete on ${t}
-  for each row when (old.secret_id is not null or old.previous_secret_id is not null) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
+  for each row when (${vaultIds("old")
+    .split(", ")
+    .map((column) => `${column} is not null`)
+    .join(
+      " or ",
+    )}) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
     : `
 drop trigger if exists ${cleanupTrigger} on ${t};`;
   const can = (tenant: string, action: "create" | "update" | "delete") =>
@@ -115,6 +177,12 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
       },
     });
   const subjects = subjectsOption(ctx);
+  const subjectColumns = has("subjectType") && has("subjectId");
+  if (subjects.length > 0 && !subjectColumns) {
+    throw new TypeError(
+      "sql.modules.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
+    );
+  }
   const readable = subjectReadable(subjects, {
     type: "subject_type",
     id: "subject_id",
@@ -134,12 +202,15 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
             return `      when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, "subject_id")} and s.${sqlIdent(subject.tenant === false ? "organization_id" : (subject.tenant ?? "organization_id"))} = tenant)${permission}`;
           })
           .join("\n")}\n      else false\n    end`;
-  const cascades = subjectCascades(
-    ctx,
-    subjects,
-    `delete from ${t} e where e.subject_type = v_type and e.subject_id = v_id;`,
-  );
-  return `${schemaPreamble(ctx)}
+  const cascades = subjectColumns
+    ? subjectCascades(
+        ctx,
+        subjects,
+        `delete from ${t} e where ${e("subjectType")} = v_type and ${e("subjectId")} = v_id;`,
+      )
+    : "";
+  const table = ctx.manages
+    ? `
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
@@ -179,13 +250,215 @@ alter table ${t} add column if not exists previous_secret_expires_at timestamptz
 create index if not exists incoming_webhooks_tenant_idx on ${t} (tenant);
 create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
-${updatedAt(t, "updated_at")}${cleanup}
+${updatedAt(t, "updated_at")}`
+    : `
+-- Trigger URLs over the app's table ${t} (adopt mode): the app owns its
+-- columns, indexes, grants and policies. Only the token's hash is kept.`;
+  const policies = ctx.manages
+    ? `
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on ${t} to authenticated;
 grant all on ${t} to service_role;
-
+`
+    : "\n";
+  const readPolicy = ctx.manages
+    ? `
+drop policy if exists bs_incoming_webhooks_read on ${t};
+create policy bs_incoming_webhooks_read on ${t} for select to authenticated
+  using (
+    tenant in (select ${ctx.fn("incoming_webhook_tenant_ids")}())
+    and ${ctx.fn("incoming_webhook_subject_readable")}(subject_type, subject_id, tenant)
+  );
+`
+    : "\n";
+  const listed: readonly (readonly [string, string])[] = [
+    ["id", e("id")],
+    ["tenant", e("tenant")],
+    ["name", e("name")],
+    ["verify", e("verify")],
+    ["signature_header", read("e", "signatureHeader")],
+    ["enabled", e("enabled")],
+    ["max_body_bytes", read("e", "maxBodyBytes", String(maxBody))],
+    ["receive_count", read("e", "receiveCount", "0")],
+    ["last_received_at", read("e", "lastReceivedAt")],
+    ["last_status", read("e", "lastStatus")],
+    ["metadata", read("e", "metadata", "'{}'::jsonb")],
+    ["subject_type", read("e", "subjectType")],
+    ["subject_id", read("e", "subjectId")],
+    ["created_by", read("e", "createdBy")],
+    ["created_at", read("e", "createdAt")],
+  ];
+  const subjectFilter = subjectColumns
+    ? `
+    and (list_incoming_webhooks.subject_type is null or ${e("subjectType")} = list_incoming_webhooks.subject_type)
+    and (list_incoming_webhooks.subject_id is null or ${e("subjectId")} = list_incoming_webhooks.subject_id)`
+    : `
+    and list_incoming_webhooks.subject_type is null and list_incoming_webhooks.subject_id is null`;
+  const insertColumns = (
+    [
+      ["id", "v_id"],
+      ["tenant", "tenant"],
+      ["name", "name"],
+      ["tokenHash", sha256Hex("token")],
+      ["verify", "verify"],
+      ["secret", plain("secret")],
+      ["secretId", stored("secret", "v_id")],
+      ["signatureHeader", headerFor("verify", "signature_header", "null")],
+      ["metadata", "coalesce(metadata, '{}')"],
+      ["subjectType", "subject_type"],
+      ["subjectId", "subject_id"],
+      ["createdBy", "auth.uid()"],
+    ] as const satisfies readonly (readonly [EndpointColumn, string])[]
+  ).filter(([logical]) => has(logical));
+  const noSubjects = subjectColumns
+    ? ""
+    : `
+  if subject_type is not null or subject_id is not null then
+    ${fail("WEBHOOK_IN_SUBJECT_INVALID", "This endpoints table has no subject columns", "22023")}
+  end if;`;
+  const noMetadata = has("metadata")
+    ? ""
+    : `
+  if metadata is not null and metadata <> '{}'::jsonb then
+    ${fail("WEBHOOK_IN_METADATA_INVALID", "This endpoints table has no metadata column", "22023")}
+  end if;`;
+  const clearGrace = (when: string, keep: string) =>
+    assign([
+      [
+        "previousSecret",
+        `case when ${when} then null else ${keep}.${cv("previousSecret")} end`,
+      ],
+      [
+        "previousSecretId",
+        `case when ${when} then null else ${keep}.${cv("previousSecretId")} end`,
+      ],
+      [
+        "previousSecretExpiresAt",
+        `case when ${when} then null else ${keep}.${cv("previousSecretExpiresAt")} end`,
+      ],
+    ]);
+  const rotateSet = [
+    `${c("tokenHash")} = ${sha256Hex("token")}`,
+    ...assign([
+      [
+        "secret",
+        `case when rotate_secret then ${plain("v_secret")} else ${ev("secret")} end`,
+      ],
+      [
+        "secretId",
+        `case when rotate_secret then ${stored("v_secret", ev("id"))} else ${ev("secretId")} end`,
+      ],
+    ]),
+    ...clearGrace("rotate_secret", "e"),
+  ];
+  const keepColumn = (logical: EndpointColumn, when: string, from: string) =>
+    has(logical) ? `case when ${when} then ${from} end` : "";
+  const secretSet = [
+    ...assign([
+      ["secret", plain("v_secret")],
+      ["secretId", stored("v_secret", ev("id"))],
+    ]),
+    ...(grace
+      ? assign([
+          [
+            "previousSecret",
+            keepColumn("secret", "v_keep", ev("secret")) || "null",
+          ],
+          [
+            "previousSecretId",
+            keepColumn("secretId", "v_keep", ev("secretId")) || "null",
+          ],
+          [
+            "previousSecretExpiresAt",
+            "case when v_keep then now() + grace end",
+          ],
+        ])
+      : []),
+  ];
+  const same = "v_verify = previous." + c("verify");
+  const updateSet = [
+    `${c("name")} = coalesce(update_incoming_webhook.name, ${ev("name")})`,
+    ...assign([
+      [
+        "metadata",
+        `coalesce(update_incoming_webhook.metadata, ${ev("metadata")})`,
+      ],
+    ]),
+    `${c("verify")} = v_verify`,
+    ...assign([
+      [
+        "secret",
+        `case when ${same} then ${ev("secret")} else ${plain("v_secret")} end`,
+      ],
+      [
+        "secretId",
+        `case when ${same} then ${ev("secretId")} else ${stored("v_secret", ev("id"))} end`,
+      ],
+      ["previousSecret", `case when ${same} then ${ev("previousSecret")} end`],
+      [
+        "previousSecretId",
+        `case when ${same} then ${ev("previousSecretId")} end`,
+      ],
+      [
+        "previousSecretExpiresAt",
+        `case when ${same} then ${ev("previousSecretExpiresAt")} end`,
+      ],
+      [
+        "signatureHeader",
+        headerFor(
+          "v_verify",
+          "update_incoming_webhook.signature_header",
+          `case when ${same} then ${ev("signatureHeader")} end`,
+        ),
+      ],
+    ]),
+  ];
+  const current = (alias: string) =>
+    vault
+      ? has("secret")
+        ? `coalesce(ds.decrypted_secret, ${alias}.${c("secret")})`
+        : "ds.decrypted_secret"
+      : `${alias}.${c("secret")}`;
+  const previousSecret = grace
+    ? `case when ${e("previousSecretExpiresAt")} > now() then ${
+        vault
+          ? has("previousSecret")
+            ? `coalesce(dp.decrypted_secret, ${e("previousSecret")})`
+            : "dp.decrypted_secret"
+          : e("previousSecret")
+      } end`
+    : "null::text";
+  const vaultJoins = vault
+    ? `\n  left join vault.decrypted_secrets ds on ds.id = ${e("secretId")}${
+        grace && has("previousSecretId")
+          ? `\n  left join vault.decrypted_secrets dp on dp.id = ${e("previousSecretId")}`
+          : ""
+      }`
+    : "";
+  const counters = assign([
+    ["receiveCount", `${ev("receiveCount")} + 1`],
+    ["lastReceivedAt", "now()"],
+    ["lastStatus", "record_incoming_webhook.status"],
+  ]);
+  const record =
+    counters.length > 0
+      ? `language sql
+security definer
+set search_path = ''
+as $$
+  update ${t} e
+  set ${counters.join(", ")}
+  where ${e("id")} = endpoint
+$$;`
+      : `language sql
+security definer
+set search_path = ''
+as $$
+  select
+$$;`;
+  return `${schemaPreamble(ctx)}${table}${cleanup}${policies}
 create or replace function ${ctx.fn("incoming_webhook_tenant_ids")}()
 returns setof ${id}
 language plpgsql
@@ -212,14 +485,7 @@ as $$
 $$;
 revoke execute on function ${ctx.fn("incoming_webhook_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${ctx.fn("incoming_webhook_subject_readable")}(text, text, ${id}) to authenticated, service_role;
-
-drop policy if exists bs_incoming_webhooks_read on ${t};
-create policy bs_incoming_webhooks_read on ${t} for select to authenticated
-  using (
-    tenant in (select ${ctx.fn("incoming_webhook_tenant_ids")}())
-    and ${ctx.fn("incoming_webhook_subject_readable")}(subject_type, subject_id, tenant)
-  );
-
+${readPolicy}
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function ${ctx.fn("list_incoming_webhooks")}(tenant ${id}, subject_type text default null, subject_id text default null)
 returns jsonb
@@ -229,17 +495,10 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'id', e.id, 'tenant', e.tenant, 'name', e.name, 'verify', e.verify,
-    'signature_header', e.signature_header, 'enabled', e.enabled,
-    'max_body_bytes', e.max_body_bytes, 'receive_count', e.receive_count,
-    'last_received_at', e.last_received_at, 'last_status', e.last_status,
-    'metadata', e.metadata, 'subject_type', e.subject_type, 'subject_id', e.subject_id,
-    'created_by', e.created_by, 'created_at', e.created_at
-  ) order by e.created_at), '[]'::jsonb)
+    ${listed.map(([name, value]) => `'${name}', ${value}`).join(",\n    ")}
+  ) order by ${read("e", "createdAt", e("id"))}), '[]'::jsonb)
   from ${t} e
-  where e.tenant = list_incoming_webhooks.tenant
-    and (list_incoming_webhooks.subject_type is null or e.subject_type = list_incoming_webhooks.subject_type)
-    and (list_incoming_webhooks.subject_id is null or e.subject_id = list_incoming_webhooks.subject_id)
+  where ${e("tenant")} = list_incoming_webhooks.tenant${subjectFilter}
 $$;
 revoke execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text) from public, anon;
 grant execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text) to authenticated, service_role;
@@ -271,21 +530,22 @@ begin
   if not ${can("tenant", "create")} then
     ${fail("WEBHOOK_IN_FORBIDDEN", "Not allowed to manage incoming webhooks")}
   end if;
+  if verify not in (${verify}) then
+    ${fail("WEBHOOK_IN_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
+  end if;${noSubjects}${noMetadata}
   if (subject_type is null) <> (subject_id is null) then
     ${fail("WEBHOOK_IN_SUBJECT_INVALID", "Pass subject_type and subject_id together", "22023")}
   end if;
   if subject_type is not null and not (${subjectExists}) then
     ${fail("WEBHOOK_IN_SUBJECT_INVALID", "No such subject in this tenant", "22023")}
   end if;
-  insert into ${t} (id, tenant, name, token_hash, verify, secret, secret_id, signature_header, metadata, subject_type, subject_id, created_by)
-  values (v_id, tenant, name, ${sha256Hex("token")}, verify, ${plain("secret")}, ${stored("secret", "v_id")},
-    ${headerFor("verify", "signature_header", "null")},
-    coalesce(metadata, '{}'), subject_type, subject_id, auth.uid())
+  insert into ${t} (${insertColumns.map(([logical]) => c(logical)).join(", ")})
+  values (${insertColumns.map(([, value]) => value).join(",\n    ")})
   returning * into created;
-  ${hookEvent("incoming_webhook.created", "created.id", "created.tenant", "integration", ", 'name', created.name")}
-  return jsonb_build_object('id', created.id, 'tenant', created.tenant, 'name', created.name,
-    'verify', created.verify, 'token', token, 'secret', secret, 'signatureHeader', created.signature_header,
-    'subjectType', created.subject_type, 'subjectId', created.subject_id);
+  ${hookEvent("incoming_webhook.created", `created.${c("id")}`, `created.${c("tenant")}`, "integration", `, 'name', created.${c("name")}`)}
+  return jsonb_build_object('id', created.${c("id")}, 'tenant', created.${c("tenant")}, 'name', created.${c("name")},
+    'verify', created.${c("verify")}, 'token', token, 'secret', secret, 'signatureHeader', ${read("created", "signatureHeader")},
+    'subjectType', ${read("created", "subjectType")}, 'subjectId', ${read("created", "subjectId")});
 end;
 $$;
 
@@ -303,30 +563,25 @@ declare
   updated ${t};
   previous ${t};
 begin
-  select * into previous from ${t} e where e.id = endpoint for update;
-  if previous.id is null or not ${can("previous.tenant", "update")} then
+  select * into previous from ${t} e where ${e("id")} = endpoint for update;
+  if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
     ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if rotate_secret then
-    v_secret := ${newSecret("previous.verify")};
+    v_secret := ${newSecret(`previous.${c("verify")}`)};
   end if;
-  update ${t} e set token_hash = ${sha256Hex("token")},
-    secret = case when rotate_secret then ${plain("v_secret")} else e.secret end,
-    secret_id = case when rotate_secret then ${stored("v_secret", "e.id")} else e.secret_id end,
-    previous_secret = case when rotate_secret then null else e.previous_secret end,
-    previous_secret_id = case when rotate_secret then null else e.previous_secret_id end,
-    previous_secret_expires_at = case when rotate_secret then null else e.previous_secret_expires_at end
-  where e.id = endpoint
+  update ${t} e set ${rotateSet.join(",\n    ")}
+  where ${e("id")} = endpoint
   returning * into updated;${
     vault
       ? `
   if rotate_secret then
-    delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);
+    delete from vault.secrets vs where vs.id in (${vaultIds("previous")});
   end if;`
       : ""
   }
-  ${hookEvent("incoming_webhook.token_rotated", "updated.id", "updated.tenant", "security", ", 'secretRotated', rotate_secret")}
-  return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
+  ${hookEvent("incoming_webhook.token_rotated", `updated.${c("id")}`, `updated.${c("tenant")}`, "security", ", 'secretRotated', rotate_secret")}
+  return jsonb_build_object('id', updated.${c("id")}, 'token', token, 'secret', v_secret);
 end;
 $$;
 
@@ -343,30 +598,36 @@ declare
   v_secret text;
   v_keep boolean := coalesce(grace > interval '0', false);
 begin
-  select * into previous from ${t} e where e.id = endpoint for update;
-  if previous.id is null or not ${can("previous.tenant", "update")} then
+  select * into previous from ${t} e where ${e("id")} = endpoint for update;
+  if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
     ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
-  v_secret := ${newSecret("previous.verify")};
+  v_secret := ${newSecret(`previous.${c("verify")}`)};
   if v_secret is null then
     ${fail("WEBHOOK_IN_NO_SECRET", "This endpoint verifies no secret", "22023")}
-  end if;
+  end if;${
+    grace
+      ? ""
+      : `
+  if v_keep then
+    ${fail("WEBHOOK_IN_NO_GRACE", "This endpoints table has no previous-secret columns, so a rotation can't keep the old secret", "22023")}
+  end if;`
+  }
   update ${t} e set
-    secret = ${plain("v_secret")},
-    secret_id = ${stored("v_secret", "e.id")},
-    previous_secret = case when v_keep then e.secret end,
-    previous_secret_id = case when v_keep then e.secret_id end,
-    previous_secret_expires_at = case when v_keep then now() + grace end
-  where e.id = endpoint
+    ${secretSet.join(",\n    ")}
+  where ${e("id")} = endpoint
   returning * into updated;${
     vault
-      ? `
+      ? grace && has("previousSecretId")
+        ? `
   delete from vault.secrets vs
-  where vs.id = previous.previous_secret_id or (not v_keep and vs.id = previous.secret_id);`
+  where vs.id = previous.${c("previousSecretId")} or (not v_keep and vs.id = previous.${c("secretId")});`
+        : `
+  delete from vault.secrets vs where vs.id = previous.${c("secretId")};`
       : ""
   }
-  ${hookEvent("incoming_webhook.secret_rotated", "updated.id", "updated.tenant", "security")}
-  return jsonb_build_object('id', updated.id, 'secret', v_secret, 'previousSecretExpiresAt', updated.previous_secret_expires_at);
+  ${hookEvent("incoming_webhook.secret_rotated", `updated.${c("id")}`, `updated.${c("tenant")}`, "security")}
+  return jsonb_build_object('id', updated.${c("id")}, 'secret', v_secret, 'previousSecretExpiresAt', ${read("updated", "previousSecretExpiresAt")});
 end;
 $$;
 
@@ -389,46 +650,38 @@ declare
   v_verify text;
   v_secret text;
 begin
-  select * into previous from ${t} e where e.id = endpoint for update;
-  if previous.id is null or not ${can("previous.tenant", "update")} then
+  select * into previous from ${t} e where ${e("id")} = endpoint for update;
+  if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
     ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
   end if;
   if name is not null and btrim(name) = '' then
     ${fail("WEBHOOK_IN_NAME_REQUIRED", "An endpoint needs a name", "22023")}
   end if;
-  if metadata is not null and jsonb_typeof(metadata) <> 'object' then
+  if metadata is not null and ${has("metadata") ? "jsonb_typeof(metadata) <> 'object'" : "true"} then
     ${fail("WEBHOOK_IN_METADATA_INVALID", "metadata must be a JSON object", "22023")}
   end if;
-  v_verify := coalesce(verify, previous.verify);
+  v_verify := coalesce(verify, previous.${c("verify")});
   if v_verify not in (${verify}) then
     ${fail("WEBHOOK_IN_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
   end if;
-  if v_verify <> previous.verify then
+  if v_verify <> previous.${c("verify")} then
     v_secret := ${newSecret("v_verify")};
   end if;
   update ${t} e set
-    name = coalesce(update_incoming_webhook.name, e.name),
-    metadata = coalesce(update_incoming_webhook.metadata, e.metadata),
-    verify = v_verify,
-    secret = case when v_verify = previous.verify then e.secret else ${plain("v_secret")} end,
-    secret_id = case when v_verify = previous.verify then e.secret_id else ${stored("v_secret", "e.id")} end,
-    previous_secret = case when v_verify = previous.verify then e.previous_secret end,
-    previous_secret_id = case when v_verify = previous.verify then e.previous_secret_id end,
-    previous_secret_expires_at = case when v_verify = previous.verify then e.previous_secret_expires_at end,
-    signature_header = ${headerFor("v_verify", "update_incoming_webhook.signature_header", "case when v_verify = previous.verify then e.signature_header end")}
-  where e.id = endpoint
+    ${updateSet.join(",\n    ")}
+  where ${e("id")} = endpoint
   returning * into updated;${
     vault
       ? `
-  if v_verify <> previous.verify then
-    delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);
+  if v_verify <> previous.${c("verify")} then
+    delete from vault.secrets vs where vs.id in (${vaultIds("previous")});
   end if;`
       : ""
   }
-  ${hookEvent("incoming_webhook.updated", "updated.id", "updated.tenant", "integration", ", 'name', updated.name, 'verify', updated.verify")}
-  return jsonb_build_object('id', updated.id, 'tenant', updated.tenant, 'name', updated.name,
-    'verify', updated.verify, 'secret', v_secret, 'signatureHeader', updated.signature_header,
-    'metadata', updated.metadata);
+  ${hookEvent("incoming_webhook.updated", `updated.${c("id")}`, `updated.${c("tenant")}`, "integration", `, 'name', updated.${c("name")}, 'verify', updated.${c("verify")}`)}
+  return jsonb_build_object('id', updated.${c("id")}, 'tenant', updated.${c("tenant")}, 'name', updated.${c("name")},
+    'verify', updated.${c("verify")}, 'secret', v_secret, 'signatureHeader', ${read("updated", "signatureHeader")},
+    'metadata', ${read("updated", "metadata", "'{}'::jsonb")});
 end;
 $$;
 
@@ -442,11 +695,11 @@ as $$
 declare
   tenant ${id};
 begin
-  select e.tenant into tenant from ${t} e where e.id = endpoint;
+  select ${e("tenant")} into tenant from ${t} e where ${e("id")} = endpoint;
   if tenant is null or not ${can("tenant", "update")} then
     return false;
   end if;
-  update ${t} e set enabled = set_incoming_webhook_enabled.enabled where e.id = endpoint;
+  update ${t} e set ${c("enabled")} = set_incoming_webhook_enabled.enabled where ${e("id")} = endpoint;
   ${hookEvent("incoming_webhook.enabled_set", "endpoint", "tenant", "integration", ", 'enabled', set_incoming_webhook_enabled.enabled")}
   return true;
 end;
@@ -462,42 +715,36 @@ as $$
 declare
   tenant ${id};
 begin
-  select e.tenant into tenant from ${t} e where e.id = endpoint;
+  select ${e("tenant")} into tenant from ${t} e where ${e("id")} = endpoint;
   if tenant is null or not ${can("tenant", "delete")} then
     return false;
   end if;
-  delete from ${t} e where e.id = endpoint;
+  delete from ${t} e where ${e("id")} = endpoint;
   ${hookEvent("incoming_webhook.deleted", "endpoint", "tenant", "integration")}
   return true;
 end;
 $$;
 
--- The endpoint behind a token, with its secret, for the receiving route.
+-- The endpoint behind a token, with its secret and metadata, for the
+-- receiving route.
 drop function if exists ${ctx.fn("incoming_webhook_by_token")}(text);
 create or replace function ${ctx.fn("incoming_webhook_by_token")}(token text)
-returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text)
+returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select e.id, e.tenant::text, e.enabled, e.verify, ${vault ? "coalesce(ds.decrypted_secret, e.secret)" : "e.secret"}, e.signature_header, e.max_body_bytes,
-    case when e.previous_secret_expires_at > now() then ${vault ? "coalesce(dp.decrypted_secret, e.previous_secret)" : "e.previous_secret"} end
-  from ${t} e${vault ? "\n  left join vault.decrypted_secrets ds on ds.id = e.secret_id\n  left join vault.decrypted_secrets dp on dp.id = e.previous_secret_id" : ""}
-  where e.token_hash = ${sha256Hex("incoming_webhook_by_token.token")}
+  select ${e("id")}, ${e("tenant")}::text, ${e("enabled")}, ${e("verify")}, ${current("e")}, ${read("e", "signatureHeader")}, ${read("e", "maxBodyBytes", String(maxBody))},
+    ${previousSecret}, ${read("e", "metadata", "'{}'::jsonb")}
+  from ${t} e${vaultJoins}
+  where ${e("tokenHash")} = ${sha256Hex("incoming_webhook_by_token.token")}
 $$;
 
 -- Counts a delivery and keeps its HTTP status.
 create or replace function ${ctx.fn("record_incoming_webhook")}(endpoint uuid, status integer)
 returns void
-language sql
-security definer
-set search_path = ''
-as $$
-  update ${t} e
-  set receive_count = e.receive_count + 1, last_received_at = now(), last_status = record_incoming_webhook.status
-  where e.id = endpoint
-$$;
+${record}
 
 revoke execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, text, jsonb, text, text, text) from public, anon;
 grant execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, text, jsonb, text, text, text) to authenticated, service_role;
@@ -555,19 +802,36 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",
   requires: ["access", "updated-at", "webhook-inbox"],
   target: "schema",
+  modes: ["managed", "adopt"],
+  adoptOptional: (ctx) => ({
+    endpoints: secretStorage(ctx)
+      ? ["secret", "previousSecret"]
+      : ["secretId", "previousSecretId"],
+  }),
   names: {
     events: EVENTS,
     tables: {
       endpoints: {
         name: "incoming_webhooks",
-        columns: {
-          tenant: "tenant",
-          tokenHash: "token_hash",
-          secret: "secret",
-          secretId: "secret_id",
-          previousSecret: "previous_secret",
-          previousSecretId: "previous_secret_id",
-        },
+        columns: ENDPOINT_COLUMNS,
+        optional: [
+          "secret",
+          "secretId",
+          "previousSecret",
+          "previousSecretId",
+          "previousSecretExpiresAt",
+          "signatureHeader",
+          "maxBodyBytes",
+          "receiveCount",
+          "lastReceivedAt",
+          "lastStatus",
+          "metadata",
+          "subjectType",
+          "subjectId",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+        ],
         lifecycle: {
           tenant: "tenant",
           omit: [
@@ -582,7 +846,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     },
     options: ["maxBodyBytes", "secretStorage", "subjects"],
   },
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -600,6 +864,12 @@ where e.secret is not null and e.secret_id is null;`;
       from: 2,
       description:
         "rotate_incoming_webhook_secret replaces the signing secret and keeps the old one verifying for a grace period; incoming_webhook_by_token returns it as previous_secret, and update_incoming_webhook is new.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Adopt mode over an app's endpoints table; incoming_webhook_by_token returns the endpoint's metadata for destinations.",
       sql: () => "",
     },
   ],

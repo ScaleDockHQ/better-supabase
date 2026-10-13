@@ -311,6 +311,106 @@ describe("cookie sessions", () => {
     expect(cleared.headers["Cache-Control"]).toContain("no-store");
   });
 
+  it("prunes leftover chunks next to a valid session where it can write", async () => {
+    const token = await signer.sign({ sub: USER });
+    const cookie = `${sessionCookie({
+      access_token: token,
+      refresh_token: "r",
+      expires_at: exp(token),
+      token_type: "bearer",
+      user: { id: USER },
+    })}; ${NAME}.0=old; ${NAME}.1=old`;
+    const read = await resolveAuth(cookieRequest(cookie), options);
+    expect(read.auth.kind).toBe("user");
+    expect(read.cookies).toEqual([]);
+
+    const pruned = await resolveAuth(cookieRequest(cookie), {
+      ...options,
+      refresh: true,
+    });
+    expect(pruned.auth.kind).toBe("user");
+    expect(pruned.cookies.map((write) => write.name)).toEqual([
+      `${NAME}.0`,
+      `${NAME}.1`,
+    ]);
+    expect(pruned.headers["Cache-Control"]).toContain("no-store");
+
+    const off = await resolveAuth(cookieRequest(cookie), {
+      ...options,
+      refresh: true,
+      pruneChunks: false,
+    });
+    expect(off.cookies).toEqual([]);
+  });
+
+  it("reports an auth outage with the cause, and whether the token was kept", async () => {
+    const token = await signer.sign({
+      sub: USER,
+      exp: Math.floor(Date.now() / 1000) + 30,
+    });
+    const early = sessionCookie({
+      access_token: token,
+      refresh_token: "r-outage",
+      expires_at: exp(token),
+      token_type: "bearer",
+      user: { id: USER },
+    });
+    const events: unknown[] = [];
+    const kept = await resolveAuth(cookieRequest(early), {
+      ...options,
+      refresh: true,
+      fetch: vi.fn(async () => new Response("busy", { status: 503 })),
+      onRefresh: (event) => events.push(event),
+    });
+    expect(kept.auth.kind).toBe("user");
+    expect(kept.outage).toMatchObject({
+      cause: "status",
+      status: 503,
+      kept: true,
+    });
+    expect(events[0]).toMatchObject({
+      ok: false,
+      reason: "network",
+      status: 503,
+    });
+
+    const expired = sessionCookie({
+      access_token: "opaque",
+      refresh_token: "r-outage-2",
+      token_type: "bearer",
+      user: { id: USER },
+    });
+    const lost = await resolveAuth(cookieRequest(expired), {
+      ...options,
+      refresh: true,
+      fetch: vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    });
+    expect(lost.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
+    expect(lost.outage).toMatchObject({ cause: "network", kept: false });
+    expect(lost.outage?.durationMs).toBeGreaterThanOrEqual(0);
+
+    const rejected = await resolveAuth(
+      cookieRequest(
+        sessionCookie({
+          access_token: "opaque",
+          refresh_token: "r-rejected",
+          token_type: "bearer",
+          user: { id: USER },
+        }),
+      ),
+      {
+        ...options,
+        refresh: true,
+        fetch: vi.fn(async () =>
+          Response.json({ code: "refresh_token_not_found" }, { status: 400 }),
+        ),
+      },
+    );
+    expect(rejected.outage).toBeUndefined();
+  });
+
   it("uses a custom cookie name", async () => {
     const token = await signer.sign({ sub: USER });
     const writes = writeSession([], "session", {

@@ -674,8 +674,9 @@ function. Doctor needs a database connection for this check. With
 
 **Warning: migration-only block option.** A module in `sql.modules` sets an option
 that only exists to match a schema you are adopting: `tokenStorage: "plain"`
-for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
-other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+for invitations, `secretStorage: "column"` for credentials,
+`secretStorage: "column"` or an `eventIdType` or `runIdType` other than
+`text` for webhooks-out, a `blockSource` or `defaultSource` for
 the outbox, or `values` for the audit log. The config only accepts them with
 `mode: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
@@ -865,6 +866,19 @@ replace the function with table queries. See
 or Edge Functions (`functions.invoke()`). Lite implements neither on any
 driver. Run the full Supabase stack for that feature, or move the project
 with `supabase lite upgrade`.
+
+### BS330
+
+**Error: adopted table without a mapped column.** A module in adopt mode
+maps a table, or a column of it, that the live database lacks, so the
+module's functions fail when they run. Doctor reads every column the
+module's SQL names: the ones in `sql.modules.<name>.columns` and the
+defaults for the unmapped ones, leaving out the columns mapped to `null`.
+Map the logical column to the column that holds it, map it to `null` when
+the module allows that, or add the column. `better-supabase sql sync`
+refuses an optional column that the `create table` in `supabase/schemas`
+lacks; this check compares every column with the live database. Needs a
+database.
 
 ## Auth config
 

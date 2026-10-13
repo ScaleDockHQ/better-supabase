@@ -20,10 +20,15 @@ import {
   createJobs,
   createRateLimit,
   sqlQueueBackend,
+  transportQueueBackend,
   withLease,
 } from "../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
-import { sqlTransport } from "../../src/core/block-transport.ts";
+import {
+  rpcTransport,
+  sqlTransport,
+  type RpcClient,
+} from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { mapDbError, type RawDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
@@ -31,6 +36,7 @@ import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
+import { apiWrappers } from "../../src/sql/api-schema.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -71,6 +77,57 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
+
+const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`;
+
+/**
+ * Answers `rpc` the way PostgREST does for the service role: named arguments,
+ * JSON for objects, an array for a set-returning function and the value for
+ * any other.
+ */
+function postgrestOver(pool: Pool): RpcClient {
+  return {
+    schema: (schema: string) => ({
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        const client = await pool.connect();
+        try {
+          await client.query("begin");
+          await client.query("set local role service_role");
+          const { rows: procs } = await client.query<{ set: boolean }>(
+            `select p.proretset as set from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = $1 and p.proname = $2`,
+            [schema, fn],
+          );
+          const names = Object.keys(args);
+          const call = `${quoted(schema)}.${quoted(fn)}(${names
+            .map((name, index) => `${quoted(name)} => $${String(index + 1)}`)
+            .join(", ")})`;
+          const { rows } = await client.query<{ data: unknown }>(
+            procs[0]?.set
+              ? `select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) as data from ${call} r`
+              : `select to_jsonb(${call}) as data`,
+            names.map((name) => {
+              const value = args[name];
+              return value !== null &&
+                typeof value === "object" &&
+                !Array.isArray(value)
+                ? JSON.stringify(value)
+                : value;
+            }),
+          );
+          await client.query("commit");
+          return { data: rows[0]?.data ?? null, error: null };
+        } catch (error) {
+          await client.query("rollback");
+          return { data: null, error };
+        } finally {
+          client.release();
+        }
+      },
+    }),
+  };
+}
 
 async function installSchemaModules(pool: Pool): Promise<void> {
   const client = await pool.connect();
@@ -1480,6 +1537,79 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("reads comments through a grant on the subject record's provider scope", async () => {
+    const pd = `authz_scope_${RUN}`;
+    const me = "00000000-0000-4000-8000-0000000000b1";
+    const granted = "00000000-0000-4000-8000-0000000000b2";
+    const hidden = "00000000-0000-4000-8000-0000000000b3";
+    const layout = {
+      modules: {
+        access: { model: "provider" as const },
+        comments: {
+          options: {
+            subjects: {
+              project: {
+                table: `${pd}.projects`,
+                idType: "uuid",
+                scope: "project",
+              },
+            },
+          },
+        },
+      },
+      accessProvider: {
+        name: "test",
+        scope: "organization",
+        scopes: ["organization", "project"],
+        idType: "uuid" as const,
+        functions: {
+          idsWith: `${pd}.{scope}_ids_with({permission})`,
+          isPlatform: `${pd}.is_platform({permission})`,
+        },
+      },
+    };
+    const client = await pool.connect();
+    try {
+      // The module's functions and policies are shared, so this runs in a
+      // transaction that rolls back.
+      await client.query("begin");
+      await client.query(`
+        create schema ${pd};
+        grant usage on schema ${pd} to authenticated;
+        create table ${pd}.projects (id uuid primary key, organization_id uuid not null);
+        grant select on ${pd}.projects to authenticated;
+        insert into ${pd}.projects values ('${granted}', '${ACME}'), ('${hidden}', '${ACME}');
+        create function ${pd}.organization_ids_with(permission text) returns setof uuid
+        language sql stable as $$ select null::uuid where false $$;
+        create function ${pd}.project_ids_with(permission text) returns setof uuid
+        language sql stable as $$ select '${granted}'::uuid where permission = 'comments.read' $$;
+        create function ${pd}.is_platform(permission text) returns boolean
+        language sql stable as $$ select false $$;
+        grant execute on all functions in schema ${pd} to authenticated;
+        insert into auth.users (id, instance_id, aud, role, email)
+        values ('${me}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'scope-${RUN}@example.com');`);
+      await client.query(moduleBody("access", layout)!);
+      await client.query(moduleBody("comments", layout)!);
+      await client.query(
+        `insert into better_supabase.comments (organization_id, subject_type, subject_id, body, author_id)
+         values ($1, 'project', $2, 'seen', $4), ($1, 'project', $3, 'unseen', $4)`,
+        [ACME, granted, hidden, me],
+      );
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ sub: me, role: "authenticated" }),
+      ]);
+      await client.query("set local role authenticated");
+      const { rows } = await client.query<{ body: string }>(
+        "select body from better_supabase.comments where subject_id = any($1)",
+        [[granted, hidden]],
+      );
+      expect(rows.map((row) => row.body)).toEqual(["seen"]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `block_${RUN}`;
     const jobs = createJobs(postgres.admin, {
@@ -1707,6 +1837,97 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await testQueueBackend(sqlQueueBackend(postgres.admin), {
       queue: `block_${RUN}_conf`,
     });
+  });
+
+  it("enqueues once per key, after the first job completed too", async () => {
+    const queue = `block_${RUN}_once`;
+    const jobs = createJobs(postgres.admin, {
+      [queue]: v.object({ n: v.number() }),
+    });
+    const first = await jobs
+      .enqueueOnce(queue, { n: 1 }, { dedupeKey: "k" })
+      .orThrow();
+    expect(first.duplicate).toBe(false);
+    const [job] = await jobs.claim(queue).orThrow();
+    await jobs.complete(job!).orThrow();
+    expect(
+      await jobs.enqueueOnce(queue, { n: 2 }, { dedupeKey: "k" }).orThrow(),
+    ).toEqual({ id: first.id, duplicate: true });
+    expect(
+      (await jobs.enqueueOnce(queue, { n: 3 }, { dedupeKey: "j" }).orThrow())
+        .duplicate,
+    ).toBe(false);
+  });
+
+  it("runs jobs, idempotency and leases through the api wrappers over rpcTransport", async () => {
+    const api = `bs_api_${RUN}`;
+    await pool.query(
+      ["jobs", "idempotency"]
+        .map((module) =>
+          apiWrappers(
+            moduleBody(module)!,
+            "better_supabase",
+            { schema: api },
+            module,
+            SQL_MODULES[module]!.internal,
+          ),
+        )
+        .join("\n"),
+    );
+    try {
+      const transport = rpcTransport(postgrestOver(pool), { schema: api });
+      await testQueueBackend(
+        transportQueueBackend(transport, { schema: api }),
+        {
+          queue: `block_${RUN}_rpc`,
+        },
+      );
+      const queue = `block_${RUN}_rpc_jobs`;
+      const jobs = createJobs(transport, {
+        [queue]: v.object({ n: v.number() }),
+      });
+      await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
+      const [job] = await jobs.claim(queue).orThrow();
+      await jobs.fail(job!, new Error("boom")).orThrow();
+      expect((await jobs.stats([queue]).orThrow())[queue]?.dead).toBe(1);
+      const dead = await jobs.listDead(queue).orThrow();
+      expect(dead.map((entry) => entry.payload)).toEqual([{ n: 1 }]);
+      expect(await jobs.retryDead(queue).orThrow()).toBe(1);
+      expect(
+        await jobs.purge({ olderThan: 0, deadOlderThan: 0 }).orThrow(),
+      ).toBeGreaterThanOrEqual(0);
+
+      const idempotency = createIdempotency(transport, {
+        schema: api,
+        scope: RUN,
+      });
+      const handler = () => Response.json({ n: 1 }, { status: 201 });
+      const request = () =>
+        new Request("https://api.test/orders", {
+          method: "POST",
+          headers: { "idempotency-key": `rpc-${RUN}` },
+          body: "{}",
+        });
+      expect((await idempotency.handle(request(), handler)).status).toBe(201);
+      const replay = await idempotency.handle(request(), handler);
+      expect(replay.headers.get("idempotency-replayed")).toBe("true");
+      expect(await idempotency.purge().orThrow()).toBeGreaterThanOrEqual(0);
+
+      const lease = await withLease(
+        transport,
+        `rpc-${RUN}`,
+        async () =>
+          (
+            await withLease(transport, `rpc-${RUN}`, () => 1, {
+              schema: api,
+            }).orThrow()
+          ).acquired,
+        { schema: api },
+      ).orThrow();
+      expect(lease).toEqual({ acquired: true, value: false });
+    } finally {
+      await pool.query(`drop schema ${api} cascade`);
+    }
   });
 
   it("runs jobs and time-zone schedules on the table backend", async () => {

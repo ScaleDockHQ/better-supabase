@@ -9,7 +9,7 @@ import type {
 } from "./outgoing-types.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
-import { budget, toBlockError } from "../../core/block-helpers.ts";
+import { budget, seconds, toBlockError } from "../../core/block-helpers.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
@@ -308,7 +308,23 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     return counts;
   }
 
+  const purge: Webhooks["purge"] = (purgeOptions = {}) =>
+    run(
+      () =>
+        call("purge_webhook_deliveries", {
+          older_than:
+            purgeOptions.olderThan === undefined
+              ? undefined
+              : seconds(purgeOptions.olderThan),
+          include_dead: purgeOptions.includeDead,
+          batch: purgeOptions.batch,
+        }),
+      (value) => Number(value ?? 0),
+    );
+
   return {
+    purge,
+    purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
     publish: (event) =>
       run(
         () =>

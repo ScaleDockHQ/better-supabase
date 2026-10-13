@@ -1,3 +1,4 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { WhereInput } from "../../ir/args.ts";
 import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
@@ -9,6 +10,7 @@ import type {
   TableMeta,
 } from "../../schema/types.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { type AsyncResult } from "../../core/result.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
 import { sqlIdent } from "../../core/template.ts";
@@ -40,6 +42,69 @@ export interface PurgeAuditLogOptions extends BlockTemporalOptions {
   readonly retention?: (
     tenant: string | null,
   ) => number | undefined | Promise<number | undefined>;
+  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  readonly schema?: string;
+}
+
+interface AuditPurgeCalls {
+  purge(
+    olderThan: string,
+    batch: number,
+    tenant?: string | null,
+  ): Promise<number>;
+  tenants(): Promise<readonly (string | null)[]>;
+}
+
+function sqlPurgeCalls(sql: SqlClient): AuditPurgeCalls {
+  return {
+    async purge(olderThan, batch, tenant) {
+      const [row] = await sql.queryRaw<{ n: number | string }>(
+        tenant === undefined
+          ? "select better_supabase.purge_audit_log($1::interval, $2) as n"
+          : "select better_supabase.purge_audit_log($1::interval, $2, $3, true) as n",
+        tenant === undefined ? [olderThan, batch] : [olderThan, batch, tenant],
+      );
+      return Number(row?.n ?? 0);
+    },
+    async tenants() {
+      const rows = await sql.queryRaw<{ tenant: string | null }>(
+        "select tenant::text from better_supabase.audit_events_tenants($1::interval) as tenant",
+        ["1 day"],
+      );
+      return rows.map((row) => row.tenant);
+    },
+  };
+}
+
+function transportPurgeCalls(
+  transport: BlockTransport,
+  schema: string,
+): AuditPurgeCalls {
+  return {
+    purge: async (olderThan, batch, tenant) =>
+      Number(
+        (await transport.call(schema, "purge_audit_log", {
+          older_than: olderThan,
+          batch,
+          tenant,
+          for_tenant: tenant === undefined ? undefined : true,
+        })) ?? 0,
+      ),
+    async tenants() {
+      const value = await transport.call(schema, "audit_events_tenants", {
+        older_than: "1 day",
+      });
+      if (value === null || value === undefined) return [];
+      if (!Array.isArray(value)) {
+        throw new TypeError(
+          "audit_events_tenants returned one value, not rows: pass a SqlClient instead of sqlTransport",
+        );
+      }
+      return value.map((tenant: unknown) =>
+        tenant === null || tenant === undefined ? null : String(tenant),
+      );
+    },
+  };
 }
 
 type Retention = NonNullable<PurgeAuditLogOptions["retention"]>;
@@ -56,45 +121,34 @@ const RETENTION_MANY = new WeakMap<
  * interval. Run it from a schedule until it returns 0.
  */
 export function purgeAuditLog(
-  sql: SqlClient,
+  source: SqlClient | BlockTransport,
   options: PurgeAuditLogOptions = {},
 ): AsyncResult<number> {
   applyTemporal(options);
   const olderThan = seconds(options.olderThan ?? "1 year");
   const batch = options.batch ?? 10_000;
-  const purge = async (params: unknown[], call: string) => {
-    const [row] = await sql.queryRaw<{ n: number | string }>(
-      `select better_supabase.purge_audit_log(${call}) as n`,
-      params,
-    );
-    return Number(row?.n ?? 0);
-  };
+  const calls =
+    "call" in source
+      ? transportPurgeCalls(source, options.schema ?? DEFAULT_BLOCK_SCHEMA)
+      : sqlPurgeCalls(source);
   const { retention } = options;
   if (!retention) {
-    return run(() => purge([olderThan, batch], "$1::interval, $2"));
+    return run(() => calls.purge(olderThan, batch));
   }
   return run(async () => {
-    const tenants = await sql.queryRaw<{ tenant: string | null }>(
-      "select tenant::text from better_supabase.audit_events_tenants($1::interval) as tenant",
-      ["1 day"],
-    );
+    const tenants = await calls.tenants();
     const many = RETENTION_MANY.get(retention);
-    const ids = tenants.flatMap(({ tenant }) =>
-      tenant === null ? [] : [tenant],
-    );
+    const ids = tenants.flatMap((tenant) => (tenant === null ? [] : [tenant]));
     const known = many && ids.length > 0 ? await many(ids) : undefined;
     let purged = 0;
-    for (const { tenant } of tenants) {
+    for (const tenant of tenants) {
       const days = known
         ? tenant === null
           ? undefined
           : known.get(tenant)
         : await retention(tenant);
       const keep = days === undefined ? olderThan : `${days} days`;
-      purged += await purge(
-        [keep, batch, tenant],
-        "$1::interval, $2, $3, true",
-      );
+      purged += await calls.purge(keep, batch, tenant);
     }
     return purged;
   });

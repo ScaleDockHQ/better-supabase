@@ -6,6 +6,7 @@ export {
   clearSessionCookies,
   DEFAULT_SESSION_ENCODING,
   parseCookies,
+  pruneSessionChunks,
   readSession,
   refreshSession,
   resolveAuth,

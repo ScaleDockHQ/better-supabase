@@ -199,8 +199,8 @@ carries. Every answer after the lookup is counted on the endpoint.
 With the [`data-lifecycle` module](/docs/blocks/data-lifecycle) installed,
 a tenant's endpoints are in its organization export, without `token_hash`,
 the secrets and their Vault ids, and the purge deletes them together with
-their Vault secrets. The endpoint table's columns can't be renamed in
-`sql.modules.webhooks-in.columns`.
+their Vault secrets. To keep endpoints in a table of your own, see
+[Adopting your own tables](#adopting-your-own-tables).
 
 ### Upgrading from version 1
 
@@ -233,3 +233,113 @@ await inbox.process(async (message) => {
 ```
 
 A JSON body is stored as it is; any other body as `{ "body": "<text>" }`.
+
+### Sending deliveries to a queue
+
+`destination` decides where a verified delivery goes. The default,
+`inboxDestination`, stores it in the webhook inbox as above.
+`jobsDestination` enqueues it on a [jobs](/docs/blocks/jobs) queue instead,
+once per endpoint and message id, with the endpoint's tenant as the job's
+context:
+
+```ts
+import * as v from "valibot";
+import { createJobs } from "better-supabase/blocks/jobs";
+import {
+  createIncomingWebhooks,
+  jobsDestination,
+} from "better-supabase/blocks/webhooks";
+
+const jobs = createJobs(postgres.admin, {
+  leads: v.object({ route: v.string(), body: v.unknown() }),
+});
+
+export const hooks = createIncomingWebhooks(postgres.admin, {
+  destination: jobsDestination(jobs, {
+    queue: "leads",
+    payload: (delivery) => ({
+      route: String(delivery.endpoint.metadata["route"] ?? "default"),
+      body: delivery.payload,
+    }),
+  }),
+});
+```
+
+The queue key stays taken after the job completes, so a sender that retries
+a delivery gets `200` and no second job. Without `payload` the job gets the
+whole delivery: the endpoint's id, tenant and metadata, the source, the
+message id, the type, the payload and the kept headers. Route on the
+endpoint's `metadata` (set with `create` or `update`); `source` only labels
+the inbox messages. The jobs destination needs the SQL or RPC queue backend:
+the public pgmq backend has no `enqueueOnce`.
+
+Any object with `apiVersion: 1`, a `name` and `deliver(delivery)` is a
+destination. It returns the stored id and whether the delivery was there
+already, which `receive` answers with `200`.
+[`testIncomingDestination`](/docs/extending/conformance) checks that a
+destination reports a repeated endpoint and message id as a duplicate.
+
+## Adopting your own tables
+
+With `mode: "adopt"`, the module runs over an endpoint table your app
+already has. Map its table and columns, and map a column to `null` when the
+table lacks it:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      "webhooks-in": {
+        mode: "adopt",
+        tables: { endpoints: "public.integration_hooks" },
+        columns: {
+          endpoints: {
+            tenant: "organization_id",
+            tokenHash: "token_digest",
+            previousSecretId: null,
+            previousSecretExpiresAt: null,
+            receiveCount: null,
+            lastReceivedAt: null,
+            lastStatus: null,
+            subjectType: null,
+            subjectId: null,
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+The module then writes its functions and the Vault cleanup trigger, and
+leaves the table, its indexes, grants and policies to you. `id`, `tenant`,
+`name`, `tokenHash`, `verify` and `enabled` are required, and so is
+`secretId` (or `secret` with `secretStorage: "column"`). Each optional
+column turns off what needs it: without the previous-secret columns a
+rotation with `graceSeconds` fails with `WEBHOOK_IN_NO_GRACE`, without the
+subject columns `subjects` can't be configured, without `metadata` endpoints
+take no metadata, and without the counters `receive` records nothing. In
+managed mode the module owns its table, so a column mapping there is an
+error.
+
+The webhook inbox adopts a table the same way, through
+`sql.modules.webhook-inbox` with the `messages` table:
+
+```ts title="better-supabase.config.ts"
+"webhook-inbox": {
+  mode: "adopt",
+  tables: { messages: "public.inbound_events" },
+  columns: {
+    messages: { messageId: "external_id", tenant: "organization_id", checkpoint: null },
+  },
+},
+```
+
+`id` (a `bigint`), `source`, `messageId`, `payload`, `status`, `attempts`,
+`availableAt`, `lockedBy`, `lockedUntil` and `receivedAt` are required.
+`eventType`, `headers`, `maxAttempts` (8 when missing), `lastError`,
+`processedAt`, `tenant` and `checkpoint` are optional; a missing column
+reads as the managed table's default. The functions stay in
+`better_supabase`, and `receive_webhook` takes a lock per message before it
+looks the message up, so the adopted table needs no particular unique
+constraint, though one on source, tenant and message id is a good guard.

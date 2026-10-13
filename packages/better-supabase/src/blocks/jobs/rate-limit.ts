@@ -1,7 +1,9 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type { JobHandler } from "./types.ts";
 
+import { sqlTransport } from "../../core/block-transport.ts";
 import { dbError } from "../../core/errors.ts";
 import { type ProblemFormat, problemResponse } from "../../core/problem.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -44,6 +46,13 @@ export interface RateLimit {
     key: string,
     rule?: RateLimitRule,
   ): AsyncResult<RateLimitDecision>;
+  /**
+   * Deletes up to `batch` counters whose window ended (`purge_rate_limits`);
+   * returns how many.
+   */
+  purge(options?: { readonly batch?: number }): AsyncResult<number>;
+  /** A job handler that runs `purge`; schedule it hourly. */
+  purgeJob(options?: { readonly batch?: number }): JobHandler<unknown>;
 }
 
 export interface RateLimitOptions extends BlockTemporalOptions {
@@ -68,7 +77,18 @@ export function createRateLimit(
   const hit = isTransport(source)
     ? overTransport(blockCall(source, undefined, options.mappers))
     : overSql(source);
+  const call = blockCall(
+    isTransport(source) ? source : sqlTransport(source),
+    undefined,
+    options.mappers,
+  );
+  const purge: RateLimit["purge"] = (purgeOptions = {}) =>
+    call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
+      Number(value ?? 0),
+    );
   return {
+    purge,
+    purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
     check: (scope, key, rule) => {
       if (rule !== undefined && (!Number.isInteger(rule.max) || rule.max < 1)) {
         return AsyncResult.err(

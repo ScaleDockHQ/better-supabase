@@ -200,8 +200,16 @@ platform permission (`is_platform`), platform staff can request and cancel a
 deletion for any organization without the service role, such as from an
 admin console.
 
-The requester or an owner can cancel until the purge runs; cancelling
-enables the tenant again, unless it was disabled before the request.
+The requester, or a member holding the `cancelDelete` permission
+(`organization.delete` unless `sql.modules.data-lifecycle.permissions.cancelDelete`
+names another key), can cancel until the purge runs. The check goes through
+`better_supabase.member_can_while_deleting()`, which every access model
+renders: it asks the same question as `member_can()` without the
+disabled-tenant check, so an authorization provider's roles keep working
+while the organization waits. With `sql.modules.access.mode: "custom"`, where
+the app writes the access functions itself, an owner can cancel instead.
+Cancelling enables the tenant again, unless it was disabled before the
+request.
 `organizationDeletion(organizationId)` returns the pending deletion to the
 organization's members, for a banner with the purge date.
 

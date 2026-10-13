@@ -12,6 +12,7 @@ export {
   type UsageHistoryOptions,
   type UsageMeterInfo,
   type UsageOptions,
+  type PurgeUsageOptions,
   type UsagePeriod,
   type UsageRecorded,
   type UsageStatus,

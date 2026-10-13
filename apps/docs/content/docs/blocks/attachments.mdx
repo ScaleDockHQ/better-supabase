@@ -84,6 +84,23 @@ isn't in the tenant, can't download its files, uploader and
 `cascade: true` deletes a subject's attachment rows with the subject row;
 remove the objects with `attachments.remove` or a storage cleanup job.
 
+`permissions` gives a subject type its own keys, in place of
+`attachments.read`, `attachments.upload` and `attachments.manage`, and
+`scope` names a provider scope whose ids are the subject ids, so a grant on
+the record itself counts next to one on the tenant. Both work as they do for
+[comments](/docs/blocks/comments#access-per-record), and apply to the table's
+policies and to the storage checks in `attachment_object_allowed`:
+
+```ts
+subjects: {
+  contract: {
+    table: "contracts",
+    permissions: { read: "contracts.read", upload: "contracts.edit", manage: "contracts.manage" },
+  },
+  project: { table: "projects", idType: "uuid", scope: "project" },
+},
+```
+
 A subject without a tenant, such as a user's own notes, takes `tenant: false`:
 its files have no `organization_id` (pass `organizationId: null` to `upload`),
 their path starts with `-`, and the subject table's own policies alone decide

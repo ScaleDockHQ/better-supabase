@@ -1,10 +1,12 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
   ClaimOptions,
   DrainResult,
   DrainRouteResult,
+  EnqueueOptions,
   FailOptions,
   Job,
   JobHandler,
@@ -40,6 +42,7 @@ import {
   errorText,
   pageOf,
   run,
+  seconds,
   sleep,
   toInstant,
 } from "../shared.ts";
@@ -48,6 +51,7 @@ import {
   pgmqPublicBackend,
   sqlOnly,
   sqlQueueBackend,
+  transportQueueBackend,
   type QueueBackend,
   type QueueMessageRow,
   type QueueRpcClient,
@@ -84,10 +88,21 @@ function toJob(queue: string, row: QueueMessageRow): Job {
 
 const QUEUE_NAME = /^[a-z_][a-z0-9_]{0,46}$/;
 
-function isBackend(
-  source: SqlClient | QueueRpcClient | QueueBackend,
-): source is QueueBackend {
+/** What `createJobs` stores jobs through. */
+export type JobsSource =
+  | SqlClient
+  | QueueRpcClient
+  | BlockTransport
+  | QueueBackend;
+
+function isBackend(source: JobsSource): source is QueueBackend {
   return "apiVersion" in source;
+}
+
+function isTransport(
+  source: SqlClient | QueueRpcClient | BlockTransport,
+): source is BlockTransport {
+  return "call" in source;
 }
 
 function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
@@ -97,12 +112,13 @@ function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
 }
 
 function backendOf(
-  source: SqlClient | QueueRpcClient | QueueBackend,
+  source: JobsSource,
   now: () => Temporal.Instant,
 ): QueueBackend {
   if (isBackend(source)) {
     return source;
   }
+  if (isTransport(source)) return transportQueueBackend(source, { now });
   return isSqlClient(source)
     ? sqlQueueBackend(source, now)
     : pgmqPublicBackend(source);
@@ -115,13 +131,13 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  * Typed jobs on Supabase Queues (pgmq), over the `jobs` SQL module.
  *
  * Pass a service SQL connection (`postgres.admin`, `ctx.sql`) for the full
- * feature set, a service-role Supabase client to go through the
- * `pgmq_public` RPCs where no direct connection exists (edge functions), or
- * any `QueueBackend`. Queue names are lowercase letters, digits and
- * underscores.
+ * feature set, a service-role `rpcTransport` over the wrappers
+ * `sql.modules.jobs.api` writes for the same features over the Data API, a
+ * service-role Supabase client to go through the `pgmq_public` RPCs, or any
+ * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
  */
 export function createJobs<const Q extends QueueSchemas>(
-  source: SqlClient | QueueRpcClient | QueueBackend,
+  source: JobsSource,
   queues: Q,
   options: JobsOptions = {},
 ): Jobs<Q> {
@@ -390,33 +406,68 @@ export function createJobs<const Q extends QueueSchemas>(
       prepared.tenant,
     );
 
+  const purge: Jobs<Q>["purge"] = (purgeOptions = {}) =>
+    run(async () => {
+      if (!transport.purge) sqlOnly("purge");
+      const backendPurge = transport.purge.bind(transport);
+      const interval = (value: number | string | undefined) =>
+        value === undefined ? undefined : seconds(value);
+      const counts = await Promise.all(
+        (purgeOptions.queues ?? Object.keys(queues)).map((queue) => {
+          schemaOf(queue);
+          return backendPurge(queue, {
+            olderThan: interval(purgeOptions.olderThan),
+            deadOlderThan: interval(purgeOptions.deadOlderThan),
+            batch: purgeOptions.batch,
+          });
+        }),
+      );
+      return counts.reduce((sum, count) => sum + count, 0);
+    });
+
+  const delayOf = (enqueueOptions: EnqueueOptions): number =>
+    enqueueOptions.delay ??
+    (enqueueOptions.runAt
+      ? Math.max(
+          0,
+          Math.ceil(
+            (enqueueOptions.runAt.epochMilliseconds - now().epochMilliseconds) /
+              1000,
+          ),
+        )
+      : 0);
+
   return {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
         const valid = await validate(schemaOf(queue), payload, "payload");
         if (!valid.ok) return valid;
-        const delay =
-          enqueueOptions.delay ??
-          (enqueueOptions.runAt
-            ? Math.max(
-                0,
-                Math.ceil(
-                  (enqueueOptions.runAt.epochMilliseconds -
-                    now().epochMilliseconds) /
-                    1000,
-                ),
-              )
-            : 0);
         return run(() =>
           transport.send(
             queue,
             withContext(valid.data, enqueueOptions.context),
-            delay,
+            delayOf(enqueueOptions),
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
             enqueueOptions.dedupe,
           ),
         );
+      });
+    },
+    enqueueOnce(queue, payload, enqueueOptions) {
+      return AsyncResult.from(async () => {
+        const valid = await validate(schemaOf(queue), payload, "payload");
+        if (!valid.ok) return valid;
+        return run(() => {
+          if (!transport.sendOnce) sqlOnly("enqueueOnce");
+          return transport.sendOnce(
+            queue,
+            withContext(valid.data, enqueueOptions.context),
+            delayOf(enqueueOptions),
+            enqueueOptions.maxAttempts ?? 5,
+            enqueueOptions.dedupeKey,
+          );
+        });
       });
     },
     claim: claim,
@@ -476,6 +527,8 @@ export function createJobs<const Q extends QueueSchemas>(
           retryOptions.limit ?? 1000,
         );
       }),
+    purge,
+    purgeJob: (purgeOptions) => async () => purge(purgeOptions).orThrow(),
     replay: (queue, id) =>
       run(() => {
         if (!transport.replay) sqlOnly("replay");

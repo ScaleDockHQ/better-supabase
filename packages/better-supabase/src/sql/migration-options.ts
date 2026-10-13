@@ -25,6 +25,12 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
     effect: "keeps signing secrets in a table column instead of Vault",
   },
   {
+    module: "credentials",
+    option: "secretStorage",
+    departs: (value) => value === "column",
+    effect: "keeps third-party credentials in a table column instead of Vault",
+  },
+  {
     module: "webhooks-out",
     option: "eventIdType",
     departs: (value) => value !== "text" && value !== "uuid",

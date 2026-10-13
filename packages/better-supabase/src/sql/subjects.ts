@@ -1,7 +1,10 @@
 import type { ModuleContext } from "./context.ts";
+import type { ModuleAccessProvider } from "./module-types.ts";
 
+import { fillTemplate } from "../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { quotedTable } from "./shared.ts";
+import { accessModel } from "./modules/access-model.ts";
+import { quotedTable, tenantIn } from "./shared.ts";
 
 /**
  * One subject type a module's rows belong to (`options.subjects`): the
@@ -203,4 +206,163 @@ revoke execute on function ${fn}() from public, anon, authenticated;
 
 ${triggers.join("\n\n")}
 `;
+}
+
+/** The permission checks of a module whose rows belong to subjects. */
+export interface SubjectAccess<A extends string> {
+  /**
+   * Whether the caller holds the action's key for a row of subject `type`
+   * and `id` in `tenant`: in the tenant, or on the subject record itself when
+   * its type sets `scope`. One `can()` call per row, for functions.
+   */
+  canOn(tenant: string, type: string, id: string, action: A): string;
+  /**
+   * The policy form of `canOn`: one `tenant_ids_with` (or provider `idsWith`)
+   * set per key, each computed once per statement.
+   */
+  memberOn(tenant: string, type: string, id: string, action: A): string;
+  /** The action's key for subject `type`, as a SQL expression. */
+  keyFor(type: string, action: A): string;
+}
+
+/**
+ * The checks for `options.subjects.<type>.permissions` (a key per action in
+ * place of the module's) and `options.subjects.<type>.scope` (a scope the
+ * authorization provider declares, whose ids are the subject ids, so a grant
+ * on the record counts as well as one on the tenant).
+ */
+export function subjectAccess<A extends string>(
+  ctx: ModuleContext,
+  options: {
+    readonly subjects: readonly (readonly [string, Subject])[];
+    readonly actions: readonly A[];
+    /** The module's key for an action, as a SQL literal. */
+    readonly permission: (action: A) => string;
+    readonly provider: ModuleAccessProvider | undefined;
+  },
+): SubjectAccess<A> {
+  const { subjects, actions, permission, provider } = options;
+  const where = `sql.modules.${ctx.module}.options.subjects`;
+  const allowed: ReadonlySet<string> = new Set(actions);
+  const entries = subjects.map(([type, subject]) => {
+    const keys = new Map<string, string>();
+    const raw = subject.extra["permissions"];
+    if (raw !== undefined) {
+      if (!isObject(raw)) {
+        throw new TypeError(
+          `${where}.${type}.permissions must be { ${actions.map((action) => `${action}?`).join(", ")} }`,
+        );
+      }
+      for (const [key, value] of Object.entries(raw)) {
+        if (
+          !allowed.has(key) ||
+          typeof value !== "string" ||
+          value.length === 0
+        ) {
+          throw new TypeError(
+            `${where}.${type}.permissions.${key}: use ${actions.slice(0, -1).join(", ")} and ${actions.at(-1) ?? ""} with a permission key`,
+          );
+        }
+        keys.set(key, value);
+      }
+    }
+    return { type, keys, scope: subjectScope(ctx, provider, type, subject) };
+  });
+  const keyed = (action: A) =>
+    entries.flatMap((entry) => {
+      const key = entry.keys.get(action);
+      return key === undefined && entry.scope === undefined
+        ? []
+        : [
+            {
+              type: entry.type,
+              key: key === undefined ? permission(action) : sqlString(key),
+              scope: entry.scope,
+            },
+          ];
+    });
+  const onRecord = (
+    scope: string | undefined,
+    id: string,
+    key: string,
+  ): string =>
+    scope === undefined || provider === undefined
+      ? ""
+      : ` or ${id} in (select t.id::text from ${fillTemplate(
+          `${where} scope ${scope}`,
+          provider.functions.idsWith,
+          { permission: key, scope },
+        )} as t(id))`;
+  const branches = (
+    action: A,
+    type: string,
+    id: string,
+    check: (key: string) => string,
+  ): string => {
+    const list = keyed(action);
+    const parts = list.map(
+      (entry) =>
+        `(${type} = ${sqlString(entry.type)} and (${check(entry.key)}${onRecord(entry.scope, id, entry.key)}))`,
+    );
+    parts.push(
+      `(not coalesce(${type} in (${list.map((entry) => sqlString(entry.type)).join(", ")}), false) and ${check(permission(action))})`,
+    );
+    return `(${parts.join(" or ")})`;
+  };
+  const scoped = entries.some((entry) => entry.scope !== undefined);
+  const can = (tenant: string, key: string): string =>
+    ctx.can("tenant", tenant, key);
+  return {
+    canOn(tenant, type, id, action) {
+      const list = keyed(action);
+      if (list.length === 0) return can(tenant, permission(action));
+      if (scoped) return branches(action, type, id, (key) => can(tenant, key));
+      const cases = list.map(
+        (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
+      );
+      return `coalesce(better_supabase.can('tenant', ${tenant}, case ${type} ${cases.join(" ")} else ${permission(action)} end), false)`;
+    },
+    memberOn(tenant, type, id, action) {
+      if (keyed(action).length === 0)
+        return tenantIn(tenant, permission(action));
+      return branches(action, type, id, (key) => tenantIn(tenant, key));
+    },
+    keyFor(type, action) {
+      const cases = entries.flatMap((entry) => {
+        const key = entry.keys.get(action);
+        return key === undefined
+          ? []
+          : [`when ${sqlString(entry.type)} then ${sqlString(key)}`];
+      });
+      return cases.length === 0
+        ? permission(action)
+        : `case ${type} ${cases.join(" ")} else ${permission(action)} end`;
+    },
+  };
+}
+
+/** `options.subjects.<type>.scope`, checked against the provider's scopes. */
+function subjectScope(
+  ctx: ModuleContext,
+  provider: ModuleAccessProvider | undefined,
+  type: string,
+  subject: Subject,
+): string | undefined {
+  const scope = subject.extra["scope"];
+  if (scope === undefined) return undefined;
+  const where = `sql.modules.${ctx.module}.options.subjects.${type}.scope`;
+  if (typeof scope !== "string") {
+    throw new TypeError(`${where} must be the name of a provider scope`);
+  }
+  if (accessModel(ctx) !== "provider" || provider === undefined) {
+    throw new TypeError(
+      `${where} needs sql.modules.access.model "provider" and an authorization provider that declares the scope`,
+    );
+  }
+  if (scope === provider.scope || !(provider.scopes ?? []).includes(scope)) {
+    throw new TypeError(
+      `${where}: "${scope}" is not a scope ${provider.name} declares below its tenant scope "${provider.scope}". Scopes: ${(provider.scopes ?? []).filter((name) => name !== provider.scope).join(", ") || "none"}`,
+    );
+  }
+  return scope;
 }

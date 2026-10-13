@@ -171,6 +171,7 @@ export function accessProviderMode(
     access: {
       name: provider.name,
       scope: chosen.scope,
+      scopes: provider.scopes.map((scope) => scope.name),
       idType: chosen.idType,
       functions: provider.functions,
       ...(user || tenant

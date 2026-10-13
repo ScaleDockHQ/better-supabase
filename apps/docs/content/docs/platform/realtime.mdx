@@ -179,6 +179,62 @@ a column, a lookup, or `{ sql }`, an expression on the row `{row}` with
 `tg_op` for the operation. `rowChange` reads only the row-change shape, so
 handle a custom payload with its own event schema.
 
+### One trigger function for every topic
+
+When the placeholders are columns of the changed row, the `realtime-tables`
+module's `better_supabase.broadcast_topic()` sends the row change without a
+function per topic. Its trigger arguments are the topic with `{column}`
+placeholders, the event (empty for the operation) and `'false'` for a public
+topic, so a schema file can call it directly:
+
+```sql title="supabase/schemas/030_quotes.sql"
+create trigger quotes_broadcast after insert or update or delete on public.quotes
+  for each row execute function better_supabase.broadcast_topic(
+    'organization:{organization_id}:quotes', 'quote.changed'
+  );
+```
+
+It reads each placeholder from the new row (the old one for a delete), sends
+nothing when a value is null, and refuses a value with characters a topic
+doesn't allow, the same check `topic()` makes. A placeholder the table has no
+column for is an error.
+
+`topic.trigger(table, options)` returns that statement for a topic. A
+placeholder reads its snake_case column (`{organizationId}` reads
+`organization_id`) unless `values` names another one; `events` limits the
+operations and `event` names the broadcast event:
+
+```ts
+quotesTopic.trigger("public.quotes", { event: "quote.changed" });
+```
+
+`realtime.triggers` makes `sql sync` write them to the `realtime.policies`
+output after the policies. Each entry names a topic that `from` exports by its
+template, and takes the same options:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  realtime: {
+    policies: {
+      from: ["src/realtime/topics.ts"],
+      output: "supabase/schemas/905_topics.sql",
+    },
+    triggers: [
+      {
+        topic: "organization:{organizationId}:quotes",
+        table: "public.quotes",
+        event: "quote.changed",
+      },
+    ],
+  },
+  sql: { modules: ["realtime-tables"] },
+});
+```
+
+`sql sync` refuses `realtime.triggers` without `realtime.policies`, without
+`realtime-tables` in `sql.modules`, or for a template no module in `from`
+exports.
+
 On the client, `rowChange` turns a message into an app-cased change, or `null`
 for other tables:
 

@@ -1,4 +1,4 @@
--- better-supabase module: jobs (0.5.1)
+-- better-supabase module: jobs (0.8.0)
 -- @bs-module-data jobs
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
@@ -11,6 +11,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.modules (name, version, mode)
-values ('jobs', 6, 'managed')
+values ('jobs', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

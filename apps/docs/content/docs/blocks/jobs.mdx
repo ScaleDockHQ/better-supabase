@@ -48,6 +48,10 @@ set. `better_supabase.purge_job_archive(queue, older_than, batch,
 dead_older_than)` deletes completed jobs after `older_than` (7 days) and
 dead letters after `dead_older_than` (30 days) on both backends, so dead
 letters stay around long enough to replay.
+`jobs.purge({ olderThan, deadOlderThan, batch, queues })` calls it for every
+queue `createJobs` declared (or the `queues` given) and returns how many it
+deleted; `jobs.purgeJob(options)` is the same as a job handler. See
+[Retention](/docs/blocks/sql#retention) for the other purges.
 
 Declare queues with a Standard Schema for their payload. `enqueue`
 validates the payload, so a wrong payload is a type error at compile time
@@ -123,6 +127,11 @@ await jobs.work(
   yet, so a change made while the job runs queues one follow-up instead of
   being dropped: a debounce per entity. In SQL this is
   `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
+- `enqueueOnce(queue, payload, { dedupeKey })` enqueues at most one job per
+  key, ever: a completed or dead job still holds its key, so a retried
+  webhook or a repeated import adds nothing. It returns `{ id, duplicate }`,
+  with the first job's id on a duplicate. In SQL it is
+  `enqueue_job_once(queue, payload, dedupe_key)`.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
@@ -158,7 +167,8 @@ await jobs.retryDead("send_email").orThrow(); // the newest 1000
 `createJobs` declared. `listDead` returns stored payloads without
 validating them, since the schema may have changed since. All three call
 `better_supabase.job_queue_stats`, `list_dead_jobs` and `retry_dead_jobs`,
-so they need a SQL connection.
+so they need a SQL connection or the API transport described in
+[Without a database connection](#without-a-database-connection).
 
 ### Actor and tenant
 
@@ -491,8 +501,42 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 - there is no lease check on `complete`;
 - a failed job reappears when its lease ends (`retryIn` is ignored), and
   there's no heartbeat;
-- `dedupeKey`, `schedule`, `stats`, `listDead` and `retryDead` return
-  `invalid_request`.
+- `dedupeKey`, `enqueueOnce`, `schedule`, `stats`, `listDead` and
+  `retryDead` return `invalid_request`.
+
+To get the whole API without a direct connection, write wrappers for the
+module into an exposed schema with `sql.modules.jobs.api` and pass an
+`rpcTransport` over a service-role client. `createJobs` detects a transport
+and calls every module function by name, so leases, retries with backoff,
+dedupe keys, schedules, `stats`, `listDead` and `retryDead` all work:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { modules: { jobs: { api: "api" }, idempotency: { api: "api" } } },
+});
+```
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import {
+  createIdempotency,
+  createJobs,
+  rpcTransport,
+  withLease,
+} from "better-supabase/blocks/jobs";
+
+const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
+const jobs = createJobs(transport, { send_email: schema });
+const idempotency = createIdempotency(transport, { schema: "api" });
+await withLease(transport, "nightly-report", run, { schema: "api" });
+```
+
+`createIdempotency` and `withLease` call the functions in `better_supabase`
+unless you pass `schema`, which an `rpcTransport` with its own `schema`
+option ignores. Keep the wrappers service-only: the module functions are
+granted to `service_role`, and the wrappers inherit those grants. Over
+`sqlTransport`, a set-returning function such as `claim_jobs` returns only
+its first row, so pass the SQL client itself there.
 
 ## Idempotency keys
 
@@ -597,6 +641,10 @@ await inbox.process(async (message) => {
 `createInbox` from `better-supabase/blocks/inbox` is the conversation inbox
 block.
 
+To keep messages in a table your app already has, adopt it with
+`sql.modules.webhook-inbox.mode: "adopt"`; see
+[Adopting your own tables](/docs/blocks/webhooks-in#adopting-your-own-tables).
+
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A message id is unique per source
@@ -670,6 +718,9 @@ a tenant: `tenantOf(payload)` reads it from the payload, and `verify` can
 return it next to the id and payload. `list({ tenant })` shows a tenant's
 messages newest first (an integration's delivery log), and
 `purge({ tenant, olderThan: 0 })` removes them when the tenant goes.
+`purgeWebhookInbox(source, options)` runs the same purge without an inbox,
+over a service SQL connection or a service-role transport, and
+`inbox.purgeJob(options)` returns it as a job handler.
 
 ```ts
 const inbox = createWebhookInbox(postgres.admin, {

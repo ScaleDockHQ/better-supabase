@@ -611,7 +611,23 @@ export function createServer<
     authorizer: options.authorizer,
     resolve,
     supabaseFor,
-    dbFor,
+    dbFor: (auth, context, dbOptions) =>
+      dbOptions?.support
+        ? supportContextFor(
+            {
+              // SAFETY: a support context only reads `auth` back for ctx.auth.
+              auth: auth as AuthState<C, P>,
+              cookies: [],
+              headers: {},
+              requestCookies: [],
+              apply: (response) => response,
+            },
+            dbOptions.support,
+            undefined,
+            context?.tenant,
+            {},
+          ).db
+        : dbFor(auth, context),
     contextFor: (auth, contextOptions = {}) =>
       contextFor(
         {

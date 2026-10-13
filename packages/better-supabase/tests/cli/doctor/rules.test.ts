@@ -995,6 +995,107 @@ describe("audit registrations of dropped tables (BS322)", () => {
   });
 });
 
+describe("adopted tables without a mapped column (BS330)", () => {
+  const credentials = {
+    sql: {
+      modules: {
+        credentials: {
+          mode: "adopt" as const,
+          tables: { secrets: "public.integration_secrets" },
+          columns: {
+            secrets: { name: "key", tenant: "organization_id", scope: null },
+          },
+        },
+      },
+    },
+  };
+  const live = (rows: Record<string, unknown>[] | Error) => ({
+    describe: "test",
+    session: true,
+    query: <R>() =>
+      rows instanceof Error
+        ? Promise.reject(rows)
+        : Promise.resolve(rows as R[]),
+  });
+  const columns = (...names: string[]) =>
+    names.map((column) => ({
+      schema: "public",
+      name: "integration_secrets",
+      column,
+    }));
+
+  it("reports each mapped column the live table lacks", async () => {
+    const findings = await run(
+      "BS330",
+      context(
+        base,
+        { database: live(columns("provider", "organization_id", "vault_id")) },
+        credentials,
+      ),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "public.integration_secrets.key",
+      "public.integration_secrets.updated_at",
+    ]);
+    expect(findings[0]).toEqual(
+      expect.objectContaining({
+        severity: "error",
+        message: expect.stringContaining(
+          "sql.modules.credentials.columns.secrets.name",
+        ),
+      }),
+    );
+  });
+
+  it("reports a missing table, and passes a complete one, managed modules and no database", async () => {
+    expect(
+      await run("BS330", context(base, { database: live([]) }, credentials)),
+    ).toEqual([
+      expect.objectContaining({
+        target: "public.integration_secrets",
+        message: expect.stringContaining("which the database does not have"),
+      }),
+    ]);
+    expect(
+      await run(
+        "BS330",
+        context(
+          base,
+          {
+            database: live(
+              columns(
+                "provider",
+                "key",
+                "organization_id",
+                "vault_id",
+                "updated_at",
+              ),
+            ),
+          },
+          credentials,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS330",
+        context(
+          base,
+          { database: live([]) },
+          { sql: { modules: { credentials: {} } } },
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS330", context(base, {}, credentials))).toEqual([]);
+    expect(
+      await run(
+        "BS330",
+        context(base, { database: live(new Error("denied")) }, credentials),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("module event triggers (BS323)", () => {
   const modules = { sql: { modules: ["audit", "ensure-rls", "tenant"] } };
   const live = (rows: Record<string, unknown>[] | Error) => ({

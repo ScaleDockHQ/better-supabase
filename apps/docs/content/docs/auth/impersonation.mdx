@@ -70,6 +70,34 @@ the target. Ending the session (or its expiry) brings the admin back to their
 own view. Outside Next.js, `bs.support.start(auth, request)` returns the
 session and the `Set-Cookie` header to send.
 
+### Your own request context
+
+An app that owns its request context (its own `AsyncLocalStorage`, a header
+set by a gateway, or a context object built per request) can keep the
+session id there instead of in the `bs-support` cookie. Pass `sessionId` to
+read it from the request, or resolve the session yourself:
+
+```ts title="src/server.ts"
+import { supportSessions, sqlSupportStore } from "better-supabase/server";
+
+const support = supportSessions({
+  store: sqlSupportStore(postgres.admin),
+  sessionId: (request) => request.headers.get("x-support-session") ?? undefined,
+});
+
+// Anywhere the app has the admin's auth and its stored session id:
+const active = await server.support.resolve(appContext.supportSessionId, auth);
+const ctx = server.contextFor(auth, active ? { support: active } : {});
+const db = server.dbFor(auth, {}, active ? { support: active } : {});
+```
+
+`support.resolve(sessionId, auth)` runs the same checks as the cookie path: the
+session must belong to the admin in `auth`, still be running, and the
+target's claims must pass the claims schema. It returns `undefined`
+otherwise, so the admin keeps their own view. `dbFor(auth, context, { support })`
+returns the same repositories as `contextFor(auth, { support }).db`, running
+as the target over Postgres.
+
 ### What the admin can do
 
 | Policy option   | Default    | Effect                                                                                    |

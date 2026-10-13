@@ -254,6 +254,19 @@ export interface TriggerOptions<
   readonly functionSchema?: string;
 }
 
+/** Options for `topic.trigger()`. */
+export interface TopicTriggerOptions<P extends string> {
+  /**
+   * The column that fills each placeholder. Defaults to the placeholder in
+   * snake_case (`{organizationId}` reads `organization_id`).
+   */
+  readonly values?: { readonly [K in TemplateParams<P>]?: string };
+  /** Defaults to all three. */
+  readonly events?: readonly TriggerOperation[];
+  /** The broadcast event name. Defaults to the operation (`INSERT`, `UPDATE`, `DELETE`). */
+  readonly event?: string;
+}
+
 export interface RowChange<R> {
   readonly operation: "INSERT" | "UPDATE" | "DELETE";
   readonly table: string;
@@ -298,6 +311,12 @@ export interface Topic<
     table: T,
     options: TriggerOptions<M, T, P>,
   ): string;
+  /**
+   * A `create trigger` statement on `table` (`table` or `schema.table`)
+   * that calls `better_supabase.broadcast_topic()` from the
+   * `realtime-tables` module, so no function is generated per topic.
+   */
+  trigger(table: string, options?: TopicTriggerOptions<P>): string;
   subscribe(
     client: RealtimeClient,
     values: TemplateValues<P>,
@@ -314,6 +333,9 @@ export interface Topic<
 }
 
 const VALUE = /^[\w.@+=-]+$/;
+
+const snakeCase = (name: string): string =>
+  name.replaceAll(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 
 function validateValue(_name: string, value: string): string | undefined {
   return VALUE.test(value)
@@ -566,6 +588,54 @@ export function defineTopic<
         `drop trigger if exists ${triggerName} on ${target};`,
         `create trigger ${triggerName} after ${events} on ${target}`,
         `  for each row execute function ${fn}();`,
+        "",
+      ].join("\n");
+    },
+    trigger(table, trigger = {}) {
+      const [schema, relation] = table.includes(".")
+        ? [
+            table.slice(0, table.indexOf(".")),
+            table.slice(table.indexOf(".") + 1),
+          ]
+        : ["public", table];
+      // SAFETY: `values` is keyed by the template's parameters.
+      const columns = (trigger.values ?? {}) as Readonly<
+        Record<string, string | undefined>
+      >;
+      for (const key of Object.keys(columns)) {
+        if (!parsed.params.includes(key)) {
+          throw new TypeError(
+            `defineTopic(${template}).trigger: "${key}" is not a placeholder of the topic`,
+          );
+        }
+      }
+      const sqlTemplate = template.replaceAll(
+        /\{([^}]+)\}/g,
+        (_, param: string) => {
+          const column = columns[param] ?? snakeCase(param);
+          if (/[{}]/.test(column)) {
+            throw new TypeError(
+              `defineTopic(${template}).trigger: the column for {${param}} can't contain braces`,
+            );
+          }
+          return `{${column}}`;
+        },
+      );
+      const events = (trigger.events ?? ["insert", "update", "delete"]).join(
+        " or ",
+      );
+      const triggerName = sqlIdent(`bs_broadcast_${name}`);
+      const target = `${sqlIdent(schema)}.${sqlIdent(relation)}`;
+      const args = [
+        sqlString(sqlTemplate),
+        sqlString(trigger.event ?? ""),
+        ...(isPrivate ? [] : [sqlString("false")]),
+      ].join(", ");
+      return [
+        `-- better-supabase: broadcast ${schema}.${relation} changes to ${template}`,
+        `drop trigger if exists ${triggerName} on ${target};`,
+        `create trigger ${triggerName} after ${events} on ${target}`,
+        `  for each row execute function better_supabase.broadcast_topic(${args});`,
         "",
       ].join("\n");
     },

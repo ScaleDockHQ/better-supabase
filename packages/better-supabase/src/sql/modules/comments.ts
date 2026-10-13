@@ -4,7 +4,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
@@ -21,6 +21,7 @@ import {
 import {
   qualifiedTable,
   type Subject,
+  subjectAccess,
   subjectCascades,
   subjectIdMatches,
   subjectReadable,
@@ -177,7 +178,7 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
   return { table, group, member, ...(tenant !== undefined && { tenant }) };
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
   const comments = ctx.table("comments");
@@ -188,8 +189,6 @@ function build(ctx: ModuleContext): string {
   const permissions = MODULE_PERMISSIONS.comments;
   const permission = (action: keyof typeof permissions): string =>
     ctx.permission(action, permissions[action]);
-  const can = (tenant: string, action: keyof typeof permissions): string =>
-    ctx.can("tenant", tenant, permission(action));
   const maxBody = ctx.number("maxBodyLength", 10_000);
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
@@ -201,64 +200,14 @@ function build(ctx: ModuleContext): string {
     "label",
     "path",
     "readableBy",
+    "scope",
   ]);
-  type Action = "read" | "create" | "moderate";
-  const actions: ReadonlySet<string> = new Set(["read", "create", "moderate"]);
-  // options.subjects.<type>.permissions: a key per action for that subject
-  // type, in place of the module's read, create and moderate keys.
-  const overrides = subjects.map(
-    ([type, subject]): readonly [string, ReadonlyMap<string, string>] => {
-      const raw = subject.extra["permissions"];
-      const keys = new Map<string, string>();
-      if (raw === undefined) return [type, keys];
-      const where = `sql.modules.comments.options.subjects.${type}.permissions`;
-      if (!isObject(raw)) {
-        throw new TypeError(`${where} must be { read?, create?, moderate? }`);
-      }
-      for (const [key, value] of Object.entries(raw)) {
-        if (
-          !actions.has(key) ||
-          typeof value !== "string" ||
-          value.length === 0
-        ) {
-          throw new TypeError(
-            `${where}.${key}: use read, create and moderate with a permission key`,
-          );
-        }
-        keys.set(key, value);
-      }
-      return [type, keys];
-    },
-  );
-  const canOn = (tenant: string, type: string, action: Action): string => {
-    const cases = overrides.flatMap(([subjectType, keys]) => {
-      const key = keys.get(action);
-      return key === undefined
-        ? []
-        : [`when ${sqlString(subjectType)} then ${sqlString(key)}`];
-    });
-    return cases.length === 0
-      ? can(tenant, action)
-      : `coalesce(better_supabase.can('tenant', ${tenant}, case ${type} ${cases.join(" ")} else ${permission(action)} end), false)`;
-  };
-  // The policy form of canOn: one tenant_ids_with set per permission key,
-  // each computed once per statement, instead of a can() call per row.
-  const memberOn = (tenant: string, type: string, action: Action): string => {
-    const keyed = overrides.flatMap(([subjectType, keys]) => {
-      const key = keys.get(action);
-      return key === undefined ? [] : [[subjectType, key] as const];
-    });
-    if (keyed.length === 0) return tenantIn(tenant, permission(action));
-    const branches = keyed.map(
-      ([subjectType, key]) =>
-        `(${type} = ${sqlString(subjectType)} and ${tenantIn(tenant, sqlString(key))})`,
-    );
-    const listed = keyed.map(([subjectType]) => sqlString(subjectType));
-    branches.push(
-      `(${type} not in (${listed.join(", ")}) and ${tenantIn(tenant, permission(action))})`,
-    );
-    return `(${branches.join(" or ")})`;
-  };
+  const access = subjectAccess(ctx, {
+    subjects,
+    actions: ["read", "create", "moderate"],
+    permission,
+    provider: layout.accessProvider,
+  });
   const readable = subjectReadable(subjects, {
     type: "subject_type",
     id: "subject_id",
@@ -288,20 +237,47 @@ function build(ctx: ModuleContext): string {
   );
   // options.subjects.<type>.label, path and readableBy: SQL on the subject
   // row {row} (and the mentioned user {user} for readableBy).
+  // readableBy also takes { sql, enforce }: enforce applies it to the read
+  // policy too, so a member sees only the comments on rows it lets them read.
   const expression = (
     type: string,
     subject: Subject,
     key: string,
   ): string | undefined => {
-    const value = subject.extra[key];
-    if (value === undefined) return undefined;
+    const where = `sql.modules.comments.options.subjects.${type}.${key}`;
+    const raw = subject.extra[key];
+    if (raw !== undefined && key === "readableBy" && isObject(raw)) {
+      for (const name of Object.keys(raw)) {
+        if (name !== "sql" && name !== "enforce") {
+          throw new TypeError(
+            `${where}.${name} is not an option. Options: sql, enforce`,
+          );
+        }
+      }
+      if (raw["enforce"] !== undefined && typeof raw["enforce"] !== "boolean")
+        throw new TypeError(`${where}.enforce must be true or false`);
+    }
+    const object = key === "readableBy" && isObject(raw);
+    const value = object ? raw["sql"] : raw;
+    if (value === undefined && !object) return undefined;
     if (typeof value !== "string" || !value.includes("{row}")) {
-      throw new TypeError(
-        `sql.modules.comments.options.subjects.${type}.${key} must be SQL on the subject row {row}`,
-      );
+      throw new TypeError(`${where} must be SQL on the subject row {row}`);
     }
     return value.replaceAll("{row}", "s");
   };
+  const enforcedCases = subjects.flatMap(([type, subject]) => {
+    const raw = subject.extra["readableBy"];
+    const sql = expression(type, subject, "readableBy");
+    return sql === undefined || !isObject(raw) || raw["enforce"] !== true
+      ? []
+      : [
+          `when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `${comments}.${c("subjectId")}::text`)} and (${sql.replaceAll("{user}", "(select auth.uid())")}))`,
+        ];
+  });
+  const readableByCheck =
+    enforcedCases.length === 0
+      ? ""
+      : `\n    and case ${c("subjectType")} ${enforcedCases.join(" ")} else true end`;
   for (const [type, subject] of subjects)
     for (const key of ["label", "path", "readableBy"])
       expression(type, subject, key);
@@ -321,16 +297,7 @@ function build(ctx: ModuleContext): string {
   // A mentioned member must be able to read comments on the subject: the
   // subject's read key, its permission and readableBy when it sets them.
   const mentionable = (user: string): string => {
-    const keyCases = overrides.flatMap(([type, keys]) => {
-      const key = keys.get("read");
-      return key === undefined
-        ? []
-        : [`when ${sqlString(type)} then ${sqlString(key)}`];
-    });
-    const key =
-      keyCases.length === 0
-        ? permission("read")
-        : `case new.${c("subjectType")} ${keyCases.join(" ")} else ${permission("read")} end`;
+    const key = access.keyFor(`new.${c("subjectType")}`, "read");
     const subjectCases = subjects.flatMap(([type, subject]) => {
       const checks: string[] = [];
       if (subject.permission !== undefined) {
@@ -471,17 +438,17 @@ $$;
 
 drop policy if exists "comments_read" on ${comments};
 create policy "comments_read" on ${comments} for select to authenticated
-  using (${memberOn(c("tenant"), c("subjectType"), "read")}${subjectCheck});
+  using (${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "read")}${subjectCheck}${readableByCheck});
 drop policy if exists "comments_insert" on ${comments};
 create policy "comments_insert" on ${comments} for insert to authenticated
   with check (
     ${c("author")} = (select auth.uid())
-    and ${canOn(c("tenant"), c("subjectType"), "create")}${subjectCheck}
+    and ${access.canOn(c("tenant"), c("subjectType"), c("subjectId"), "create")}${subjectCheck}
   );
 drop policy if exists "comments_update" on ${comments};
 create policy "comments_update" on ${comments} for update to authenticated
-  using (${c("author")} = (select auth.uid()) or ${memberOn(c("tenant"), c("subjectType"), "moderate")})
-  with check (${c("author")} = (select auth.uid()) or ${memberOn(c("tenant"), c("subjectType"), "moderate")});
+  using (${c("author")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "moderate")})
+  with check (${c("author")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "moderate")});
 
 -- Keeps mentions to distinct members other than the author, a reply on its
 -- parent's subject, and edited_at; a deleted comment keeps no body.

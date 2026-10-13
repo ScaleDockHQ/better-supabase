@@ -111,6 +111,7 @@ export const MODULE_PERMISSIONS = {
   "data-lifecycle": {
     export: "organization.export",
     delete: "organization.delete",
+    cancelDelete: "organization.delete",
   },
   attachments: {
     read: "attachments.read",
@@ -218,7 +219,11 @@ export const MODULE_PERMISSION_SCOPES: {
     activity: "tenant",
   },
   attachments: { read: "tenant", upload: "tenant", manage: "tenant" },
-  "data-lifecycle": { export: "tenant", delete: "tenant" },
+  "data-lifecycle": {
+    export: "tenant",
+    delete: "tenant",
+    cancelDelete: "tenant",
+  },
   sso: { manage: "tenant" },
   onboarding: { read: "tenant", complete: "tenant" },
   announcements: { manage: "platform" },

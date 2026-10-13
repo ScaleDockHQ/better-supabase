@@ -10,6 +10,7 @@ import {
   type CookieWrite,
   clearSessionAtScopes,
   DEFAULT_SESSION_ENCODING,
+  pruneSessionChunks,
   readSession,
   sessionEncoding,
   type StoredSession,
@@ -104,6 +105,36 @@ describe("session encoding", () => {
     const after = applyCookieWrites(before, writes);
     expect(after.map((cookie) => cookie.name)).toEqual([NAME]);
     expect(readSession(after, NAME)?.user).toBeUndefined();
+  });
+
+  it("reads the longest chunk prefix that parses and prunes the rest", () => {
+    const big = session({
+      user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
+    });
+    const chunks = applyCookieWrites([], writeSession([], NAME, big));
+    const count = chunks.length;
+    expect(count).toBeGreaterThan(1);
+    const leftover = [
+      ...chunks,
+      { name: `${NAME}.${count}`, value: "stale" },
+      { name: `${NAME}.${count + 1}`, value: "stale" },
+    ];
+    expect(readSession(leftover, NAME)?.user).toEqual(big.user);
+    expect(
+      pruneSessionChunks(leftover, NAME).map((write) => write.name),
+    ).toEqual([`${NAME}.${count}`, `${NAME}.${count + 1}`]);
+    expect(pruneSessionChunks(chunks, NAME)).toEqual([]);
+    expect(
+      pruneSessionChunks([{ name: `${NAME}.0`, value: "x" }], NAME),
+    ).toEqual([]);
+
+    const whole = applyCookieWrites([], writeSession([], NAME, session()));
+    expect(
+      pruneSessionChunks(
+        [...whole, { name: `${NAME}.0`, value: "old" }],
+        NAME,
+      ).map((write) => [write.name, write.options.maxAge]),
+    ).toEqual([[`${NAME}.0`, 0]]);
   });
 
   it("is read by @supabase/ssr with encode: tokens-only", async () => {

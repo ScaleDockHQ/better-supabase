@@ -1,6 +1,8 @@
 import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
+import type { AuthOutageEvent } from "../../core/events.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 import {
@@ -70,6 +72,43 @@ export interface SessionEntryConfig {
    * list the current scope: that clears the live session.
    */
   readonly cookieScopes?: readonly CookieScope[];
+  /**
+   * Called when a refresh failed because the Auth server was unreachable,
+   * timed out or answered 5xx or 429. When the access token couldn't be
+   * kept (`event.kept` is false), a returned `Response` answers the request
+   * instead of the handler, such as a 503 with `Retry-After`. A throw is
+   * logged and ignored.
+   */
+  readonly onAuthOutage?: AuthOutageHook;
+}
+
+/** `onAuthOutage` on the session entry and the Next.js proxy. */
+export type AuthOutageHook = (
+  event: AuthOutageEvent,
+  request: Request,
+) => Response | undefined | void | Promise<Response | undefined | void>;
+
+/**
+ * Runs `hook` for a resolution with an outage and returns its response when
+ * the session couldn't be kept.
+ */
+export async function outageResponse(
+  hook: AuthOutageHook | undefined,
+  resolution: AuthResolution,
+  request: Request,
+  logger: Logger,
+): Promise<Response | undefined> {
+  const outage = resolution.outage;
+  if (!hook || !outage) return;
+  try {
+    const response = await hook(outage, request);
+    return outage.kept || !(response instanceof Response)
+      ? undefined
+      : response;
+  } catch (cause) {
+    logger.warn("onAuthOutage threw", { cause });
+    return;
+  }
 }
 
 /** Appends `Max-Age=0` writes for the session cookie at the old scopes, and the no-store headers. */
@@ -135,6 +174,13 @@ export function withSession<
           ...(checkSession ? { checkSession } : {}),
           ...(config.encode === undefined ? {} : { encode: config.encode }),
         });
+        const outage = await outageResponse(
+          config.onAuthOutage,
+          session,
+          request,
+          core.events.logger,
+        );
+        if (outage) return session.apply(outage);
         try {
           const response = yield { session };
           const applied = session.apply(response);

@@ -365,6 +365,69 @@ describe.skipIf(!live)("comments", () => {
     }
   });
 
+  it("hides comments on rows an enforced readableBy refuses", async () => {
+    const s = await BlockSession.open(pool);
+    const table = `public.bs_test_tasks_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.rows(
+        `create table ${table} (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           owner_id uuid,
+           private boolean not null default false
+         );
+         alter table ${table} enable row level security;
+         grant select on ${table} to authenticated;
+         create policy "read" on ${table} for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      await s.install(["organizations", "comments"], {
+        modules: {
+          comments: {
+            options: {
+              subjects: {
+                task: {
+                  table,
+                  idType: "uuid",
+                  readableBy: {
+                    sql: "not {row}.private or {row}.owner_id = {user}",
+                    enforce: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const tasks = await s.rows<{ id: string }>(
+        `insert into ${table} (organization_id, owner_id, private) values ($1, $2, true), ($1, $2, false) returning id`,
+        [organization, owner.id],
+      );
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+      await s.asRole(owner);
+      for (const task of tasks) {
+        await comments
+          .create({
+            organizationId: organization,
+            subjectType: "task",
+            subjectId: task.id,
+            body: "Checked",
+          })
+          .orThrow();
+      }
+      const visible = async (): Promise<number> =>
+        s.value<number>("(select count(*)::int from better_supabase.comments)");
+      expect(await visible()).toBe(2);
+      await s.asRole(member);
+      expect(await visible()).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("expands group mentions and keeps them to readers", async () => {
     const s = await BlockSession.open(pool);
     const teams = `public.bs_test_team_members_${crypto.randomUUID().slice(0, 8)}`;

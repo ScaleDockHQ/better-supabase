@@ -736,3 +736,20 @@ describe("sqlSecretStore", () => {
     ).rejects.toThrow("the previous secret must keep signing");
   });
 });
+
+describe("purge", () => {
+  it("calls purge_webhook_deliveries with an interval and returns the count", async () => {
+    const block = fakeBlock([], { purge_webhook_deliveries: () => 3 });
+    const webhooks = createWebhooks({ transport: block.transport });
+    expect(
+      await webhooks
+        .purge({ olderThan: 86_400, includeDead: true, batch: 50 })
+        .orThrow(),
+    ).toBe(3);
+    await webhooks.purgeJob()({}, {} as never, new AbortController().signal);
+    expect(block.calls.map((call) => call.args)).toEqual([
+      { older_than: "86400 seconds", include_dead: true, batch: 50 },
+      { older_than: undefined, include_dead: undefined, batch: undefined },
+    ]);
+  });
+});

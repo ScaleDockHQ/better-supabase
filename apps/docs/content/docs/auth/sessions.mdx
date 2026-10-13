@@ -28,8 +28,16 @@ const writes = writeSession(cookies, name, nextSession); // or null to sign out
 ```
 
 `writeSession` returns every cookie to set, including expiries for chunks
-the new value no longer needs. Chunks left over from a partial write (a mix
-of two generations) read as no session rather than as a broken one.
+the new value no longer needs. When the chunks don't parse together, such
+as a leftover `.2` from a longer session next to a shorter rewrite,
+`readSession` uses the longest prefix of chunks that parses, and only reads
+no session when none does.
+
+`pruneSessionChunks(cookies, name)` returns the `Max-Age=0` writes for
+chunks the readable session doesn't use. `resolveAuth` with `refresh` sends
+them on every response that keeps the session, so stale chunks are gone
+before the next refresh; set `pruneChunks: false` (in `auth` on the server)
+to only prune when the session is rewritten.
 
 Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
 `resolution.apply(response)` does both.

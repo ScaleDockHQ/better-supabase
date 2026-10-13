@@ -29,7 +29,11 @@ export type {
 export type { ModuleExtension, ModulePermissionKey } from "./introspect.ts";
 export type { ModuleIdType } from "./context.ts";
 export type { ModuleTopic } from "./render.ts";
-export { adoptedColumnProblems } from "./adopted-columns.ts";
+export {
+  adoptedColumnProblems,
+  type AdoptedTable,
+  adoptedTables,
+} from "./adopted-columns.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export {

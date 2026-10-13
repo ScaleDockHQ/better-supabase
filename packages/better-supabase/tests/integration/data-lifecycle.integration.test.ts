@@ -465,6 +465,42 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("lets a member holding the cancelDelete permission cancel while the tenant is disabled", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "data-lifecycle"], {
+        modules: {
+          "data-lifecycle": { permissions: { cancelDelete: "members.read" } },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const viewer = await s.user("viewer");
+      const organization = await s.organization(owner, { member, viewer });
+      const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+
+      await s.asRole(owner);
+      await lifecycle
+        .requestOrganizationDeletion(organization, { grace: "P7D" })
+        .orThrow();
+
+      await s.asRole(viewer);
+      const forbidden =
+        await lifecycle.cancelOrganizationDeletion(organization);
+      expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
+        "ORGANIZATION_DELETION_FORBIDDEN",
+      );
+
+      await s.asRole(member);
+      expect(
+        (await lifecycle.cancelOrganizationDeletion(organization).orThrow())
+          ?.cancelledAt,
+      ).toBeDefined();
+    } finally {
+      await s.close();
+    }
+  });
+
   it("disables a tenant for the grace period, cancels and purges", async () => {
     const s = await BlockSession.open(pool);
     try {

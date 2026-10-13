@@ -22,6 +22,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`WebhookSigner`](#webhooksigner)                       | `standardWebhooks()`, `hmacSigner(options)`                 | `createWebhooks({ signer })`                                            |
 | [`WebhookTransport`](#webhooktransport)                 | `fetchTransport({ allowUrl })`                              | `createWebhooks({ http })`                                              |
 | [`WebhookSecretStore`](#webhooksecretstore)             | `sqlSecretStore(transport)`                                 | `createWebhooks({ secrets })`                                           |
+| [`IncomingDestination`](#incomingdestination)           | `inboxDestination(sql)`, `jobsDestination(jobs, options)`   | `createIncomingWebhooks(sql, { destination })`                          |
 | [`StreamStore`](#streamstore)                           | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`           |
 | [`CredentialProvider`](#credentialprovider)             | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                         |
 | [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                   | `authorization` in the config                                           |
@@ -173,6 +174,16 @@ Where destination signing secrets live. It has `apiVersion: 1`,
 `secrets(endpointId)`, which returns the live secrets newest first, and an
 optional `rotate(endpointId, { overlap, secret })` that returns the new
 secret and keeps the previous ones live for `overlap`.
+
+## IncomingDestination
+
+Where [incoming webhooks](/docs/blocks/webhooks-in#sending-deliveries-to-a-queue)
+put a verified delivery. It has `apiVersion: 1`, a `name` and
+`deliver(delivery)`, which gets the endpoint's id, tenant and metadata, the
+source, the message id, the type, the payload and the kept headers. It
+returns `{ id, duplicate }`: a repeated endpoint id and message id must
+return `duplicate: true`, and `receive` answers it with `200`. Throw to
+answer `500` so the sender retries.
 
 ## StreamStore
 

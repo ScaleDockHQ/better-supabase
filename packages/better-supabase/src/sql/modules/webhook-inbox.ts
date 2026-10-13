@@ -1,50 +1,53 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleContext } from "../context.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
-export const WEBHOOK_INBOX: SqlModule = {
-  name: "webhook-inbox",
-  title: "Webhook inbox",
-  description:
-    "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
-  requires: [],
-  target: "schema",
-  version: 5,
-  upgrades: [
-    {
-      from: 1,
-      description:
-        "Messages record a tenant and a checkpoint; receive_webhook and purge_webhooks take a tenant, and checkpoint_webhook and list_webhooks are new.",
-      sql: () =>
-        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);\ndrop function if exists better_supabase.purge_webhooks(interval, boolean, integer);",
-    },
-    {
-      from: 2,
-      description:
-        "receive_webhook takes the source's max_attempts; claims mark a message whose last attempt lost its worker as dead.",
-      sql: () =>
-        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);",
-    },
-    {
-      from: 3,
-      description:
-        "Message ids are unique per source and tenant, so two tenants of one provider can send the same id.",
-      sql: () => "",
-    },
-    {
-      from: 4,
-      description:
-        "complete_webhook, fail_webhook and checkpoint_webhook take the claimed attempt as the lease token, extend_webhook renews a lease, and purge_webhooks has indexes.",
-      sql: () =>
-        [
-          "drop function if exists better_supabase.complete_webhook(bigint, text);",
-          "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);",
-          "drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);",
-        ].join("\n"),
-    },
-  ],
-  sql: `${SCHEMA}
+const MESSAGE_COLUMNS = {
+  id: "id",
+  source: "source",
+  messageId: "message_id",
+  eventType: "event_type",
+  payload: "payload",
+  headers: "headers",
+  status: "status",
+  attempts: "attempts",
+  maxAttempts: "max_attempts",
+  availableAt: "available_at",
+  lockedBy: "locked_by",
+  lockedUntil: "locked_until",
+  lastError: "last_error",
+  receivedAt: "received_at",
+  processedAt: "processed_at",
+  tenant: "tenant",
+  checkpoint: "checkpoint",
+} as const;
 
+type MessageColumn = keyof typeof MESSAGE_COLUMNS;
+
+/** The row `claim_webhooks` and `list_webhooks` return, in the managed table's order. */
+const ROW: readonly (readonly [MessageColumn, string, string])[] = [
+  ["id", "id", "bigint"],
+  ["source", "source", "text"],
+  ["messageId", "message_id", "text"],
+  ["eventType", "event_type", "text"],
+  ["payload", "payload", "jsonb"],
+  ["headers", "headers", "jsonb"],
+  ["status", "status", "text"],
+  ["attempts", "attempts", "integer"],
+  ["maxAttempts", "max_attempts", "integer"],
+  ["availableAt", "available_at", "timestamptz"],
+  ["lockedBy", "locked_by", "text"],
+  ["lockedUntil", "locked_until", "timestamptz"],
+  ["lastError", "last_error", "text"],
+  ["receivedAt", "received_at", "timestamptz"],
+  ["processedAt", "processed_at", "timestamptz"],
+  ["tenant", "tenant", "text"],
+  ["checkpoint", "checkpoint", "jsonb"],
+];
+
+const TABLE = `
 create table if not exists better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
@@ -94,7 +97,120 @@ create index if not exists webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 ${lockTable("better_supabase.webhook_inbox")}
+`;
 
+function webhookInboxSql(ctx: ModuleContext): string {
+  const managed = ctx.manages;
+  const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
+  if (managed && renamed.length > 0) {
+    throw new TypeError(
+      `sql.modules.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
+    );
+  }
+  const t = managed ? "better_supabase.webhook_inbox" : ctx.table("messages");
+  // The managed table keeps its bare column names, so its SQL stays as before.
+  const c = (logical: MessageColumn): string =>
+    managed ? MESSAGE_COLUMNS[logical] : ctx.col("messages", logical);
+  const has = (logical: MessageColumn): boolean =>
+    managed || ctx.has("messages", logical);
+  const set = (
+    pairs: readonly (readonly [MessageColumn, string])[],
+    separator = ", ",
+  ): string =>
+    pairs
+      .filter(([logical]) => has(logical))
+      .map(([logical, value]) => `${c(logical)} = ${value}`)
+      .join(separator);
+  // An adopted tenant column can be uuid or bigint; the functions take text.
+  const tenantText = (alias: string) =>
+    managed ? `${alias}.${c("tenant")}` : `${alias}.${c("tenant")}::text`;
+  const tenantIs = (alias: string, value: string) =>
+    has("tenant")
+      ? `${tenantText(alias)} is not distinct from ${value}`
+      : `${value} is null`;
+  const rowType = managed
+    ? `setof ${t}`
+    : `table (${ROW.map(([, name, type]) => `${name} ${type}`).join(", ")})`;
+  // A column the adopted table lacks reads as the managed table's default.
+  const missing: Partial<Record<MessageColumn, string>> = {
+    headers: "'{}'::jsonb",
+    maxAttempts: "8",
+    checkpoint: "'{}'::jsonb",
+  };
+  const rowOf = (alias: string) =>
+    managed
+      ? `${alias}.*`
+      : ROW.map(([logical, , type]) =>
+          has(logical)
+            ? logical === "tenant"
+              ? tenantText(alias)
+              : `${alias}.${c(logical)}`
+            : (missing[logical] ?? `null::${type}`),
+        ).join(", ");
+  const maxAttempts = (alias: string) =>
+    has("maxAttempts") ? `${alias}${c("maxAttempts")}` : "8";
+  const inserted = (
+    [
+      ["source", "source"],
+      ["messageId", "message_id"],
+      ["eventType", "event_type"],
+      ["payload", "payload"],
+      ["headers", "headers"],
+      [
+        "tenant",
+        managed
+          ? "receive_webhook.tenant"
+          : `(jsonb_populate_record(null::${t}, jsonb_build_object(${sqlString(c("tenant").replaceAll('"', ""))}, receive_webhook.tenant))).${c("tenant")}`,
+      ],
+      ["maxAttempts", "greatest(coalesce(receive_webhook.max_attempts, 8), 1)"],
+    ] as const satisfies readonly (readonly [MessageColumn, string])[]
+  ).filter(([logical]) => has(logical));
+  const insert = `insert into ${t} (${inserted.map(([logical]) => c(logical)).join(", ")})
+  values (${inserted.map(([, value]) => value).join(", ")})`;
+  const receive = managed
+    ? `  ${insert}
+  on conflict on constraint webhook_inbox_source_tenant_message_id_key do nothing
+  returning webhook_inbox.id into inbox_id;
+  if inbox_id is not null then
+    return query select inbox_id, false;
+    return;
+  end if;
+  return query
+    select w.id, true from better_supabase.webhook_inbox w
+    where w.source = receive_webhook.source
+      and w.tenant is not distinct from receive_webhook.tenant
+      and w.message_id = receive_webhook.message_id;`
+    : `  -- The adopted table's unique constraint is unknown, so a lock per
+  -- message serializes the lookup and the insert.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('webhook-inbox'), pg_catalog.hashtext(concat_ws(':', source, receive_webhook.tenant, message_id)));
+  select w.${c("id")} into inbox_id from ${t} w
+  where w.${c("source")} = receive_webhook.source
+    and ${tenantIs("w", "receive_webhook.tenant")}
+    and w.${c("messageId")} = receive_webhook.message_id
+  limit 1;
+  if inbox_id is not null then
+    return query select inbox_id, true;
+    return;
+  end if;
+  ${insert}
+  returning ${c("id")} into inbox_id;
+  return query select inbox_id, false;`;
+  const leased = `${c("id")} = inbox_id and ${c("lockedBy")} = worker and ${c("status")} = 'processing'`;
+  const attemptIs = `${c("attempts")} = attempt`;
+  const checkpoint = has("checkpoint")
+    ? `set ${c("checkpoint")} = ${c("checkpoint")} || coalesce(fields, '{}')`
+    : `set ${c("lockedBy")} = ${c("lockedBy")}`;
+  const tenantFilter = (alias: string, value: string) =>
+    has("tenant") ? `${tenantText(alias)} = ${value}` : "false";
+  const adoptedDrops = managed
+    ? ""
+    : `
+-- claim_webhooks and list_webhooks return a table over an adopted table, not
+-- the managed table's row type.
+drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
+drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
+  return `${SCHEMA}
+${managed ? TABLE : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
@@ -102,7 +218,7 @@ drop function if exists better_supabase.purge_webhooks(interval, boolean, intege
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 drop function if exists better_supabase.complete_webhook(bigint, text);
 drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
+drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);${adoptedDrops}
 
 -- duplicate = true when the source and tenant saw the message id before (the sender retried).
 -- max_attempts is the source's limit, 8 when null.
@@ -123,19 +239,7 @@ as $$
 declare
   inbox_id bigint;
 begin
-  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant, max_attempts)
-  values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
-  on conflict on constraint webhook_inbox_source_tenant_message_id_key do nothing
-  returning webhook_inbox.id into inbox_id;
-  if inbox_id is not null then
-    return query select inbox_id, false;
-    return;
-  end if;
-  return query
-    select w.id, true from better_supabase.webhook_inbox w
-    where w.source = receive_webhook.source
-      and w.tenant is not distinct from receive_webhook.tenant
-      and w.message_id = receive_webhook.message_id;
+${receive}
 end;
 $$;
 
@@ -147,30 +251,35 @@ create or replace function better_supabase.claim_webhooks(
   batch integer default 10,
   lease interval default '5 minutes'
 )
-returns setof better_supabase.webhook_inbox
+returns ${rowType}
 language sql
 set search_path = ''
 as $$
-  update better_supabase.webhook_inbox d
-  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
-  where d.source = claim_webhooks.source and d.status = 'processing'
-    and d.locked_until < now() and d.attempts >= d.max_attempts;
+  update ${t} d
+  set ${set([
+    ["status", "'dead'"],
+    ["lastError", "'The lease ran out on the last attempt'"],
+    ["lockedBy", "null"],
+    ["lockedUntil", "null"],
+  ])}
+  where d.${c("source")} = claim_webhooks.source and d.${c("status")} = 'processing'
+    and d.${c("lockedUntil")} < now() and d.${c("attempts")} >= ${maxAttempts("d.")};
   with next as materialized (
-    select c.id from better_supabase.webhook_inbox c
-    where c.source = claim_webhooks.source
+    select c.${c("id")} from ${t} c
+    where c.${c("source")} = claim_webhooks.source
       and (
-        (c.status = 'pending' and c.available_at <= now())
-        or (c.status = 'processing' and c.locked_until < now())
+        (c.${c("status")} = 'pending' and c.${c("availableAt")} <= now())
+        or (c.${c("status")} = 'processing' and c.${c("lockedUntil")} < now())
       )
-    order by c.available_at, c.id
+    order by c.${c("availableAt")}, c.${c("id")}
     for update skip locked
     limit batch
   )
-  update better_supabase.webhook_inbox w
-  set status = 'processing', attempts = w.attempts + 1, locked_by = worker, locked_until = now() + lease
+  update ${t} w
+  set ${c("status")} = 'processing', ${c("attempts")} = w.${c("attempts")} + 1, ${c("lockedBy")} = worker, ${c("lockedUntil")} = now() + lease
   from next
-  where w.id = next.id
-  returning w.*
+  where w.${c("id")} = next.${c("id")}
+  returning ${rowOf("w")}
 $$;
 
 -- attempt is the attempts value the claim returned: it is the lease token,
@@ -183,10 +292,16 @@ language sql
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.webhook_inbox
-    set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
-    where id = inbox_id and locked_by = worker and status = 'processing'
-      and (attempt is null or attempts = attempt)
+    update ${t}
+    set ${set([
+      ["status", "'processed'"],
+      ["processedAt", "now()"],
+      ["lockedBy", "null"],
+      ["lockedUntil", "null"],
+      ["lastError", "null"],
+    ])}
+    where ${leased}
+      and (attempt is null or ${attemptIs})
     returning 1
   )
   select exists (select 1 from done)
@@ -203,15 +318,23 @@ returns text
 language sql
 set search_path = ''
 as $$
-  update better_supabase.webhook_inbox
-  set status = case when attempts >= max_attempts then 'dead' else 'pending' end,
-      available_at = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts))),
-      last_error = left(error, 4000),
-      locked_by = null,
-      locked_until = null
-  where id = inbox_id and locked_by = worker and status = 'processing'
-    and (attempt is null or attempts = attempt)
-  returning status
+  update ${t}
+  set ${c("status")} = case when ${c("attempts")} >= ${maxAttempts("")} then 'dead' else 'pending' end,
+      ${set(
+        [
+          [
+            "availableAt",
+            `now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, ${c("attempts")})))`,
+          ],
+          ["lastError", "left(error, 4000)"],
+        ],
+        ",\n      ",
+      )},
+      ${c("lockedBy")} = null,
+      ${c("lockedUntil")} = null
+  where ${leased}
+    and (attempt is null or ${attemptIs})
+  returning ${c("status")}
 $$;
 
 -- Renews the lease of a message the worker still holds for lease more, and
@@ -226,10 +349,10 @@ returns double precision
 language sql
 set search_path = ''
 as $$
-  update better_supabase.webhook_inbox
-  set locked_until = now() + lease
-  where id = inbox_id and locked_by = worker and status = 'processing'
-    and attempts = attempt
+  update ${t}
+  set ${c("lockedUntil")} = now() + lease
+  where ${leased}
+    and ${attemptIs}
   returning extract(epoch from lease)::double precision
 $$;
 
@@ -241,10 +364,10 @@ language sql
 set search_path = ''
 as $$
   with saved as (
-    update better_supabase.webhook_inbox
-    set checkpoint = checkpoint || coalesce(fields, '{}')
-    where id = inbox_id and locked_by = worker and status = 'processing'
-      and (attempt is null or attempts = attempt)
+    update ${t}
+    ${checkpoint}
+    where ${leased}
+      and (attempt is null or ${attemptIs})
     returning 1
   )
   select exists (select 1 from saved)
@@ -257,16 +380,16 @@ create or replace function better_supabase.list_webhooks(
   for_status text default null,
   max_rows integer default 100
 )
-returns setof better_supabase.webhook_inbox
+returns ${rowType}
 language sql
 stable
 set search_path = ''
 as $$
-  select w.* from better_supabase.webhook_inbox w
-  where w.tenant = for_tenant
-    and (for_source is null or w.source = for_source)
-    and (for_status is null or w.status = for_status)
-  order by w.received_at desc, w.id desc
+  select ${rowOf("w")} from ${t} w
+  where ${tenantFilter("w", "for_tenant")}
+    and (for_source is null or w.${c("source")} = for_source)
+    and (for_status is null or w.${c("status")} = for_status)
+  order by w.${c("receivedAt")} desc, w.${c("id")} desc
   limit least(greatest(max_rows, 1), 1000)
 $$;
 
@@ -287,13 +410,13 @@ language sql
 set search_path = ''
 as $$
   with purged as (
-    delete from better_supabase.webhook_inbox
-    where id in (
-      select w.id from better_supabase.webhook_inbox w
-      where ((w.status = 'processed' and w.processed_at < now() - older_than)
-        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than))
-        and (for_tenant is null or w.tenant = for_tenant)
-      order by w.id
+    delete from ${t}
+    where ${c("id")} in (
+      select w.${c("id")} from ${t} w
+      where ((w.${c("status")} = 'processed' and ${has("processedAt") ? `w.${c("processedAt")}` : `w.${c("receivedAt")}`} < now() - older_than)
+        or (include_dead and w.${c("status")} = 'dead' and w.${c("receivedAt")} < now() - older_than))
+        and (for_tenant is null or ${tenantFilter("w", "for_tenant")})
+      order by w.${c("id")}
       limit batch
     )
     returning 1
@@ -310,5 +433,73 @@ ${serviceOnly([
   "checkpoint_webhook(bigint, text, jsonb, integer)",
   "list_webhooks(text, text, text, integer)",
   "purge_webhooks(interval, boolean, integer, text)",
-])}`,
+])}`;
+}
+
+export const WEBHOOK_INBOX: ModuleDefinition = {
+  name: "webhook-inbox",
+  title: "Webhook inbox",
+  description:
+    "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.",
+  requires: [],
+  target: "schema",
+  modes: ["managed", "adopt"],
+  names: {
+    tables: {
+      messages: {
+        name: "webhook_inbox",
+        columns: MESSAGE_COLUMNS,
+        optional: [
+          "eventType",
+          "headers",
+          "maxAttempts",
+          "lastError",
+          "processedAt",
+          "tenant",
+          "checkpoint",
+        ],
+      },
+    },
+  },
+  version: 6,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Messages record a tenant and a checkpoint; receive_webhook and purge_webhooks take a tenant, and checkpoint_webhook and list_webhooks are new.",
+      sql: () =>
+        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);\ndrop function if exists better_supabase.purge_webhooks(interval, boolean, integer);",
+    },
+    {
+      from: 2,
+      description:
+        "receive_webhook takes the source's max_attempts; claims mark a message whose last attempt lost its worker as dead.",
+      sql: () =>
+        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);",
+    },
+    {
+      from: 3,
+      description:
+        "Message ids are unique per source and tenant, so two tenants of one provider can send the same id.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "complete_webhook, fail_webhook and checkpoint_webhook take the claimed attempt as the lease token, extend_webhook renews a lease, and purge_webhooks has indexes.",
+      sql: () =>
+        [
+          "drop function if exists better_supabase.complete_webhook(bigint, text);",
+          "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);",
+          "drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);",
+        ].join("\n"),
+    },
+    {
+      from: 5,
+      description:
+        "Adopt mode stores messages in an app's table; the functions stay in better_supabase.",
+      sql: () => "",
+    },
+  ],
+  build: webhookInboxSql,
 };

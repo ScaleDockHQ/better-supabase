@@ -1,5 +1,5 @@
--- better-supabase module: jobs (0.5.1)
--- @bs-module jobs@6 managed
+-- better-supabase module: jobs (0.8.0)
+-- @bs-module jobs@7 managed
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ drop function if exists better_supabase.claim_due_schedules(integer, integer);
 create extension if not exists pgmq;
 
 -- Deduplicated enqueues look the key up under an advisory lock, so each
--- queue table gets a partial index on it.
+-- queue table and its archive (enqueue_job_once) get a partial index on it.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -41,6 +41,11 @@ begin
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
     'q_' || queue
+  );
+  execute format(
+    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
+    'a_' || queue || '_dedupe_idx',
+    'a_' || queue
   );
 end;
 $$;
@@ -96,6 +101,42 @@ begin
       greatest(delay, 0)
     )
   );
+end;
+$$;
+
+-- Enqueues once per dedupe_key: while a message with the key is waiting,
+-- running or still archived (until purge_job_archive removes it), returns
+-- its id with duplicate true instead.
+create or replace function better_supabase.enqueue_job_once(
+  queue text,
+  payload jsonb,
+  dedupe_key text,
+  delay integer default 0,
+  max_attempts integer default 5
+)
+returns table (id bigint, duplicate boolean)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  existing bigint;
+begin
+  if dedupe_key is null then
+    raise exception 'enqueue_job_once needs a dedupe_key' using errcode = '22004';
+  end if;
+  perform better_supabase.ensure_job_queue(queue);
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
+  execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 union all select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue, 'a_' || queue)
+    into existing using dedupe_key;
+  if existing is not null then
+    id := existing;
+    duplicate := true;
+  else
+    id := better_supabase.enqueue_job(queue, payload, delay, max_attempts, dedupe_key);
+    duplicate := false;
+  end if;
+  return next;
 end;
 $$;
 
@@ -446,6 +487,8 @@ revoke execute on function better_supabase.ensure_job_queue(text) from public, a
 grant execute on function better_supabase.ensure_job_queue(text) to service_role;
 revoke execute on function better_supabase.enqueue_job(text, jsonb, integer, integer, text, boolean) from public, anon, authenticated;
 grant execute on function better_supabase.enqueue_job(text, jsonb, integer, integer, text, boolean) to service_role;
+revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) from public, anon, authenticated;
+grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;

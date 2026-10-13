@@ -1,16 +1,20 @@
 import { Pool, type PoolClient } from "pg";
+import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
-import { createWebhookInbox } from "../../src/blocks/jobs/index.ts";
+import { createJobs, createWebhookInbox } from "../../src/blocks/jobs/index.ts";
 import {
   createIncomingWebhooks,
+  inboxDestination,
   INCOMING_ENDPOINT_HEADER,
+  jobsDestination,
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
 import { renderModules } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
+import { testIncomingDestination } from "../../src/testing/index.ts";
 import { BlockSession } from "./block-session.ts";
 
 const dbUrl =
@@ -609,6 +613,182 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(after).toEqual([
         { secret: null, vaulted: "legacy-secret-0123456789" },
       ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("runs over adopted endpoint and inbox tables and hands deliveries to a queue", async () => {
+    const client = await pool.connect();
+    const owner = crypto.randomUUID();
+    const organization = crypto.randomUUID();
+    let claims: object = { sub: owner, role: "authenticated" };
+    const sql = clientAs(client, () => claims);
+    const suffix = owner.slice(0, 8);
+    const hooksTable = `public.bs_hooks_${suffix}`;
+    const inboxTable = `public.bs_inbox_${suffix}`;
+    const source = `adopted-${suffix}`;
+    const queue = `adopted_${suffix}`;
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id)
+         values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')`,
+        [owner, `${owner}@example.test`],
+      );
+      await client.query(`
+        create table ${hooksTable} (
+          id uuid primary key default gen_random_uuid(),
+          organization_id uuid not null,
+          name text not null,
+          token_digest text not null unique,
+          verify text not null default 'none',
+          secret_id uuid,
+          signature_header text,
+          enabled boolean not null default true,
+          metadata jsonb not null default '{}'
+        );
+        create table ${inboxTable} (
+          id bigint generated always as identity primary key,
+          source text not null,
+          external_id text not null,
+          event_type text,
+          payload jsonb not null,
+          status text not null default 'pending',
+          attempts integer not null default 0,
+          available_at timestamptz not null default now(),
+          locked_by text,
+          locked_until timestamptz,
+          last_error text,
+          received_at timestamptz not null default now(),
+          processed_at timestamptz,
+          organization_id text
+        );
+      `);
+      const layout = {
+        modules: {
+          "webhooks-in": {
+            mode: "adopt" as const,
+            tables: { endpoints: hooksTable },
+            columns: {
+              endpoints: {
+                tenant: "organization_id",
+                tokenHash: "token_digest",
+                secret: null,
+                previousSecret: null,
+                previousSecretId: null,
+                previousSecretExpiresAt: null,
+                maxBodyBytes: null,
+                receiveCount: null,
+                lastReceivedAt: null,
+                lastStatus: null,
+                subjectType: null,
+                subjectId: null,
+                createdBy: null,
+                createdAt: null,
+                updatedAt: null,
+              },
+            },
+          },
+          "webhook-inbox": {
+            mode: "adopt" as const,
+            tables: { messages: inboxTable },
+            columns: {
+              messages: {
+                messageId: "external_id",
+                tenant: "organization_id",
+                headers: null,
+                maxAttempts: null,
+                checkpoint: null,
+              },
+            },
+          },
+        },
+      };
+      for (const file of renderModules(
+        ["webhooks-in", "webhook-inbox", "jobs"],
+        layout,
+      ))
+        if (file.kind === "schema") await client.query(file.contents);
+      await client.query(
+        "insert into better_supabase.organizations (id, name, slug) values ($1, 'Adopted', $2)",
+        [organization, `adopted-${suffix}`],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')",
+        [organization, owner],
+      );
+      const hooks = createIncomingWebhooks(sql, { source });
+      const endpoint = await hooks
+        .create({
+          tenant: organization,
+          name: "Form",
+          verify: "standard-webhooks",
+          metadata: { route: "leads" },
+        })
+        .orThrow();
+      expect(endpoint.secret).toMatch(/^whsec_/);
+
+      claims = { role: "service_role" };
+      const post = async (
+        target: typeof hooks,
+        id: string,
+        body = '{"type":"lead.created"}',
+      ) =>
+        target.receive(
+          new Request(`https://api.test/hooks/${endpoint.token}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(await signWebhook(endpoint.secret!, { id, body })),
+            },
+            body,
+          }),
+          endpoint.token,
+        );
+      expect((await post(hooks, "m1")).status).toBe(202);
+      expect((await post(hooks, "m1")).status).toBe(200);
+      const inbox = createWebhookInbox(sql, {
+        source,
+        verify: () => Promise.reject(new Error("process only")),
+      });
+      const seen: unknown[] = [];
+      await inbox.process((message) => {
+        seen.push([message.tenant, message.type, message.headers]);
+      });
+      expect(seen).toEqual([[organization, "lead.created", {}]]);
+      const { rows: stored } = await client.query<{ status: string }>(
+        `select status from ${inboxTable}`,
+      );
+      expect(stored).toEqual([{ status: "processed" }]);
+      await testIncomingDestination(inboxDestination(sql), {
+        tenant: organization,
+        source,
+      });
+
+      const jobs = createJobs(sql, {
+        [queue]: v.object({ route: v.string() }),
+      });
+      const queued = createIncomingWebhooks(sql, {
+        source,
+        destination: jobsDestination(jobs, {
+          queue,
+          payload: (delivery) => ({
+            route: String(delivery.endpoint.metadata["route"]),
+          }),
+        }),
+      });
+      expect((await post(queued, "m2")).status).toBe(202);
+      expect((await post(queued, "m2")).status).toBe(200);
+      const drained: unknown[] = [];
+      expect(
+        await jobs.drain(queue, (payload, job) => {
+          drained.push([payload, job.context.tenant]);
+        }),
+      ).toEqual({ succeeded: 1, failed: 0 });
+      expect(drained).toEqual([[{ route: "leads" }, organization]]);
+      expect((await post(queued, "m2")).status).toBe(200);
     } finally {
       await client.query("rollback");
       client.release();

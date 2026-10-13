@@ -1,6 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { JobHandler } from "../jobs/types.ts";
 
 import {
   blockCall,
@@ -16,6 +17,7 @@ import {
   applyTemporal,
   type CursorPageOptions,
   pageOf,
+  seconds,
 } from "../shared.ts";
 import { lazyStripe, type StripeSource } from "../stripe.ts";
 
@@ -184,6 +186,29 @@ export interface Usage {
     organizationId: string,
     meter: string,
   ): AsyncResult<readonly UsageBreakdownEntry[]>;
+  /**
+   * Deletes up to `batch` history entries older than `olderThan` (default
+   * 400 days, `purge_usage_history`); returns how many.
+   */
+  purgeHistory(options?: PurgeUsageOptions): AsyncResult<number>;
+  /**
+   * Deletes up to `batch` idempotency keys of recorded usage older than
+   * `olderThan` (default 30 days, `purge_usage_events`); returns how many.
+   * A retry with a purged key records again.
+   */
+  purgeEvents(options?: PurgeUsageOptions): AsyncResult<number>;
+  /** A job handler that runs `purgeHistory` and `purgeEvents`; schedule it nightly. */
+  purgeJob(options?: {
+    readonly history?: PurgeUsageOptions;
+    readonly events?: PurgeUsageOptions;
+  }): JobHandler<unknown>;
+}
+
+export interface PurgeUsageOptions {
+  /** Seconds, or an interval such as `"90 days"`. */
+  readonly olderThan?: number | string;
+  /** Defaults to 10000. */
+  readonly batch?: number;
 }
 
 const numberOf = (value: unknown): number =>
@@ -305,7 +330,31 @@ export function createUsage(options: UsageOptions): Usage {
     meter: string,
   ): AsyncResult<UsageStatus> =>
     call("usage_status", { tenant: organizationId, meter }, statusOf);
+  const purge =
+    (fn: string) =>
+    (purgeOptions: PurgeUsageOptions = {}): AsyncResult<number> =>
+      call(
+        fn,
+        {
+          older_than:
+            purgeOptions.olderThan === undefined
+              ? undefined
+              : seconds(purgeOptions.olderThan),
+          batch: purgeOptions.batch,
+        },
+        (value) => Number(value ?? 0),
+      );
+  const purgeHistory = purge("purge_usage_history");
+  const purgeEvents = purge("purge_usage_events");
   return {
+    purgeHistory,
+    purgeEvents,
+    purgeJob:
+      (jobOptions = {}) =>
+      async () => ({
+        history: await purgeHistory(jobOptions.history).orThrow(),
+        events: await purgeEvents(jobOptions.events).orThrow(),
+      }),
     record: (organizationId, meter, record) =>
       call("record_usage", args(organizationId, meter, record), recordedOf),
     consume: (organizationId, meter, record) =>
