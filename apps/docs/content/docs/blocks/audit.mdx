@@ -262,6 +262,52 @@ const page = await auditList
   .orThrow();
 ```
 
+## Reverting changes
+
+`audit.revert(entryIds)` writes the old values of row changes back, newest
+entry first, all or nothing. It runs as the caller, so the target table's
+policies and grants decide whether each write is allowed, and the revert is
+itself audited. The caller needs `audit.revert` in each entry's organization
+(admins and owners have it by default).
+
+```ts title="app/settings/audit/actions.ts"
+const { reverted, undo } = await audit.revert([entry.id]).orThrow();
+```
+
+| Entry    | Revert                                                              |
+| -------- | ------------------------------------------------------------------- |
+| `update` | Restores the changed columns, if the row still holds the new values |
+| `insert` | Deletes the row, if it still holds the inserted values              |
+| `delete` | Inserts the row again with its old values, generated columns aside  |
+
+| Hint                         | When                                                                 |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `AUDIT_ENTRY_NOT_FOUND`      | An entry is missing or the caller lacks `audit.revert` in its tenant |
+| `AUDIT_ENTRY_NOT_REVERTIBLE` | The entry is an event, or its table no longer exists                 |
+| `AUDIT_ENTRY_REDACTED`       | A value the revert needs was redacted when it was logged             |
+| `ROW_CHANGED_SINCE`          | The row changed after the entry, or a deleted row exists again       |
+| `AUDIT_REVERT_FORBIDDEN`     | The table's policies hide the row from the caller                    |
+| `AUDIT_REVERT_TOO_MANY`      | More than 1000 entries in one call                                   |
+
+Reverting needs the row snapshots (`old` and `new` on the log, or in the
+restricted table) and the access module. An adopted log without them gets no
+`revert_audit_entries` function.
+
+### Undo tokens
+
+Methods whose change has an inverse return an `undo` token: `relations.link`,
+`relations.unlink` and `audit.revert`. The token is plain JSON, so a server
+action can return it to a toast, and applying it runs the inverse as the
+caller, with the same permission checks as any other write. A revert's token
+names the entries the revert wrote, found by the correlation id it sets, so
+applying it reverts the revert. An adopted log without a correlation id column
+returns `undo: null`.
+
+Apply a token with `createUndo` from `better-supabase/blocks/undo`, or keep a
+stack of them in the browser with `useUndoStack`; see
+[Undo](/docs/blocks/undo). Bulk actions return no token, because a row's
+inverse depends on the action; revert their audit entries instead.
+
 ## Exporting
 
 `audit.export()` streams every entry the caller can read as NDJSON, CSV or

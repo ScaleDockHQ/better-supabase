@@ -391,7 +391,7 @@ create policy saved_views_read on "better_supabase"."saved_views" for select to 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
-    or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"(auth.uid()) t))
+    or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
     or "scope" = 'tenant'
   ));
 
@@ -433,7 +433,7 @@ begin
     if save_view.team is null then
       raise exception 'a team view needs a team' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
     end if;
-    if not (v_service or save_view.team in (select t::text from "better_supabase"."team_ids_of"(auth.uid()) t)) then
+    if not (v_service or save_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)) then
       raise exception 'not a member of this team' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
   end if;

@@ -41,10 +41,10 @@ describe("saved-views module", () => {
   it("shows team views to the team's members with the teams module", () => {
     const sql = sqlOf(["saved-views", "teams"]);
     expect(sql).toContain(
-      `"team_id" in (select t::text from "better_supabase"."team_ids_of"(auth.uid()) t)`,
+      `"team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)`,
     );
     expect(sql).toContain(
-      `save_view.team in (select t::text from "better_supabase"."team_ids_of"(auth.uid()) t)`,
+      `save_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)`,
     );
   });
 

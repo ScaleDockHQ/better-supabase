@@ -16,6 +16,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "organization.update",
     "members.*",
     "audit.read",
+    "audit.revert",
     "webhooks.*",
     "notifications.*",
     "billing.*",
@@ -93,7 +94,7 @@ export const MODULE_PERMISSIONS = {
     view: "members.invite",
     invitePlatform: "platform.invite",
   },
-  audit: { view: "audit.read", viewAll: "audit.read" },
+  audit: { view: "audit.read", viewAll: "audit.read", revert: "audit.revert" },
   "support-sessions": {
     start: "support.start",
     view: "support.read",
@@ -225,7 +226,7 @@ export const MODULE_PERMISSION_SCOPES: {
     view: "tenant",
     invitePlatform: "platform",
   },
-  audit: { view: "tenant", viewAll: "platform" },
+  audit: { view: "tenant", viewAll: "platform", revert: "tenant" },
   "support-sessions": {
     start: "platform",
     view: "platform",

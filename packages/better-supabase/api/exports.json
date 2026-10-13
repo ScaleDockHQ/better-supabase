@@ -1546,6 +1546,7 @@
       "AuditPage",
       "AuditRecord",
       "AuditRetentionSource",
+      "AuditReverted",
       "AuditSinkOptions",
       "AuditSort",
       "BlockTransport",

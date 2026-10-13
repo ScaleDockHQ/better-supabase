@@ -95,7 +95,7 @@ function build(ctx: ModuleContext): string {
     MODULE_PERMISSIONS["saved-views"].share,
   );
   const teams = ctx.installed("teams")
-    ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}(auth.uid()) t`
+    ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
     : "";
   const inTeam = (value: string): string =>
     teams === "" ? "false" : `${value} in (${teams})`;

@@ -222,9 +222,9 @@ describe("audit module", () => {
     expect(sql).not.toContain("audit_events_correlation_idx");
   });
 
-  it("upgrades from version 5 without SQL of its own", () => {
+  it("upgrades from versions 5 and 6 without SQL of their own", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 5 }]);
-    expect(plan!.steps.map((step) => step.sql)).toEqual([""]);
+    expect(plan!.steps.map((step) => step.sql)).toEqual(["", ""]);
   });
 
   it("drops the old signatures when upgrading from version 1", () => {
@@ -430,5 +430,31 @@ describe("audit value mapping", () => {
     expect(sql).toContain(
       "grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to",
     );
+  });
+});
+
+describe("audit revert", () => {
+  const sqlOf = (config: ModuleConfig = {}, modules = ["access", "audit"]) =>
+    renderModules(modules, { modules: { audit: config } })
+      .filter((file) => file.module === "audit")
+      .map((file) => file.contents)
+      .join("\n");
+
+  it("reverts as the caller with audit.revert and finds the writes for undo", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."revert_audit_entries"(entries text[])`,
+    );
+    expect(sql).toMatch(
+      /revert_audit_entries"\(entries text\[\]\)\s+returns jsonb\s+language plpgsql\s+security invoker/,
+    );
+    expect(sql).toContain("'audit.revert'");
+    expect(sql).toContain("ROW_CHANGED_SINCE");
+    expect(sql).toContain(`"audit_entries_correlated"(correlation text)`);
+  });
+
+  it("needs the access module and the row snapshots", () => {
+    expect(sqlOf({}, ["audit"])).not.toContain("revert_audit_entries");
+    expect(sqlOf(CENTRAKIT)).not.toContain("revert_audit_entries");
   });
 });

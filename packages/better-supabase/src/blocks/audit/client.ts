@@ -1,6 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { UndoToken } from "../undo/undo.ts";
 import type { AuditEntry, OcsfProduct } from "./audit.ts";
 
 import { dbError } from "../../core/errors.ts";
@@ -18,6 +19,7 @@ import {
   applyTemporal,
   pageOf,
 } from "../shared.ts";
+import { undoToken } from "../undo/undo.ts";
 import { toOcsf } from "./audit.ts";
 import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
 import { auditSink, type AuditSinkOptions } from "./sink.ts";
@@ -202,6 +204,29 @@ export interface AuditLogOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
 }
 
+/** What `revert` did, and the token that reverts it again. */
+export interface AuditReverted {
+  readonly reverted: number;
+  /** `null` when the log has no correlation id column to find the writes by. */
+  readonly undo: UndoToken | null;
+}
+
+function revertedOf(value: unknown): AuditReverted {
+  const record = isRecord(value) ? value : {};
+  const entries = Array.isArray(record["entries"])
+    ? record["entries"].filter(
+        (entry): entry is string => typeof entry === "string",
+      )
+    : [];
+  return {
+    reverted: typeof record["reverted"] === "number" ? record["reverted"] : 0,
+    undo:
+      entries.length > 0
+        ? undoToken([{ fn: "revert_audit_entries", args: { entries } }])
+        : null,
+  };
+}
+
 export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   record(event: AuditEventInput): AsyncResult<string>;
   /** A page of the entries the caller can read, newest first. */
@@ -212,6 +237,13 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
    * recorded as `audit.revealed`. `not_found` otherwise.
    */
   reveal(entryId: string): AsyncResult<AuditDetails>;
+  /**
+   * Writes the old values of row changes back as the caller, newest entry
+   * first, all or nothing, with `audit.revert` in each entry's tenant.
+   * `raised` with code `ROW_CHANGED_SINCE` when a row no longer holds what
+   * the entry wrote. The undo token reverts the revert.
+   */
+  revert(entryIds: readonly string[]): AsyncResult<AuditReverted>;
   /** Every matching entry as NDJSON, CSV or OCSF, read page by page as the caller. */
   export(options?: AuditExportOptions<Columns>): ReadableStream<Uint8Array>;
   /**
@@ -542,6 +574,8 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
       call("reveal_audit_entry", { entry: entryId }, (value) =>
         detailsOf(value, entryId),
       ),
+    revert: (entryIds) =>
+      call("revert_audit_entries", { entries: [...entryIds] }, revertedOf),
     export: exportStream,
     exportToStorage: (target) =>
       AsyncResult.from(async () => {
