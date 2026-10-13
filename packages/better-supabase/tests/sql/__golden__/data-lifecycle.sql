@@ -381,9 +381,9 @@ begin
 end;
 $$;
 
--- The requester, an owner or the service role cancels a pending purge.
--- The tenant is disabled meanwhile, so this checks the membership row
--- instead of permissions.
+-- The requester, a member holding the cancelDelete permission or the service
+-- role cancels a pending purge. The tenant is disabled meanwhile, so this
+-- asks member_can_while_deleting, which skips the disabled-tenant check.
 create or replace function "better_supabase"."cancel_organization_deletion"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -399,7 +399,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -1186,9 +1186,9 @@ begin
 end;
 $$;
 
--- The requester, an owner or the service role cancels a pending purge.
--- The tenant is disabled meanwhile, so this checks the membership row
--- instead of permissions.
+-- The requester, a member holding the cancelDelete permission or the service
+-- role cancels a pending purge. The tenant is disabled meanwhile, so this
+-- asks member_can_while_deleting, which skips the disabled-tenant check.
 create or replace function "better_supabase"."cancel_organization_deletion"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -1204,7 +1204,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -1846,9 +1846,9 @@ begin
 end;
 $$;
 
--- The requester, an owner or the service role cancels a pending purge.
--- The tenant is disabled meanwhile, so this checks the membership row
--- instead of permissions.
+-- The requester, a member holding the cancelDelete permission or the service
+-- role cancels a pending purge. The tenant is disabled meanwhile, so this
+-- asks member_can_while_deleting, which skips the disabled-tenant check.
 create or replace function "app_private"."cancel_organization_deletion"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -1864,7 +1864,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "app_private"."organization_deletions" x set "cancelled_at" = now()
@@ -2480,9 +2480,9 @@ begin
 end;
 $$;
 
--- The requester, an owner or the service role cancels a pending purge.
--- The tenant is disabled meanwhile, so this checks the membership row
--- instead of permissions.
+-- The requester, a member holding the cancelDelete permission or the service
+-- role cancels a pending purge. The tenant is disabled meanwhile, so this
+-- asks member_can_while_deleting, which skips the disabled-tenant check.
 create or replace function "better_supabase"."cancel_organization_deletion"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -2498,7 +2498,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()

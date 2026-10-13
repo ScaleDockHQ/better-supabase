@@ -58,6 +58,11 @@ interface Names {
   readonly role: string;
 }
 
+const WHILE_DELETING = `
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+`;
+
 function membershipNames(ctx: ModuleContext): Names {
   const tenant = ctx.of("tenant");
   return {
@@ -327,8 +332,8 @@ function membershipFunctions(ctx: ModuleContext): string {
       and p.${ctx.col("permissions", "key")} = platform_can.permission
   ) or ${platform}`;
   }
-  return `
-create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
+  const memberCan = (name: string, disabled: string) => `
+create or replace function better_supabase.${name}(member uuid, tenant ${id}, permission text)
 returns boolean
 language sql
 stable
@@ -336,15 +341,16 @@ security definer
 set search_path = ''
 as $$
   select member is not null
-    and not better_supabase.user_disabled(member)
-    and not better_supabase.tenant_disabled(tenant)
+    and not better_supabase.user_disabled(member)${disabled}
     and exists (
       select 1 from ${n.m} m
-      where m.${n.tenant} = member_can.tenant and m.${n.user} = member_can.member${active}
-        and ${grants(ctx, n, "member_can.permission")}
+      where m.${n.tenant} = ${name}.tenant and m.${n.user} = ${name}.member${active}
+        and ${grants(ctx, n, `${name}.permission`)}
     )
 $$;
-
+`;
+  return `${memberCan("member_can", "\n    and not better_supabase.tenant_disabled(tenant)")}
+${WHILE_DELETING}${memberCan("member_can_while_deleting", "")}
 -- The permission keys a member holds in a tenant${model === "roles" ? " (wildcards as configured)" : ""}.
 create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
 returns text[]
@@ -669,21 +675,16 @@ function providerFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const forUser = providerForUser(layout);
   const idsWith = (permission: string) =>
     providerSql(provider, "idsWith", { permission });
-  const otherMember = forUser.permitted
-    ? `return not better_supabase.user_disabled(member)
-      and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
-      and tenant::text in (select t.id::text from ${providerSql(provider, "idsWithFor", { user: "member", permission: "permission" })} as t(id));`
-    : CALLER_ONLY;
   const platformOther = forUser.has
     ? `when member is not null then ${NOT_ACTING} and not better_supabase.user_disabled(member) and coalesce((${providerSql(provider, "isPlatformFor", { user: "member", permission: "permission" })}), false)`
     : "";
   const assignFor = assignAsFunction(ctx, layout);
-  return `
--- The provider model: the authorization provider (${provider.name}) decides,
--- through authorization.functions in better-supabase.config.ts. Its caller
--- functions read auth.uid(), so member_can() and can_user() answer for
--- ${forUser.permitted || forUser.has ? "another user through its idsWithFor and isPlatformFor" : "the caller only and raise 0A000 for anyone else"}.
-create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
+  const memberCan = (name: string, disabled: boolean) => {
+    const other = forUser.permitted
+      ? `return not better_supabase.user_disabled(member)${disabled ? "\n      and not better_supabase.tenant_disabled(tenant)" : ""}${notSuspended(ctx, "tenant", "member")}
+      and tenant::text in (select t.id::text from ${providerSql(provider, "idsWithFor", { user: "member", permission: "permission" })} as t(id));`
+      : CALLER_ONLY;
+    return `create or replace function better_supabase.${name}(member uuid, tenant ${id}, permission text)
 returns boolean
 language plpgsql
 stable
@@ -692,13 +693,20 @@ set search_path = ''
 as $$
 begin
   if member is distinct from auth.uid() then
-    ${otherMember}
+    ${other}
   end if;
-  return not better_supabase.user_disabled(member)
-    and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
+  return not better_supabase.user_disabled(member)${disabled ? "\n    and not better_supabase.tenant_disabled(tenant)" : ""}${notSuspended(ctx, "tenant", "member")}
     and tenant::text in (select t.id::text from ${idsWith("permission")} as t(id));
 end;
-$$;
+$$;`;
+  };
+  return `
+-- The provider model: the authorization provider (${provider.name}) decides,
+-- through authorization.functions in better-supabase.config.ts. Its caller
+-- functions read auth.uid(), so member_can() and can_user() answer for
+-- ${forUser.permitted || forUser.has ? "another user through its idsWithFor and isPlatformFor" : "the caller only and raise 0A000 for anyone else"}.
+${memberCan("member_can", true)}
+${WHILE_DELETING}${memberCan("member_can_while_deleting", false)}
 ${providerPermissions(ctx, provider)}
 
 create or replace function better_supabase.platform_can(member uuid, permission text)
@@ -760,9 +768,8 @@ function customFunctions(ctx: ModuleContext): string {
       permission,
       user: member,
     });
-  return `
--- The custom model: the app's own functions, from sql.modules.access.functions.
-create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
+  const memberCan = (name: string, disabled: boolean) => `
+create or replace function better_supabase.${name}(member uuid, tenant ${id}, permission text)
 returns boolean
 language sql
 stable
@@ -771,11 +778,14 @@ set search_path = ''
 as $$
   select case
     when member is distinct from auth.uid() then ${functions.canUser ? `${membershipSuspended(ctx, "tenant", "member") === undefined ? "" : `not ${membershipSuspended(ctx, "tenant", "member")} and `}coalesce((${fill(functions.canUser, { user: "member", scope: sqlString(tenantScope(ctx)), id: "tenant", permission: "permission" })}), false)` : "null::boolean"}
-    else not better_supabase.user_disabled(member)
-      and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
+    else not better_supabase.user_disabled(member)${disabled ? "\n      and not better_supabase.tenant_disabled(tenant)" : ""}${notSuspended(ctx, "tenant", "member")}
       and coalesce((${can("member", "tenant", "permission")}), false)
   end
-$$;
+$$;`;
+  return `
+-- The custom model: the app's own functions, from sql.modules.access.functions.
+${memberCan("member_can", true)}
+${WHILE_DELETING}${memberCan("member_can_while_deleting", false)}
 
 create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
 returns text[]
@@ -946,6 +956,7 @@ ${[
   .join("\n")}
 ${[
   `member_can(uuid, ${id}, text)`,
+  `member_can_while_deleting(uuid, ${id}, text)`,
   `member_permissions(uuid, ${id})`,
   "platform_can(uuid, text)",
   `can_user(uuid, text, ${id}, text)`,

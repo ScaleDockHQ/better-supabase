@@ -97,6 +97,26 @@ as $$
     )
 $$;
 
+
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+
+create or replace function better_supabase.member_can_while_deleting(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
+        and better_supabase.role_grants(m."role", member_can_while_deleting.permission)
+    )
+$$;
+
 -- The permission keys a member holds in a tenant (wildcards as configured).
 create or replace function better_supabase.member_permissions(member uuid, tenant uuid)
 returns text[]
@@ -251,6 +271,8 @@ revoke execute on function better_supabase.can_assign(uuid, text) from public;
 grant execute on function better_supabase.can_assign(uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.member_can(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.member_can(uuid, uuid, text) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.member_permissions(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.member_permissions(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.platform_can(uuid, text) from public, anon, authenticated;
@@ -392,6 +414,26 @@ as $$
     )
 $$;
 
+
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+
+create or replace function better_supabase.member_can_while_deleting(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
+        and better_supabase.role_grants(m."role", member_can_while_deleting.permission)
+    )
+$$;
+
 -- The permission keys a member holds in a tenant (wildcards as configured).
 create or replace function better_supabase.member_permissions(member uuid, tenant uuid)
 returns text[]
@@ -546,6 +588,8 @@ revoke execute on function better_supabase.can_assign(uuid, text) from public;
 grant execute on function better_supabase.can_assign(uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.member_can(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.member_can(uuid, uuid, text) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.member_permissions(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.member_permissions(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.platform_can(uuid, text) from public, anon, authenticated;
@@ -688,6 +732,26 @@ as $$
     )
 $$;
 
+
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+
+create or replace function better_supabase.member_can_while_deleting(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
+        and better_supabase.role_grants(m."role", member_can_while_deleting.permission)
+    )
+$$;
+
 -- The permission keys a member holds in a tenant (wildcards as configured).
 create or replace function better_supabase.member_permissions(member uuid, tenant uuid)
 returns text[]
@@ -842,6 +906,8 @@ revoke execute on function better_supabase.can_assign(uuid, text) from public;
 grant execute on function better_supabase.can_assign(uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.member_can(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.member_can(uuid, uuid, text) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.member_permissions(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.member_permissions(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.platform_can(uuid, text) from public, anon, authenticated;
@@ -982,6 +1048,26 @@ as $$
     )
 $$;
 
+
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+
+create or replace function better_supabase.member_can_while_deleting(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
+        and better_supabase.role_grants(m."role", member_can_while_deleting.permission)
+    )
+$$;
+
 -- The permission keys a member holds in a tenant (wildcards as configured).
 create or replace function better_supabase.member_permissions(member uuid, tenant uuid)
 returns text[]
@@ -1136,6 +1222,8 @@ revoke execute on function better_supabase.can_assign(uuid, text) from public;
 grant execute on function better_supabase.can_assign(uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.member_can(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.member_can(uuid, uuid, text) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.member_permissions(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.member_permissions(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.platform_can(uuid, text) from public, anon, authenticated;
@@ -1245,6 +1333,15 @@ set search_path = ''
 as $$ select "better_supabase"."member_can"($1, $2, $3) $$;
 revoke execute on function "api"."member_can"(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."member_can"(uuid, uuid, text) to service_role;
+
+create or replace function "api"."member_can_while_deleting"(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."member_can_while_deleting"($1, $2, $3) $$;
+revoke execute on function "api"."member_can_while_deleting"(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."member_can_while_deleting"(uuid, uuid, text) to service_role;
 
 create or replace function "api"."member_permissions"(member uuid, tenant uuid)
 returns text[]
@@ -1415,6 +1512,26 @@ as $$
     )
 $$;
 
+
+-- member_can without the disabled-tenant check, for the actions a member
+-- takes while the tenant waits to be purged, such as cancelling the deletion.
+
+create or replace function better_supabase.member_can_while_deleting(member uuid, tenant uuid, permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
+        and better_supabase.role_grants(m."role", member_can_while_deleting.permission)
+    )
+$$;
+
 -- The permission keys a member holds in a tenant (wildcards as configured).
 create or replace function better_supabase.member_permissions(member uuid, tenant uuid)
 returns text[]
@@ -1569,6 +1686,8 @@ revoke execute on function better_supabase.can_assign(uuid, text) from public;
 grant execute on function better_supabase.can_assign(uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.member_can(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.member_can(uuid, uuid, text) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.member_permissions(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.member_permissions(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.platform_can(uuid, text) from public, anon, authenticated;

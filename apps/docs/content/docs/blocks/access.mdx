@@ -469,6 +469,11 @@ module disables a tenant awaiting deletion by setting the `disabledAt`
 column, so a tenant row with only a `status` column is not switched off
 during the grace period.
 
+Every model also renders `member_can_while_deleting(user, tenant, permission)`,
+the same check as `member_can` without the disabled-tenant test. The
+data-lifecycle module calls it so a member can cancel a pending deletion while
+the tenant is disabled.
+
 ## Suspended memberships
 
 A suspended membership keeps its role but grants nothing in that tenant.

@@ -18,8 +18,27 @@ const sqlOf = (
     .join("\n");
 
 describe("data-lifecycle module", () => {
-  it("checks the owner through the tenant module's role lookup", () => {
-    const sql = sqlOf(["organizations", "data-lifecycle"]);
+  it("cancels a deletion with the cancelDelete permission while the tenant is disabled", () => {
+    expect(sqlOf(["organizations", "data-lifecycle"])).toContain(
+      `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,
+    );
+    const custom = renderModules(["data-lifecycle"], {
+      modules: {
+        "data-lifecycle": { permissions: { cancelDelete: "billing.manage" } },
+      },
+    })
+      .filter((file) => file.module === "data-lifecycle")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(custom).toContain(
+      "member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'billing.manage')",
+    );
+  });
+
+  it("checks the owner through the tenant module's role lookup when access is custom", () => {
+    const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
+      access: { mode: "custom" },
+    });
     expect(sql).toContain(
       `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
     );

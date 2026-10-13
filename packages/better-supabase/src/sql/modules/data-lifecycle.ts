@@ -192,9 +192,13 @@ function build(ctx: ModuleContext): string {
     platformKey === ""
       ? ""
       : `\n    and not coalesce(better_supabase.is_platform(${sqlString(platformKey)}), false)`;
-  // The tenant module resolves the role name, also when memberships point at
-  // a roles table (sql.modules.tenant.columns.role through a role id).
-  const owner = `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`;
+  // An access module in custom mode may lack member_can_while_deleting; the
+  // tenant module then resolves the owner's role name instead.
+  const cancelKey = ctx.permission("cancelDelete", permissions.cancelDelete);
+  const allowed =
+    ctx.of("access").mode === "custom"
+      ? `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
+      : `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, ${cancelKey}), false)`;
 
   return `${schemaPreamble(ctx)}
 -- Exports of a user's or an organization's data, written by the app's
@@ -499,9 +503,9 @@ begin
 end;
 $$;
 
--- The requester, an owner or the service role cancels a pending purge.
--- The tenant is disabled meanwhile, so this checks the membership row
--- instead of permissions.
+-- The requester, a member holding the cancelDelete permission or the service
+-- role cancels a pending purge. The tenant is disabled meanwhile, so this
+-- asks member_can_while_deleting, which skips the disabled-tenant check.
 create or replace function ${fn("cancel_organization_deletion")}(tenant ${id})
 returns jsonb
 language plpgsql
@@ -517,7 +521,7 @@ begin
   if v_row.${cd("tenant")} is null then
     return null;
   end if;
-  if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${owner})${platform} then
+  if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${allowed})${platform} then
     ${fail("ORGANIZATION_DELETION_FORBIDDEN", "You may not cancel this deletion")}
   end if;
   update ${d} x set ${cd("cancelledAt")} = now()

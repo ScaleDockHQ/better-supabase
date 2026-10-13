@@ -307,6 +307,31 @@ describe("access module", () => {
     ).toMatch(/^[^$]*language sql/);
   });
 
+  it("renders member_can_while_deleting without the disabled-tenant check in every model", () => {
+    const body = (sql: string, name: string) =>
+      sql
+        .slice(sql.indexOf(`function better_supabase.${name}(`))
+        .split("$$;")[0]!;
+    const custom = access({
+      model: "custom",
+      functions: {
+        can: "public.authorize({scope}, {id}, {permission})",
+        tenantIdsWith: "public.ids_with({permission})",
+        isPlatform: "public.is_staff({permission})",
+        canAssign: "public.may_assign({tenant}, {role})",
+      },
+    });
+    for (const sql of [access({}), access(CATALOG), provider(), custom]) {
+      expect(body(sql, "member_can")).toContain("tenant_disabled(tenant)");
+      const deleting = body(sql, "member_can_while_deleting");
+      expect(deleting).toContain("user_disabled(member)");
+      expect(deleting).not.toContain("tenant_disabled");
+      expect(sql).toContain(
+        "grant execute on function better_supabase.member_can_while_deleting(uuid, uuid, text) to service_role, supabase_auth_admin;",
+      );
+    }
+  });
+
   it("wraps the app's functions in the custom model", () => {
     const sql = access({
       model: "custom",
