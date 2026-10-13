@@ -46,7 +46,7 @@ const NAMES: ModuleNames = {
 };
 
 /** The most buckets one series returns. */
-export const METRIC_MAX_BUCKETS = 1000;
+const METRIC_MAX_BUCKETS = 1000;
 
 const WINDOW = /^[1-9][0-9]{0,3} (?:minute|hour|day|week)s?$/;
 
@@ -62,14 +62,12 @@ function windowOf(ctx: ModuleContext): string {
 }
 
 /** The metrics declared in `options.metrics`. */
-export function declaredMetrics(
-  ctx: ModuleContext,
-): readonly MetricDefinition[] {
+function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
   return metricsOf(ctx.option("metrics"));
 }
 
 /** The grains `metric_points` keeps for a metric, none when it is queried directly. */
-export function storedGrains(metric: MetricDefinition): readonly MetricGrain[] {
+function storedGrains(metric: MetricDefinition): readonly MetricGrain[] {
   if (metric.rollup === false) return [];
   const grains = metric.rollup ?? ["day"];
   return METRIC_GRAINS.filter((grain) => grains.includes(grain));

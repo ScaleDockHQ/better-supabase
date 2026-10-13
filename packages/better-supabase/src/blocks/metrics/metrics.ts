@@ -10,6 +10,7 @@ import type { JobHandler } from "../jobs/types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
   isRecord,
@@ -219,8 +220,8 @@ function requestOf(value: unknown): MetricsRollupRequest {
   const until = optionalText(payload["until"]);
   return {
     ...(metric === undefined ? {} : { metric }),
-    ...(since === undefined ? {} : { since: Temporal.Instant.from(since) }),
-    ...(until === undefined ? {} : { until: Temporal.Instant.from(until) }),
+    ...(since === undefined ? {} : { since: temporal().Instant.from(since) }),
+    ...(until === undefined ? {} : { until: temporal().Instant.from(until) }),
   };
 }
 

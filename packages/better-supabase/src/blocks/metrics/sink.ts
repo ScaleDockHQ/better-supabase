@@ -1,6 +1,8 @@
 import type { EventSink } from "../../events/cloud-event.ts";
 import type { Metrics } from "./metrics.ts";
 
+import { temporal } from "../../core/temporal-required.ts";
+import { nowInstant } from "../../core/temporal.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 
 export interface MetricsSinkOptions {
@@ -36,17 +38,17 @@ export function metricsSink(
         if (entry === undefined) continue;
         const at =
           event.time === undefined
-            ? Temporal.Now.instant()
-            : Temporal.Instant.from(event.time);
+            ? nowInstant()
+            : temporal().Instant.from(event.time);
         for (const metric of typeof entry === "string" ? [entry] : entry) {
           const window = windows.get(metric);
           windows.set(metric, {
             since:
-              window && Temporal.Instant.compare(window.since, at) < 0
+              window && temporal().Instant.compare(window.since, at) < 0
                 ? window.since
                 : at,
             until:
-              window && Temporal.Instant.compare(window.until, at) > 0
+              window && temporal().Instant.compare(window.until, at) > 0
                 ? window.until
                 : at,
           });
