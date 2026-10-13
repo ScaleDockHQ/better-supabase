@@ -30,6 +30,7 @@ import { DOCUMENTS } from "./modules/documents.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -177,6 +178,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(APPROVALS),
       built(ACCESS_REQUESTS),
       built(DOCUMENTS),
+      built(FORMS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -1938,6 +1938,8 @@
       "DataschemaContext",
       "EventSink",
       "FlagEventData",
+      "FormEventData",
+      "FormSubmissionEventData",
       "ForwardBlockOptions",
       "ForwardOptions",
       "HttpMode",
@@ -3588,6 +3590,72 @@
       "DocumentUpdate",
       "DocumentVersion",
       "OpenedDocument"
+    ]
+  },
+  "./blocks/forms": {
+    "values": [
+      "answersSchema",
+      "conditionHolds",
+      "createForms",
+      "dbTransport",
+      "finishQuestionnaire",
+      "FORM_DEFINITION_SCHEMA",
+      "FORM_FIELD_TYPES",
+      "FORM_SCHEMA_DIALECT",
+      "formDefinitionProblems",
+      "formSchema",
+      "initialQuestionnaire",
+      "isFormDefinition",
+      "pruneAnswers",
+      "questionnaireReducer",
+      "questionnaireSteps",
+      "rpcTransport",
+      "sqlTransport",
+      "stepIssues",
+      "validateAnswers",
+      "visibleFields",
+      "visibleSteps"
+    ],
+    "types": [
+      "BlockTransport",
+      "Form",
+      "FormAnswers",
+      "FormCondition",
+      "FormDefinition",
+      "FormDetail",
+      "FormField",
+      "FormFieldType",
+      "FormInput",
+      "FormJson",
+      "FormJsonSchema",
+      "FormOption",
+      "Forms",
+      "FormsOptions",
+      "FormStatus",
+      "FormStep",
+      "FormSubmission",
+      "FormSubmissionSource",
+      "FormSubmissionStatus",
+      "FormUpdate",
+      "FormVersion",
+      "PublicForm",
+      "PublicSubmission",
+      "PublicSubmitOptions",
+      "QuestionnaireAction",
+      "QuestionnaireForm",
+      "QuestionnaireState",
+      "QuestionnaireStepView",
+      "SubmissionListOptions",
+      "SubmitOptions"
+    ]
+  },
+  "./blocks/forms/react": {
+    "values": [
+      "useQuestionnaire"
+    ],
+    "types": [
+      "QuestionnaireView",
+      "UseQuestionnaireOptions"
     ]
   },
   "./blocks/reactions/react": {

@@ -277,6 +277,8 @@ export type {
   CredentialEventData,
   DataExportEventData,
   FlagEventData,
+  FormEventData,
+  FormSubmissionEventData,
   InboxEventData,
   IncomingWebhookEventData,
   InvitationEventData,

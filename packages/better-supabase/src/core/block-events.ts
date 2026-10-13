@@ -365,7 +365,10 @@ export type SubjectEventType =
   | "approval.rejected"
   | "approval.cancelled"
   | "approval.expired"
-  | "approval.delegated";
+  | "approval.delegated"
+  | "form_submission.submitted"
+  | "form_submission.reviewed"
+  | "form_submission.deleted";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -432,6 +435,32 @@ export interface DocumentEventData extends SubjectEventData {
   /** The document. */
   readonly id: string;
   readonly name: string;
+}
+
+/** `form.created` and `form_version.published` from the forms module. */
+export interface FormEventData {
+  readonly organizationId: string;
+  /** The form, or for `form_version.published` the version. */
+  readonly id: string;
+  readonly key?: string;
+  readonly formId?: string;
+  readonly number?: number;
+}
+
+/**
+ * Submission events from the forms module. The subject is the record the
+ * submission is linked to, or the form itself (`form`) when it has none.
+ */
+export interface FormSubmissionEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The submission. */
+  readonly id: string;
+  readonly formId: string;
+  readonly versionId?: string;
+  /** `member`, `public` or `service`. */
+  readonly source?: string;
+  /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
+  readonly status?: string;
 }
 
 /** Every block event type and its data. */
@@ -585,6 +614,11 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "form.created": FormEventData;
+  "form_version.published": FormEventData;
+  "form_submission.submitted": FormSubmissionEventData;
+  "form_submission.reviewed": FormSubmissionEventData;
+  "form_submission.deleted": FormSubmissionEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

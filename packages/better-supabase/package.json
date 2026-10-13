@@ -646,6 +646,17 @@
       "types": "./dist/blocks/documents/index.d.ts",
       "default": "./dist/blocks/documents/index.js"
     },
+    "./blocks/forms": {
+      "@better-supabase/source": "./src/blocks/forms/index.ts",
+      "types": "./dist/blocks/forms/index.d.ts",
+      "default": "./dist/blocks/forms/index.js"
+    },
+    "./blocks/forms/react": {
+      "@better-supabase/source": "./src/blocks/forms/react/index.ts",
+      "types": "./dist/blocks/forms/react/index.d.ts",
+      "react-server": "./dist/blocks/forms/react/server.js",
+      "default": "./dist/blocks/forms/react/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1243,6 +1254,15 @@
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",
         "default": "./dist/blocks/documents/index.js"
+      },
+      "./blocks/forms": {
+        "types": "./dist/blocks/forms/index.d.ts",
+        "default": "./dist/blocks/forms/index.js"
+      },
+      "./blocks/forms/react": {
+        "types": "./dist/blocks/forms/react/index.d.ts",
+        "react-server": "./dist/blocks/forms/react/server.js",
+        "default": "./dist/blocks/forms/react/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

@@ -46,6 +46,7 @@
   "blocks/documents",
   "blocks/entitlements",
   "blocks/flags",
+  "blocks/forms",
   "blocks/imports",
   "blocks/inbox",
   "blocks/jobs",
