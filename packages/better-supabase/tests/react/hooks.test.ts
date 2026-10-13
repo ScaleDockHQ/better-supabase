@@ -27,6 +27,7 @@ import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts"
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
+import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
 import {
   useWorkflowBuilder,
   useWorkflowCanvasRun,
@@ -2862,5 +2863,98 @@ describe("powersync/react", () => {
     expect(view.result.changes).toHaveLength(1);
     view.result.dismiss();
     expect(view.result.changes).toEqual([]);
+  });
+});
+
+describe("useSavedViews", () => {
+  const views = [
+    {
+      id: "all",
+      name: "All",
+      scope: "tenant" as const,
+      isDefault: false,
+      state: {},
+    },
+    {
+      id: "open",
+      name: "Open",
+      scope: "user" as const,
+      isDefault: true,
+      state: { query: { facets: { status: ["open"] }, sort: "name" } },
+    },
+  ];
+
+  it("opens the default view, tracks the active one and saves the URL", async () => {
+    let urlState: Record<string, unknown> = {
+      q: null,
+      sort: null,
+      page: null,
+      status: null,
+    };
+    const setUrlState = vi.fn((next: Record<string, unknown>) => {
+      urlState = { ...urlState, ...next };
+    });
+    const save = vi.fn(async () => undefined);
+    const remove = vi.fn(async () => undefined);
+    const load = vi.fn(async () => views);
+    const view = renderHook(
+      () => useSavedViews({ load, save, remove, urlState, setUrlState }),
+      undefined,
+      null,
+    );
+    expect(view.result.views).toBeUndefined();
+    await flush();
+    expect(setUrlState).toHaveBeenCalledWith({
+      q: null,
+      sort: "name",
+      page: null,
+      status: ["open"],
+    });
+    view.rerender(undefined);
+    expect(view.result.active?.id).toBe("open");
+    expect(view.result.isDirty).toBe(false);
+
+    urlState = { ...urlState, q: "bug" };
+    view.rerender(undefined);
+    expect(view.result.active).toBeUndefined();
+    expect(view.result.isDirty).toBe(true);
+    await view.result.saveCurrent("Bugs");
+    expect(save).toHaveBeenCalledWith({
+      name: "Bugs",
+      query: { q: "bug", sort: "name", facets: { status: ["open"] } },
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+
+    view.result.apply(views[0]!);
+    view.rerender(undefined);
+    expect(urlState).toMatchObject({ q: null, sort: null, status: null });
+    expect(view.result.active?.id).toBe("all");
+    await view.result.remove("all");
+    expect(remove).toHaveBeenCalledWith("all");
+    expect(view.result.isDirty).toBe(false);
+  });
+
+  it("leaves a URL with a query alone and reports load errors", async () => {
+    const setUrlState = vi.fn();
+    const load = vi
+      .fn<() => Promise<typeof views>>()
+      .mockResolvedValueOnce(views)
+      .mockRejectedValueOnce(new Error("down"));
+    const view = renderHook(
+      () =>
+        useSavedViews({
+          load,
+          urlState: { q: "x", status: null },
+          setUrlState,
+        }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(setUrlState).not.toHaveBeenCalled();
+    await view.result.refresh();
+    expect(view.result.error).toEqual(new Error("down"));
+    await expect(view.result.saveCurrent("x")).rejects.toThrow("pass `save`");
+    await expect(view.result.remove("x")).rejects.toThrow("pass `remove`");
   });
 });

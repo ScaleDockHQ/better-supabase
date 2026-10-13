@@ -350,12 +350,14 @@ export type SubjectEventType =
   | "field_value.set"
   | "share_link.created"
   | "subject.viewed"
-  | "reminder.sent";
+  | "reminder.sent"
+  | "subject.linked"
+  | "subject.unlinked";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
 
-/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports). */
+/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports, saved views, relations, bulk runs). */
 export interface SaasEventData {
   readonly organizationId?: string | null;
   readonly id?: string;
@@ -374,6 +376,11 @@ export interface SaasEventData {
   readonly count?: number;
   readonly role?: string;
   readonly error?: string | null;
+  /** The other end of a relation, for `subject.linked` and `subject.unlinked`. */
+  readonly targetType?: string;
+  readonly targetId?: string;
+  /** Rows that failed in a bulk run. */
+  readonly failed?: number;
 }
 
 /** Every block event type and its data. */
@@ -509,6 +516,11 @@ export interface BlockEventMap {
   "reminder.sent": SaasSubjectEventData;
   "import.completed": SaasEventData;
   "import.failed": SaasEventData;
+  "saved_view.saved": SaasEventData;
+  "saved_view.deleted": SaasEventData;
+  "subject.linked": SaasSubjectEventData;
+  "subject.unlinked": SaasSubjectEventData;
+  "bulk_run.completed": SaasEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

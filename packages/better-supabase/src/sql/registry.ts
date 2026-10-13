@@ -51,6 +51,7 @@ import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
+import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
@@ -165,6 +166,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IMPORTS),
       built(SUBJECTS),
       built(RANK),
+      built(SAVED_VIEWS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -611,6 +611,17 @@
       "types": "./dist/blocks/rank/index.d.ts",
       "default": "./dist/blocks/rank/index.js"
     },
+    "./blocks/saved-views": {
+      "@better-supabase/source": "./src/blocks/saved-views/index.ts",
+      "types": "./dist/blocks/saved-views/index.d.ts",
+      "default": "./dist/blocks/saved-views/index.js"
+    },
+    "./blocks/saved-views/react": {
+      "@better-supabase/source": "./src/blocks/saved-views/react/index.ts",
+      "types": "./dist/blocks/saved-views/react/index.d.ts",
+      "react-server": "./dist/blocks/saved-views/react/server.js",
+      "default": "./dist/blocks/saved-views/react/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1174,6 +1185,15 @@
       "./blocks/rank": {
         "types": "./dist/blocks/rank/index.d.ts",
         "default": "./dist/blocks/rank/index.js"
+      },
+      "./blocks/saved-views": {
+        "types": "./dist/blocks/saved-views/index.d.ts",
+        "default": "./dist/blocks/saved-views/index.js"
+      },
+      "./blocks/saved-views/react": {
+        "types": "./dist/blocks/saved-views/react/index.d.ts",
+        "react-server": "./dist/blocks/saved-views/react/server.js",
+        "default": "./dist/blocks/saved-views/react/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

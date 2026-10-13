@@ -3459,6 +3459,43 @@
       "RankRebalancePayload"
     ]
   },
+  "./blocks/saved-views": {
+    "values": [
+      "createSavedViews",
+      "defaultView",
+      "queryFromUrlState",
+      "sameQuery",
+      "SAVED_VIEW_DENSITIES",
+      "SAVED_VIEW_KINDS",
+      "SAVED_VIEW_SCOPES",
+      "savedViewIssues",
+      "savedViewStateSchema",
+      "urlStateFromQuery"
+    ],
+    "types": [
+      "ListUrlState",
+      "SavedView",
+      "SavedViewColumns",
+      "SavedViewDensity",
+      "SavedViewKind",
+      "SavedViewList",
+      "SavedViews",
+      "SavedViewScope",
+      "SavedViewsOptions",
+      "SavedViewState",
+      "SaveViewInput"
+    ]
+  },
+  "./blocks/saved-views/react": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "SavedViewLike",
+      "SavedViewsState",
+      "UseSavedViewsOptions"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"
