@@ -1,0 +1,94 @@
+---
+title: Undo
+description: Apply the undo tokens that block methods return, on the server with createUndo and in the browser with a useUndoStack for a toast's Undo button.
+---
+
+Block methods whose change has an inverse return an `undo` token next to
+their result: `relations.link`, `relations.unlink` and `audit.revert`. A token
+is plain JSON (`{ v: 1, calls: [{ fn, args }] }`), so a server action can
+return it to the browser and take it back when the user clicks Undo. Applying
+it runs the inverse calls as the caller, so the same policies and permission
+checks apply as for any other write.
+
+```ts
+import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+import { useUndoStack } from "better-supabase/blocks/undo/react";
+```
+
+The undo subpaths add no SQL module; they call the functions of the blocks
+that returned the token.
+
+## Apply a token
+
+`createUndo` checks that a value is a token whose calls are all inverses the
+blocks return (`link`, `unlink`, `revert_audit_entries`), then runs them in
+order and stops at the first error. Check the token on the server, since it
+comes back from the browser.
+
+```ts title="app/tasks/actions.ts"
+"use server";
+
+import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+
+export async function undoAction(token: unknown) {
+  const ctx = await server.context();
+  const undo = createUndo({ transport: sqlTransport(ctx.postgres) });
+  return (await undo.apply(token)).orThrow();
+}
+```
+
+`apply` resolves to the number of calls it ran. A value that is not an
+accepted token is a `validation` error. An app that returns its own inverses
+names their functions in `allow`, and builds tokens with `undoToken`.
+
+```ts
+const undo = createUndo({
+  transport: sqlTransport(ctx.postgres),
+  allow: ["restore_task"],
+});
+```
+
+Each call runs as its own statement. A token from `relations.link` that
+replaced a parent holds two calls (unlink the new parent, link the old one),
+and when the second fails the first stays applied.
+
+An undo can fail when the rows changed after the change it reverses: an audit
+revert refuses with `ROW_CHANGED_SINCE`, and a link that someone else removed
+is already gone.
+
+## Keep a stack in the browser
+
+`useUndoStack` keeps the newest tokens (20 by default) for a toast's Undo
+button or a Cmd+Z handler. `push` ignores a `null` token, so you can push
+every result without checking which methods have an inverse.
+
+```tsx title="app/tasks/task-list.tsx"
+"use client";
+
+import { useUndoStack } from "better-supabase/blocks/undo/react";
+
+const stack = useUndoStack({ apply: undoAction });
+
+async function moveUnder(epicId: string) {
+  const moved = await moveTask(taskId, epicId);
+  stack.push(moved.undo, "Moved the task");
+}
+
+// <Button disabled={!stack.canUndo} onClick={() => stack.undo()}>Undo</Button>
+```
+
+`undo` applies the newest entry and removes it. When the apply throws, the
+entry is removed too, since its rows changed, and `error` holds what it
+threw. Bulk actions return no token, because a row's inverse depends on the
+action; revert their [audit entries](/docs/blocks/audit#reverting-changes)
+instead.
+
+## With ReUI
+
+- Toast (Sonner): show the entry's `label` with an Undo action that calls
+  `stack.undo()`.
+- Command menu: an "Undo" item, disabled while `canUndo` is false.
+
+The free `c-sonner-*` examples show a toast with an action; the Pro
+application blocks show list toolbars with undo. Pro blocks are licensed per
+user, so copy them from [reui.io](https://reui.io).

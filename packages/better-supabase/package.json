@@ -576,6 +576,17 @@
       "types": "./dist/blocks/teams/index.d.ts",
       "default": "./dist/blocks/teams/index.js"
     },
+    "./blocks/undo": {
+      "@better-supabase/source": "./src/blocks/undo/index.ts",
+      "types": "./dist/blocks/undo/index.d.ts",
+      "default": "./dist/blocks/undo/index.js"
+    },
+    "./blocks/undo/react": {
+      "@better-supabase/source": "./src/blocks/undo/react/index.ts",
+      "types": "./dist/blocks/undo/react/index.d.ts",
+      "react-server": "./dist/blocks/undo/react/server.js",
+      "default": "./dist/blocks/undo/react/index.js"
+    },
     "./blocks/tags": {
       "@better-supabase/source": "./src/blocks/tags/index.ts",
       "types": "./dist/blocks/tags/index.d.ts",
@@ -1167,6 +1178,15 @@
       "./blocks/teams": {
         "types": "./dist/blocks/teams/index.d.ts",
         "default": "./dist/blocks/teams/index.js"
+      },
+      "./blocks/undo": {
+        "types": "./dist/blocks/undo/index.d.ts",
+        "default": "./dist/blocks/undo/index.js"
+      },
+      "./blocks/undo/react": {
+        "types": "./dist/blocks/undo/react/index.d.ts",
+        "react-server": "./dist/blocks/undo/react/server.js",
+        "default": "./dist/blocks/undo/react/index.js"
       },
       "./blocks/tags": {
         "types": "./dist/blocks/tags/index.d.ts",

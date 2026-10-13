@@ -60,6 +60,7 @@
   "blocks/saved-views",
   "blocks/relations",
   "blocks/bulk",
+  "blocks/undo",
   "blocks/settings",
   "blocks/share-links",
   "blocks/sql",

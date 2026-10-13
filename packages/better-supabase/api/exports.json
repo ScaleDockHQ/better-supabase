@@ -3366,6 +3366,34 @@
       "TeamsOptions"
     ]
   },
+  "./blocks/undo": {
+    "values": [
+      "createUndo",
+      "dbTransport",
+      "isUndoToken",
+      "rpcTransport",
+      "sqlTransport",
+      "UNDO_FUNCTIONS",
+      "undoToken"
+    ],
+    "types": [
+      "BlockTransport",
+      "Undo",
+      "UndoCall",
+      "UndoOptions",
+      "UndoToken"
+    ]
+  },
+  "./blocks/undo/react": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "UndoEntry",
+      "UndoStack",
+      "UseUndoStackOptions"
+    ]
+  },
   "./blocks/tags": {
     "values": [
       "createTags"

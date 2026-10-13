@@ -53,6 +53,7 @@
     "rank",
     "saved-views",
     "relations",
-    "bulk"
+    "bulk",
+    "undo"
   ]
 }

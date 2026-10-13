@@ -45,6 +45,7 @@ const PURE_BARRELS = [
   "blocks/saved-views",
   "blocks/relations",
   "blocks/bulk",
+  "blocks/undo",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",

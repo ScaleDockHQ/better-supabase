@@ -28,6 +28,8 @@ import { useNotifications } from "../../src/blocks/notifications/react/index.ts"
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
 import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
+import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
+import { undoToken } from "../../src/blocks/undo/undo.ts";
 import {
   useWorkflowBuilder,
   useWorkflowCanvasRun,
@@ -2956,5 +2958,51 @@ describe("useSavedViews", () => {
     expect(view.result.error).toEqual(new Error("down"));
     await expect(view.result.saveCurrent("x")).rejects.toThrow("pass `save`");
     await expect(view.result.remove("x")).rejects.toThrow("pass `remove`");
+  });
+});
+
+describe("useUndoStack", () => {
+  const token = (entry: string) =>
+    undoToken([{ fn: "revert_audit_entries", args: { entries: [entry] } }]);
+
+  it("keeps the newest tokens and applies them last in, first out", async () => {
+    const apply = vi.fn(async () => undefined);
+    const view = renderHook(
+      () => useUndoStack({ apply, limit: 2 }),
+      undefined,
+      null,
+    );
+    const { push } = view.result;
+    push(token("1"), "first");
+    push(null, "no inverse");
+    push(token("2"), "second");
+    push(token("3"), "third");
+    view.rerender(undefined);
+    expect(view.result.entries.map((entry) => entry.label)).toEqual([
+      "second",
+      "third",
+    ]);
+    expect(view.result.canUndo).toBe(true);
+
+    expect(await view.result.undo()).toBe(true);
+    expect(apply).toHaveBeenCalledWith(token("3"));
+    view.rerender(undefined);
+    expect(view.result.entries.map((entry) => entry.label)).toEqual(["second"]);
+    view.result.clear();
+    view.rerender(undefined);
+    expect(view.result.canUndo).toBe(false);
+    expect(await view.result.undo()).toBe(false);
+  });
+
+  it("drops a token whose undo failed and reports the error", async () => {
+    const apply = vi.fn(async () => {
+      throw new Error("ROW_CHANGED_SINCE");
+    });
+    const view = renderHook(() => useUndoStack({ apply }), undefined, null);
+    view.result.push(token("1"), "moved");
+    expect(await view.result.undo()).toBe(false);
+    view.rerender(undefined);
+    expect(view.result.entries).toEqual([]);
+    expect(view.result.error).toEqual(new Error("ROW_CHANGED_SINCE"));
   });
 });
