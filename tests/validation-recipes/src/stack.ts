@@ -196,6 +196,10 @@ export async function withRecipe(
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // validation-centrakit installs its schema on the same database; concurrent DDL deadlocks.
+    await client.query(
+      "select pg_advisory_xact_lock(hashtext('better-supabase:validation-ddl'))",
+    );
     await client.query(migration(recipe));
     await body(new Session(client));
   } finally {
