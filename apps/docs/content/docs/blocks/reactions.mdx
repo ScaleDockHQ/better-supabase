@@ -1,0 +1,87 @@
+---
+title: Reactions
+description: Emoji reactions on any subject, comments and inbox messages, with custom emoji per organization, counts under each subject's read rules and a realtime topic per organization.
+---
+
+`reactions` stores one row per actor and emoji on a subject. A member reacts to a subject they can read; counts, whether the user reacted and the first actors come back in one call. Reading needs `reactions.read`, reacting needs `reactions.create`, and custom emoji need `reactions.manage`.
+
+```bash
+better-supabase sql add reactions
+```
+
+```ts
+import { createReactions } from "better-supabase/blocks/reactions";
+
+const reactions = createReactions({ transport });
+await reactions.react(organizationId, "doc", docId, "👍").orThrow();
+const byDoc = await reactions.summary(organizationId, "doc", docIds).orThrow();
+await reactions
+  .react(organizationId, "doc", docId, "👍", { present: false })
+  .orThrow();
+```
+
+`react` returns the subject's reactions, most used first:
+
+| Field     | What it holds                                               |
+| --------- | ----------------------------------------------------------- |
+| `emoji`   | The emoji, or a custom emoji's `:shortcode:`                |
+| `count`   | How many actors reacted with it                             |
+| `reacted` | Whether the signed-in user is one of them                   |
+| `actors`  | The first ten actors: user ids, or names the service passed |
+
+## Subjects
+
+A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, a comment (`comment`, with the [comments](/docs/blocks/comments) module) or an inbox message (`inbox_message`, with the [inbox](/docs/blocks/inbox) module). `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply. A comment must not be deleted. Without registry subjects every type is accepted for members of the organization.
+
+The service role reacts for anyone and passes the actor's name:
+
+```ts
+await reactions
+  .react(organizationId, "comment", commentId, "✅", { actor: "deploy-bot" })
+  .orThrow();
+```
+
+## Inbox messages
+
+With the inbox installed, `react_to_message` writes to the `reactions` table and keeps the message's `reactions` column as a copy, so `inbox.messages.react()` and the inbox client keep working. `react(organizationId, "inbox_message", messageId, emoji)` goes through `react_to_message`, with the inbox's own rules. Installing the module copies the reactions messages already had.
+
+## Custom emoji
+
+An organization's custom emoji are shortcodes with an image: an attachment id from [attachments](/docs/blocks/attachments) or an `https://` URL. A reaction `:shortcode:` must name one of them, or `react` fails with `REACTION_INVALID`. Deleting a custom emoji deletes the reactions that used it.
+
+```ts
+await reactions
+  .saveCustomEmoji(organizationId, {
+    shortcode: "ship-it",
+    url: "https://cdn.example.com/ship-it.png",
+  })
+  .orThrow();
+const emoji = await reactions.customEmoji(organizationId).orThrow();
+```
+
+## Realtime
+
+Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes:
+
+```tsx
+import { useReactions } from "better-supabase/blocks/reactions/react";
+
+const { reactions, toggle } = useReactions({
+  organizationId,
+  subjectType: "comment",
+  subjectIds,
+});
+```
+
+## Events and hooks
+
+The module records `reaction.added` and `reaction.removed` with `organizationId`, `subjectType`, `subjectId`, `emoji` and `actor`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.
+
+| Error                | When                                                                    |
+| -------------------- | ----------------------------------------------------------------------- |
+| `REACTION_FORBIDDEN` | The caller lacks the permission or can't see the subject                |
+| `REACTION_INVALID`   | The emoji is empty, longer than 64 characters, has spaces or is unknown |
+
+## With ReUI
+
+Render the ReUI Emoji Picker for new reactions and one Bubble per `ReactionCount`, highlighted when `reacted` is true. `toggle(subjectId, emoji)` adds the emoji, or removes it when the user already reacted with it.

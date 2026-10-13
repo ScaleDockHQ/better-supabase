@@ -47,6 +47,7 @@ import { PROFILES } from "./modules/profiles.ts";
 import { PUSH } from "./modules/push.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
+import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { REMINDERS } from "./modules/reminders.ts";
@@ -169,6 +170,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RANK),
       built(VERSIONS),
       built(TRASH),
+      built(REACTIONS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -134,12 +134,13 @@ call again carry an idempotency key, so the outbox keeps one row.
 | `import.completed`, `import.failed`                                                                                                                                                                                                                                                                                        | `organizationId`, `id`, `kind`, `count`, `status`, `error`                                                                          |
 | `version.created`, `version.restored`, `version.deleted`                                                                                                                                                                                                                                                                   | `organizationId`, `subjectType`, `subjectId`, `id`, `number`, `label`, `source`, `restoredFrom`                                     |
 | `subject.trashed`, `subject.restored`, `subject.purged`                                                                                                                                                                                                                                                                    | `organizationId`, `subjectType`, `subjectId`, `id`, `batchId`                                                                       |
+| `reaction.added`, `reaction.removed`                                                                                                                                                                                                                                                                                       | `organizationId`, `subjectType`, `subjectId`, `emoji`, `actor`                                                                      |
 
 Every event about one subject (`comment.*`, `subject.tagged`,
 `subject.untagged`, `status.changed`, `field_value.set`,
-`share_link.created`, `subject.viewed`, `reminder.sent`, `version.*` and the trash events) carries the same
+`share_link.created`, `subject.viewed`, `reminder.sent`, `version.*`, the trash events and `reaction.*`) carries the same
 three keys, typed as `SubjectEventData` from `better-supabase/events`
-(`CollaborationEventData` adds the version and trash keys):
+(`CollaborationEventData` adds the version, trash and reaction keys):
 `organizationId`, `subjectType` and `subjectId`. A sink that handles one of
 them, such as the [watcher sink](/docs/blocks/notifications#watchers),
 handles them all. `status.changed` also names the previous status in `from`

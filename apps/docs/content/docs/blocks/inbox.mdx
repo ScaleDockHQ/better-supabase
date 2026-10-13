@@ -115,6 +115,12 @@ await inbox.conversations.resolve(conversation.id).orThrow();
 | `templates.upsert`, `delete`                                       | Approved channel templates, such as WhatsApp's                               |
 | `purgeContact(contactId)`                                          | Erases a contact and its conversations; returns attachment paths to delete   |
 
+With the [reactions](/docs/blocks/reactions) module installed,
+`messages.react` stores reactions in its table (subject type
+`inbox_message`) and keeps the message's `reactions` field as a copy, so
+reactions on messages and on other subjects share custom emoji, events and
+the realtime topic.
+
 `contactReadAt` is the last time the contact read the conversation, only
 for staff, so a thread can show a read receipt. A message body is limited
 to `maxBodyLength` characters (20000 by default), and attachments live in

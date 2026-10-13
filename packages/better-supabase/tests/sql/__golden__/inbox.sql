@@ -2914,18 +2914,24 @@ begin
   if length(emoji) not between 1 and 64 then
     raise exception 'emoji must be 1 to 64 characters' using errcode = '22023', hint = 'INBOX_REACTION_INVALID';
   end if;
-  update "better_supabase"."inbox_messages" set "reactions" = case
-    when coalesce(present, true) then
-      "reactions" || jsonb_build_object(emoji, (
-        select coalesce(jsonb_agg(distinct x), '[]'::jsonb)
-        from jsonb_array_elements_text(coalesce("reactions" -> emoji, '[]'::jsonb) || to_jsonb(v_who)) x
-      ))
-    else
-      case when (select count(*) from jsonb_array_elements_text(coalesce("reactions" -> emoji, '[]'::jsonb)) x where x <> v_who) = 0
-        then "reactions" - emoji
-        else "reactions" || jsonb_build_object(emoji, (select jsonb_agg(x) from jsonb_array_elements_text("reactions" -> emoji) x where x <> v_who))
-      end
-    end
+  if coalesce(present, true) then
+    insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "emoji")
+    values (v_msg."tenant_id", 'inbox_message', v_msg."id"::text, v_who, case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then null else (select auth.uid()) end, react_to_message.emoji)
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."reactions" x
+    where x."subject_type" = 'inbox_message' and x."subject_id" = v_msg."id"::text
+      and x."actor" = v_who and x."emoji" = react_to_message.emoji;
+  end if;
+  update "better_supabase"."inbox_messages" set "reactions" = (
+    select coalesce(jsonb_object_agg(g.emoji, g.actors), '{}'::jsonb)
+    from (
+      select x."emoji" as emoji, jsonb_agg(x."actor" order by x."created_at") as actors
+      from "better_supabase"."reactions" x
+      where x."subject_type" = 'inbox_message' and x."subject_id" = v_msg."id"::text
+      group by x."emoji"
+    ) g
+  )
   where "id" = v_msg."id"
   returning * into v_msg;
   return v_msg."reactions";

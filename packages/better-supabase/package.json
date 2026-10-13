@@ -621,6 +621,17 @@
       "types": "./dist/blocks/trash/index.d.ts",
       "default": "./dist/blocks/trash/index.js"
     },
+    "./blocks/reactions": {
+      "@better-supabase/source": "./src/blocks/reactions/index.ts",
+      "types": "./dist/blocks/reactions/index.d.ts",
+      "default": "./dist/blocks/reactions/index.js"
+    },
+    "./blocks/reactions/react": {
+      "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
+      "types": "./dist/blocks/reactions/react/index.d.ts",
+      "react-server": "./dist/blocks/reactions/react/server.js",
+      "default": "./dist/blocks/reactions/react/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1192,6 +1203,15 @@
       "./blocks/trash": {
         "types": "./dist/blocks/trash/index.d.ts",
         "default": "./dist/blocks/trash/index.js"
+      },
+      "./blocks/reactions": {
+        "types": "./dist/blocks/reactions/index.d.ts",
+        "default": "./dist/blocks/reactions/index.js"
+      },
+      "./blocks/reactions/react": {
+        "types": "./dist/blocks/reactions/react/index.d.ts",
+        "react-server": "./dist/blocks/reactions/react/server.js",
+        "default": "./dist/blocks/reactions/react/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

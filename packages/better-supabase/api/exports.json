@@ -3501,6 +3501,33 @@
       "TrashOptions"
     ]
   },
+  "./blocks/reactions": {
+    "values": [
+      "createReactions",
+      "dbTransport",
+      "reactionsTopic",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "CustomEmoji",
+      "CustomEmojiInput",
+      "ReactionCount",
+      "Reactions",
+      "ReactionsOptions",
+      "ReactOptions"
+    ]
+  },
+  "./blocks/reactions/react": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "ReactionsState",
+      "UseReactionsOptions"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

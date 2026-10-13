@@ -356,7 +356,9 @@ export type SubjectEventType =
   | "version.deleted"
   | "subject.trashed"
   | "subject.restored"
-  | "subject.purged";
+  | "subject.purged"
+  | "reaction.added"
+  | "reaction.removed";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -391,6 +393,10 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly restoredFrom?: number;
   /** The trash batch: a subject and the children trashed with it. */
   readonly batchId?: string;
+  /** The emoji, or a custom emoji's `:shortcode:`. */
+  readonly emoji?: string;
+  /** Who reacted: a user id, or the name the service passed. */
+  readonly actor?: string;
 }
 
 /** Every block event type and its data. */
@@ -532,6 +538,8 @@ export interface BlockEventMap {
   "subject.trashed": CollaborationEventData;
   "subject.restored": CollaborationEventData;
   "subject.purged": CollaborationEventData;
+  "reaction.added": CollaborationEventData;
+  "reaction.removed": CollaborationEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

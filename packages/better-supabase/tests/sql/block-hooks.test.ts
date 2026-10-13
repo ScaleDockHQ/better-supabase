@@ -28,6 +28,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_version_restore",
   ],
   trash: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
+  reactions: ["before_react", "after_react"],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;
