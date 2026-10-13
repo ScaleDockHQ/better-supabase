@@ -350,7 +350,8 @@ export type SubjectEventType =
   | "field_value.set"
   | "share_link.created"
   | "subject.viewed"
-  | "reminder.sent";
+  | "reminder.sent"
+  | "stock.reorder_point_reached";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -403,6 +404,9 @@ export interface CommerceEventData {
   readonly supplierType?: string | null;
   readonly supplierId?: string | null;
 }
+
+/** `CommerceEventData` for an event about one subject, such as a variant. */
+export type CommerceSubjectEventData = CommerceEventData & SubjectEventData;
 
 /** Every block event type and its data. */
 export interface BlockEventMap {
@@ -547,6 +551,17 @@ export interface BlockEventMap {
   "catalog.price_changed": CommerceEventData;
   "storefront.published": CommerceEventData;
   "storefront.unpublished": CommerceEventData;
+  "stock.adjusted": CommerceEventData;
+  "stock.reorder_point_reached": CommerceSubjectEventData;
+  "reservation.created": CommerceEventData;
+  "reservation.committed": CommerceEventData;
+  "reservation.released": CommerceEventData;
+  "transfer.shipped": CommerceEventData;
+  "transfer.received": CommerceEventData;
+  "transfer.cancelled": CommerceEventData;
+  "purchase_order.placed": CommerceEventData;
+  "purchase_order.received": CommerceEventData;
+  "purchase_order.cancelled": CommerceEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

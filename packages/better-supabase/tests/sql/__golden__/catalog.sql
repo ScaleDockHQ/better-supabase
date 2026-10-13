@@ -1715,6 +1715,9 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (select v."id" from "better_supabase"."product_variants" v where v."product_id" = delete_product.product)) then
+    raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_PRODUCT_IN_USE';
+  end if;
   delete from "better_supabase"."products" x where x."id" = delete_product.product;
   perform "better_supabase".emit_event('product.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_product.product), 'products/' || delete_product.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
   return true;
@@ -1873,6 +1876,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (delete_variant.variant)) then
+    raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_VARIANT_IN_USE';
   end if;
   delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
   perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product), 'variants/' || delete_variant.variant::text, (v_tenant)::text, null, 'better-supabase/catalog');

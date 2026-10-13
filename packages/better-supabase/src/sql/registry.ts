@@ -32,6 +32,7 @@ import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
+import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
@@ -167,6 +168,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SUBJECTS),
       built(RANK),
       built(CATALOG),
+      built(INVENTORY),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
