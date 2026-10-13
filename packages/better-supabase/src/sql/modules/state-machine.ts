@@ -257,6 +257,8 @@ ${lockTable(ctx.table("stages"), { read: true })}
         )
         .join(" ");
       const target = quotedTable(item.table);
+      const tenant = `new.${sqlIdent(item.tenantColumn)}::text`;
+      const subjectId = `new.${sqlIdent(item.idColumn)}::text`;
       const hist = item.history;
       const write = hist
         ? `insert into ${quotedTable(hist.table)} (${sqlIdent(hist.subject)}, ${sqlIdent(hist.tenant)}, ${sqlIdent(hist.from)}, ${sqlIdent(hist.to)}, ${sqlIdent(hist.actor)}, ${sqlIdent(hist.reason)})
@@ -286,6 +288,13 @@ begin
   end if;
   ${write}
   ${stageWrite(ctx, item, "advance")}
+  ${ctx.record({
+    type: "status.changed",
+    payload: `jsonb_build_object('organizationId', ${tenant}, 'subjectType', ${sqlString(item.name)}, 'subjectId', ${subjectId}, 'from', old.${sqlIdent(item.column)}::text, 'to', new.${sqlIdent(item.column)}::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), ''))`,
+    tenant,
+    subject: `'statuses/${item.name}/' || ${subjectId}`,
+    audit: false,
+  })}
   return new;
 end;
 $$;
@@ -303,9 +312,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   ${ctx.hook("before_status_transition", [
@@ -321,10 +327,6 @@ ${list
   .map(
     (item) =>
       `    when ${sqlString(item.name)} then
-      select s.${sqlIdent(item.tenantColumn)}::text, s.${sqlIdent(item.column)}::text into v_tenant, v_from
-      from ${quotedTable(item.table)} s
-      where s.${sqlIdent(item.idColumn)}::text = transition.subject_id
-      for update;
       update ${quotedTable(item.table)} set ${sqlIdent(item.column)} = transition.to_status
       where ${sqlIdent(item.idColumn)}::text = transition.subject_id;`,
   )
@@ -333,13 +335,7 @@ ${list
       ${fail("STATE_MACHINE_UNKNOWN", "unknown subject", "22023")}
   end case;`
   }
-  ${ctx.record({
-    type: "status.changed",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'subjectType', transition.subject_type, 'subjectId', transition.subject_id, 'from', v_from, 'to', transition.to_status)`,
-    tenant: "v_tenant",
-    subject: `'statuses/' || transition.subject_type || '/' || transition.subject_id`,
-    audit: false,
-  })}
+  perform set_config('better_supabase.transition_reason', '', true);
   ${ctx.hook("after_status_transition", [
     ["text", "transition.subject_type"],
     ["text", "transition.to_status"],

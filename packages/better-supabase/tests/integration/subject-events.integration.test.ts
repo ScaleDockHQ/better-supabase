@@ -77,6 +77,32 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
         subjectId: "t1",
         from: "open",
         to: "closed",
+        reason: "done",
+      },
+    ]);
+  });
+
+  it("status.changed follows a direct update, without a stale reason, and skips a no-op", async () => {
+    await client.query(
+      `insert into events_it.tickets (id, organization_id) values ('t2', '${ACME}')`,
+    );
+    await client.query(
+      "update events_it.tickets set status = 'open' where id = 't2'",
+    );
+    await client.query(
+      "update events_it.tickets set status = 'closed' where id = 't2'",
+    );
+    const t2 = (await payloads("status.changed")).filter(
+      (p) => p["subjectId"] === "t2",
+    );
+    expect(t2).toEqual([
+      {
+        organizationId: ACME,
+        subjectType: "ticket_status",
+        subjectId: "t2",
+        from: "open",
+        to: "closed",
+        reason: null,
       },
     ]);
   });

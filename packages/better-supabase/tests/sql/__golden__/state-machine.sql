@@ -45,9 +45,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   declare
@@ -59,7 +56,7 @@ begin
     end if;
   end;
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  null;
+  perform set_config('better_supabase.transition_reason', '', true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
   begin
@@ -146,9 +143,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   declare
@@ -160,7 +154,7 @@ begin
     end if;
   end;
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', v_tenant, 'subjectType', transition.subject_type, 'subjectId', transition.subject_id, 'from', v_from, 'to', transition.to_status), 'statuses/' || transition.subject_type || '/' || transition.subject_id, (v_tenant)::text, null, 'better-supabase/state-machine');
+  perform set_config('better_supabase.transition_reason', '', true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
   begin
@@ -249,9 +243,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   declare
@@ -263,7 +254,7 @@ begin
     end if;
   end;
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  null;
+  perform set_config('better_supabase.transition_reason', '', true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
   begin
@@ -350,9 +341,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   declare
@@ -364,7 +352,7 @@ begin
     end if;
   end;
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  null;
+  perform set_config('better_supabase.transition_reason', '', true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
   begin
@@ -434,9 +422,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant text;
-  v_from text;
 begin
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   declare
@@ -448,7 +433,7 @@ begin
     end if;
   end;
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
-  null;
+  perform set_config('better_supabase.transition_reason', '', true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_status_transition"(text, text)');
   begin

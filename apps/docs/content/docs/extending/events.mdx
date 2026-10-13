@@ -139,7 +139,8 @@ Every event about one subject (`comment.*`, `subject.tagged`,
 three keys, typed as `SubjectEventData` from `better-supabase/events`:
 `organizationId`, `subjectType` and `subjectId`. A sink that handles one of
 them, such as the [watcher sink](/docs/blocks/notifications#watchers),
-handles them all. `status.changed` also names the previous status in `from`.
+handles them all. `status.changed` also names the previous status in `from`
+and the `reason` passed to `transition()`, or `null`.
 
 `BLOCK_EVENT_RENAMES` from `better-supabase/events` maps the 0.5 names to the
 current ones (`BLOCK_EVENT_RENAMES[type] ?? type`), for consumers that still
