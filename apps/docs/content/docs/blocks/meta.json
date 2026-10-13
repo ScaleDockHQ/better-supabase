@@ -50,6 +50,8 @@
     "share-links",
     "reminders",
     "imports",
-    "rank"
+    "rank",
+    "search",
+    "metrics"
   ]
 }
