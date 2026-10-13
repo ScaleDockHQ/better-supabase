@@ -65,7 +65,7 @@ export interface TaxLine {
   /** The decimal fraction applied, such as `"0.21"`. */
   readonly rate: string;
   readonly inclusive: boolean;
-  /** The provider's name for the jurisdiction, such as `Netherlands`. */
+  /** The jurisdiction: Stripe's name (`Netherlands`) or the `fixedRates` region (`NL`). */
   readonly jurisdiction?: string;
   readonly taxCategory?: string;
 }
@@ -283,21 +283,31 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
   const name = options.name ?? "fixed-rates";
   const defaultCategory = options.defaultCategory ?? "standard";
   const shippingCategory = options.shippingCategory ?? defaultCategory;
-  const ratesFor = (address: TaxAddress): TaxRates | undefined =>
-    (address.state === undefined
-      ? undefined
-      : options.rates[`${address.country}-${address.state}`]) ??
-    options.rates[address.country];
+  const regionFor = (
+    address: TaxAddress,
+  ): { readonly region: string; readonly rates: TaxRates } | undefined => {
+    const keys = [
+      ...(address.state === undefined
+        ? []
+        : [`${address.country}-${address.state}`]),
+      address.country,
+    ];
+    for (const region of keys) {
+      const rates = options.rates[region];
+      if (rates !== undefined) return { region, rates };
+    }
+    return undefined;
+  };
 
   const lineOf = (
     lineId: string,
     amount: Money,
     category: string,
     inclusive: boolean,
-    rates: TaxRates | undefined,
+    region: { readonly region: string; readonly rates: TaxRates } | undefined,
     exempt: boolean,
   ): Result<TaxLine> => {
-    const rate = exempt || rates === undefined ? "0" : rates[category];
+    const rate = exempt || region === undefined ? "0" : region.rates[category];
     if (rate === undefined)
       return err(
         dbError("not_found", `No "${category}" tax rate for this region`, {
@@ -311,6 +321,7 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
       tax,
       rate,
       inclusive,
+      ...(region === undefined ? {} : { jurisdiction: region.region }),
       taxCategory: category,
     });
   };
@@ -341,7 +352,7 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
   function quoteOf(cart: TaxCart): Result<TaxQuote> {
     const problem = invalidTaxCart(cart);
     if (problem) return err(problem);
-    const rates = ratesFor(cart.address);
+    const rates = regionFor(cart.address);
     if (rates === undefined && options.unknownRegion !== "zero")
       return err(
         dbError(
