@@ -22,6 +22,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   teams: ["before_team_create", "after_team_create"],
   tags: ["before_tag_apply", "after_tag_apply"],
   calendar: ["before_calendar_event_save", "after_calendar_event_save"],
+  bookings: [
+    "before_booking_reserve",
+    "after_booking_reserve",
+    "after_booking_confirm",
+    "after_booking_cancel",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

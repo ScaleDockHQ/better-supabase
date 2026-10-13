@@ -51,6 +51,7 @@
     "reminders",
     "imports",
     "rank",
-    "calendar"
+    "calendar",
+    "bookings"
   ]
 }

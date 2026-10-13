@@ -523,6 +523,10 @@ export interface BlockEventMap {
   "calendar_event.created": SchedulingEventData;
   "calendar_event.updated": SchedulingEventData;
   "calendar_event.deleted": SchedulingEventData;
+  "booking.reserved": SchedulingEventData;
+  "booking.confirmed": SchedulingEventData;
+  "booking.cancelled": SchedulingEventData;
+  "booking.expired": SchedulingEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -3508,6 +3508,42 @@
       "UseCalendarOptions"
     ]
   },
+  "./blocks/bookings": {
+    "values": [
+      "BOOKING_EXPIRE_QUEUE",
+      "bookingOf",
+      "createBookings",
+      "slotsByDay",
+      "toEventCalendarBookings"
+    ],
+    "types": [
+      "Booking",
+      "BookingCustomer",
+      "BookingDuration",
+      "BookingEventOptions",
+      "BookingExceptionInput",
+      "BookingExpirePayload",
+      "BookingRange",
+      "BookingResourceInput",
+      "Bookings",
+      "BookingServiceInput",
+      "BookingSlot",
+      "BookingsOptions",
+      "BookingStatus",
+      "PlacedBooking",
+      "PublicBookingService",
+      "WeeklyHours"
+    ]
+  },
+  "./blocks/bookings/react": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsState",
+      "UseAvailableSlotsOptions"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

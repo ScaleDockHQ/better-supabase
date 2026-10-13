@@ -113,6 +113,8 @@
   "./blocks/rank": 34262,
   "./blocks/calendar": 43724,
   "./blocks/calendar/react": 58162,
+  "./blocks/bookings": 34459,
+  "./blocks/bookings/react": 49137,
   "./blocks/announcements/react": 49616,
   "./openapi": 46132,
   "./spec": 50908,
