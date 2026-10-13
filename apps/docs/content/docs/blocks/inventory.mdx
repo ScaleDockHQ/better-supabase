@@ -1,0 +1,222 @@
+---
+title: Inventory
+description: Stock per catalog variant and location from an append-only movement ledger, reservations that expire, transfers between locations and purchase orders with partial receiving.
+---
+
+`inventory` counts the stock of [catalog](/docs/blocks/catalog) variants at
+each location. Every change is a row in an append-only movement ledger, and a
+trigger keeps one level row per variant and location in step with it:
+on-hand, reserved, incoming, and available (on-hand minus reserved). On top
+of the ledger it adds reservations that expire, transfers between locations,
+and purchase orders that you receive in parts.
+
+```bash
+better-supabase sql add inventory
+```
+
+```ts
+import { createInventory } from "better-supabase/blocks/inventory";
+import { money } from "better-supabase/blocks/commerce";
+```
+
+The module needs `tenant`, `access` and `catalog`, and emits events when
+`outbox` is installed.
+
+## Permissions
+
+| Key                  | What it allows                                            |
+| -------------------- | --------------------------------------------------------- |
+| `inventory.read`     | Read locations, levels, movements and the other tables    |
+| `inventory.manage`   | Locations, adjustments, counts, reorder points, transfers |
+| `inventory.reserve`  | Reserve, commit and release stock                         |
+| `inventory.purchase` | Create, place, receive and cancel purchase orders         |
+
+The owner role holds `*`. Give the other roles the keys they need:
+
+```ts title="better-supabase.config.ts"
+roles: {
+  admin: ["catalog.*", "inventory.*", "members.*"],
+  warehouse: ["catalog.read", "inventory.read", "inventory.manage", "inventory.purchase"],
+  member: ["catalog.read", "inventory.read"],
+},
+```
+
+Checkout code that runs as the customer usually reserves through a service
+transport instead of granting `inventory.reserve` to every member.
+
+## Locations
+
+```ts
+const inventory = createInventory({ transport });
+
+const warehouse = await inventory
+  .saveLocation(organizationId, { code: "WH-AMS", name: "Amsterdam" })
+  .orThrow();
+```
+
+`kind` is `warehouse` (the default), `store` or `virtual`. Codes are unique
+per organization. `setLocationActive(id, false)` stops new reservations and
+transfers at a location, and a location with stock history can't be deleted
+(`INVENTORY_LOCATION_IN_USE`).
+
+## The ledger
+
+```ts
+await inventory.adjustStock(variantId, warehouse.id, 40, "receipt").orThrow();
+await inventory
+  .adjustStock(variantId, warehouse.id, -2, "damage", "dropped")
+  .orThrow();
+// { movementId, onHand: 38, available: 38 }
+
+await inventory
+  .countStock(variantId, warehouse.id, 36, "cycle count")
+  .orThrow();
+// { movementId, delta: -2, onHand: 36 }
+```
+
+`adjustStock` takes `adjustment`, `damage`, `loss`, `return` or `receipt`.
+The other movement reasons (`count`, `sale`, `transfer_out`, `transfer_in`)
+come from the functions that write them. Movements can't be updated
+(`INVENTORY_LEDGER_APPEND_ONLY`); a correction is a new movement.
+
+When the catalog variant has `trackInventory` on and `allowBackorder` off,
+the ledger refuses a movement that would take on-hand below zero, or take
+available below zero for a sale or a transfer (`INVENTORY_INSUFFICIENT`). A
+variant with `allowBackorder` can go negative.
+
+`setReorderPoint(variantId, locationId, 10)` stores a threshold. When
+available stock drops to it or below, the module emits
+`stock.reorder_point_reached`, once per crossing.
+
+A catalog variant or product with stock history can't be deleted
+(`CATALOG_VARIANT_IN_USE`, `CATALOG_PRODUCT_IN_USE`); archive it instead.
+
+## Reservations
+
+```ts
+const hold = await inventory
+  .reserve(variantId, warehouse.id, {
+    quantity: 2,
+    referenceType: "cart",
+    referenceId: cartId,
+  })
+  .orThrow();
+// { id, expiresAt, available }
+
+await inventory.commitReservation(hold.id).orThrow(); // writes a `sale` movement
+await inventory.releaseReservation(hold.id).orThrow(); // false once closed
+```
+
+A reservation holds stock until it is committed, released or expires, 15
+minutes from now by default (`expiresAt` sets another instant in the future).
+A strict variant can't reserve more than is available. Committing an expired
+hold fails with `INVENTORY_RESERVATION_EXPIRED`.
+
+Expired holds stop counting the next time someone reserves the same variant
+at the same location. To release the rest, run `expireReservations` from a
+scheduled job. It is a service-only function, so pass a service transport:
+
+```ts title="lib/inventory.ts"
+export const inventory = createInventory({
+  transport: sqlTransport(ctx.postgres),
+  service: sqlTransport(servicePostgres),
+});
+```
+
+```ts
+await jobs.schedule("inventory:expire", "*/5 * * * *", "inventory.expire", {});
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { "inventory.expire": inventory.job },
+});
+```
+
+`inventory.job` reads an optional `maxRows` from the payload.
+
+## Transfers
+
+```ts
+const transfer = await inventory
+  .createTransfer(organizationId, {
+    fromLocationId: warehouse.id,
+    toLocationId: store.id,
+    lines: [{ variantId, quantity: 5 }],
+  })
+  .orThrow();
+
+await inventory.shipTransfer(transfer.id).orThrow(); // transfer_out at the source
+await inventory.receiveTransfer(transfer.id).orThrow(); // transfer_in at the destination
+```
+
+A transfer goes from `draft` to `in_transit` to `received`. Cancelling an
+in-transit transfer returns the stock to the source. The two locations must
+differ (`INVENTORY_TRANSFER_SAME_LOCATION`), and a step out of order fails
+with `INVENTORY_TRANSFER_STATUS`.
+
+## Purchase orders
+
+```ts
+const order = await inventory
+  .savePurchaseOrder(organizationId, {
+    locationId: warehouse.id,
+    supplier: { type: "company", id: supplierId },
+    currency: "EUR",
+    lines: [{ variantId, quantity: 100, unitCost: money(450n, "EUR") }],
+  })
+  .orThrow();
+
+await inventory.placePurchaseOrder(order.id).orThrow(); // incoming += 100
+
+await inventory
+  .receivePurchaseOrder(order.id, [{ lineId, quantity: 60 }])
+  .orThrow();
+// { status: "partially_received", backordered: 40 }
+```
+
+A purchase order can change only while it is a `draft`
+(`INVENTORY_PURCHASE_ORDER_LOCKED`). Placing it counts its lines as incoming
+stock at the location. Each receipt writes `receipt` movements and lowers
+incoming; units still owed stay on backorder until a later receipt, and a
+receipt above what is owed fails with `INVENTORY_OVER_RECEIPT`. Cancelling
+removes the units still owed from incoming.
+
+Unit costs are `bigint` minor units in the order's currency, checked against
+the catalog's ISO 4217 list. The supplier is a `config.subjects` type and id,
+such as a CRM company; the module stores the pair and doesn't check it.
+
+## Events
+
+| Event                                                                          | When                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `stock.adjusted`                                                               | `adjustStock` and `countStock`                   |
+| `stock.reorder_point_reached`                                                  | Available stock drops to the reorder point       |
+| `reservation.created`, `reservation.committed`                                 | `reserve`, `commitReservation`                   |
+| `reservation.released`                                                         | A release, with `reason` `released` or `expired` |
+| `transfer.shipped`, `transfer.received`, `transfer.cancelled`                  | A transfer step                                  |
+| `purchase_order.placed`, `purchase_order.received`, `purchase_order.cancelled` | A purchase order step                            |
+
+`stock.reorder_point_reached` is a subject event on the `product_variant`
+subject, so the [watcher sink](/docs/blocks/notifications#watchers) notifies
+the variant's watchers when
+[`catalogSubjects()`](/docs/blocks/catalog#subjects) is in `config.subjects`.
+
+## Hooks
+
+The SQL module calls `before_stock_adjust`, `after_stock_adjust`,
+`before_stock_reserve` and `after_stock_reserve` when you define them (see
+[blocks](/docs/extending/blocks)). The TypeScript client takes `hooks` keyed
+by method name.
+
+## Adopting existing tables
+
+In `adopt` mode, map `locations`, `levels`, `movements` and `reservations` to
+your tables. Transfers (`transfers`, `transferLines`) and purchase orders
+(`purchaseOrders`, `purchaseOrderLines`) are optional: set them to `null`
+and their functions are left out.
+
+## Not included
+
+Sales orders, fulfilment and returns belong to an orders block. Inventory
+doesn't value stock (no FIFO or average cost), doesn't pick a location for
+an order, and doesn't track lots, serial numbers or expiry dates.

@@ -46,6 +46,7 @@
   "blocks/entitlements",
   "blocks/flags",
   "blocks/imports",
+  "blocks/inventory",
   "blocks/inbox",
   "blocks/jobs",
   "blocks/knowledge",

@@ -1,6 +1,8 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { createInventory } from "../../src/blocks/inventory/index.ts";
+import { sqlTransport } from "../../src/core/block-transport.ts";
 import {
   BlockSession,
   dbUrl,
@@ -400,6 +402,26 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     expect(
       await session.hint("better_supabase.delete_location($1)", [warehouse]),
     ).toBe("INVENTORY_LOCATION_IN_USE");
+  });
+
+  it("drives the TypeScript block against the SQL", async () => {
+    await session.as(owner);
+    const inventory = createInventory({ transport: sqlTransport(session.sql) });
+    const shelf = await inventory
+      .saveLocation(tenant, { code: "SHELF", name: "Shelf", kind: "store" })
+      .orThrow();
+    expect(
+      await inventory.adjustStock(mug, shelf.id, 4, "receipt").orThrow(),
+    ).toMatchObject({ onHand: 4, available: 4 });
+    const held = await inventory
+      .reserve(mug, shelf.id, { quantity: 3, referenceType: "cart" })
+      .orThrow();
+    expect(held.available).toBe(1);
+    expect(held.expiresAt).toBeInstanceOf(Temporal.Instant);
+    expect(
+      await inventory.reserve(mug, shelf.id, { quantity: 2 }),
+    ).toMatchObject({ ok: false, error: { hint: "INVENTORY_INSUFFICIENT" } });
+    expect(await inventory.releaseReservation(held.id).orThrow()).toBe(true);
   });
 
   it("lets only permitted members write or read", async () => {

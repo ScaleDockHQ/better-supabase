@@ -71,6 +71,7 @@ const entries = [
   "blocks/rank/index",
   "blocks/commerce/index",
   "blocks/catalog/index",
+  "blocks/inventory/index",
   "ai-sdk/index",
   "ai-sdk/chat/index",
   "ai-sdk/files/index",

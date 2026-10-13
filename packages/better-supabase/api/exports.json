@@ -1932,6 +1932,7 @@
       "CloudEventOptions",
       "CommentEventData",
       "CommerceEventData",
+      "CommerceSubjectEventData",
       "ConnectorEventData",
       "CredentialEventData",
       "DataExportEventData",
@@ -3573,6 +3574,43 @@
       "StatusChange",
       "VariantInput",
       "VariantPriceOptions"
+    ]
+  },
+  "./blocks/inventory": {
+    "values": [
+      "ADJUST_REASONS",
+      "createInventory",
+      "dbTransport",
+      "extendBlock",
+      "LOCATION_KINDS",
+      "PURCHASE_ORDER_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "AdjustReason",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Inventory",
+      "InventoryOptions",
+      "LocationInput",
+      "LocationKind",
+      "PurchaseOrderInput",
+      "PurchaseOrderLine",
+      "PurchaseOrderStatus",
+      "Receipt",
+      "ReceiptLine",
+      "Reservation",
+      "ReserveInput",
+      "RpcClient",
+      "SavedLocation",
+      "StockChange",
+      "StockCount",
+      "StockLine",
+      "TransferInput"
     ]
   },
   "./blocks/announcements/react": {
