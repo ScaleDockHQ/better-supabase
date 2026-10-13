@@ -75,6 +75,19 @@ describe.skipIf(!live)("drive", () => {
       );
       expect(renamed.name).toBe("Launch (2)");
 
+      await s.asRole(owner, { act: { kind: "support" } });
+      expect(
+        await s.hint(
+          "select better_supabase.drive_create_folder($1, null, 'Support')",
+          [tenant],
+        ),
+      ).toBe("ACTOR_READ_ONLY");
+      expect(
+        await s.hint("select better_supabase.drive_rename($1, 'Support')", [
+          launch.id,
+        ]),
+      ).toBe("ACTOR_READ_ONLY");
+
       await s.asRole(member);
       expect(
         await s.value<unknown[]>("better_supabase.drive_list($1)", [tenant]),

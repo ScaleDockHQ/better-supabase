@@ -9,7 +9,7 @@ import {
   sha256Hex,
   userGrant,
 } from "../shared.ts";
-import { UUID_TEXT } from "./drive-kit.ts";
+import { READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 
 /** Files, revisions, the bin, stars and links: the drive-files module. */
 export function driveFilesSql(kit: DriveKit): string {
@@ -87,6 +87,7 @@ declare
   v_conflict text := ${fn("drive_conflict")}(drive_create_file.conflict);
   v_node ${T}%rowtype;
 begin
+  ${READ_ONLY_GUARD}
   perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent);
   if v_conflict = 'replace' then
     perform ${fn("drive_lock_siblings")}(drive_create_file.tenant, drive_create_file.parent);
@@ -117,6 +118,7 @@ as $$
 declare
   v_node ${T}%rowtype;
 begin
+  ${READ_ONLY_GUARD}
   select * into v_node from ${T} x where x.${n("id")} = drive_upload_revision.node${live("x")};
   if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
     ${notFound}
@@ -428,6 +430,7 @@ begin
     update ${T} x set ${n("name")} = v_name where x.${n("id")} = v_node.${n("id")};
   end if;
   v_count := ${trash.fn("trash_restore_batch")}(v_root.${ti("batch")});
+  delete from ${trash.table("items")} where ${ti("batch")} = v_root.${ti("batch")};
   select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
   return jsonb_build_object('id', v_root.${ti("id")}, 'batchId', v_root.${ti("batch")}, 'count', v_count, 'node', ${json("v_node")});
 end;

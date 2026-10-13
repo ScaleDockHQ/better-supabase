@@ -14,6 +14,13 @@ import { trashTypes } from "./trash.ts";
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 const ROLE = /^[a-z][a-z0-9_]{0,30}$/;
 export const CONFLICTS = ["fail", "rename", "replace"] as const;
+/**
+ * The read-only session check for functions whose only writes happen in the
+ * internal helpers they call, which the write guard can't see.
+ */
+export const READ_ONLY_GUARD =
+  "perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();";
+
 export const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 const PATH_SEGMENT = "drive-nodes";

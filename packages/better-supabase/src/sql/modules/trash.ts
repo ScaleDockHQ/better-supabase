@@ -385,7 +385,8 @@ end;
 $$;
 ${userGrant(`${fn("trash")}(${ctx.idType}, text, text)`)}
 
--- Restores every row of a batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
 create or replace function ${fn("trash_restore_batch")}(batch uuid)
 returns integer
 language plpgsql
@@ -401,7 +402,6 @@ begin
     ${record("subject.restored", `v_item.${c("id")}`, "v_item")}
     v_count := v_count + 1;
   end loop;
-  delete from ${items} where ${c("batch")} = trash_restore_batch.batch;
   return v_count;
 end;
 $$;
@@ -428,6 +428,7 @@ begin
   end if;
   ${ctx.hook("before_untrash", [["uuid", `v_root.${c("id")}`]])}
   v_count := ${fn("trash_restore_batch")}(v_root.${c("batch")});
+  delete from ${items} where ${c("batch")} = v_root.${c("batch")};
   ${ctx.hook("after_untrash", [
     ["uuid", `v_root.${c("id")}`],
     ["uuid", `v_root.${c("batch")}`],

@@ -138,7 +138,6 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(USAGE),
       built(BILLING),
       built(FLAGS),
-      built(DRIVE),
       built(COMMENTS),
       built(ATTACHMENTS),
       built(DATA_LIFECYCLE),
@@ -179,12 +178,20 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(APPROVALS),
       built(ACCESS_REQUESTS),
       built(DOCUMENTS),
+      built(DRIVE),
       built(DRIVE_FILES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
 
 export const ORDER: readonly string[] = Object.keys(SQL_MODULES);
+
+/** Where a module renders: its own position, or just ahead of `before`. */
+export function renderPosition(module: SqlModule): number {
+  return module.before === undefined
+    ? ORDER.indexOf(module.name)
+    : ORDER.indexOf(module.before) - 0.5;
+}
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveModules });
 
@@ -207,7 +214,7 @@ export function resolveModules(
     ordered.push(module);
   };
   for (const name of names) visit(name);
-  return ordered.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
+  return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 
 /** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */

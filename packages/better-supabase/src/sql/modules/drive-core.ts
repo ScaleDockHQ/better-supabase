@@ -14,7 +14,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { CONFLICTS, UUID_TEXT } from "./drive-kit.ts";
+import { CONFLICTS, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 
 /** The tree, grants and sharing: the drive module. */
 export function driveCoreSql(kit: DriveKit): string {
@@ -463,6 +463,7 @@ declare
   v_conflict text := ${fn("drive_conflict")}(drive_create_folder.conflict);
   v_node ${T}%rowtype;
 begin
+  ${READ_ONLY_GUARD}
   perform ${fn("drive_check_parent")}(drive_create_folder.tenant, drive_create_folder.parent);
   v_node := ${fn("drive_insert_node")}(drive_create_folder.tenant, drive_create_folder.parent, 'folder', v_name,
     case when v_conflict = 'replace' then 'fail' else v_conflict end, drive_create_folder.fields);

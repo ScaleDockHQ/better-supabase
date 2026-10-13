@@ -130,7 +130,28 @@ $$;
 revoke execute on function "better_supabase"."trash"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."trash"(uuid, text, text) to authenticated, service_role;
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function "better_supabase"."trash_restore_batch"(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "better_supabase"."trash_items"%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
+    null;
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."trash_restore_batch"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."restore_trash"(item_id uuid)
 returns jsonb
 language plpgsql
@@ -139,8 +160,7 @@ set search_path = ''
 as $$
 declare
   v_root "better_supabase"."trash_items"%rowtype;
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -162,11 +182,7 @@ begin
         using v_root."id";
     end if;
   end;
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id" order by "depth" loop
-    null;
-    null;
-    v_count := v_count + 1;
-  end loop;
+  v_count := "better_supabase"."trash_restore_batch"(v_root."batch_id");
   delete from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id";
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');
@@ -468,7 +484,37 @@ $$;
 revoke execute on function "better_supabase"."trash"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."trash"(uuid, text, text) to authenticated, service_role;
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function "better_supabase"."trash_restore_batch"(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "better_supabase"."trash_items"%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
+    null;
+    perform "better_supabase".emit_event('subject.restored', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
+  perform better_supabase.audit_event(
+    event_type => 'subject.restored',
+    category => 'data',
+    target_type => 'trash_item',
+    record_id => v_item."id"::text,
+    summary => 'restored' || ' ' || v_item."subject_type" || ' ' || v_item."subject_id",
+    tenant => (v_item."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id")
+  );
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."trash_restore_batch"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."restore_trash"(item_id uuid)
 returns jsonb
 language plpgsql
@@ -477,8 +523,7 @@ set search_path = ''
 as $$
 declare
   v_root "better_supabase"."trash_items"%rowtype;
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -500,20 +545,7 @@ begin
         using v_root."id";
     end if;
   end;
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id" order by "depth" loop
-    null;
-    perform "better_supabase".emit_event('subject.restored', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
-  perform better_supabase.audit_event(
-    event_type => 'subject.restored',
-    category => 'data',
-    target_type => 'trash_item',
-    record_id => v_item."id"::text,
-    summary => 'restored' || ' ' || v_item."subject_type" || ' ' || v_item."subject_id",
-    tenant => (v_item."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id")
-  );
-    v_count := v_count + 1;
-  end loop;
+  v_count := "better_supabase"."trash_restore_batch"(v_root."batch_id");
   delete from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id";
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');
@@ -817,7 +849,28 @@ $$;
 revoke execute on function "app_private"."trash"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."trash"(uuid, text, text) to authenticated, service_role;
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function "app_private"."trash_restore_batch"(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "app_private"."trash_items"%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from "app_private"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
+    null;
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "app_private"."trash_restore_batch"(uuid) from public, anon, authenticated;
+
 create or replace function "app_private"."restore_trash"(item_id uuid)
 returns jsonb
 language plpgsql
@@ -826,8 +879,7 @@ set search_path = ''
 as $$
 declare
   v_root "app_private"."trash_items"%rowtype;
-  v_item "app_private"."trash_items"%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -849,11 +901,7 @@ begin
         using v_root."id";
     end if;
   end;
-  for v_item in select * from "app_private"."trash_items" where "batch_id" = v_root."batch_id" order by "depth" loop
-    null;
-    null;
-    v_count := v_count + 1;
-  end loop;
+  v_count := "app_private"."trash_restore_batch"(v_root."batch_id");
   delete from "app_private"."trash_items" where "batch_id" = v_root."batch_id";
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');
@@ -1146,7 +1194,28 @@ $$;
 revoke execute on function "better_supabase"."trash"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."trash"(uuid, text, text) to authenticated, service_role;
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function "better_supabase"."trash_restore_batch"(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "better_supabase"."trash_items"%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
+    null;
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."trash_restore_batch"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."restore_trash"(item_id uuid)
 returns jsonb
 language plpgsql
@@ -1155,8 +1224,7 @@ set search_path = ''
 as $$
 declare
   v_root "better_supabase"."trash_items"%rowtype;
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1178,11 +1246,7 @@ begin
         using v_root."id";
     end if;
   end;
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id" order by "depth" loop
-    null;
-    null;
-    v_count := v_count + 1;
-  end loop;
+  v_count := "better_supabase"."trash_restore_batch"(v_root."batch_id");
   delete from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id";
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');
@@ -1529,7 +1593,28 @@ $$;
 revoke execute on function "better_supabase"."trash"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."trash"(uuid, text, text) to authenticated, service_role;
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function "better_supabase"."trash_restore_batch"(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item "better_supabase"."trash_items"%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
+    null;
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."trash_restore_batch"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."restore_trash"(item_id uuid)
 returns jsonb
 language plpgsql
@@ -1538,8 +1623,7 @@ set search_path = ''
 as $$
 declare
   v_root "better_supabase"."trash_items"%rowtype;
-  v_item "better_supabase"."trash_items"%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1561,11 +1645,7 @@ begin
         using v_root."id";
     end if;
   end;
-  for v_item in select * from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id" order by "depth" loop
-    null;
-    null;
-    v_count := v_count + 1;
-  end loop;
+  v_count := "better_supabase"."trash_restore_batch"(v_root."batch_id");
   delete from "better_supabase"."trash_items" where "batch_id" = v_root."batch_id";
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_untrash"(uuid, uuid)');

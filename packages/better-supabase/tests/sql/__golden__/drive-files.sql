@@ -1,0 +1,632 @@
+-- ==== alone: schema supabase/schemas/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module drive-files@1 managed
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module-data drive-files
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive-files', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== with every module: schema supabase/schemas/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module drive-files@1 managed
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+
+alter table "better_supabase"."drive_nodes" drop constraint if exists bs_drive_nodes_attachment;
+alter table "better_supabase"."drive_nodes" add constraint bs_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
+
+create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"))
+$$;
+revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
+
+-- Before a node is deleted for good, its stored objects go into
+-- drive.node_purged for the app to remove through Storage; after, its
+-- grants, attachments, revisions and starred state go too.
+create or replace function "better_supabase"."drive_node_purging"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_objects jsonb := (select coalesce(jsonb_agg(jsonb_build_object('bucket', pa."bucket", 'path', pa."object_path")), '[]'::jsonb) from "better_supabase"."attachments" pa where pa."subject_type" = 'drive_node' and pa."subject_id" = old."id"::text and pa."uploaded_at" is not null);
+begin
+  perform "better_supabase".emit_event('drive.node_purged', jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_purged',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => old."id"::text,
+    target_label => old."name",
+    summary => 'deleted for good',
+    tenant => (old."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects)
+  );
+  return old;
+end;
+$$;
+drop trigger if exists "bs_drive_node_purging" on "better_supabase"."drive_nodes";
+create trigger "bs_drive_node_purging"
+  before delete on "better_supabase"."drive_nodes"
+  for each row execute function "better_supabase"."drive_node_purging"();
+
+create or replace function "better_supabase"."drive_node_purged"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."attachments" pa where pa."subject_type" = 'drive_node' and pa."subject_id" = old."id"::text;
+  delete from "better_supabase"."drive_grants" pg where pg."node_id" = old."id";
+  delete from "better_supabase"."versions" pv where pv."subject_type" = 'drive_node' and pv."subject_id" = old."id"::text;
+  delete from "better_supabase"."subject_user_state" ps where ps."subject_type" = 'drive_node' and ps."subject_id" = old."id"::text;
+  return null;
+end;
+$$;
+drop trigger if exists "bs_drive_node_purged" on "better_supabase"."drive_nodes";
+create trigger "bs_drive_node_purged"
+  after delete on "better_supabase"."drive_nodes"
+  for each row execute function "better_supabase"."drive_node_purged"();
+
+-- A new file and its pending attachment: upload to the attachment's
+-- object_path, then call drive_commit. With conflict 'replace', a file of
+-- the same name gets the upload as a new revision instead.
+create or replace function "better_supabase"."drive_create_file"(tenant uuid, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_name text := "better_supabase"."drive_clean_name"(drive_create_file.name);
+  v_conflict text := "better_supabase"."drive_conflict"(drive_create_file.conflict);
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  perform "better_supabase"."drive_check_parent"(drive_create_file.tenant, drive_create_file.parent);
+  if v_conflict = 'replace' then
+    perform "better_supabase"."drive_lock_siblings"(drive_create_file.tenant, drive_create_file.parent);
+    select * into v_node from "better_supabase"."drive_nodes" x
+    where x."tenant_id" = drive_create_file.tenant and x."parent_id" is not distinct from drive_create_file.parent and x."deleted_at" is null and lower(x."name") = lower(v_name);
+    if found then
+      if v_node."kind" <> 'file' then
+        raise exception 'a folder already has this name' using errcode = '23505', hint = 'DRIVE_NAME_CONFLICT';
+      end if;
+      return "better_supabase"."drive_upload_revision"(v_node."id", drive_create_file.mime_type, drive_create_file.size);
+    end if;
+  end if;
+  v_node := "better_supabase"."drive_insert_node"(drive_create_file.tenant, drive_create_file.parent, 'file', v_name, v_conflict, drive_create_file.fields);
+  return jsonb_build_object('node', "better_supabase"."drive_node_json"(v_node), 'attachment',
+    "better_supabase"."create_attachment"(v_node."tenant_id", v_node."name", drive_create_file.mime_type, drive_create_file.size, 'drive_node', v_node."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb) to authenticated, service_role;
+
+-- A pending attachment for a new revision of a file.
+create or replace function "better_supabase"."drive_upload_revision"(node uuid, mime_type text, size bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_upload_revision.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'a folder has no content' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  return jsonb_build_object('node', "better_supabase"."drive_node_json"(v_node), 'attachment',
+    "better_supabase"."create_attachment"(v_node."tenant_id", v_node."name", drive_upload_revision.mime_type, drive_upload_revision.size, 'drive_node', v_node."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_upload_revision"(uuid, text, bigint) from public, anon;
+grant execute on function "better_supabase"."drive_upload_revision"(uuid, text, bigint) to authenticated, service_role;
+
+-- Confirms the upload and makes it the file's content, saved as a revision through the versions module.
+create or replace function "better_supabase"."drive_commit"(node uuid, attachment uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_file "better_supabase"."attachments"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_commit.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."attachments" f where f."id" = drive_commit.attachment
+      and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
+  ) then
+    raise exception 'this upload does not belong to the file' using errcode = 'P0002', hint = 'DRIVE_ATTACHMENT_NOT_FOUND';
+  end if;
+  perform "better_supabase"."confirm_attachment"(drive_commit.attachment);
+  select * into v_file from "better_supabase"."attachments" f where f."id" = drive_commit.attachment;
+  if v_node."attachment_id" is distinct from v_file."id" then
+    update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "updated_at" = now()
+    where x."id" = v_node."id"
+    returning * into v_node;
+    perform "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
+      jsonb_build_object('attachmentId', v_file."id", 'name', v_file."name", 'mimeType', v_file."mime_type", 'size', v_file."size"),
+      v_file."bucket" || '/' || v_file."object_path", null, 'manual', false, auth.uid());
+  end if;
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_commit"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_commit"(uuid, uuid) to authenticated, service_role;
+
+-- Whether the caller may run action (select, insert, update or delete) on
+-- the object at path: files of a node need the node's grants. Objects of
+-- other subjects pass, so the attachments policies decide.
+create or replace function "better_supabase"."drive_object_allowed"(bucket text, path text, action text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select case
+      when f."subject_type" is distinct from 'drive_node' then true
+      when f."subject_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
+      when drive_object_allowed.action = 'select' then "better_supabase"."drive_can"(f."subject_id"::uuid, 'viewer')
+      else "better_supabase"."drive_can"(f."subject_id"::uuid, 'editor')
+    end
+    from "better_supabase"."attachments" f
+    where f."bucket" = drive_object_allowed.bucket and f."object_path" = drive_object_allowed.path
+  ), true)
+$$;
+revoke execute on function "better_supabase"."drive_object_allowed"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."drive_object_allowed"(text, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."drive_attachment_allowed"(subject_type text, subject_id text, write boolean)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when drive_attachment_allowed.subject_type is distinct from 'drive_node' then true
+    when drive_attachment_allowed.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
+    when drive_attachment_allowed.write then "better_supabase"."drive_can"(drive_attachment_allowed.subject_id::uuid, 'editor')
+    else "better_supabase"."drive_can"(drive_attachment_allowed.subject_id::uuid, 'viewer')
+  end
+$$;
+revoke execute on function "better_supabase"."drive_attachment_allowed"(text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."drive_attachment_allowed"(text, text, boolean) to authenticated, service_role;
+
+-- Restrictive policies: the attachments policies still apply, and a node's
+-- files also need its grants.
+drop policy if exists "bs_drive_attachments_read" on "better_supabase"."attachments";
+create policy "bs_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
+  using ("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", false));
+drop policy if exists "bs_drive_attachments_insert" on "better_supabase"."attachments";
+create policy "bs_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
+  with check (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_drive_attachments_delete" on "better_supabase"."attachments";
+create policy "bs_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
+  using (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_drive_objects_read" on storage.objects;
+create policy "bs_drive_objects_read" on storage.objects as restrictive for select to authenticated
+  using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
+drop policy if exists "bs_drive_objects_insert" on storage.objects;
+create policy "bs_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
+  with check (("better_supabase"."drive_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_drive_objects_update" on storage.objects;
+create policy "bs_drive_objects_update" on storage.objects as restrictive for update to authenticated
+  using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'update')) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_drive_objects_delete" on storage.objects;
+create policy "bs_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
+  using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
+
+-- Attachments of nodes that are not the current content and not a saved
+-- revision, older than a day so an upload in flight stays. Deletes their
+-- records and returns the objects for the app to remove through Storage.
+create or replace function "better_supabase"."drive_prune"(max_objects integer default 100)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  with orphans as (
+    select f."id" as id from "better_supabase"."attachments" f
+    where f."subject_type" = 'drive_node'
+      and f."created_at" < now() - interval '1 day'
+      and not exists (select 1 from "better_supabase"."drive_nodes" x where x."attachment_id" = f."id")
+      and not exists (
+        select 1 from "better_supabase"."versions" r
+        where r."subject_type" = 'drive_node' and r."subject_id" = f."subject_id"
+          and r."content" ->> 'attachmentId' = f."id"::text
+      )
+    order by f."created_at"
+    limit greatest(coalesce(drive_prune.max_objects, 100), 1)
+  ), removed as (
+    delete from "better_supabase"."attachments" f using orphans o where f."id" = o.id
+    returning f."bucket" as bucket, f."object_path" as path, f."uploaded_at" as uploaded_at
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('bucket', r.bucket, 'path', r.path)) filter (where r.uploaded_at is not null), '[]'::jsonb) from removed r
+$$;
+revoke execute on function "better_supabase"."drive_prune"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_prune"(integer) to service_role;
+
+create or replace function "better_supabase"."drive_revisions"(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_revisions.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id", 'number', r."number", 'label', r."label", 'source', r."source",
+      'attachmentId', r."content" ->> 'attachmentId', 'name', r."content" ->> 'name',
+      'mimeType', r."content" ->> 'mimeType', 'size', (r."content" ->> 'size')::bigint,
+      'current', r."content" ->> 'attachmentId' = v_node."attachment_id"::text,
+      'createdBy', r."created_by", 'createdAt', r."created_at"
+    ) order by r."number" desc), '[]'::jsonb)
+    from "better_supabase"."versions" r
+    where r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_revisions"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_revisions"(uuid) to authenticated, service_role;
+
+-- Makes an earlier revision the content again, recorded as a new revision.
+create or replace function "better_supabase"."drive_restore_revision"(node uuid, version uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_content jsonb;
+  v_file "better_supabase"."attachments"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_restore_revision.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  select r."content" into v_content from "better_supabase"."versions" r
+  where r."id" = drive_restore_revision.version
+    and r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text;
+  if v_content is null or v_content ->> 'attachmentId' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'revision not found' using errcode = 'P0002', hint = 'DRIVE_REVISION_NOT_FOUND';
+  end if;
+  select * into v_file from "better_supabase"."attachments" f where f."id" = (v_content ->> 'attachmentId')::uuid;
+  if not found then
+    raise exception 'the revision''s file was pruned' using errcode = 'P0002', hint = 'DRIVE_REVISION_NOT_FOUND';
+  end if;
+  update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "updated_at" = now()
+  where x."id" = v_node."id"
+  returning * into v_node;
+  perform "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
+    v_content, v_file."bucket" || '/' || v_file."object_path", null, 'restore', false, auth.uid());
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_restore_revision"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_restore_revision"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."drive_star"(node uuid, starred boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null or not "better_supabase"."drive_can"(drive_star.node, 'viewer') then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "starred_at")
+  values ('drive_node', drive_star.node::text, auth.uid(), case when drive_star.starred then now() end)
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "starred_at" = case when drive_star.starred then coalesce("better_supabase"."subject_user_state"."starred_at", now()) end;
+  return drive_star.starred;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_star"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."drive_star"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."drive_open"(node uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_open.node and x."deleted_at" is null;
+  if not found or auth.uid() is null or not "better_supabase"."drive_can"(v_node."id", 'viewer') then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."subject_user_state" ("subject_type", "subject_id", "user_id", "last_opened_at")
+  values ('drive_node', v_node."id"::text, auth.uid(), now())
+  on conflict ("subject_type", "subject_id", "user_id")
+  do update set "last_opened_at" = now();
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_open"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_open"(uuid) to authenticated, service_role;
+
+-- The caller's starred nodes (recent false) or recently opened ones (true).
+create or replace function "better_supabase"."drive_marked"(tenant uuid, recent boolean default false, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(t.node order by t.marked_at desc), '[]'::jsonb) from (
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
+      case when drive_marked.recent then s."last_opened_at" else s."starred_at" end as marked_at
+    from "better_supabase"."subject_user_state" s
+    join "better_supabase"."drive_nodes" x on x."id"::text = s."subject_id"
+    where s."subject_type" = 'drive_node' and s."user_id" = auth.uid()
+      and x."tenant_id" = drive_marked.tenant and x."deleted_at" is null
+      and case when drive_marked.recent then s."last_opened_at" else s."starred_at" end is not null
+      and "better_supabase"."drive_can"(x."id", 'viewer')
+    order by marked_at desc
+    limit least(greatest(coalesce(drive_marked.page_size, 50), 1), 200)
+  ) t
+$$;
+revoke execute on function "better_supabase"."drive_marked"(uuid, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."drive_marked"(uuid, boolean, integer) to authenticated, service_role;
+
+-- What a share link on a node opens: the node and, for a folder, its
+-- children. node picks an item under the linked folder. For a file, file
+-- carries the object for the server to sign a download URL with.
+create or replace function "better_supabase"."drive_link"(token text, node uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_link_id uuid;
+  v_role text;
+  v_root text;
+  v_expires timestamptz;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  select l."id", l."role", l."subject_id", l."expires_at"
+    into v_link_id, v_role, v_root, v_expires
+  from "better_supabase"."share_links" l
+  where l."token_hash" = encode(extensions.digest(convert_to(drive_link.token, 'utf8'), 'sha256'), 'hex')
+    and l."subject_type" = 'drive_node'
+    and l."revoked_at" is null
+    and (l."expires_at" is null or l."expires_at" > now());
+  if v_link_id is null or v_root !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'this link does not exist or has expired' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = coalesce(drive_link.node, v_root::uuid) and x."deleted_at" is null;
+  if not found or not (v_root::uuid = any ("better_supabase"."drive_ancestors"(v_node."id"))) then
+    raise exception 'this link does not open that item' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
+  end if;
+  return jsonb_build_object(
+    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires),
+    'node', "better_supabase"."drive_node_json"(v_node),
+    'children', case when v_node."kind" = 'folder' then (
+      select coalesce(jsonb_agg("better_supabase"."drive_node_json"(c.r) order by ((c.r)."kind" = 'folder') desc, (c.r)."rank", lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
+      from (select y as r from "better_supabase"."drive_nodes" y where y."parent_id" = v_node."id" and y."deleted_at" is null order by (y."kind" = 'folder') desc, y."rank", lower(y."name"), y."id" limit 500) c
+    ) end,
+    'object', (select jsonb_build_object('bucket', f."bucket", 'path', f."object_path", 'mimeType', f."mime_type", 'status', f."status")
+      from "better_supabase"."attachments" f where f."id" = v_node."attachment_id")
+  );
+end;
+$$;
+revoke all on function "better_supabase"."drive_link"(text, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_link"(text, uuid) to anon, authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module-data drive-files
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive-files', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module drive-files@1 managed
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module-data drive-files
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive-files', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== api schema: schema supabase/schemas/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module drive-files@1 managed
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_74_drive_files.sql
+-- better-supabase module: drive-files
+-- @bs-module-data drive-files
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive-files', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
