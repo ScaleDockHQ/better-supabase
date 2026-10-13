@@ -73,6 +73,7 @@ const entries = [
   "blocks/saved-views/react/index",
   "blocks/saved-views/react/server",
   "blocks/relations/index",
+  "blocks/bulk/index",
   "ai-sdk/index",
   "ai-sdk/chat/index",
   "ai-sdk/files/index",

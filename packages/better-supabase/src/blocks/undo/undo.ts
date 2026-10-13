@@ -26,7 +26,6 @@ export interface UndoToken {
 export const UNDO_FUNCTIONS: readonly string[] = [
   "link",
   "unlink",
-  "bulk_apply",
   "revert_audit_entries",
 ];
 

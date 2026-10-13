@@ -59,6 +59,7 @@
   "blocks/reminders",
   "blocks/saved-views",
   "blocks/relations",
+  "blocks/bulk",
   "blocks/settings",
   "blocks/share-links",
   "blocks/sql",

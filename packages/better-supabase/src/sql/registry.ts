@@ -18,6 +18,7 @@ import { API_KEYS } from "./modules/api-keys.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
+import { BULK } from "./modules/bulk.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
@@ -169,6 +170,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RANK),
       built(SAVED_VIEWS),
       built(RELATIONS),
+      built(BULK),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

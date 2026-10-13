@@ -3510,6 +3510,27 @@
       "UnlinkResult"
     ]
   },
+  "./blocks/bulk": {
+    "values": [
+      "createBulk"
+    ],
+    "types": [
+      "BuiltInBulkAction",
+      "Bulk",
+      "BulkActionArgs",
+      "BulkDrainOptions",
+      "BulkInput",
+      "BulkOptions",
+      "BulkOutcome",
+      "BulkProgress",
+      "BulkResult",
+      "BulkRowResult",
+      "BulkRows",
+      "BulkRun",
+      "BulkStarted",
+      "BulkStatus"
+    ]
+  },
   "./blocks/saved-views/react": {
     "values": [
       "useSavedViews"
