@@ -36,6 +36,8 @@
   "blocks/attachments",
   "blocks/audit",
   "blocks/billing",
+  "blocks/bookings",
+  "blocks/calendar",
   "blocks/comments",
   "blocks/connectors",
   "blocks/create-blocks",
