@@ -1372,7 +1372,7 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('webhook-inbox'), pg_catalog.hashtext(concat_ws(':', source, receive_webhook.tenant, message_id)));
   select w."id" into inbox_id from "better_supabase"."webhook_inbox" w
   where w."source" = receive_webhook.source
-    and w."tenant" is not distinct from receive_webhook.tenant
+    and w."tenant"::text is not distinct from receive_webhook.tenant
     and w."message_id" = receive_webhook.message_id
   limit 1;
   if inbox_id is not null then
@@ -1380,7 +1380,7 @@ begin
     return;
   end if;
   insert into "better_supabase"."webhook_inbox" ("source", "message_id", "event_type", "payload", "headers", "tenant", "max_attempts")
-  values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
+  values (source, message_id, event_type, payload, headers, (jsonb_populate_record(null::"better_supabase"."webhook_inbox", jsonb_build_object('tenant', receive_webhook.tenant)))."tenant", greatest(coalesce(receive_webhook.max_attempts, 8), 1))
   returning "id" into inbox_id;
   return query select inbox_id, false;
 end;
@@ -1417,7 +1417,7 @@ as $$
   set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "locked_until" = now() + lease
   from next
   where w."id" = next."id"
-  returning w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant", w."checkpoint"
+  returning w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant"::text, w."checkpoint"
 $$;
 
 -- attempt is the attempts value the claim returned: it is the lease token,
@@ -1509,8 +1509,8 @@ language sql
 stable
 set search_path = ''
 as $$
-  select w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant", w."checkpoint" from "better_supabase"."webhook_inbox" w
-  where w."tenant" = for_tenant
+  select w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant"::text, w."checkpoint" from "better_supabase"."webhook_inbox" w
+  where w."tenant"::text = for_tenant
     and (for_source is null or w."source" = for_source)
     and (for_status is null or w."status" = for_status)
   order by w."received_at" desc, w."id" desc
@@ -1539,7 +1539,7 @@ as $$
       select w."id" from "better_supabase"."webhook_inbox" w
       where ((w."status" = 'processed' and w."processed_at" < now() - older_than)
         or (include_dead and w."status" = 'dead' and w."received_at" < now() - older_than))
-        and (for_tenant is null or w."tenant" = for_tenant)
+        and (for_tenant is null or w."tenant"::text = for_tenant)
       order by w."id"
       limit batch
     )

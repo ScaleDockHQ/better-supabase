@@ -301,6 +301,52 @@ create unique index webhook_deliveries_destination_event_idx
   on centrakit.webhook_deliveries (destination_id, event_id)
   where event_id is not null;
 
+create table centrakit.integration_credentials (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references centrakit.organizations(id) on delete cascade,
+  provider text not null,
+  key text not null,
+  vault_secret_id uuid,
+  created_at timestamptz not null default (now() at time zone 'utc'),
+  updated_at timestamptz not null default (now() at time zone 'utc')
+);
+create unique index integration_credentials_key_idx
+  on centrakit.integration_credentials (provider, key, coalesce(organization_id, '00000000-0000-0000-0000-000000000000'));
+
+create table centrakit.inbound_webhooks (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  name text not null check (length(trim(name)) > 0),
+  token_digest text not null unique,
+  verification text not null default 'none',
+  vault_secret_id uuid,
+  signature_header text,
+  enabled boolean not null default true,
+  settings jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default (now() at time zone 'utc'),
+  updated_at timestamptz not null default (now() at time zone 'utc')
+);
+
+create table centrakit.inbound_webhook_events (
+  id bigint generated always as identity primary key,
+  organization_id uuid references centrakit.organizations(id) on delete cascade,
+  source text not null,
+  external_id text not null,
+  event_kind text,
+  payload jsonb not null,
+  status text not null default 'pending',
+  attempts integer not null default 0,
+  available_at timestamptz not null default (now() at time zone 'utc'),
+  locked_by text,
+  locked_until timestamptz,
+  last_error text,
+  received_at timestamptz not null default (now() at time zone 'utc'),
+  processed_at timestamptz,
+  unique (source, external_id),
+  check (status in ('pending', 'processing', 'processed', 'dead'))
+);
+
 -- Refactor: CentraKit's audit writers set scope and actor_kind themselves;
 -- the module's audit_event leaves them to the table.
 create function centrakit.audit_log_defaults()

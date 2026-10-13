@@ -44,7 +44,10 @@ describe("webhook-inbox module", () => {
     expect(sql).toContain('insert into "public"."inbound_events"');
     expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
     expect(sql).toContain(
-      'w."organization_id" is not distinct from receive_webhook.tenant',
+      'w."organization_id"::text is not distinct from receive_webhook.tenant',
+    );
+    expect(sql).toContain(
+      `(jsonb_populate_record(null::"public"."inbound_events", jsonb_build_object('organization_id', receive_webhook.tenant)))."organization_id"`,
     );
     expect(sql).toContain("returns table (id bigint, source text");
     expect(sql).toContain(

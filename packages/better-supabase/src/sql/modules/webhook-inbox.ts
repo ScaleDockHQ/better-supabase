@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
 const MESSAGE_COLUMNS = {
@@ -120,9 +121,12 @@ function webhookInboxSql(ctx: ModuleContext): string {
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`)
       .join(separator);
+  // An adopted tenant column can be uuid or bigint; the functions take text.
+  const tenantText = (alias: string) =>
+    managed ? `${alias}.${c("tenant")}` : `${alias}.${c("tenant")}::text`;
   const tenantIs = (alias: string, value: string) =>
     has("tenant")
-      ? `${alias}.${c("tenant")} is not distinct from ${value}`
+      ? `${tenantText(alias)} is not distinct from ${value}`
       : `${value} is null`;
   const rowType = managed
     ? `setof ${t}`
@@ -138,7 +142,9 @@ function webhookInboxSql(ctx: ModuleContext): string {
       ? `${alias}.*`
       : ROW.map(([logical, , type]) =>
           has(logical)
-            ? `${alias}.${c(logical)}`
+            ? logical === "tenant"
+              ? tenantText(alias)
+              : `${alias}.${c(logical)}`
             : (missing[logical] ?? `null::${type}`),
         ).join(", ");
   const maxAttempts = (alias: string) =>
@@ -150,7 +156,12 @@ function webhookInboxSql(ctx: ModuleContext): string {
       ["eventType", "event_type"],
       ["payload", "payload"],
       ["headers", "headers"],
-      ["tenant", "receive_webhook.tenant"],
+      [
+        "tenant",
+        managed
+          ? "receive_webhook.tenant"
+          : `(jsonb_populate_record(null::${t}, jsonb_build_object(${sqlString(c("tenant").replaceAll('"', ""))}, receive_webhook.tenant))).${c("tenant")}`,
+      ],
       ["maxAttempts", "greatest(coalesce(receive_webhook.max_attempts, 8), 1)"],
     ] as const satisfies readonly (readonly [MessageColumn, string])[]
   ).filter(([logical]) => has(logical));
@@ -190,7 +201,7 @@ function webhookInboxSql(ctx: ModuleContext): string {
     ? `set ${c("checkpoint")} = ${c("checkpoint")} || coalesce(fields, '{}')`
     : `set ${c("lockedBy")} = ${c("lockedBy")}`;
   const tenantFilter = (alias: string, value: string) =>
-    has("tenant") ? `${alias}.${c("tenant")} = ${value}` : "false";
+    has("tenant") ? `${tenantText(alias)} = ${value}` : "false";
   const adoptedDrops = managed
     ? ""
     : `

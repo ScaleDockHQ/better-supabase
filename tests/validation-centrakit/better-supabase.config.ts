@@ -2,7 +2,7 @@ import { defineConfig } from "better-supabase/config";
 
 // The module config CentraKit adopts better-supabase with: every module runs on
 // its existing tables (`adopt`), its permission catalog and its names. Only
-// support sessions are new tables. CentraKit keeps its tables in `public`;
+// support sessions and the realtime registry are new tables. CentraKit keeps its tables in `public`;
 // the fixture puts them in `centrakit`.
 export default defineConfig({
   sql: {
@@ -243,6 +243,63 @@ export default defineConfig({
           },
         },
       },
+      credentials: {
+        mode: "adopt",
+        tables: { secrets: "centrakit.integration_credentials" },
+        columns: {
+          secrets: {
+            name: "key",
+            tenant: "organization_id",
+            scope: null,
+            vaultId: "vault_secret_id",
+            secret: null,
+          },
+        },
+      },
+      "webhooks-in": {
+        mode: "adopt",
+        tables: { endpoints: "centrakit.inbound_webhooks" },
+        columns: {
+          endpoints: {
+            tenant: "organization_id",
+            tokenHash: "token_digest",
+            verify: "verification",
+            secret: null,
+            secretId: "vault_secret_id",
+            previousSecret: null,
+            previousSecretId: null,
+            previousSecretExpiresAt: null,
+            maxBodyBytes: null,
+            receiveCount: null,
+            lastReceivedAt: null,
+            lastStatus: null,
+            metadata: "settings",
+            subjectType: null,
+            subjectId: null,
+          },
+        },
+        permissions: {
+          create: "organization.webhooks.manage",
+          update: "organization.webhooks.manage",
+          delete: "organization.webhooks.manage",
+          view: "organization.webhooks.view",
+        },
+      },
+      "webhook-inbox": {
+        mode: "adopt",
+        tables: { messages: "centrakit.inbound_webhook_events" },
+        columns: {
+          messages: {
+            messageId: "external_id",
+            eventType: "event_kind",
+            tenant: "organization_id",
+            headers: null,
+            maxAttempts: null,
+            checkpoint: null,
+          },
+        },
+      },
+      "realtime-tables": {},
     },
   },
 });
