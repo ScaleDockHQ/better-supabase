@@ -1,4 +1,27 @@
 export { defineListQuery, UNSET } from "./list-query.ts";
+export {
+  decodeFilterQuery,
+  encodeFilterQuery,
+  FILTER_OPERATOR_LABELS,
+  FILTER_OPERATORS,
+} from "./filter-query.ts";
+export type {
+  FilterClock,
+  FilterCombinator,
+  FilterDateValue,
+  FilterFieldInfo,
+  FilterFieldLabels,
+  FilterField,
+  FilterFieldType,
+  FilterGroupNode,
+  FilterNode,
+  FilterOperatorArity,
+  FilterOperatorSpec,
+  FilterQuery,
+  FilterRelativeDate,
+  FilterRule,
+  ListFilterConfig,
+} from "./filter-query.ts";
 export type {
   FacetCountFields,
   FacetCounts,
@@ -7,6 +30,7 @@ export type {
   ListExtra,
   ListPage,
   ListPagination,
+  ListParseOptions,
   ListParseResult,
   ListParsers,
   ListQuery,

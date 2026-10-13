@@ -26,6 +26,25 @@ import type {
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type {
+  FilterClock,
+  FilterFieldInfo,
+  FilterFieldLabels,
+  FilterField,
+  FilterLimits,
+  FilterQuery,
+  ListFilterConfig,
+} from "./filter-query.ts";
+
+import {
+  checkFilterQuery,
+  decodeFilterQuery,
+  encodeFilterQuery,
+  toFilterFields,
+  filterFieldsOf,
+  filterJsonSchema,
+  filterWhere,
+} from "./filter-query.ts";
 
 /** Facet value meaning "not set": filters with `is null`. */
 export const UNSET = "__unset__";
@@ -62,6 +81,15 @@ export interface ListQueryConfig<
     | { readonly fts: Column<M, T>; readonly config?: string };
   /** Filterable columns by URL key. Values are validated against enums and CHECK unions. */
   readonly facets?: { readonly [K in F]: Column<M, T> };
+  /**
+   * Fields a filter tree (ReUI Filters' `FilterQuery`) may name, by field id.
+   * Each has a type and, optionally, the subset of its operators to allow.
+   */
+  readonly filters?: Readonly<Record<string, ListFilterConfig<Column<M, T>>>>;
+  /** Most nested group levels in a filter tree, the root included. Defaults to 4. */
+  readonly maxFilterDepth?: number;
+  /** Most rules in a filter tree. Defaults to 50. */
+  readonly maxFilterRules?: number;
   /** Named orderings. Add a unique column last for stable pages. */
   readonly sorts: { readonly [K in S]: OrderByArg<M, T> };
   readonly defaultSort: NoInfer<S>;
@@ -93,6 +121,10 @@ export interface ListQuery<S extends string, F extends string> {
   readonly after?: string;
   readonly size: number;
   readonly facets: { readonly [K in F]?: readonly string[] };
+  /** The checked filter tree, without unfinished rules and empty groups. */
+  readonly filter?: FilterQuery;
+  /** The IANA time zone date filters resolve in, from `parse`'s options. */
+  readonly timeZone?: string;
 }
 
 /** Typed input (JSON APIs, actions, MCP tools). Everything is optional. */
@@ -103,6 +135,7 @@ export interface ListQueryInput<S extends string, F extends string> {
   readonly after?: string;
   readonly size?: number;
   readonly facets?: { readonly [K in F]?: readonly string[] };
+  readonly filter?: FilterQuery;
 }
 
 /** URL input: `URLSearchParams` or a Next.js `searchParams` record. */
@@ -125,6 +158,8 @@ export type ListParseResult<S extends string, F extends string> =
 export interface ParserSpec<V> {
   parse(value: string): V | null;
   serialize(value: V): string;
+  /** Equality for object values, which nuqs uses to skip URL updates. */
+  eq?(a: V, b: V): boolean;
 }
 
 export interface OpenApiParameter {
@@ -135,6 +170,11 @@ export interface OpenApiParameter {
   readonly schema: Readonly<Record<string, unknown>>;
   readonly style?: "form";
   readonly explode?: boolean;
+}
+
+export interface ListParseOptions {
+  /** IANA time zone that date filters resolve in, such as the request's. Defaults to `UTC`. */
+  readonly timeZone?: string;
 }
 
 export interface FacetInfo {
@@ -183,10 +223,20 @@ export interface ListDefinition<
   readonly pagination: P;
   readonly defaults: ListQuery<S, F>;
   readonly facets: readonly FacetInfo[];
+  /** The checked `filters` config. */
+  readonly filters: readonly FilterFieldInfo[];
   /** Validates typed input or URL params. Also a Standard Schema (`schema`). */
   parse(
     input: ListQueryInput<S, F> | ListSearchParams | undefined,
+    options?: ListParseOptions,
   ): ListParseResult<S, F>;
+  /** `FilterField` objects for ReUI Filters, with labels you can translate. */
+  filterFields(labels?: FilterFieldLabels): FilterField[];
+  /** The repository `where` of the query's filter tree; relative dates resolve against `clock.now`. */
+  filterWhere(
+    query: ListQuery<S, F>,
+    clock?: Pick<FilterClock, "now">,
+  ): WhereInput<M, T> | undefined;
   readonly schema: StandardSchemaV1<
     ListQueryInput<S, F> | ListSearchParams | undefined,
     ListQuery<S, F>
@@ -201,6 +251,7 @@ export interface ListDefinition<
   /** Repository arguments: `where`, `orderBy`, `size`, and `page` and `count` or `after`. */
   args(
     query: ListQuery<S, F>,
+    clock?: Pick<FilterClock, "now">,
   ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T>;
   /**
    * Runs the list against a table, merging your `select`, `include`, `where`
@@ -231,9 +282,24 @@ export type ListParsers<S extends string, F extends string> = {
   readonly page: ParserSpec<number>;
   readonly after: ParserSpec<string>;
   readonly size: ParserSpec<number>;
+  /** The filter tree as base64url JSON, when the list has `filters`; `parse` checks it. */
+  readonly filter?: ParserSpec<FilterQuery>;
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
 const RESERVED = new Set(["q", "sort", "page", "after", "size"]);
+/** Longest `filter` URL parameter, in characters. */
+const MAX_FILTER_PARAM = 16_384;
+
+function validTimeZone(timeZone: string): boolean {
+  try {
+    return (
+      new Intl.DateTimeFormat("en", { timeZone }).resolvedOptions().timeZone !==
+      ""
+    );
+  } catch {
+    return false;
+  }
+}
 
 function first(
   value: string | readonly string[] | undefined,
@@ -317,9 +383,17 @@ export function defineListQuery<
   const sortKeys = Object.keys(config.sorts) as S[];
   // SAFETY: config.facets is keyed by F, and Object.entries widens the keys to string.
   const facetEntries = Object.entries(config.facets ?? {}) as [F, string][];
+  const filterFields = filterFieldsOf(meta, config.filters ?? {});
+  const filtering = filterFields.length > 0;
+  const limits: FilterLimits = {
+    maxDepth: config.maxFilterDepth ?? 4,
+    maxRules: config.maxFilterRules ?? 50,
+    maxValueLength: maxSearch,
+    maxValues: facetLimit,
+  };
 
   for (const [key, column] of facetEntries) {
-    if (RESERVED.has(key))
+    if (RESERVED.has(key) || (filtering && key === "filter"))
       throw new TypeError(`defineListQuery: facet key "${key}" is reserved`);
     if (!meta.columns[column])
       throw new TypeError(
@@ -356,8 +430,20 @@ export function defineListQuery<
     after?: unknown;
     size?: unknown;
     facets: Partial<Record<string, readonly string[]>>;
+    filter?: unknown;
+    timeZone?: string | undefined;
   }): ListParseResult<S, F> {
     const issues: ValidationIssue[] = [];
+    let filter: FilterQuery | undefined;
+    if (raw.filter !== undefined && raw.filter !== null) {
+      if (filtering)
+        filter = checkFilterQuery(raw.filter, filterFields, limits, issues);
+      else
+        issues.push({ message: "This list has no filters", path: ["filter"] });
+    }
+    if (raw.timeZone !== undefined && !validTimeZone(raw.timeZone)) {
+      issues.push({ message: "Unknown time zone", path: ["timeZone"] });
+    }
     let q: string | undefined;
     if (raw.q !== undefined && raw.q !== null) {
       if (typeof raw.q !== "string")
@@ -452,16 +538,22 @@ export function defineListQuery<
         ...(after ? { after } : {}),
         size: size ?? pageSize,
         facets: facetValues,
+        ...(filter ? { filter } : {}),
+        ...(raw.timeZone === undefined ? {} : { timeZone: raw.timeZone }),
       },
     };
   }
 
   function parse(
     input: ListQueryInput<S, F> | ListSearchParams | undefined,
+    options: ListParseOptions = {},
   ): ListParseResult<S, F> {
+    const timeZone = options.timeZone;
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- search params from JavaScript can be null.
     if (input === undefined || input === null)
-      return { ok: true, value: defaults };
+      return timeZone === undefined
+        ? { ok: true, value: defaults }
+        : normalize({ facets: {}, timeZone });
     if (typeof input !== "object")
       return {
         ok: false,
@@ -472,7 +564,27 @@ export function defineListQuery<
       const facetValues: Record<string, string[]> = {};
       for (const facet of facets)
         facetValues[facet.key] = all(record[facet.key]);
+      const encoded = filtering ? first(record["filter"]) : undefined;
+      let filter: unknown;
+      if (encoded !== undefined && encoded !== "") {
+        filter =
+          encoded.length > MAX_FILTER_PARAM
+            ? undefined
+            : decodeFilterQuery(encoded);
+        if (filter === undefined)
+          return {
+            ok: false,
+            issues: [
+              {
+                message: "Must be a filter tree as base64url JSON",
+                path: ["filter"],
+              },
+            ],
+          };
+      }
       return normalize({
+        filter,
+        timeZone,
         q: first(record["q"]),
         sort: first(record["sort"]),
         page: first(record["page"]),
@@ -500,6 +612,8 @@ export function defineListQuery<
     }
     // SAFETY: the loop above rejected every facet value that is not a list of strings.
     return normalize({
+      filter: typed.filter,
+      timeZone,
       q: typed.q,
       sort: typed.sort,
       page: typed.page,
@@ -548,18 +662,34 @@ export function defineListQuery<
     return present.length === 1 ? present[0] : { AND: present };
   }
 
-  function where(query: ListQuery<S, F>): Where | undefined {
+  function treeWhere(
+    query: ListQuery<S, F>,
+    clock: Pick<FilterClock, "now"> = {},
+  ): Where | undefined {
+    if (!query.filter || !filtering) return undefined;
+    return filterWhere(query.filter, filterFields, {
+      ...clock,
+      ...(query.timeZone === undefined ? {} : { timeZone: query.timeZone }),
+    });
+  }
+
+  function where(
+    query: ListQuery<S, F>,
+    clock?: Pick<FilterClock, "now">,
+  ): Where | undefined {
     // SAFETY: facets are built from config.facets, which is keyed by F.
     return and([
       searchWhere(query),
+      treeWhere(query, clock),
       ...facets.map((facet) => facetWhere(facet, query.facets[facet.key as F])),
     ]);
   }
 
   function args(
     query: ListQuery<S, F>,
+    clock?: Pick<FilterClock, "now">,
   ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T> {
-    const filter = where(query);
+    const filter = where(query, clock);
     const paging = cursor
       ? { after: query.after ?? null }
       : { page: query.page, count: config.count ?? "planned" };
@@ -599,8 +729,23 @@ export function defineListQuery<
     parse: (value) => (/^\d+$/.test(value) ? Number(value) : null),
     serialize: String,
   };
-  // SAFETY: the object has q, sort, page and size parsers plus one list parser
-  // per facet key in F.
+  const filterParser: ParserSpec<FilterQuery> = {
+    parse: (value) => {
+      const decoded =
+        value.length > MAX_FILTER_PARAM ? undefined : decodeFilterQuery(value);
+      const group =
+        typeof decoded === "object" &&
+        decoded !== null &&
+        "type" in decoded &&
+        decoded.type === "group";
+      // SAFETY: a decoded group; `parse` checks every node before it is used.
+      return group ? (decoded as FilterQuery) : null;
+    },
+    serialize: encodeFilterQuery,
+    eq: (a, b) => encodeFilterQuery(a) === encodeFilterQuery(b),
+  };
+  // SAFETY: the object has q, sort, page and size parsers, a filter parser when
+  // filters are configured, and one list parser per facet key in F.
   const parsers = {
     q: {
       parse: (value: string) => value.trim() || null,
@@ -618,6 +763,7 @@ export function defineListQuery<
       serialize: (value: string) => value,
     },
     size: intParser,
+    ...(filtering ? { filter: filterParser } : {}),
     ...Object.fromEntries(facets.map((facet) => [facet.key, listParser])),
   } as ListParsers<S, F>;
 
@@ -685,6 +831,17 @@ export function defineListQuery<
         default: pageSize,
       },
     },
+    ...(filtering
+      ? [
+          {
+            name: "filter",
+            in: "query",
+            required: false,
+            description: `A filter tree (ReUI Filters' FilterQuery) as base64url JSON. Fields: ${filterFields.map((field) => `${field.id} (${field.type})`).join(", ")}. At most ${String(limits.maxRules)} rules and ${String(limits.maxDepth)} levels.`,
+            schema: { type: "string", maxLength: MAX_FILTER_PARAM },
+          } as const,
+        ]
+      : []),
     ...facets.map((facet): OpenApiParameter => ({
       name: facet.key,
       in: "query",
@@ -696,10 +853,15 @@ export function defineListQuery<
     })),
   ];
 
+  const filterSchema = filtering
+    ? filterJsonSchema(filterFields, limits)
+    : undefined;
   const jsonSchema = {
+    ...(filterSchema ? { $defs: filterSchema["$defs"] } : {}),
     type: "object",
     additionalProperties: false,
     properties: {
+      ...(filterSchema ? { filter: { $ref: "#/$defs/filterGroup" } } : {}),
       ...(searchDescription
         ? {
             q: {
@@ -739,7 +901,12 @@ export function defineListQuery<
     pagination: (config.pagination ?? "offset") as P,
     defaults,
     facets,
+    filters: filterFields,
     parse,
+    filterFields: (labels) => toFilterFields(filterFields, labels),
+    // SAFETY: the tree is compiled from the checked filter fields of table T.
+    filterWhere: (query, clock) =>
+      treeWhere(query, clock) as WhereInput<M, T> | undefined,
     schema: {
       "~standard": {
         version: 1,
@@ -766,6 +933,8 @@ export function defineListQuery<
       if (query.after) params.set("after", query.after);
       if (query.size !== undefined && query.size > 0 && query.size !== pageSize)
         params.set("size", String(query.size));
+      if (query.filter && query.filter.rules.length > 0)
+        params.set("filter", encodeFilterQuery(query.filter));
       for (const facet of facets) {
         // SAFETY: facets are built from config.facets, which is keyed by F.
         const values = query.facets?.[facet.key as F];
@@ -828,10 +997,12 @@ export function defineListQuery<
       // Per facet, rows per value under every other facet's selection, so
       // picking a value doesn't zero the other values of the same facet.
       const search = searchWhere(query);
+      const tree = treeWhere(query);
       const counted = facets.map((facet) => {
         const filter = and([
           extraWhere,
           search,
+          tree,
           // SAFETY: facets are built from config.facets, which is keyed by F.
           ...facets.map((other) =>
             other === facet
