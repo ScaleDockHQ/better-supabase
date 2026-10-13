@@ -37,6 +37,7 @@
   "blocks/audit",
   "blocks/billing",
   "blocks/comments",
+  "blocks/commerce",
   "blocks/connectors",
   "blocks/create-blocks",
   "blocks/custom-fields",
