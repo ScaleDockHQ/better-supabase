@@ -78,4 +78,72 @@ describe("tags module", () => {
       `alter table "better_supabase"."tags" drop column if exists position;`,
     );
   });
+
+  it("limits a subject to its kinds and links rows with tenant and time", () => {
+    const sql = sqlOf({
+      modules: {
+        tags: {
+          mode: "adopt",
+          tables: { tags: "public.labels", taggings: null },
+          columns: { tags: { rank: null } },
+          options: {
+            subjects: {
+              task: {
+                table: "public.tasks",
+                kinds: ["label", "topic"],
+                links: {
+                  table: "public.task_labels",
+                  subject: "task_id",
+                  tag: "label_id",
+                  tenant: "org_id",
+                  createdAt: "linked_at",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(sql).toContain(`v_kind = any ('{label,topic}'::text[])`);
+    expect(sql).toContain(
+      `insert into "public"."task_labels" ("task_id", "label_id", "org_id", "linked_at")`,
+    );
+    expect(sql).toContain("values (tag.subject_id");
+    expect(sql).toContain(", tag.tag_id, tag.tenant, now())");
+    expect(sql).toContain("TAG_SUBJECT_UNKNOWN");
+  });
+
+  it.each([
+    ["a string", "label"],
+    ["an empty kind", [""]],
+    ["a non-string kind", [1]],
+  ])("rejects kinds given as %s", (_name, kinds) => {
+    expect(() =>
+      sqlOf({
+        modules: {
+          tags: {
+            options: { subjects: { task: { table: "public.tasks", kinds } } },
+          },
+        },
+      }),
+    ).toThrow("kinds must be a list of strings");
+  });
+
+  it("renders nothing in custom mode", () => {
+    expect(sqlOf({ modules: { tags: { mode: "custom" } } })).not.toContain(
+      "create_tag",
+    );
+  });
+
+  it("skips the rank upgrade on an adopted table", () => {
+    const [plan] = upgradePlan([{ module: "tags", version: 1 }], {
+      modules: {
+        tags: {
+          mode: "adopt",
+          tables: { tags: "public.labels", taggings: null },
+        },
+      },
+    });
+    expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
+  });
 });
