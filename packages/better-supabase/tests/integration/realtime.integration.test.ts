@@ -217,7 +217,7 @@ describe.skipIf(!live)("Realtime module", async () => {
         };
         private: boolean;
       }>(
-        "select event, payload, private from realtime.messages where topic = $1 order by id",
+        "select event, payload, private from realtime.messages where topic = $1 order by payload->>'operation'",
         [`organization:${ACME}:quotes`],
       );
       expect(
