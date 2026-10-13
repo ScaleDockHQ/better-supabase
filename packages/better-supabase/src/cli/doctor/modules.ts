@@ -3,6 +3,7 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { tenantClaimPaths } from "../../config/index.ts";
 import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
+  adoptedTables,
   contractSignature,
   customContracts,
   type ModuleDeprecation,
@@ -162,6 +163,59 @@ async function danglingAuditRegistrations(
     message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase sql sync\` and apply the migration \`better-supabase sql data\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
     target: `better_supabase.audited_tables ${row.oid}`,
   }));
+}
+
+/** Tables and columns adopt-mode modules use that the live database lacks. */
+async function missingAdoptedColumns(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const db = context.database;
+  if (!db || "skipped" in db) return [];
+  const tables = adoptedTables(context.config.sql.modules);
+  if (tables.length === 0) return [];
+  const names = tables
+    .map((table) => `(${literal(table.schema)}, ${literal(table.table)})`)
+    .join(", ");
+  let rows: { schema: string; name: string; column: string }[];
+  try {
+    rows = await db.query(
+      `select table_schema as schema, table_name as name, column_name as column
+      from information_schema.columns
+      where (table_schema, table_name) in (${names})`,
+    );
+  } catch {
+    return [];
+  }
+  return tables.flatMap((table): FindingInput[] => {
+    const target = `${table.schema}.${table.table}`;
+    const object = {
+      kind: "table" as const,
+      schema: table.schema,
+      name: table.table,
+    };
+    const present = new Set(
+      rows
+        .filter(
+          (row) => row.schema === table.schema && row.name === table.table,
+        )
+        .map((row) => row.column),
+    );
+    if (present.size === 0)
+      return [
+        {
+          message: `sql.modules.${table.module} is in adopt mode and maps its ${table.logical} table to ${target}, which the database does not have. Create it, or point sql.modules.${table.module}.tables.${table.logical} at the existing table.`,
+          target,
+          object,
+        },
+      ];
+    return Object.entries(table.columns)
+      .filter(([, column]) => !present.has(column))
+      .map(([logical, column]) => ({
+        message: `sql.modules.${table.module} is in adopt mode and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. Map sql.modules.${table.module}.columns.${table.logical}.${logical} to the column that holds it, or to null when the module allows that.`,
+        target: `${target}.${column}`,
+        object,
+      }));
+  });
 }
 
 const EVENT_TRIGGER_FIX =
@@ -763,7 +817,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Migration-only module option",
     description:
-      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
+      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets or credentials in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
     check: migrationOptions,
   },
   {
@@ -837,6 +891,14 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "The app calls `requireAal('aal2')` (or otherwise requires aal2), but `[auth.mfa.totp]` in `config.toml` does not enable enroll and verify, so no user can satisfy the check.",
     check: aal2WithoutMfa,
+  },
+  {
+    code: "BS330",
+    severity: "error",
+    title: "Adopted table without a mapped column",
+    description:
+      "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`sql.modules.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
+    check: missingAdoptedColumns,
   },
 ];
 

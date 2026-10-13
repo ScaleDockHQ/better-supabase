@@ -3602,6 +3602,7 @@
   "./sql": {
     "values": [
       "adoptedColumnProblems",
+      "adoptedTables",
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "compileReadSet",
@@ -3638,6 +3639,7 @@
       "upgradePlan"
     ],
     "types": [
+      "AdoptedTable",
       "AuditCategory",
       "AuditedTable",
       "CompiledReadSet",
