@@ -399,7 +399,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) to service_role;
 
 create or replace function "better_supabase"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
@@ -458,7 +458,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) to service_role;
 
 create or replace function "better_supabase"."expire_booking_holds"()
@@ -469,7 +469,7 @@ set search_path = ''
 as $$
   select "better_supabase"."expire_booking_holds_in"(null, null)
 $$;
-revoke all on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds"() to service_role;
 
 -- Places a booking on a free seat. The slot must be one booking_slots
@@ -567,7 +567,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
 
 -- A member books for themself (customer.userId is ignored), or a manager
@@ -672,7 +672,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
-revoke all on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."change_booking"(uuid, text, text, text) to service_role;
 
 create or replace function "better_supabase"."confirm_booking"(booking uuid)
@@ -1143,7 +1143,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) to service_role;
 
 create or replace function "better_supabase"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
@@ -1202,7 +1202,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) to service_role;
 
 create or replace function "better_supabase"."expire_booking_holds"()
@@ -1213,7 +1213,7 @@ set search_path = ''
 as $$
   select "better_supabase"."expire_booking_holds_in"(null, null)
 $$;
-revoke all on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds"() to service_role;
 
 -- Places a booking on a free seat. The slot must be one booking_slots
@@ -1330,7 +1330,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
 
 -- A member books for themself (customer.userId is ignored), or a manager
@@ -1455,7 +1455,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
-revoke all on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."change_booking"(uuid, text, text, text) to service_role;
 
 create or replace function "better_supabase"."confirm_booking"(booking uuid)
@@ -2125,7 +2125,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function "app_private"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
+revoke execute on function "app_private"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) to service_role;
 
 create or replace function "app_private"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
@@ -2184,7 +2184,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function "app_private"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
+revoke execute on function "app_private"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
 grant execute on function "app_private"."expire_booking_holds_in"(uuid, tstzrange) to service_role;
 
 create or replace function "app_private"."expire_booking_holds"()
@@ -2195,7 +2195,7 @@ set search_path = ''
 as $$
   select "app_private"."expire_booking_holds_in"(null, null)
 $$;
-revoke all on function "app_private"."expire_booking_holds"() from public, anon, authenticated;
+revoke execute on function "app_private"."expire_booking_holds"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_booking_holds"() to service_role;
 
 -- Places a booking on a free seat. The slot must be one booking_slots
@@ -2293,7 +2293,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function "app_private"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
+revoke execute on function "app_private"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
 
 -- A member books for themself (customer.userId is ignored), or a manager
@@ -2398,7 +2398,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
-revoke all on function "app_private"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function "app_private"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "app_private"."change_booking"(uuid, text, text, text) to service_role;
 
 create or replace function "app_private"."confirm_booking"(booking uuid)
@@ -2869,7 +2869,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) to service_role;
 
 create or replace function "better_supabase"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
@@ -2928,7 +2928,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) to service_role;
 
 create or replace function "better_supabase"."expire_booking_holds"()
@@ -2939,7 +2939,7 @@ set search_path = ''
 as $$
   select "better_supabase"."expire_booking_holds_in"(null, null)
 $$;
-revoke all on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds"() to service_role;
 
 -- Places a booking on a free seat. The slot must be one booking_slots
@@ -3037,7 +3037,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
 
 -- A member books for themself (customer.userId is ignored), or a manager
@@ -3142,7 +3142,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
-revoke all on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."change_booking"(uuid, text, text, text) to service_role;
 
 create or replace function "better_supabase"."confirm_booking"(booking uuid)
@@ -3658,7 +3658,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."booking_slots"(uuid, timestamptz, timestamptz, text, uuid) to service_role;
 
 create or replace function "better_supabase"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
@@ -3717,7 +3717,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds_in"(uuid, tstzrange) to service_role;
 
 create or replace function "better_supabase"."expire_booking_holds"()
@@ -3728,7 +3728,7 @@ set search_path = ''
 as $$
   select "better_supabase"."expire_booking_holds_in"(null, null)
 $$;
-revoke all on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."expire_booking_holds"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_booking_holds"() to service_role;
 
 -- Places a booking on a free seat. The slot must be one booking_slots
@@ -3826,7 +3826,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
 
 -- A member books for themself (customer.userId is ignored), or a manager
@@ -3931,7 +3931,7 @@ begin
   return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
-revoke all on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."change_booking"(uuid, text, text, text) to service_role;
 
 create or replace function "better_supabase"."confirm_booking"(booking uuid)

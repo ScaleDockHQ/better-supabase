@@ -10,6 +10,7 @@ import {
   fail,
   lockTable,
   schemaPreamble,
+  serviceGrant,
   sha256Hex,
   tenantIn,
   userGrant,
@@ -533,8 +534,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function ${fn("booking_slots")}(uuid, timestamptz, timestamptz, text, uuid) from public, anon, authenticated;
-grant execute on function ${fn("booking_slots")}(uuid, timestamptz, timestamptz, text, uuid) to service_role;
+${serviceGrant(`${fn("booking_slots")}(uuid, timestamptz, timestamptz, text, uuid)`)}
 
 create or replace function ${fn("available_slots")}(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
 returns jsonb
@@ -610,8 +610,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function ${fn("expire_booking_holds_in")}(uuid, tstzrange) from public, anon, authenticated;
-grant execute on function ${fn("expire_booking_holds_in")}(uuid, tstzrange) to service_role;
+${serviceGrant(`${fn("expire_booking_holds_in")}(uuid, tstzrange)`)}
 
 create or replace function ${fn("expire_booking_holds")}()
 returns integer
@@ -621,8 +620,7 @@ set search_path = ''
 as $$
   select ${fn("expire_booking_holds_in")}(null, null)
 $$;
-revoke all on function ${fn("expire_booking_holds")}() from public, anon, authenticated;
-grant execute on function ${fn("expire_booking_holds")}() to service_role;
+${serviceGrant(`${fn("expire_booking_holds")}()`)}
 
 -- Places a booking on a free seat. The slot must be one booking_slots
 -- returns; the exclusion constraint settles a race between two callers.
@@ -701,8 +699,7 @@ begin
   return ${bookingJson("v_booking")} || jsonb_build_object('accessToken', v_token);
 end;
 $$;
-revoke all on function ${fn("place_booking")}(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
-grant execute on function ${fn("place_booking")}(uuid, uuid, timestamptz, jsonb, boolean, uuid) to service_role;
+${serviceGrant(`${fn("place_booking")}(uuid, uuid, timestamptz, jsonb, boolean, uuid)`)}
 
 -- A member books for themself (customer.userId is ignored), or a manager
 -- books for anyone. confirm skips the hold.
@@ -788,8 +785,7 @@ begin
   return ${bookingJson("v_booking")};
 end;
 $$;
-revoke all on function ${fn("change_booking")}(uuid, text, text, text) from public, anon, authenticated;
-grant execute on function ${fn("change_booking")}(uuid, text, text, text) to service_role;
+${serviceGrant(`${fn("change_booking")}(uuid, text, text, text)`)}
 
 create or replace function ${fn("confirm_booking")}(booking uuid)
 returns jsonb
