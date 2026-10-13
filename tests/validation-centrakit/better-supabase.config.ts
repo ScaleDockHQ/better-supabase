@@ -313,6 +313,8 @@ export default defineConfig({
       tags: {
         mode: "adopt",
         tables: { tags: "centrakit.organization_tags", taggings: null },
+        // CentraKit orders tags by an integer position, not rank keys.
+        columns: { tags: { rank: null } },
         options: {
           subjects: {
             task: {
@@ -338,6 +340,7 @@ export default defineConfig({
           options: "centrakit.field_options",
           values: "centrakit.field_values",
         },
+        columns: { definitions: { rank: null }, options: { rank: null } },
       },
       "share-links": {
         mode: "adopt",
