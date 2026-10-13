@@ -12,7 +12,7 @@ import { MODULE_PERMISSIONS } from "./access-model.ts";
 const EVENTS: ModuleEvents = {
   "reminder.sent": {
     subject: "reminders",
-    payload: ["organizationId", "id"],
+    payload: ["organizationId", "id", "subjectType", "subjectId", "userId"],
   },
 };
 
@@ -156,19 +156,29 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant ${ctx.idType};
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select ${ctx.col("reminders", "tenant")} into v_tenant from ${reminders} where ${ctx.col("reminders", "id")} = mark_reminder_sent.reminder;
+  select ${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from ${reminders} where ${ctx.col("reminders", "id")} = mark_reminder_sent.reminder;
   if not found then
     ${fail("REMINDER_NOT_FOUND", "reminder not found", "P0002")}
   end if;
   insert into ${deliveries} (${ctx.col("deliveries", "reminder")}, ${ctx.col("deliveries", "occurrenceAt")}, ${ctx.col("deliveries", "sentAt")})
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict (${ctx.col("deliveries", "reminder")}, ${ctx.col("deliveries", "occurrenceAt")}) do nothing;
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
   ${ctx.record({
     type: "reminder.sent",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', mark_reminder_sent.reminder)`,
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', mark_reminder_sent.reminder, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'userId', v_user)`,
     subject: `'reminders/' || mark_reminder_sent.reminder::text`,
     tenant: "v_tenant",
     audit: false,

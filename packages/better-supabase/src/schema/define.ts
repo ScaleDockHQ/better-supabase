@@ -15,7 +15,8 @@ export function defineSchema<
   M extends AnyModels,
   D = unknown,
   F extends AnyFunctions = AnyFunctions,
->(meta: SchemaMeta): Schema<M, D, F> {
+  S extends string = string,
+>(meta: SchemaMeta): Schema<M, D, F, S> {
   return { meta: validateMeta(meta) };
 }
 

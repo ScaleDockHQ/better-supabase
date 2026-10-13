@@ -1,0 +1,78 @@
+---
+title: Drive
+description: Documents in folders with attachments, share links, labels and comments.
+---
+
+Documents live in folders, ordered by rank keys within each folder. Files go
+to Storage through the attachments block, share links open a document to
+people outside the organization, and watchers hear when a document is shared
+or labelled.
+
+## Table
+
+```sql title="supabase/schemas/documents.sql"
+create table public.documents (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  name text not null,
+  folder text not null default 'root',
+  rank text collate "C" not null default 'V'
+);
+alter table public.documents enable row level security;
+```
+
+`folder` is a plain text group here. A folder tree with parents comes with
+the relations block.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  subjects: {
+    document: {
+      table: "public.documents",
+      idType: "uuid",
+      title: "name",
+      url: "/files/{id}",
+      rank: { column: "rank", group: "folder" },
+    },
+  },
+  sql: {
+    modules: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      attachments: {},
+      "share-links": {},
+      rank: {},
+    },
+  },
+});
+```
+
+## Event flow
+
+| The user             | Call                                                          | Event                | Watchers get        |
+| -------------------- | ------------------------------------------------------------- | -------------------- | ------------------- |
+| Shares a document    | `shareLinks.create(organizationId, "document", id, "viewer")` | `share_link.created` | `subject.shared`    |
+| Labels it            | `tags.tag(organizationId, "document", id, tagId)`             | `subject.tagged`     | `subject.tagged`    |
+| Comments             | `comments.create({ subjectType: "document", ... })`           | `comment.created`    | `subject.commented` |
+| Moves it to a folder | `rank.move("document", id, { group: "archive" })`             | none                 |                     |
+| Opens a share link   | the share-links view route                                    | `subject.viewed`     | map it if you want  |
+
+There is no state machine on `folder`, so a move changes the folder and the
+rank without an event. Add one when a folder change should notify.
+
+## With ReUI
+
+- Tree for the folder sidebar.
+- Data Grid for the file list, with Filters on a `defineListQuery` and File
+  Type for each attachment's icon.
+- Kanban when folders are columns, calling `rank.move` on drop.
+
+Pro file-manager blocks are licensed per user; copy them from
+[reui.io](https://reui.io).

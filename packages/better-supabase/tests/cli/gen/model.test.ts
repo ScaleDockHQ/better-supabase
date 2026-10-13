@@ -464,3 +464,28 @@ describe("buildModel comments", () => {
     expect(customers.columns["name"]?.description).toBe("Trading name.");
   });
 });
+
+describe("subject types", () => {
+  it("emits SubjectType and SubjectRef from config.subjects", async () => {
+    const input = await model(() => ({}), {
+      subjects: {
+        task: { table: "public.tasks" },
+        customer: { table: "public.customers" },
+      },
+    });
+    const source = emitModule(input, { importPathFor: (from) => from });
+    expect(source).toContain(
+      'export const subjectTypes = ["task", "customer"] as const;',
+    );
+    expect(source).toContain(
+      "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
+    );
+  });
+
+  it("keeps the three-parameter schema without a registry", async () => {
+    const source = emitModule(await model(() => ({})), {
+      importPathFor: (from) => from,
+    });
+    expect(source).not.toContain("SubjectType");
+  });
+});

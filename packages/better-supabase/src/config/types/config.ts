@@ -27,6 +27,7 @@ import type {
   VectorSearchConfig,
 } from "./database.ts";
 import type { EntitlementsConfig } from "./entitlements.ts";
+import type { SubjectsConfig } from "./subjects.ts";
 import type {
   DoctorConfig,
   EnvFileConfig,
@@ -120,6 +121,13 @@ export interface BetterSupabaseConfig {
    * which `db.$search(table, { vector, k })` calls.
    */
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
+  /**
+   * The app's subject types: the entities blocks attach tags, comments,
+   * fields and ranks to. Subject-bound SQL modules read this registry, the
+   * `subjects` module writes `subject_title`, `subject_url` and
+   * `can_subject` from it, and `gen` types `SubjectType` from its keys.
+   */
+  readonly subjects?: SubjectsConfig;
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
   /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
@@ -203,6 +211,7 @@ export interface ResolvedConfig {
     readonly column: string;
     readonly distance: VectorDistance;
   } & Omit<Exclude<VectorSearchConfig, string>, "column" | "distance">)[];
+  readonly subjects: SubjectsConfig;
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<Omit<RealtimeConfig, "policies">> & {
     readonly policies?: TopicPoliciesConfig;

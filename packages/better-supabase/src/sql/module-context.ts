@@ -46,6 +46,7 @@ export function moduleContext(
     {
       ...(modules ? { modules } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
+      ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(installed ? { installed } : {}),
       ...providerIdType(layout),
       integrations(module) {

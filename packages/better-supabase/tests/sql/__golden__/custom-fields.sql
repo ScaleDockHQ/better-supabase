@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@1 managed
+-- @bs-module custom-fields@2 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
 alter table "better_supabase"."field_definitions" enable row level security;
@@ -86,6 +86,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -93,8 +95,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
+    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
@@ -177,6 +186,36 @@ $$;
 revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
 
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = rank_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  update "better_supabase"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -198,13 +237,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 1, 'managed')
+values ('custom-fields', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@1 managed
+-- @bs-module custom-fields@2 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -254,7 +293,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
 alter table "better_supabase"."field_definitions" enable row level security;
@@ -290,6 +329,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -297,8 +338,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
+    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
@@ -381,6 +429,36 @@ $$;
 revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
 
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = rank_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  update "better_supabase"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -402,13 +480,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 1, 'managed')
+values ('custom-fields', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@1 managed
+-- @bs-module custom-fields@2 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -460,7 +538,7 @@ create table if not exists "app_private"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
 alter table "app_private"."field_definitions" enable row level security;
@@ -496,6 +574,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -503,8 +583,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  insert into "app_private"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  select max(d."rank" collate "C") into v_last from "app_private"."field_definitions" d
+    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "app_private"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
@@ -587,6 +674,36 @@ $$;
 revoke execute on function "app_private"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "app_private"."delete_field_definition"(uuid) to authenticated, service_role;
 
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function "app_private"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "app_private"."field_definitions" where "id" = rank_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  update "app_private"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "app_private"."rank_field_definition"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -608,13 +725,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 1, 'managed')
+values ('custom-fields', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@1 managed
+-- @bs-module custom-fields@2 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -664,7 +781,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
 alter table "better_supabase"."field_definitions" enable row level security;
@@ -700,6 +817,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -707,8 +826,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
+    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
@@ -790,6 +916,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
+
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = rank_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  update "better_supabase"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
 
 -- sql.modules.custom-fields.api: entry points for the Data API.
 create schema if not exists "api";
@@ -849,6 +1005,15 @@ as $$ select "better_supabase"."delete_field_definition"($1) $$;
 revoke execute on function "api"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "api"."delete_field_definition"(uuid) to authenticated, service_role;
 
+create or replace function "api"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."rank_field_definition"($1, $2) $$;
+revoke execute on function "api"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "api"."rank_field_definition"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -870,13 +1035,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 1, 'managed')
+values ('custom-fields', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@1 adopt
+-- @bs-module custom-fields@2 adopt
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -926,6 +1091,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -933,8 +1100,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
+    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
@@ -1017,6 +1191,36 @@ $$;
 revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
 
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = rank_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  update "better_supabase"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1038,6 +1242,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 1, 'adopt')
+values ('custom-fields', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

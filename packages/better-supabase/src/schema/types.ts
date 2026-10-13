@@ -292,6 +292,7 @@ export interface Schema<
   M extends AnyModels = AnyModels,
   D = unknown,
   F extends AnyFunctions = AnyFunctions,
+  S extends string = string,
 > {
   readonly meta: SchemaMeta;
   /** Phantom. Never present at runtime. */
@@ -299,6 +300,8 @@ export interface Schema<
     readonly models: M;
     readonly database: D;
     readonly functions: F;
+    /** The `config.subjects` type names. */
+    readonly subjects: S;
   };
 }
 
@@ -306,6 +309,14 @@ export type ModelsOf<S> = S extends Schema<infer M> ? M : never;
 export type DatabaseOf<S> = S extends Schema<AnyModels, infer D> ? D : never;
 export type FunctionsOf<S> =
   S extends Schema<AnyModels, unknown, infer F> ? F : never;
+/** The schema's subject types (`config.subjects`), `string` without a registry. */
+export type SubjectTypeOf<S> =
+  S extends Schema<AnyModels, unknown, AnyFunctions, infer T> ? T : string;
+/** One subject: its type and its id as text. */
+export interface SubjectRef<T extends string = string> {
+  readonly type: T;
+  readonly id: string;
+}
 
 export type TableKey<M extends AnyModels> = Extract<keyof M, string>;
 export type Row<M extends AnyModels, T extends keyof M> = M[T]["Row"];

@@ -1,0 +1,89 @@
+---
+title: Scheduling
+description: Bookings with a request and confirm workflow, custom fields, share links and reminders before the start.
+---
+
+A booking is requested, then confirmed or cancelled. Custom fields hold what
+each organization asks for (a room, a phone number), a share link lets the
+guest open the booking, and reminders go out before it starts.
+
+## Table
+
+```sql title="supabase/schemas/bookings.sql"
+create table public.bookings (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  title text not null,
+  status text not null default 'requested',
+  starts_at timestamptz not null
+);
+alter table public.bookings enable row level security;
+```
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  subjects: {
+    booking: {
+      table: "public.bookings",
+      idType: "uuid",
+      title: "title",
+      url: "/bookings/{id}",
+    },
+  },
+  sql: {
+    modules: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      "custom-fields": {},
+      "share-links": {},
+      reminders: {},
+      "state-machine": {
+        options: {
+          machines: {
+            booking: {
+              table: "public.bookings",
+              column: "status",
+              initial: "requested",
+              tenant: "organization_id",
+              transitions: {
+                requested: ["confirmed", "cancelled"],
+                confirmed: ["cancelled"],
+                cancelled: [],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+## Event flow
+
+| The user               | Call                                                                   | Event                | Watchers get            |
+| ---------------------- | ---------------------------------------------------------------------- | -------------------- | ----------------------- |
+| Confirms a booking     | `stateMachine.transition("booking", id, "confirmed")`                  | `status.changed`     | `subject.moved`         |
+| Sets a field           | `customFields.setValue(organizationId, "booking", id, fieldId, value)` | `field_value.set`    | `subject.field_changed` |
+| Shares it with a guest | `shareLinks.create(organizationId, "booking", id, "viewer")`           | `share_link.created` | `subject.shared`        |
+| Is reminded            | `reminders.deliver(payload)`                                           | `reminder.sent`      | `reminder.due`          |
+
+A cancelled booking stays cancelled: `cancelled` has no outgoing
+transitions, so `transition` returns `STATE_TRANSITION_INVALID`.
+
+This recipe has no overlap check. Resources, availability and exclusion
+constraints come with the bookings block.
+
+## With ReUI
+
+- Event Calendar for the booking calendar, from `starts_at`.
+- Data Grid for the booking list, with Filters on a `defineListQuery`.
+- Stepper for the request and confirm workflow on the booking page.
+
+Pro scheduling blocks are licensed per user; copy them from
+[reui.io](https://reui.io).

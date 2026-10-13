@@ -13,6 +13,7 @@ import {
   moduleLayout,
   migrationOptionUses,
   sharedRolesProblems,
+  subjectColumns,
 } from "../../sql/index.ts";
 import { errorText } from "../errors.ts";
 import { tomlGet } from "../supabase-toml.ts";
@@ -900,7 +901,75 @@ export const MODULE_RULES: readonly Rule[] = [
       "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`sql.modules.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
     check: missingAdoptedColumns,
   },
+  {
+    code: "BS331",
+    severity: "error",
+    title: "Subject registry names a missing table or column",
+    description:
+      "An entry in `config.subjects` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
+    check: missingSubjectColumns,
+  },
+  {
+    code: "BS332",
+    severity: "warning",
+    title: "Subject table without RLS",
+    description:
+      "A table in `config.subjects` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
+    check: subjectsWithoutRls,
+  },
 ];
+
+function subjectTables(context: DoctorContext) {
+  const catalog = catalogOf(context);
+  return Object.entries(context.config.subjects).flatMap(([type, entry]) => {
+    const [schema, name] = entry.table.includes(".")
+      ? entry.table.split(".", 2)
+      : ["public", entry.table];
+    if (schema === undefined || name === undefined) return [];
+    if (!context.snapshot.schemas.includes(schema)) return [];
+    const table = catalog.tables.find(
+      (candidate) => candidate.schema === schema && candidate.name === name,
+    );
+    return [{ type, entry, schema, name, table }];
+  });
+}
+
+function missingSubjectColumns(context: DoctorContext): FindingInput[] {
+  return subjectTables(context).flatMap(
+    ({ type, entry, schema, name, table }): FindingInput[] => {
+      const target = `${schema}.${name}`;
+      if (!table)
+        return [
+          {
+            message: `subjects.${type} names ${target}, which the database does not have. Create the table, or point subjects.${type}.table at the existing one.`,
+            target,
+          },
+        ];
+      const present = new Set(table.columns.map((column) => column.name));
+      return subjectColumns(entry)
+        .filter(([, column]) => !present.has(column))
+        .map(([path, column]) => ({
+          message: `subjects.${type}.${path} names ${target}.${column}, but the table has no such column. Map it to the column that holds the value, or add the column.`,
+          target: `${target}.${column}`,
+          object: tableObject(table),
+        }));
+    },
+  );
+}
+
+function subjectsWithoutRls(context: DoctorContext): FindingInput[] {
+  return subjectTables(context).flatMap(({ type, table }): FindingInput[] =>
+    table?.kind === "table" && !table.rls
+      ? [
+          {
+            message: `subjects.${type} is ${table.schema}.${table.name}, which has row level security disabled, so can_subject treats every row as visible. Enable RLS and add the policies that scope it.`,
+            target: `${table.schema}.${table.name}`,
+            object: tableObject(table),
+          },
+        ]
+      : [],
+  );
+}
 
 function auditUserSession(context: DoctorContext): FindingInput[] {
   if (!context.config.sql.moduleNames.includes("audit")) return [];

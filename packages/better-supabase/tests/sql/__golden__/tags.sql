@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_59_tags.sql
 -- better-supabase module: tags
--- @bs-module tags@1 managed
+-- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ create table if not exists "better_supabase"."tags" (
   "slug" text not null,
   "color" text,
   "description" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "slug")
@@ -77,6 +77,8 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -84,11 +86,18 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
+    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   null;
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
@@ -176,6 +185,36 @@ $$;
 revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
 
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_tag.rank is null or rank_tag.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'TAG_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = rank_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_tag"(uuid, text) to authenticated, service_role;
+
 create or replace function "better_supabase"."delete_tag"(tag_id uuid)
 returns boolean
 language plpgsql
@@ -249,13 +288,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('tags', 1, 'managed')
+values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_59_tags.sql
 -- better-supabase module: tags
--- @bs-module tags@1 managed
+-- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -301,7 +340,7 @@ create table if not exists "better_supabase"."tags" (
   "slug" text not null,
   "color" text,
   "description" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "slug")
@@ -332,6 +371,8 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -339,11 +380,18 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
+    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   perform "better_supabase".emit_event('tag.created', jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name), 'tags/' || v_id::text, (create_tag.tenant)::text, null, 'better-supabase/tags');
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
@@ -431,6 +479,36 @@ $$;
 revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
 
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_tag.rank is null or rank_tag.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'TAG_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = rank_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_tag"(uuid, text) to authenticated, service_role;
+
 create or replace function "better_supabase"."delete_tag"(tag_id uuid)
 returns boolean
 language plpgsql
@@ -504,13 +582,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('tags', 1, 'managed')
+values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_59_tags.sql
 -- better-supabase module: tags
--- @bs-module tags@1 managed
+-- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -558,7 +636,7 @@ create table if not exists "app_private"."tags" (
   "slug" text not null,
   "color" text,
   "description" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "slug")
@@ -589,6 +667,8 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -596,11 +676,18 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  insert into "app_private"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  select max(t."rank" collate "C") into v_last from "app_private"."tags" t
+    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "app_private"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   null;
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "app_private"."create_tag"(uuid, text, text, text, text) from public, anon;
@@ -688,6 +775,36 @@ $$;
 revoke execute on function "app_private"."update_tag"(uuid, text) from public, anon;
 grant execute on function "app_private"."update_tag"(uuid, text) to authenticated, service_role;
 
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function "app_private"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_tag.rank is null or rank_tag.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'TAG_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "app_private"."tags" where "id" = rank_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "app_private"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "app_private"."rank_tag"(uuid, text) to authenticated, service_role;
+
 create or replace function "app_private"."delete_tag"(tag_id uuid)
 returns boolean
 language plpgsql
@@ -761,13 +878,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('tags', 1, 'managed')
+values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_59_tags.sql
 -- better-supabase module: tags
--- @bs-module tags@1 managed
+-- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -813,7 +930,7 @@ create table if not exists "better_supabase"."tags" (
   "slug" text not null,
   "color" text,
   "description" text,
-  "position" integer not null default 0,
+  "rank" text collate "C" not null default 'V',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "slug")
@@ -844,6 +961,8 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -851,11 +970,18 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
+    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   null;
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
@@ -942,6 +1068,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
+
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_tag.rank is null or rank_tag.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'TAG_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = rank_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_tag"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_tag"(tag_id uuid)
 returns boolean
@@ -1044,6 +1200,15 @@ as $$ select "better_supabase"."update_tag"($1, $2) $$;
 revoke execute on function "api"."update_tag"(uuid, text) from public, anon;
 grant execute on function "api"."update_tag"(uuid, text) to authenticated, service_role;
 
+create or replace function "api"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."rank_tag"($1, $2) $$;
+revoke execute on function "api"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "api"."rank_tag"(uuid, text) to authenticated, service_role;
+
 create or replace function "api"."delete_tag"(tag_id uuid)
 returns boolean
 language sql
@@ -1083,13 +1248,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('tags', 1, 'managed')
+values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_59_tags.sql
 -- better-supabase module: tags
--- @bs-module tags@1 adopt
+-- @bs-module tags@2 adopt
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1137,6 +1302,8 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1144,11 +1311,18 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
+    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+  v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   null;
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
@@ -1236,6 +1410,36 @@ $$;
 revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
 
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function "better_supabase"."rank_tag"(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_tag.rank is null or rank_tag.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'TAG_RANK_INVALID';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."tags" where "id" = rank_tag.tag_id;
+  if not found then
+    raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  update "better_supabase"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_tag"(uuid, text) to authenticated, service_role;
+
 create or replace function "better_supabase"."delete_tag"(tag_id uuid)
 returns boolean
 language plpgsql
@@ -1309,6 +1513,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('tags', 1, 'adopt')
+values ('tags', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

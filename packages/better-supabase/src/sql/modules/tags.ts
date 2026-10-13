@@ -7,6 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import {
   type SubjectTableBinding,
@@ -55,10 +56,11 @@ const NAMES: ModuleNames = {
         slug: "slug",
         color: "color",
         description: "description",
-        position: "position",
+        rank: "rank",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["rank"],
     },
     taggings: {
       name: "taggings",
@@ -148,7 +150,8 @@ function build(ctx: ModuleContext): string {
   const slug = ctx.col("tags", "slug");
   const color = ctx.col("tags", "color");
   const description = ctx.col("tags", "description");
-  const position = ctx.col("tags", "position");
+  const ranked = ctx.has("tags", "rank");
+  const rank = ranked ? ctx.col("tags", "rank") : "";
   const createdAt = ctx.col("tags", "createdAt");
   const updatedAt = ctx.col("tags", "updatedAt");
   const manage = ctx.permission("manage", MODULE_PERMISSIONS.tags.manage);
@@ -163,8 +166,7 @@ function build(ctx: ModuleContext): string {
   ${slug} text not null,
   ${color} text,
   ${description} text,
-  ${position} integer not null default 0,
-  ${createdAt} timestamptz not null default now(),
+${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique (${tenant}, ${kind}, ${slug})
 );
@@ -213,12 +215,22 @@ as $$
 declare
   v_id uuid;
   v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_last text;
+  v_rank text;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, ${manage}), false)) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+${
+  ranked
+    ? `  select max(t.${rank} collate "C") into v_last from ${tags} t
+    where t.${tenant} = create_tag.tenant and t.${kind} = create_tag.kind;
+  v_rank := ${rankAfter("v_last")};
+  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${rank}, ${createdAt})
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())`
+    : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
+}
   returning ${id} into v_id;
   ${ctx.record({
     type: "tag.created",
@@ -227,7 +239,7 @@ begin
     tenant: "create_tag.tenant",
     audit: false,
   })}
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
 ${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text)`)}
@@ -320,7 +332,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("update_tag")}(uuid, text)`)}
-
+${ranked ? rankTag(ctx, { tags, id, tenant, rank, updatedAt, manage }) : ""}
 create or replace function ${fn("delete_tag")}(tag_id uuid)
 returns boolean
 language plpgsql
@@ -375,7 +387,7 @@ ${userGrant(`${fn("untag")}(${ctx.idType}, text, text, uuid)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_tag",
@@ -383,7 +395,50 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
+    ...(ctx.has("tags", "rank")
+      ? [{ name: "rank_tag", args: ["uuid", "text"], returns: "boolean" }]
+      : []),
   ];
+}
+
+interface RankTagNames {
+  readonly tags: string;
+  readonly id: string;
+  readonly tenant: string;
+  readonly rank: string;
+  readonly updatedAt: string;
+  readonly manage: string;
+}
+
+function rankTag(ctx: ModuleContext, names: RankTagNames): string {
+  const { tags, id, tenant, rank, updatedAt, manage } = names;
+  return `
+-- Sets a tag's rank key, from rankBetween over its neighbours' keys.
+create or replace function ${ctx.fn("rank_tag")}(tag_id uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  if rank_tag.rank is null or rank_tag.rank !~ ${RANK_KEY_PATTERN} then
+    ${fail("TAG_RANK_INVALID", "not a rank key", "22023")}
+  end if;
+  select ${tenant} into v_tenant from ${tags} where ${id} = rank_tag.tag_id;
+  if not found then
+    ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+    ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
+  end if;
+  update ${tags} set ${rank} = rank_tag.rank, ${updatedAt} = now() where ${id} = rank_tag.tag_id;
+  return true;
+end;
+$$;
+${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
+`;
 }
 
 export const TAGS: ModuleDefinition = {
@@ -395,7 +450,29 @@ export const TAGS: ModuleDefinition = {
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Tags order by a fractional rank key instead of an integer position; rank_tag sets it.",
+      sql: (ctx) => {
+        if (!ctx.manages) return "";
+        const tags = ctx.table("tags");
+        const rank = ctx.col("tags", "rank");
+        return `alter table ${tags} add column if not exists ${rank} text collate "C";
+${rankBackfill({
+  table: tags,
+  id: ctx.col("tags", "id"),
+  rank,
+  partition: [ctx.col("tags", "tenant"), ctx.col("tags", "kind")],
+  orderBy: `position, ${ctx.col("tags", "name")}, ${ctx.col("tags", "id")}`,
+})}
+alter table ${tags} alter column ${rank} set default 'V', alter column ${rank} set not null;
+alter table ${tags} drop column if exists position;`;
+      },
+    },
+  ],
   names: NAMES,
   contract,
   build,

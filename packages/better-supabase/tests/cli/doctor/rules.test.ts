@@ -1096,6 +1096,67 @@ describe("adopted tables without a mapped column (BS330)", () => {
   });
 });
 
+describe("subject registry (BS331, BS332)", () => {
+  it("reports a missing table and each missing column", async () => {
+    const findings = await run(
+      "BS331",
+      context(
+        base,
+        {},
+        {
+          subjects: {
+            note: { table: "notes", title: "headline", url: "/n/{slug}" },
+            ghost: { table: "public.ghosts" },
+            other: { table: "elsewhere.things" },
+          },
+        },
+      ),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "public.notes.headline",
+      "public.notes.slug",
+      "public.ghosts",
+    ]);
+    expect(findings[0]).toEqual(
+      expect.objectContaining({
+        severity: "error",
+        message: expect.stringContaining("subjects.note.title"),
+      }),
+    );
+  });
+
+  it("passes a complete entry", async () => {
+    expect(
+      await run(
+        "BS331",
+        context(
+          base,
+          {},
+          {
+            subjects: {
+              note: { table: "notes", title: "body", url: "/n/{id}" },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("warns about a subject table without RLS", async () => {
+    const config = { subjects: { note: { table: "notes" } } };
+    expect(await run("BS332", context(base, {}, config))).toEqual([]);
+    const open = snapshot((tables) => {
+      table(tables, "notes").rls = false;
+    });
+    expect(await run("BS332", context(open, {}, config))).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.notes",
+      }),
+    ]);
+  });
+});
+
 describe("module event triggers (BS323)", () => {
   const modules = { sql: { modules: ["audit", "ensure-rls", "tenant"] } };
   const live = (rows: Record<string, unknown>[] | Error) => ({

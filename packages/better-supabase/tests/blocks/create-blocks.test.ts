@@ -109,6 +109,53 @@ describe("createBlocks", () => {
     });
   });
 
+  it("wires reminders to notifications with reminderNotification", async () => {
+    const send = vi.fn(() => Promise.resolve("n1"));
+    let notifyDelivery: BlockContext["notifyDelivery"];
+    createBlocks(
+      { transport, reminderNotification: "reminder.due" },
+      {
+        reminders: (context) => (notifyDelivery = context.notifyDelivery),
+        notifications: () => ({ send }),
+      },
+    );
+    await notifyDelivery?.({
+      reminderId: "r1",
+      occurrenceAt: "2026-10-14T09:00:00Z",
+      organizationId: "o1",
+      userId: "u1",
+      subjectType: "task",
+      subjectId: "42",
+    });
+    await notifyDelivery?.({
+      reminderId: "r2",
+      occurrenceAt: "2026-10-14T09:00:00Z",
+      organizationId: "o1",
+    });
+    expect(send).toHaveBeenNthCalledWith(1, "reminder.due", {
+      recipients: ["u1"],
+      tenant: "o1",
+      key: "reminder:r1:2026-10-14T09:00:00Z",
+      subject: { type: "task", id: "42" },
+      data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
+    });
+    expect(send).toHaveBeenNthCalledWith(2, "reminder.due", {
+      recipients: [],
+      tenant: "o1",
+      key: "reminder:r2:2026-10-14T09:00:00Z",
+      data: { reminderId: "r2", occurrenceAt: "2026-10-14T09:00:00Z" },
+    });
+  });
+
+  it("leaves notifyDelivery out without notifications", () => {
+    const seen: BlockContext[] = [];
+    createBlocks(
+      { transport, reminderNotification: "reminder.due" },
+      { reminders: (context) => seen.push(context) },
+    );
+    expect(seen[0]).not.toHaveProperty("notifyDelivery");
+  });
+
   it("leaves notify out without a notification type", () => {
     const seen: BlockContext[] = [];
     createBlocks(

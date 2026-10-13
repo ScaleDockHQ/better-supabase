@@ -32,6 +32,7 @@ export function moduleLayout(
     entitlements: config.entitlements,
     claims: config.claims,
     modules: config.sql.modules,
+    subjects: config.subjects,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: "anon" as const, privileges: roles.anon },

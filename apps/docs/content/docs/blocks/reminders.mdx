@@ -20,6 +20,30 @@ import {
 
 `expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
 
+## Delivery
+
+`reminders.deliver(payload)` marks one occurrence sent and, when this call
+recorded it, calls `notifyDelivery`. It returns `ok(true)` for the first
+delivery and `ok(false)` for a replay, which records no second
+`reminder.sent` and sends nothing. `reminders.job` is the same call as a job
+handler, for the `reminders.deliver` queue (`REMINDER_DELIVERY_QUEUE`):
+
+```ts
+const { reminders } = createBlocks(
+  { transport, service, reminderNotification: "reminder.due" },
+  { notifications: createNotifications, reminders: createReminders },
+);
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { [REMINDER_DELIVERY_QUEUE]: reminders.job },
+});
+```
+
+`reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`
+and `userId`, so a [watcher sink](/docs/blocks/notifications#watchers) can
+route it like any other subject event.
+
 ## Adopt mode
 
 Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.

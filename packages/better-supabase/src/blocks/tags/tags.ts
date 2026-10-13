@@ -1,7 +1,9 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { RankNeighbors } from "../../core/rank-result.ts";
 
+import { rankBetweenResult } from "../../core/rank-result.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { blockCall, optionalText, recordOf, textOf } from "../shared.ts";
 
 export interface TagsOptions {
@@ -14,6 +16,8 @@ export interface Tag {
   readonly id: string;
   readonly name: string;
   readonly slug: string;
+  /** Its rank key among the tenant's tags of the same kind, when it has one. */
+  readonly rank?: string;
 }
 
 export interface Tags {
@@ -25,6 +29,11 @@ export interface Tags {
     description?: string,
   ): AsyncResult<Tag>;
   update(id: string, name: string): AsyncResult<boolean>;
+  /**
+   * Moves a tag between the tags with rank keys `previous` and `next`.
+   * Resolves to its new key.
+   */
+  reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
   tag(
     organizationId: string,
@@ -42,10 +51,12 @@ export interface Tags {
 
 function tagOf(value: unknown): Tag {
   const row = recordOf(value, "tag");
+  const rank = optionalText(row["rank"]);
   return {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
     slug: optionalText(row["slug"]) ?? "",
+    ...(rank === undefined ? {} : { rank }),
   };
 }
 
@@ -66,6 +77,11 @@ export function createTags(options: TagsOptions): Tags {
       ),
     update: (id, name) =>
       call("update_tag", { tag_id: id, name }, (value) => value === true),
+    reorder: (id, neighbors) => {
+      const key = rankBetweenResult(neighbors);
+      if (!key.ok) return AsyncResult.err(key.error);
+      return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
+    },
     delete: (id) =>
       call("delete_tag", { tag_id: id }, (value) => value === true),
     tag: (organizationId, subjectType, subjectId, tagId) =>

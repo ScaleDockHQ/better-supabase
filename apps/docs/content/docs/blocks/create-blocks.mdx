@@ -43,17 +43,18 @@ factory, typed from what the factory returns, plus `close()`.
 
 ## Options
 
-| Option               | What it does                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `transport`          | Calls as the caller: `dbTransport(ctx.db)`, `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)` |
-| `service`            | Calls as the service role, for the blocks with service-only calls                                    |
-| `schema`             | The module schema, or the API schema the wrappers live in                                            |
-| `mappers`            | Error mappers that run before each block's built-in ones                                             |
-| `temporal`           | The Temporal namespace for runtimes without a global one                                             |
-| `credentials`        | A `CredentialProvider` for connectors, ai-providers and the workflow builder                         |
-| `events`             | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)             |
-| `audit`              | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
-| `aiTaskNotification` | The notification type ai-tasks sends through the `notifications` block for each finished run         |
+| Option                 | What it does                                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `transport`            | Calls as the caller: `dbTransport(ctx.db)`, `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)` |
+| `service`              | Calls as the service role, for the blocks with service-only calls                                    |
+| `schema`               | The module schema, or the API schema the wrappers live in                                            |
+| `mappers`              | Error mappers that run before each block's built-in ones                                             |
+| `temporal`             | The Temporal namespace for runtimes without a global one                                             |
+| `credentials`          | A `CredentialProvider` for connectors, ai-providers and the workflow builder                         |
+| `events`               | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)             |
+| `audit`                | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
+| `aiTaskNotification`   | The notification type ai-tasks sends through the `notifications` block for each finished run         |
+| `reminderNotification` | The notification type a delivered reminder sends through the `notifications` block                   |
 
 ## Transports
 
@@ -98,15 +99,21 @@ the built-in PostgREST and Postgres executors have it.
 
 ## Siblings
 
-| Factory key     | Goes to                                | As                             |
-| --------------- | -------------------------------------- | ------------------------------ |
-| `aiFiles`       | every other block                      | `files`, which knowledge reads |
-| `notifications` | every block, with `aiTaskNotification` | `notify`, which ai-tasks calls |
+| Factory key     | Goes to                                  | As                                      |
+| --------------- | ---------------------------------------- | --------------------------------------- |
+| `aiFiles`       | every other block                        | `files`, which knowledge reads          |
+| `notifications` | every block, with `aiTaskNotification`   | `notify`, which ai-tasks calls          |
+| `notifications` | every block, with `reminderNotification` | `notifyDelivery`, which reminders calls |
 
 With `aiTaskNotification`, `notify` sends that type to the task's user in
 the task's organization, keyed by the run id, with the data
 `{ taskId, runId, ok, error?, chatId? }`. The type's schema in your
 notification types has to accept that data.
+
+With `reminderNotification`, `notifyDelivery` sends that type for each
+delivered occurrence to the reminder's owner and the subject's watchers,
+keyed by `reminder:<id>:<occurrenceAt>`, with the data
+`{ reminderId, occurrenceAt }`. `reminders.job` then delivers through it.
 
 ```ts
 const { aiTasks } = createBlocks(

@@ -13,7 +13,7 @@ better-supabase sql add state-machine
 import { createStateMachine } from "better-supabase/blocks/state-machine";
 ```
 
-`options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check. `transition(subject_type, id, to, reason)` is the RPC path and stores the reason for the trigger.
+`options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check, writes the history row and records `status.changed`, so a direct update or a board move into another status emits the event too, and an update that keeps the status emits nothing. `transition(subject_type, id, to, reason)` is the RPC path: it passes the reason to the trigger for that one change. The machine name is the `subjectType` of the history row and the event, so name a machine after its subject (`deal`, `task`) when watchers or comments use the same subject type.
 
 History goes to `status_history`, or to a table named on the machine (`history.table` and its columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage. Pause and pin state stay in the app or in workflow-builder.
 

@@ -33,6 +33,7 @@ export type {
   VectorDistance,
   VectorSearchConfig,
 } from "./types/database.ts";
+export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 export type {
   EntitlementPlansSource,
   EntitlementsConfig,

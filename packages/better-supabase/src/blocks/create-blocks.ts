@@ -5,6 +5,7 @@ import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
 import type { AiFiles } from "./ai-files/ai-files.ts";
 import type { AiTaskOutcome } from "./ai-tasks/ai-tasks.ts";
+import type { DeliveryPayload } from "./reminders/schedule.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks } from "../core/block-hooks.ts";
@@ -29,6 +30,12 @@ export interface CreateBlocksOptions extends BlockOptions {
    * `notifications` block. Its data is `{ taskId, runId, ok, error?, chatId? }`.
    */
   readonly aiTaskNotification?: string;
+  /**
+   * The notification type a delivered reminder sends through the
+   * `notifications` block, to the user who set it and the reminded
+   * subject's watchers. Its data is `{ reminderId, occurrenceAt }`.
+   */
+  readonly reminderNotification?: string;
 }
 
 /** What each block factory receives: the shared options and its siblings. */
@@ -39,6 +46,8 @@ export interface BlockContext extends BlockOptions {
   readonly files?: AiFiles;
   /** Sends `aiTaskNotification` through the `notifications` block, for ai-tasks. */
   readonly notify?: (outcome: AiTaskOutcome) => unknown;
+  /** Sends `reminderNotification` through the `notifications` block, for reminders. */
+  readonly notifyDelivery?: (delivery: DeliveryPayload) => unknown;
 }
 
 /** Builds one block, usually a block creator such as `createOrganizations`. */
@@ -69,6 +78,7 @@ interface NotificationSender {
       readonly recipients: readonly string[];
       readonly tenant: string;
       readonly key: string;
+      readonly subject?: { readonly type: string; readonly id: string };
       readonly data: Readonly<Record<string, unknown>>;
     },
   ): unknown;
@@ -81,7 +91,8 @@ const isNotificationSender = (value: unknown): value is NotificationSender =>
  * Builds the blocks in `factories` with one set of options, and wires the
  * siblings they share: the `aiFiles` block into knowledge, `credentials`
  * into connectors, ai-providers and the builder, the `notifications` block
- * into ai-tasks (with `aiTaskNotification`), and block events into `audit`.
+ * into ai-tasks (with `aiTaskNotification`) and reminders (with
+ * `reminderNotification`), and block events into `audit`.
  * Only the blocks you pass are imported, so the rest stay out of the bundle.
  * `hooks` wraps each block's methods with `withBlockHooks`, so siblings that
  * call a block (ai-tasks sending notifications) go through its hooks too.
@@ -92,21 +103,33 @@ export function createBlocks<const F extends BlockFactories>(
   },
   factories: F,
 ): Blocks<F> {
-  const { credentials, events, audit, aiTaskNotification, hooks, ...shared } =
-    options;
+  const {
+    credentials,
+    events,
+    audit,
+    aiTaskNotification,
+    reminderNotification,
+    hooks,
+    ...shared
+  } = options;
   if (audit !== undefined && events === undefined)
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
   const built = new Map<string, unknown>();
   const building = new Set<string>();
 
+  const sender = (): NotificationSender => {
+    const notifications = build("notifications");
+    if (!isNotificationSender(notifications))
+      throw new TypeError("The notifications block has no send method");
+    return notifications;
+  };
+  const hasNotifications = factories["notifications"] !== undefined;
+
   const notify =
-    aiTaskNotification === undefined || factories["notifications"] === undefined
+    aiTaskNotification === undefined || !hasNotifications
       ? undefined
-      : (outcome: AiTaskOutcome): unknown => {
-          const notifications = build("notifications");
-          if (!isNotificationSender(notifications))
-            throw new TypeError("The notifications block has no send method");
-          return notifications.send(aiTaskNotification, {
+      : (outcome: AiTaskOutcome): unknown =>
+          sender().send(aiTaskNotification, {
             recipients: [outcome.task.userId],
             tenant: outcome.task.organizationId,
             key: `ai-task-run:${outcome.run.id}`,
@@ -120,7 +143,29 @@ export function createBlocks<const F extends BlockFactories>(
                 : { chatId: outcome.chatId }),
             },
           });
-        };
+
+  const notifyDelivery =
+    reminderNotification === undefined || !hasNotifications
+      ? undefined
+      : (delivery: DeliveryPayload): unknown =>
+          sender().send(reminderNotification, {
+            recipients: delivery.userId === undefined ? [] : [delivery.userId],
+            tenant: delivery.organizationId,
+            key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt}`,
+            ...(delivery.subjectType === undefined ||
+            delivery.subjectId === undefined
+              ? {}
+              : {
+                  subject: {
+                    type: delivery.subjectType,
+                    id: delivery.subjectId,
+                  },
+                }),
+            data: {
+              reminderId: delivery.reminderId,
+              occurrenceAt: delivery.occurrenceAt,
+            },
+          });
 
   function contextFor(name: string): BlockContext {
     const files =
@@ -133,6 +178,7 @@ export function createBlocks<const F extends BlockFactories>(
       ...(events === undefined ? {} : { events }),
       ...(files === undefined ? {} : { files }),
       ...(notify === undefined ? {} : { notify }),
+      ...(notifyDelivery === undefined ? {} : { notifyDelivery }),
     };
   }
 

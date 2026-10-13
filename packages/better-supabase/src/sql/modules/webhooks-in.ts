@@ -176,7 +176,9 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
         recordId: `${endpoint}::text`,
       },
     });
-  const subjects = subjectsOption(ctx);
+  // An endpoint names a subject only when the app asks for it, so the
+  // registry applies to the types options.subjects lists.
+  const subjects = subjectsOption(ctx, [], { fallback: false });
   const subjectColumns = has("subjectType") && has("subjectId");
   if (subjects.length > 0 && !subjectColumns) {
     throw new TypeError(

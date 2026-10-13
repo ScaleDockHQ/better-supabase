@@ -8,6 +8,7 @@ import type {
   ModuleMode,
   ModulesConfig,
 } from "../config/modules.ts";
+import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
@@ -215,6 +216,8 @@ export interface ModuleLayout {
   readonly accessProvider?: ModuleAccessProvider;
   /** `config.sql.modules`: modes, names and permission keys per module. */
   readonly modules?: ModulesConfig;
+  /** `config.subjects`: the app-wide subject registry (ADR 0020). */
+  readonly subjects?: SubjectsConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
 }

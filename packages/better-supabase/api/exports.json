@@ -288,6 +288,8 @@
       "SourceConfig",
       "SqlConfig",
       "StandardSchemaGeneratorOptions",
+      "SubjectConfig",
+      "SubjectsConfig",
       "TableConfig",
       "TenantConfig",
       "TimestampsConfig",
@@ -1634,6 +1636,8 @@
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
+      "watcherHandler",
+      "watcherSink",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -1668,7 +1672,11 @@
       "SendInput",
       "SentNotification",
       "SinkNotification",
-      "SubscriptionLevel"
+      "SubscriptionLevel",
+      "WatchedEventData",
+      "WatchedOutboxEvent",
+      "WatcherRule",
+      "WatcherSinkOptions"
     ]
   },
   "./blocks/notifications/react": {
@@ -1703,17 +1711,37 @@
   },
   "./list": {
     "values": [
+      "decodeFilterQuery",
       "defineListQuery",
+      "encodeFilterQuery",
+      "FILTER_OPERATOR_LABELS",
+      "FILTER_OPERATORS",
       "UNSET"
     ],
     "types": [
       "FacetCountFields",
       "FacetCounts",
       "FacetInfo",
+      "FilterClock",
+      "FilterCombinator",
+      "FilterDateValue",
+      "FilterField",
+      "FilterFieldInfo",
+      "FilterFieldLabels",
+      "FilterFieldType",
+      "FilterGroupNode",
+      "FilterNode",
+      "FilterOperatorArity",
+      "FilterOperatorSpec",
+      "FilterQuery",
+      "FilterRelativeDate",
+      "FilterRule",
       "ListDefinition",
       "ListExtra",
+      "ListFilterConfig",
       "ListPage",
       "ListPagination",
+      "ListParseOptions",
       "ListParseResult",
       "ListParsers",
       "ListQuery",
@@ -1923,10 +1951,14 @@
       "OrganizationEventData",
       "PushDeviceEventData",
       "RowEventData",
+      "SaasEventData",
+      "SaasSubjectEventData",
       "ScimEventData",
       "SettingEventData",
       "SsoProviderEventData",
       "StorageObjectEventData",
+      "SubjectEventData",
+      "SubjectEventType",
       "SupportEventData",
       "WaitlistEventData",
       "WebhookEventData",
@@ -3378,6 +3410,7 @@
       "deliverReminder",
       "expandRule",
       "planReminderDeliveries",
+      "REMINDER_DELIVERY_QUEUE",
       "weekdayName"
     ],
     "types": [
@@ -3406,6 +3439,24 @@
       "Imports",
       "ImportsOptions",
       "RunImportResult"
+    ]
+  },
+  "./blocks/rank": {
+    "values": [
+      "createRank",
+      "isRankKey",
+      "RANK_ALPHABET",
+      "RANK_REBALANCE_QUEUE",
+      "rankBetween",
+      "rankBetweenResult",
+      "rankKeys"
+    ],
+    "types": [
+      "MoveTarget",
+      "Rank",
+      "RankNeighbors",
+      "RankOptions",
+      "RankRebalancePayload"
     ]
   },
   "./blocks/announcements/react": {
@@ -3729,6 +3780,7 @@
       "scopeProblems",
       "sharedRolesProblems",
       "SQL_MODULES",
+      "subjectColumns",
       "templateFunctions",
       "upgradePlan"
     ],

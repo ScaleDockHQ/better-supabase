@@ -130,6 +130,93 @@ await customerList.run(db, query);
 expect(db.$stats()).toMatchObject({ calls: 3, waves: 1 });
 ```
 
+## Filter trees
+
+Facets cover "status is one of these". For nested and/or conditions, add
+`filters`: an allow-list of fields that a filter tree may name, each with a
+type and, optionally, the subset of its operators to allow. The tree is the
+`FilterQuery` that [ReUI Filters](https://reui.io) edits, typed structurally,
+so better-supabase doesn't depend on ReUI.
+
+```ts title="lib/lists.ts"
+export const customerList = defineListQuery(betterSupabase, "customers", {
+  search: ["name"],
+  filters: {
+    name: { type: "text", label: "Name" },
+    status: { type: "select" }, // options come from the enum or CHECK values
+    createdAt: { type: "date", label: "Created" },
+    contact: { type: "relation", column: "primaryContactId" },
+    kvk: { type: "text", operators: ["is", "empty", "not_empty"] },
+  },
+  sorts: { newest: [{ createdAt: "desc" }, { id: "asc" }] },
+  defaultSort: "newest",
+});
+```
+
+| Type          | Column                             | Operators                                                                                                                    |
+| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `text`        | any                                | `contains`, `not_contains`, `starts_with`, `ends_with`, `is`, `is_not`, `empty`, `not_empty`                                 |
+| `number`      | numeric                            | `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `between`, `not_between`, `empty`, `not_empty`                                        |
+| `date`        | `date`, `timestamp`, `timestamptz` | `is`, `is_not`, `is_before`, `is_after`, `is_on_or_before`, `is_on_or_after`, `between`, `not_between`, `empty`, `not_empty` |
+| `select`      | any                                | `is`, `is_not`, `is_any_of`, `is_none_of`, `empty`, `not_empty`                                                              |
+| `relation`    | any, usually a foreign key         | the `select` operators, on the key's value                                                                                   |
+| `multiselect` | an array                           | `has_any_of`, `has_all_of`, `has_none_of`, `empty`, `not_empty`                                                              |
+| `boolean`     | `bool`                             | `is`, `is_not`, `empty`, `not_empty`                                                                                         |
+
+`parse` checks the tree and reports problems with a path such as
+`['filter', 'rules', 0, 'operator']`:
+
+- Every rule names a configured field, uses one of its operators, and has a
+  value of the right shape for the operator (none, one, a list, or a range).
+  Select values are checked against the enum or CHECK values.
+- A tree has at most `maxFilterRules` rules (50) and `maxFilterDepth` levels
+  of groups (4).
+- A rule with an empty operator is unfinished, as in ReUI's
+  `flattenFilterConditions`: it is dropped, and so is a group left empty.
+- Negative operators (`is_not`, `not_contains`, `is_none_of` and the others)
+  and `negated: true` also match rows where a nullable column is null.
+- `starts_with` and `ends_with` are case-insensitive, like `contains`.
+
+Date values are `{ date: '2026-10-13' }` or
+`{ relative: { unit: 'day', offset: -7 } }`, with an optional
+`time: 'HH:mm'`. Relative dates resolve when the query runs, not when it is
+parsed, so a saved URL for "last 7 days" keeps meaning that. They resolve on
+Temporal in the time zone you pass to `parse`, usually the user's:
+
+```ts
+const query = customerList.parse(await searchParams, {
+  timeZone: "Europe/Amsterdam",
+});
+```
+
+A `timestamptz` column compares instants at the zone's midnight, a
+`timestamp` column local date-times, and a `date` column plain dates. The
+compiled filter is ordinary repository `where` input, so it reaches PostgREST,
+the [Postgres executor](/docs/auth/postgres) and the SQLite compiler the same
+way. `customerList.filterWhere(query)` returns it on its own.
+
+`customerList.filterFields(labels)` returns the `FilterField[]` that ReUI
+Filters takes. Pass translated labels for fields, operators and options;
+English is the default:
+
+```tsx
+"use client";
+const fields = customerList.filterFields({
+  fields: { name: "Naam", createdAt: "Aangemaakt" },
+  options: { status: { lead: "Lead", active: "Actief" } },
+});
+```
+
+In the URL, the tree is one `filter` parameter holding base64url JSON, which
+`toSearchParams` writes and `parsers.filter` and `nuqs` read. `openapi`
+describes it as a query parameter, and `jsonSchema` describes the tree under
+`$defs`.
+
+The operator table above was checked against the ReUI registry items
+`filters` and `c-filters-5` (date operators) as published on 2026-10-13, in a
+fixture that the tests compare with `FILTER_OPERATORS`. ReUI publishes no
+version number for registry items.
+
 ## What it compiles to
 
 | Input                | Filter                                      |

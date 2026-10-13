@@ -8,7 +8,12 @@ import type {
 } from "../../src/core/repository-types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { defineListQuery, type ListQuery } from "../../src/list/index.ts";
+import {
+  defineListQuery,
+  type FilterField,
+  type FilterQuery,
+  type ListQuery,
+} from "../../src/list/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -16,6 +21,28 @@ const betterSupabase = defineSupabase(schema);
 const db = betterSupabase.connect(client);
 
 describe("list types", () => {
+  it("types filter columns and the filter tree", () => {
+    defineListQuery(betterSupabase, "customers", {
+      filters: {
+        name: { type: "text" },
+        contact: { type: "relation", column: "primaryContactId" },
+        // @ts-expect-error -- not a customers column
+        typo: { type: "text", column: "nmae" },
+      },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    const list = defineListQuery(betterSupabase, "customers", {
+      filters: { name: { type: "text" } },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    expectTypeOf(list.parse(undefined).value!.filter).toEqualTypeOf<
+      FilterQuery | undefined
+    >();
+    expectTypeOf(list.filterFields()).toEqualTypeOf<FilterField[]>();
+  });
+
   it("keeps sort and facet keys literal", async () => {
     const list = defineListQuery(betterSupabase, "customers", {
       search: ["name"],

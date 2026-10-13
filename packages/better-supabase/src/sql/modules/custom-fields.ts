@@ -6,6 +6,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -42,8 +43,9 @@ const NAMES: ModuleNames = {
         required: "required",
         sensitive: "sensitive",
         permission: "permission",
-        position: "position",
+        rank: "rank",
       },
+      optional: ["rank"],
     },
     options: {
       name: "field_options",
@@ -53,8 +55,9 @@ const NAMES: ModuleNames = {
         definition: "definition_id",
         value: "value",
         label: "label",
-        position: "position",
+        rank: "rank",
       },
+      optional: ["rank"],
     },
     values: {
       name: "field_values",
@@ -89,6 +92,8 @@ function build(ctx: ModuleContext): string {
     );
   }
   const definitions = ctx.table("definitions");
+  const ranked = !inline && ctx.has("definitions", "rank");
+  const rank = ranked ? ctx.col("definitions", "rank") : "";
   const values = ctx.table("values");
   const manage = ctx.permission(
     "manage",
@@ -113,8 +118,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("definitions", "required")} boolean not null default false,
   ${ctx.col("definitions", "sensitive")} boolean not null default false,
   ${ctx.col("definitions", "permission")} text,
-  ${ctx.col("definitions", "position")} integer not null default 0,
-  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
+${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
 );
 ${lockTable(definitions, { read: true })}
 `
@@ -153,6 +157,8 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_last text;
+  v_rank text;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, ${manage}), false)) then
     ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
@@ -160,8 +166,15 @@ begin
   ${
     inline
       ? fail("FIELD_INLINE", "inline fields have no definition row", "0A000")
-      : `insert into ${definitions} (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")}, ${ctx.col("definitions", "label")}, ${ctx.col("definitions", "type")}, ${ctx.col("definitions", "sensitive")})
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+      : `${
+          ranked
+            ? `select max(d.${rank} collate "C") into v_last from ${definitions} d
+    where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity;
+  v_rank := ${rankAfter("v_last")};
+  `
+            : ""
+        }insert into ${definitions} (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")}, ${ctx.col("definitions", "label")}, ${ctx.col("definitions", "type")}, ${ctx.col("definitions", "sensitive")}${ranked ? `, ${rank}` : ""})
+  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false)${ranked ? ", v_rank" : ""})
   on conflict (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
   do update set ${ctx.col("definitions", "label")} = excluded.${ctx.col("definitions", "label")}, ${ctx.col("definitions", "sensitive")} = excluded.${ctx.col("definitions", "sensitive")}
   returning ${ctx.col("definitions", "id")} into v_id;`
@@ -255,10 +268,45 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
+${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}`;
+}
+
+function rankDefinition(
+  ctx: ModuleContext,
+  definitions: string,
+  rank: string,
+  manage: string,
+): string {
+  return `
+-- Sets a field's rank key, from rankBetween over its neighbours' keys.
+create or replace function ${ctx.fn("rank_field_definition")}(definition uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  if rank_field_definition.rank is null or rank_field_definition.rank !~ ${RANK_KEY_PATTERN} then
+    ${fail("FIELD_RANK_INVALID", "not a rank key", "22023")}
+  end if;
+  select ${ctx.col("definitions", "tenant")} into v_tenant from ${definitions} where ${ctx.col("definitions", "id")} = rank_field_definition.definition;
+  if not found then
+    ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+  end if;
+  update ${definitions} set ${rank} = rank_field_definition.rank where ${ctx.col("definitions", "id")} = rank_field_definition.definition;
+  return true;
+end;
+$$;
+${userGrant(`${ctx.fn("rank_field_definition")}(uuid, text)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_field_definition",
@@ -276,6 +324,16 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "delete_field_definition", args: ["uuid"], returns: "boolean" },
+    ...(ctx.text("layout", "normalized") !== "inline" &&
+    ctx.has("definitions", "rank")
+      ? [
+          {
+            name: "rank_field_definition",
+            args: ["uuid", "text"],
+            returns: "boolean",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -288,7 +346,34 @@ export const CUSTOM_FIELDS: ModuleDefinition = {
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Field definitions order by a fractional rank key instead of an integer position; rank_field_definition sets it.",
+      sql: (ctx) => {
+        if (!ctx.manages || ctx.text("layout", "normalized") === "inline") {
+          return "";
+        }
+        const definitions = ctx.table("definitions");
+        const rank = ctx.col("definitions", "rank");
+        return `alter table ${definitions} add column if not exists ${rank} text collate "C";
+${rankBackfill({
+  table: definitions,
+  id: ctx.col("definitions", "id"),
+  rank,
+  partition: [
+    ctx.col("definitions", "tenant"),
+    ctx.col("definitions", "entity"),
+  ],
+  orderBy: `position, ${ctx.col("definitions", "key")}, ${ctx.col("definitions", "id")}`,
+})}
+alter table ${definitions} alter column ${rank} set default 'V', alter column ${rank} set not null;
+alter table ${definitions} drop column if exists position;`;
+      },
+    },
+  ],
   names: NAMES,
   contract,
   build,

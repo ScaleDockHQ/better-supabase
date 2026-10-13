@@ -405,6 +405,45 @@ transaction, not through this sink. The comments module already sends a
 notification for every mention (`comment.mentioned`), so don't map that
 event again.
 
+### Watchers
+
+`watcherHandler(notifications, { types })` from
+`better-supabase/blocks/notifications` maps subject events to notifications
+for the subject's watchers. An event qualifies when its data carries
+`organizationId`, `subjectType` and `subjectId`, which every subject event
+does (`SubjectEventData` in `better-supabase/events`). `types` maps an event
+type to a notification type, or to a rule with `activity`, `recipients`,
+`data` and `summary`:
+
+```ts title="app/api/cron/watchers/route.ts"
+import { watcherHandler } from "better-supabase/blocks/notifications";
+
+await outbox.consume(
+  "watchers",
+  watcherHandler(notifications, {
+    types: {
+      "status.changed": "deal.moved",
+      "comment.created": { type: "comment.new", activity: "comments" },
+      "reminder.sent": {
+        type: "reminder.due",
+        recipients: (data) => [String(data["userId"])],
+      },
+    },
+  }),
+);
+```
+
+Each notification is keyed by `watch:<event id>`, so a replayed batch sends
+nothing twice. Events without a subject or a tenant, and types not in
+`types`, are skipped.
+
+`watcherHandler` takes outbox rows, through `outbox.consume` or a
+`relayRoute` consumer, and leaves out the actor each row records, so whoever
+tags, moves or shares a subject is not notified of it. `watcherSink` takes
+CloudEvents, which carry no actor, so it can only leave out an actor the
+event data names (`actorId`, or a comment's `authorId`). Use it when the
+events come from a relay or a broker rather than from the outbox itself.
+
 ## Extending it
 
 | Hook or event                   | Use                                                                                                                                      |

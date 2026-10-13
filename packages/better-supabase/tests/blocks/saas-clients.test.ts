@@ -89,6 +89,56 @@ describe("saas block clients", () => {
     ).toBe(true);
   });
 
+  it("delivers a reminder once and notifies on the first delivery", async () => {
+    const notified: unknown[] = [];
+    let first = true;
+    const reminders = createReminders({
+      transport: {
+        call: () => {
+          const sent = first;
+          first = false;
+          return Promise.resolve(sent);
+        },
+      },
+      notifyDelivery: (delivery) => void notified.push(delivery),
+    });
+    const payload = {
+      reminderId: "r1",
+      occurrenceAt: "2026-01-01T00:00:00Z",
+      organizationId: "org",
+      subjectType: "task",
+      subjectId: "42",
+    };
+    await reminders.job(
+      payload,
+      undefined as never,
+      new AbortController().signal,
+    );
+    expect(await reminders.deliver(payload).orThrow()).toBe(false);
+    expect(notified).toEqual([payload]);
+    await expect(
+      Promise.resolve(
+        reminders.job("nope", undefined as never, new AbortController().signal),
+      ),
+    ).rejects.toThrow("reminders.deliver needs an object payload");
+  });
+
+  it("fails the delivery when the notification fails", async () => {
+    const reminders = createReminders({
+      transport: { call: () => Promise.resolve(true) },
+      notifyDelivery: () => ({
+        ok: false,
+        error: { kind: "forbidden", message: "no", status: 403 },
+      }),
+    });
+    const result = await reminders.deliver({
+      reminderId: "r1",
+      occurrenceAt: "2026-01-01T00:00:00Z",
+      organizationId: "org",
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("starts an import and suggests a header mapping", async () => {
     const imports = createImports(options({ start_import: { id: "i1" } }));
     expect((await imports.start("org", "people").orThrow()).id).toBe("i1");
@@ -163,5 +213,41 @@ describe("saas block clients", () => {
       (await fields.setValue("org", "employees", "e1", "d1", "gold").orThrow())
         .id,
     ).toBe("v1");
+  });
+
+  it("reorders tags and field definitions with a key between the neighbours", async () => {
+    const calls: { fn: string; args: unknown }[] = [];
+    const transport = {
+      call(_schema: string, fn: string, args: unknown) {
+        calls.push({ fn, args });
+        return Promise.resolve(true);
+      },
+    };
+    const tags = createTags({ transport });
+    expect(
+      await tags.reorder("g1", { previous: "V", next: "W" }).orThrow(),
+    ).toBe("VV");
+    const fields = createCustomFields({ transport });
+    expect(await fields.reorderDefinition("d1", { next: "V" }).orThrow()).toBe(
+      "F",
+    );
+    expect(calls).toEqual([
+      { fn: "rank_tag", args: { tag_id: "g1", rank: "VV" } },
+      { fn: "rank_field_definition", args: { definition: "d1", rank: "F" } },
+    ]);
+
+    const wrong = await tags.reorder("g1", { previous: "W", next: "V" });
+    expect(wrong.ok ? null : wrong.error).toMatchObject({
+      kind: "invalid_request",
+      hint: "RANK_KEY_INVALID",
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("returns a tag's rank key when the database sends one", async () => {
+    const tags = createTags(
+      options({ create_tag: { id: "g1", slug: "gold", rank: "V" } }),
+    );
+    expect((await tags.create("org", "deal", "Gold").orThrow()).rank).toBe("V");
   });
 });

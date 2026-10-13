@@ -606,6 +606,11 @@
       "types": "./dist/blocks/imports/index.d.ts",
       "default": "./dist/blocks/imports/index.js"
     },
+    "./blocks/rank": {
+      "@better-supabase/source": "./src/blocks/rank/index.ts",
+      "types": "./dist/blocks/rank/index.d.ts",
+      "default": "./dist/blocks/rank/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1165,6 +1170,10 @@
       "./blocks/imports": {
         "types": "./dist/blocks/imports/index.d.ts",
         "default": "./dist/blocks/imports/index.js"
+      },
+      "./blocks/rank": {
+        "types": "./dist/blocks/rank/index.d.ts",
+        "default": "./dist/blocks/rank/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

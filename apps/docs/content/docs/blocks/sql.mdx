@@ -141,6 +141,8 @@ lists the steps to move to pg-delta.
 | `share-links`        | Hashed share links, views and per-user state. See [Share links](/docs/blocks/share-links).                                                                                                                                                                                                                                                                                                                                                                                   |
 | `reminders`          | RFC 5545 recurrence and reminder delivery. See [Reminders](/docs/blocks/reminders).                                                                                                                                                                                                                                                                                                                                                                                          |
 | `imports`            | CSV import runs. See [Imports](/docs/blocks/imports).                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `subjects`           | The app-wide subject registry from `config.subjects`: `subject_title`, `subject_url` and `can_subject`. See [Subject registry](#subject-registry).                                                                                                                                                                                                                                                                                                                           |
+| `rank`               | Fractional rank keys for subjects with a `rank` column: `rank_between`, `move` and the `rank.rebalance` job. See [Rank](/docs/blocks/rank).                                                                                                                                                                                                                                                                                                                                  |
 | `ensure-rls`         | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                                                                                                                                                                                                         |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
@@ -926,6 +928,88 @@ if (!result.ok && result.error.kind === "validation") {
 The check constraint stays for rows written while triggers are off, such as a
 restore with `session_replication_role = replica`; its failures also map to
 `validation`, with one issue for the whole value.
+
+## Subject registry
+
+Tags, comments, attachments, reminders and the other modules that attach to
+your rows each take a `subjects` option. Declare the subject types once in
+`config.subjects`, and every module that you don't give its own `subjects`
+uses the registry.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  subjects: {
+    task: {
+      table: "public.tasks",
+      idType: "uuid",
+      title: "title",
+      url: "/projects/{project_id}/tasks/{id}",
+      permissions: { read: "tasks.read", update: "tasks.update" },
+      rank: { column: "rank", group: "status" },
+    },
+    customer: { table: "public.customers", title: "name" },
+  },
+  sql: { modules: ["tenant", "access", "subjects", "tags", "comments"] },
+});
+```
+
+| Key           | Default           | What it sets                                                                            |
+| ------------- | ----------------- | --------------------------------------------------------------------------------------- |
+| `table`       | required          | The table, as `table` or `schema.table`                                                 |
+| `id`          | `id`              | The id column                                                                           |
+| `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                       |
+| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                 |
+| `title`       | none              | The column `subject_title` returns                                                      |
+| `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row          |
+| `permissions` | none              | Action to permission key; `read` is the key modules check before they attach to the row |
+| `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                      |
+| `cascade`     | none              | Delete a module's rows when the subject row is deleted                                  |
+| `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                |
+| `search`      | none              | `title` and `body` columns for search                                                   |
+| `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses        |
+
+A module's own `subjects` option still works three ways:
+
+- unset: the module uses every registered type. Modules that need a tenant
+  skip the types with `tenant: false`.
+- a list of names, `subjects: ["task"]`: the module uses those registered
+  types, and an unknown name fails `sql sync`.
+- an object: each entry merges onto the registered one, and the module's
+  keys win. A type the registry lacks needs its own `table`.
+
+`webhooks-in` never falls back to the registry, because its subjects are the
+tables that inbound events write to.
+
+The `subjects` module installs four functions in the `better_supabase`
+schema. Each runs as the caller, so the subject table's own policies decide
+what is visible:
+
+| Function                                | Returns                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `subject_types()`                       | The registered types                                                                                   |
+| `subject_title(subject_type, id)`       | The `title` column, or null when the row is hidden, deleted or the type has no title                   |
+| `subject_url(subject_type, id)`         | The `url` template filled from the row, or null                                                        |
+| `can_subject(subject_type, id, action)` | True when the caller can see the row and holds the action's key from `permissions` in the row's tenant |
+
+An action without a key in `permissions` checks only that the caller can see
+the row. The service role passes every key check.
+
+With a registry, `gen` also emits the types in `database.types.ts`:
+
+```ts
+import {
+  type SubjectRef,
+  type SubjectType,
+  subjectTypes,
+} from "./lib/supabase/schema";
+
+const ref: SubjectRef<SubjectType> = { type: "task", id: taskId };
+```
+
+Doctor reports a registered table or column the database lacks (BS331) and a
+registered table without row level security (BS332).
 
 ## RLS on every new table
 

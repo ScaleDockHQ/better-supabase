@@ -1,0 +1,66 @@
+{
+  "source": "ReUI registry items filters (filters-operators.tsx) and c-filters-5 (date operators), fetched 2026-10-13 from deployment dpl_4VjmFsMM2fx9pEbCcjy1PJdoRHfL. Operator data only.",
+  "catalog": {
+    "text": [
+      { "value": "contains", "inverse": "not_contains" },
+      { "value": "not_contains", "inverse": "contains" },
+      { "value": "starts_with" },
+      { "value": "ends_with" },
+      { "value": "is", "inverse": "is_not" },
+      { "value": "is_not", "inverse": "is" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "number": [
+      { "value": "eq", "inverse": "neq" },
+      { "value": "neq", "inverse": "eq" },
+      { "value": "gt", "inverse": "lte" },
+      { "value": "gte", "inverse": "lt" },
+      { "value": "lt", "inverse": "gte" },
+      { "value": "lte", "inverse": "gt" },
+      { "value": "between", "arity": "range", "inverse": "not_between" },
+      { "value": "not_between", "arity": "range", "inverse": "between" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "range": [
+      { "value": "between", "arity": "range", "inverse": "not_between" },
+      { "value": "not_between", "arity": "range", "inverse": "between" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "select": [
+      { "value": "is", "inverse": "is_not" },
+      { "value": "is_not", "inverse": "is" },
+      { "value": "is_any_of", "arity": "many", "inverse": "is_none_of" },
+      { "value": "is_none_of", "arity": "many", "inverse": "is_any_of" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "multiselect": [
+      { "value": "has_any_of", "arity": "many", "inverse": "has_none_of" },
+      { "value": "has_all_of", "arity": "many" },
+      { "value": "has_none_of", "arity": "many", "inverse": "has_any_of" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "boolean": [
+      { "value": "is", "inverse": "is_not" },
+      { "value": "is_not", "inverse": "is" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ],
+    "date": [
+      { "value": "is", "inverse": "is_not" },
+      { "value": "is_not", "inverse": "is" },
+      { "value": "is_before", "inverse": "is_on_or_after" },
+      { "value": "is_after", "inverse": "is_on_or_before" },
+      { "value": "is_on_or_before", "inverse": "is_after" },
+      { "value": "is_on_or_after", "inverse": "is_before" },
+      { "value": "between", "arity": "range", "inverse": "not_between" },
+      { "value": "not_between", "arity": "range", "inverse": "between" },
+      { "value": "empty", "arity": "none", "inverse": "not_empty" },
+      { "value": "not_empty", "arity": "none", "inverse": "empty" }
+    ]
+  }
+}

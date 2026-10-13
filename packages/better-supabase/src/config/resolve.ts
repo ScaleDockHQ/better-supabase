@@ -199,6 +199,7 @@ export function resolveConfig(
       ? {}
       : { authorization: authorizationOf(config.authorization) }),
     vectorSearch: vectorSearchOf(config.vectorSearch),
+    subjects: config.subjects ?? {},
     sql: {
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,

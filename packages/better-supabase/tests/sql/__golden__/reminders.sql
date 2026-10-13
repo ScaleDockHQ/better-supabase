@@ -107,16 +107,26 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
+  select "tenant_id", "subject_type", "subject_id", "user_id"
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
   if not found then
     raise exception 'reminder not found' using errcode = 'P0002', hint = 'REMINDER_NOT_FOUND';
   end if;
   insert into "better_supabase"."reminder_deliveries" ("reminder_id", "occurrence_at", "sent_at")
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict ("reminder_id", "occurrence_at") do nothing;
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
   null;
   return true;
 end;
@@ -291,17 +301,27 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
+  select "tenant_id", "subject_type", "subject_id", "user_id"
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
   if not found then
     raise exception 'reminder not found' using errcode = 'P0002', hint = 'REMINDER_NOT_FOUND';
   end if;
   insert into "better_supabase"."reminder_deliveries" ("reminder_id", "occurrence_at", "sent_at")
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict ("reminder_id", "occurrence_at") do nothing;
-  perform "better_supabase".emit_event('reminder.sent', jsonb_build_object('organizationId', v_tenant, 'id', mark_reminder_sent.reminder), 'reminders/' || mark_reminder_sent.reminder::text, (v_tenant)::text, null, 'better-supabase/reminders');
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
+  perform "better_supabase".emit_event('reminder.sent', jsonb_build_object('organizationId', v_tenant, 'id', mark_reminder_sent.reminder, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'userId', v_user), 'reminders/' || mark_reminder_sent.reminder::text, (v_tenant)::text, null, 'better-supabase/reminders');
   return true;
 end;
 $$;
@@ -477,16 +497,26 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select "tenant_id" into v_tenant from "app_private"."reminders" where "id" = mark_reminder_sent.reminder;
+  select "tenant_id", "subject_type", "subject_id", "user_id"
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from "app_private"."reminders" where "id" = mark_reminder_sent.reminder;
   if not found then
     raise exception 'reminder not found' using errcode = 'P0002', hint = 'REMINDER_NOT_FOUND';
   end if;
   insert into "app_private"."reminder_deliveries" ("reminder_id", "occurrence_at", "sent_at")
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict ("reminder_id", "occurrence_at") do nothing;
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
   null;
   return true;
 end;
@@ -661,16 +691,26 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
+  select "tenant_id", "subject_type", "subject_id", "user_id"
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
   if not found then
     raise exception 'reminder not found' using errcode = 'P0002', hint = 'REMINDER_NOT_FOUND';
   end if;
   insert into "better_supabase"."reminder_deliveries" ("reminder_id", "occurrence_at", "sent_at")
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict ("reminder_id", "occurrence_at") do nothing;
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
   null;
   return true;
 end;
@@ -865,16 +905,26 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_user uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
+  select "tenant_id", "subject_type", "subject_id", "user_id"
+    into v_tenant, v_subject_type, v_subject_id, v_user
+    from "better_supabase"."reminders" where "id" = mark_reminder_sent.reminder;
   if not found then
     raise exception 'reminder not found' using errcode = 'P0002', hint = 'REMINDER_NOT_FOUND';
   end if;
   insert into "better_supabase"."reminder_deliveries" ("reminder_id", "occurrence_at", "sent_at")
   values (mark_reminder_sent.reminder, mark_reminder_sent.occurrence_at, now())
   on conflict ("reminder_id", "occurrence_at") do nothing;
+  -- A second delivery of the same occurrence records nothing.
+  if not found then
+    return false;
+  end if;
   null;
   return true;
 end;

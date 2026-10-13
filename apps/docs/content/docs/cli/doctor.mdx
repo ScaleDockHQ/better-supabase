@@ -880,6 +880,23 @@ refuses an optional column that the `create table` in `supabase/schemas`
 lacks; this check compares every column with the live database. Needs a
 database.
 
+### BS331
+
+**Error: subject registry names a missing table or column.** An entry in
+`config.subjects` names a table that the snapshot lacks, or a column the
+table lacks: `id`, `tenant`, `title`, `deletedAt`, a `url` placeholder,
+`rank` or a `search` column. `subject_title`, `subject_url`, `can_subject`
+and every module that falls back to the registry fail when they run. Point
+the entry at the existing table or column, or add it. Doctor skips tables in
+schemas the snapshot did not read.
+
+### BS332
+
+**Warning: subject table without RLS.** A table in `config.subjects` has row
+level security disabled. `can_subject` treats a row the caller can read as
+visible, so every signed-in user passes the visibility half of the check for
+every row. Enable RLS and add the policies that scope the table.
+
 ## Auth config
 
 ### BS401
