@@ -411,6 +411,20 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly step?: number;
 }
 
+/** Events from the access-requests module. */
+export interface AccessRequestEventData {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly role: string;
+  /** The access request. */
+  readonly id: string;
+  readonly approvalId?: string | null;
+  /** When the granted role ends; null for a grant without a duration. */
+  readonly expiresAt?: string | null;
+  /** For `access.ended`: `expired` or `revoked`. */
+  readonly reason?: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -558,6 +572,9 @@ export interface BlockEventMap {
   "approval.cancelled": CollaborationEventData;
   "approval.expired": CollaborationEventData;
   "approval.delegated": CollaborationEventData;
+  "access.requested": AccessRequestEventData;
+  "access.request_approved": AccessRequestEventData;
+  "access.ended": AccessRequestEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

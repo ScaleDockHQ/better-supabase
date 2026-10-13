@@ -35,6 +35,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_approval_decide",
     "after_approval_decide",
   ],
+  "access-requests": [
+    "before_access_request",
+    "after_access_request",
+    "before_access_grant",
+    "after_access_grant",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

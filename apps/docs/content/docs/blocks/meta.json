@@ -54,6 +54,7 @@
     "versions",
     "trash",
     "reactions",
-    "approvals"
+    "approvals",
+    "access-requests"
   ]
 }

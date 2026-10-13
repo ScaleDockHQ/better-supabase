@@ -73,6 +73,7 @@ const entries = [
   "blocks/trash/index",
   "blocks/reactions/index",
   "blocks/approvals/index",
+  "blocks/access-requests/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "ai-sdk/index",

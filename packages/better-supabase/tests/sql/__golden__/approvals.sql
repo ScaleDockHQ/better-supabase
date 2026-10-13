@@ -185,7 +185,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_finalize"(uuid) from public, anon, authenticated;
 
-create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+-- Files a request under an explicit policy snapshot. request_approval and
+-- the access-requests module call it after their own checks.
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -193,29 +195,19 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
   v_req "better_supabase"."approval_requests"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if v_policy is null then
-    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
-    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
-  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
-        using request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action;
+        using open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action;
     end if;
   end;
   insert into "better_supabase"."approval_requests" ("tenant_id", "subject_type", "subject_id", "action", "policy", "requested_by", "reason", "payload", "expires_at")
-  values (request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, auth.uid(), request_approval.reason, coalesce(request_approval.payload, '{}'::jsonb),
-    case when v_policy ->> 'expiresIn' is not null then now() + (v_policy ->> 'expiresIn')::interval end)
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action, open_approval.policy, auth.uid(), open_approval.reason, coalesce(open_approval.payload, '{}'::jsonb),
+    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end)
   on conflict ("subject_type", "subject_id", "action") where "status" = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -232,6 +224,26 @@ begin
     end if;
   end;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
+begin
+  if v_policy is null then
+    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
+    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
 end;
 $$;
 revoke execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;
@@ -800,6 +812,9 @@ declare
 begin
   select * into v_req from "better_supabase"."approval_requests" r where r."id" = approval_finalize.request_id;
   v_run := v_req."policy" -> 'run';
+  if v_req."subject_type" = 'access_request' then
+    perform "better_supabase"."grant_access_request"(v_req."subject_id"::uuid);
+  end if;
   perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
     event_type => 'approval.approved',
@@ -815,7 +830,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_finalize"(uuid) from public, anon, authenticated;
 
-create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+-- Files a request under an explicit policy snapshot. request_approval and
+-- the access-requests module call it after their own checks.
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -823,29 +840,19 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
   v_req "better_supabase"."approval_requests"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if v_policy is null then
-    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
-    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
-  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
-        using request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action;
+        using open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action;
     end if;
   end;
   insert into "better_supabase"."approval_requests" ("tenant_id", "subject_type", "subject_id", "action", "policy", "requested_by", "reason", "payload", "expires_at")
-  values (request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, auth.uid(), request_approval.reason, coalesce(request_approval.payload, '{}'::jsonb),
-    case when v_policy ->> 'expiresIn' is not null then now() + (v_policy ->> 'expiresIn')::interval end)
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action, open_approval.policy, auth.uid(), open_approval.reason, coalesce(open_approval.payload, '{}'::jsonb),
+    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end)
   on conflict ("subject_type", "subject_id", "action") where "status" = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -871,6 +878,26 @@ begin
     end if;
   end;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
+begin
+  if v_policy is null then
+    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
+    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
 end;
 $$;
 revoke execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;
@@ -1416,7 +1443,9 @@ end;
 $$;
 revoke execute on function "app_private"."approval_finalize"(uuid) from public, anon, authenticated;
 
-create or replace function "app_private"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+-- Files a request under an explicit policy snapshot. request_approval and
+-- the access-requests module call it after their own checks.
+create or replace function "app_private"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1424,29 +1453,19 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_policy jsonb := "app_private"."approval_policy"(request_approval.subject_type, request_approval.action);
   v_req "app_private"."approval_requests"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if v_policy is null then
-    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
-    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
-  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
-        using request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action;
+        using open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action;
     end if;
   end;
   insert into "app_private"."approval_requests" ("tenant_id", "subject_type", "subject_id", "action", "policy", "requested_by", "reason", "payload", "expires_at")
-  values (request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, auth.uid(), request_approval.reason, coalesce(request_approval.payload, '{}'::jsonb),
-    case when v_policy ->> 'expiresIn' is not null then now() + (v_policy ->> 'expiresIn')::interval end)
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action, open_approval.policy, auth.uid(), open_approval.reason, coalesce(open_approval.payload, '{}'::jsonb),
+    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end)
   on conflict ("subject_type", "subject_id", "action") where "status" = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -1463,6 +1482,26 @@ begin
     end if;
   end;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+end;
+$$;
+revoke execute on function "app_private"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+create or replace function "app_private"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb := "app_private"."approval_policy"(request_approval.subject_type, request_approval.action);
+begin
+  if v_policy is null then
+    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
+    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  return "app_private"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
 end;
 $$;
 revoke execute on function "app_private"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;
@@ -1979,7 +2018,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_finalize"(uuid) from public, anon, authenticated;
 
-create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+-- Files a request under an explicit policy snapshot. request_approval and
+-- the access-requests module call it after their own checks.
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1987,29 +2028,19 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
   v_req "better_supabase"."approval_requests"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if v_policy is null then
-    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
-    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
-  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
-        using request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action;
+        using open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action;
     end if;
   end;
   insert into "better_supabase"."approval_requests" ("tenant_id", "subject_type", "subject_id", "action", "policy", "requested_by", "reason", "payload", "expires_at")
-  values (request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, auth.uid(), request_approval.reason, coalesce(request_approval.payload, '{}'::jsonb),
-    case when v_policy ->> 'expiresIn' is not null then now() + (v_policy ->> 'expiresIn')::interval end)
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action, open_approval.policy, auth.uid(), open_approval.reason, coalesce(open_approval.payload, '{}'::jsonb),
+    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end)
   on conflict ("subject_type", "subject_id", "action") where "status" = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -2026,6 +2057,26 @@ begin
     end if;
   end;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
+begin
+  if v_policy is null then
+    raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', request_approval.tenant, 'approvals.request'), false) and true)) then
+    raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
 end;
 $$;
 revoke execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;

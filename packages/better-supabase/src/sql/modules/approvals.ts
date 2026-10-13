@@ -238,6 +238,12 @@ ${queues
     perform set_config('better_supabase.approval', '', true);
   end if;`
     : "";
+  const accessRun = ctx.installed("access-requests")
+    ? `
+  if v_req.${c("subjectType")} = ${sqlString(ACCESS_REQUEST_SUBJECT)} then
+    perform ${ctx.of("access-requests").fn("grant_access_request")}(v_req.${c("subjectId")}::uuid);
+  end if;`
+    : "";
   const notifyBody = ctx.installed("notifications")
     ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
@@ -432,14 +438,16 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
 $$;
 revoke execute on function ${fn("approval_finalize")}(uuid) from public, anon, authenticated;
 
-create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+-- Files a request under an explicit policy snapshot. request_approval and
+-- the access-requests module call it after their own checks.
+create or replace function ${fn("open_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -447,24 +455,17 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_policy jsonb := ${fn("approval_policy")}(request_approval.subject_type, request_approval.action);
   v_req ${requests}%rowtype;
 begin
-  if v_policy is null then
-    ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
-  end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
-    ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
-  end if;
   ${ctx.hook("before_approval_request", [
-    [ctx.idType, "request_approval.tenant"],
-    ["text", "request_approval.subject_type"],
-    ["text", "request_approval.subject_id"],
-    ["text", "request_approval.action"],
+    [ctx.idType, "open_approval.tenant"],
+    ["text", "open_approval.subject_type"],
+    ["text", "open_approval.subject_id"],
+    ["text", "open_approval.action"],
   ])}
   insert into ${requests} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("action")}, ${c("policy")}, ${c("requestedBy")}, ${c("reason")}, ${c("payload")}, ${c("expiresAt")})
-  values (request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, auth.uid(), request_approval.reason, coalesce(request_approval.payload, '{}'::jsonb),
-    case when v_policy ->> 'expiresIn' is not null then now() + (v_policy ->> 'expiresIn')::interval end)
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action, open_approval.policy, auth.uid(), open_approval.reason, coalesce(open_approval.payload, '{}'::jsonb),
+    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end)
   on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -474,6 +475,26 @@ begin
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'requested');
   ${ctx.hook("after_approval_request", [["uuid", `v_req.${c("id")}`]])}
   return ${json("v_req")};
+end;
+$$;
+revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb := ${fn("approval_policy")}(request_approval.subject_type, request_approval.action);
+begin
+  if v_policy is null then
+    ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
+  end if;
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
+    ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
+  end if;
+  return ${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
 end;
 $$;
 ${userGrant(`${fn("request_approval")}(${ctx.idType}, text, text, text, text, jsonb)`)}
@@ -790,6 +811,7 @@ export const APPROVALS: ModuleDefinition = {
     "jobs",
     "teams",
     "state-machine",
+    "access-requests",
   ],
   target: "schema",
   modes: ["managed", "custom"],

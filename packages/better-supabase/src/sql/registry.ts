@@ -5,6 +5,7 @@ import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
+import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
@@ -173,6 +174,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(TRASH),
       built(REACTIONS),
       built(APPROVALS),
+      built(ACCESS_REQUESTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

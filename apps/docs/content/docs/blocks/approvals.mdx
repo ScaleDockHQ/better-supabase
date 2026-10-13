@@ -79,7 +79,7 @@ With `run: { transition }`, the final approval calls `transition()` for the subj
 },
 ```
 
-With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subjectType, subjectId, action)` or handle `approval.approved`.
+With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subjectType, subjectId, action)` or handle `approval.approved`. [Access requests](/docs/blocks/access-requests) file their requests here with their own policy, and the final approval grants the role.
 
 ## Expiry and reminders
 

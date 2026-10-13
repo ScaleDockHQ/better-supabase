@@ -35,7 +35,7 @@ export interface ApprovalPolicy {
 
 const KEY = /^[a-z][a-z0-9_-]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const DURATION =
+export const DURATION: RegExp =
   /^P(?=\d|T\d)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/;
 const WHERE = "sql.modules.approvals.options.policies";
 
@@ -129,12 +129,13 @@ function runOf(value: unknown, where: string): ApprovalRun | undefined {
   );
 }
 
-function policyOf(
+/** One policy; `where` names it in errors. */
+export function policyOf(
   subjectType: string,
   action: string,
   value: unknown,
+  where = `${WHERE}.${subjectType}.${action}`,
 ): ApprovalPolicy {
-  const where = `${WHERE}.${subjectType}.${action}`;
   if (!KEY.test(action)) throw new TypeError(`${where} has an invalid name`);
   if (!isFields(value)) throw new TypeError(`${where} must be an object`);
   const steps = value["steps"];

@@ -3540,6 +3540,23 @@
       "BlockTransport"
     ]
   },
+  "./blocks/access-requests": {
+    "values": [
+      "createAccessRequests",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AccessRequest",
+      "AccessRequestInput",
+      "AccessRequestListOptions",
+      "AccessRequests",
+      "AccessRequestsOptions",
+      "AccessRequestStatus",
+      "BlockTransport"
+    ]
+  },
   "./blocks/reactions/react": {
     "values": [
       "useReactions"
