@@ -58,7 +58,11 @@ export interface StripeRefund {
 export interface StripePaymentsClient {
   readonly paymentIntents: {
     create(
-      params: Params,
+      params: {
+        readonly amount: number;
+        readonly currency: string;
+        readonly [key: string]: unknown;
+      },
       options?: RequestOptions,
     ): Promise<StripePaymentIntent>;
     retrieve(id: string, params?: Params): Promise<StripePaymentIntent>;

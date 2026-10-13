@@ -24,6 +24,23 @@ import {
 type Params = Readonly<Record<string, unknown>>;
 type RequestOptions = { readonly idempotencyKey?: string };
 
+type CalculationParams = {
+  readonly currency: string;
+  readonly line_items: {
+    readonly amount: number;
+    readonly reference: string;
+    readonly [key: string]: unknown;
+  }[];
+  readonly [key: string]: unknown;
+};
+
+type ReversalParams = {
+  readonly mode: "full" | "partial";
+  readonly original_transaction: string;
+  readonly reference: string;
+  readonly [key: string]: unknown;
+};
+
 interface StripeTaxBreakdown {
   readonly amount: number;
   readonly jurisdiction?: { readonly display_name?: string | null } | null;
@@ -79,7 +96,7 @@ export interface StripeTaxClient {
   readonly tax: {
     readonly calculations: {
       create(
-        params: Params,
+        params: CalculationParams,
         options?: RequestOptions,
       ): Promise<StripeTaxCalculation>;
       listLineItems(
@@ -89,11 +106,11 @@ export interface StripeTaxClient {
     };
     readonly transactions: {
       createFromCalculation(
-        params: Params,
+        params: { readonly calculation: string; readonly reference: string },
         options?: RequestOptions,
       ): Promise<StripeTaxTransaction>;
       createReversal(
-        params: Params,
+        params: ReversalParams,
         options?: RequestOptions,
       ): Promise<StripeTaxTransaction>;
       listLineItems(
@@ -228,8 +245,8 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
   };
   const stripeAmount = (value: Money): Result<number> => toStripeAmount(value);
 
-  const paramsOf = (cart: TaxCart): Result<Params> => {
-    const lines: Params[] = [];
+  const paramsOf = (cart: TaxCart): Result<CalculationParams> => {
+    const lines: CalculationParams["line_items"][number][] = [];
     for (const line of cart.lines) {
       const amount = stripeAmount(line.amount);
       if (!amount.ok) return amount;
@@ -376,7 +393,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           original_transaction: input.transaction.id,
           reference: input.reference,
         };
-        let params: Params = { ...base, mode: "full" };
+        let params: ReversalParams = { ...base, mode: "full" };
         if (input.lines !== undefined) {
           const originals = await allPages(undefined, (after) =>
             stripe.tax.transactions.listLineItems(input.transaction.id, {

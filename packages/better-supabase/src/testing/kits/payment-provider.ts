@@ -17,7 +17,7 @@ export interface TestPaymentProviderOptions {
    * `authorized` (with Stripe, confirm it with a test card). Without it
    * the capture and refund checks are skipped.
    */
-  readonly authorize?: (payment: Payment) => Promise<void>;
+  readonly authorize?: (payment: Payment) => void | Promise<void>;
   /**
    * A delivery the provider's endpoint would receive for `payment`, signed
    * with the provider's secret, and the same delivery with its body
