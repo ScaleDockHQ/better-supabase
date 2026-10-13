@@ -26,6 +26,7 @@ import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DOCUMENTS } from "./modules/documents.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -175,6 +176,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(REACTIONS),
       built(APPROVALS),
       built(ACCESS_REQUESTS),
+      built(DOCUMENTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

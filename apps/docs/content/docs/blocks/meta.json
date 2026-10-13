@@ -55,6 +55,7 @@
     "trash",
     "reactions",
     "approvals",
-    "access-requests"
+    "access-requests",
+    "documents"
   ]
 }

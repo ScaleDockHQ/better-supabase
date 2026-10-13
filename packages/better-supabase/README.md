@@ -233,6 +233,7 @@ await organizations.invite({ organizationId, email, role: "member" });
 | [Reactions](https://bettersupabase.com/docs/blocks/reactions): emoji reactions on any subject, comments and inbox messages, with custom emoji and live counts                           | `better-supabase/blocks/reactions`, `better-supabase/blocks/reactions/react`               | `reactions`                            |
 | [Approvals](https://bettersupabase.com/docs/blocks/approvals): approval steps per subject and action, delegation, expiry, reminders and a gated state-machine transition                | `better-supabase/blocks/approvals`                                                         | `approvals`                            |
 | [Access requests](https://bettersupabase.com/docs/blocks/access-requests): members ask for a role for a set time, approved through approvals, and the grant ends on its own             | `better-supabase/blocks/access-requests`                                                   | `access-requests`                      |
+| [Documents](https://bettersupabase.com/docs/blocks/documents): Yjs documents on any subject, with an update log, compaction and a private topic per document                            | `better-supabase/blocks/documents`, `better-supabase/yjs`                                  | `documents`                            |
 | [AI chat](https://bettersupabase.com/docs/blocks/ai-chat): chats with branches, shares, a model catalog, moderation and runs, in the canonical message format, and `useAiChats`         | `better-supabase/blocks/ai-chat`, `better-supabase/blocks/ai-chat/react`                   | `ai-chat`                              |
 | [AI files](https://bettersupabase.com/docs/blocks/ai-files): attachments and generated files in a private bucket, provider file references and versioned documents with suggested edits | `better-supabase/blocks/ai-files`                                                          | `ai-files`                             |
 | [Knowledge](https://bettersupabase.com/docs/blocks/knowledge): documents chunked and embedded per organization, user, agent or chat, and hybrid search                                  | `better-supabase/blocks/knowledge`                                                         | `knowledge`                            |
@@ -348,6 +349,7 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 | `better-supabase/workflow-sdk/builder`                | Compiles workflow builder graphs to Workflow SDK workflows and starts them          |
 | `better-supabase/streams`, `/streams/redis`           | Resumable output for chats, workflows and agents, in Postgres or Redis              |
 | `better-supabase/credentials`, `/vercel-connect`      | Third-party tokens behind a `credential_ref`, over Supabase Vault or Vercel Connect |
+| `better-supabase/yjs`                                 | A Yjs provider for the documents block: stored edits, a private topic, presence     |
 
 The 40 `better-supabase/blocks/*` subpaths are listed under [Blocks](#blocks).
 

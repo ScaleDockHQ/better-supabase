@@ -130,6 +130,7 @@ expose the module schema itself.
 | [Reactions](/docs/blocks/reactions)                         | `better-supabase/blocks/reactions`, `better-supabase/blocks/reactions/react`                                                       | `reactions`                            |
 | [Approvals](/docs/blocks/approvals)                         | `better-supabase/blocks/approvals`                                                                                                 | `approvals`                            |
 | [Access requests](/docs/blocks/access-requests)             | `better-supabase/blocks/access-requests`                                                                                           | `access-requests`                      |
+| [Documents](/docs/blocks/documents)                         | `better-supabase/blocks/documents`, `better-supabase/yjs`                                                                          | `documents`                            |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -226,6 +227,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `reactions`          | `tenant`, `access`                        | `outbox`, `comments`, `inbox`                                                           |
 | `approvals`          | `tenant`, `access`                        | `outbox`, `audit`, `notifications`, `jobs`, `teams`, `state-machine`, `access-requests` |
 | `access-requests`    | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                       |
+| `documents`          | `tenant`, `access`                        | `outbox`, `audit`, `jobs`, `versions`                                                   |
 | `ensure-rls`         | none                                      | none                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

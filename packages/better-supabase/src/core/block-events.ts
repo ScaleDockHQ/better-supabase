@@ -359,6 +359,7 @@ export type SubjectEventType =
   | "subject.purged"
   | "reaction.added"
   | "reaction.removed"
+  | "document.created"
   | "approval.requested"
   | "approval.approved"
   | "approval.rejected"
@@ -423,6 +424,14 @@ export interface AccessRequestEventData {
   readonly expiresAt?: string | null;
   /** For `access.ended`: `expired` or `revoked`. */
   readonly reason?: string;
+}
+
+/** Events from the documents module. */
+export interface DocumentEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The document. */
+  readonly id: string;
+  readonly name: string;
 }
 
 /** Every block event type and its data. */
@@ -575,6 +584,7 @@ export interface BlockEventMap {
   "access.requested": AccessRequestEventData;
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
+  "document.created": DocumentEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

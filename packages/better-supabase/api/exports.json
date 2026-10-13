@@ -2670,6 +2670,20 @@
       "VercelConnectRef"
     ]
   },
+  "./yjs": {
+    "values": [
+      "compactDocument",
+      "createDocumentProvider"
+    ],
+    "types": [
+      "CompactDocumentOptions",
+      "DocumentProvider",
+      "DocumentProviderOptions",
+      "DocumentProviderStatus",
+      "YDocLike",
+      "YjsLike"
+    ]
+  },
   "./better-result": {
     "values": [
       "withBetterResult"
@@ -3555,6 +3569,25 @@
       "AccessRequestsOptions",
       "AccessRequestStatus",
       "BlockTransport"
+    ]
+  },
+  "./blocks/documents": {
+    "values": [
+      "createDocuments",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "DocumentInfo",
+      "DocumentRef",
+      "Documents",
+      "DocumentsOptions",
+      "DocumentState",
+      "DocumentUpdate",
+      "DocumentVersion",
+      "OpenedDocument"
     ]
   },
   "./blocks/reactions/react": {

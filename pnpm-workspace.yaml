@@ -133,6 +133,7 @@ catalog:
   reflect-metadata: 0.2.2
   redis: 6.3.0
   rxjs: 7.8.2
+  yjs: 13.6.33
   react-dom: 19.3.0
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
@@ -243,6 +244,8 @@ catalogs:
     temporal-polyfill: ">=1"
     # 5.1.0 adds the dynamic workflows the builder compiles to.
     workflow: ">=5.1 <6"
+    # 13.6 has the mergeUpdates and diffUpdate the document compaction uses.
+    yjs: ">=13.6 <14"
     # The Supabase World speaks the 5.0 world protocol; world-postgres moves with it.
     "@workflow/world": ">=5.0.2 <5.1"
     "@workflow/world-postgres": ">=5.0.2 <5.1"

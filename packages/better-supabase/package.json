@@ -421,6 +421,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./yjs": {
+      "@better-supabase/source": "./src/yjs/index.ts",
+      "types": "./dist/yjs/index.d.ts",
+      "default": "./dist/yjs/index.js"
+    },
     "./better-result": {
       "@better-supabase/source": "./src/better-result/index.ts",
       "types": "./dist/better-result/index.d.ts",
@@ -635,6 +640,11 @@
       "@better-supabase/source": "./src/blocks/access-requests/index.ts",
       "types": "./dist/blocks/access-requests/index.d.ts",
       "default": "./dist/blocks/access-requests/index.js"
+    },
+    "./blocks/documents": {
+      "@better-supabase/source": "./src/blocks/documents/index.ts",
+      "types": "./dist/blocks/documents/index.d.ts",
+      "default": "./dist/blocks/documents/index.js"
     },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
@@ -1053,6 +1063,10 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./yjs": {
+        "types": "./dist/yjs/index.d.ts",
+        "default": "./dist/yjs/index.js"
+      },
       "./better-result": {
         "types": "./dist/better-result/index.d.ts",
         "default": "./dist/better-result/index.js"
@@ -1225,6 +1239,10 @@
       "./blocks/access-requests": {
         "types": "./dist/blocks/access-requests/index.d.ts",
         "default": "./dist/blocks/access-requests/index.js"
+      },
+      "./blocks/documents": {
+        "types": "./dist/blocks/documents/index.d.ts",
+        "default": "./dist/blocks/documents/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1411,6 +1429,7 @@
     "vue": "catalog:",
     "workflow": "catalog:",
     "yaml": "catalog:",
+    "yjs": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -1448,7 +1467,8 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "vue": "catalog:peers",
-    "workflow": "catalog:peers"
+    "workflow": "catalog:peers",
+    "yjs": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/mcp": {
@@ -1551,6 +1571,9 @@
       "optional": true
     },
     "workflow": {
+      "optional": true
+    },
+    "yjs": {
       "optional": true
     }
   },

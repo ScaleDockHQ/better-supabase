@@ -41,6 +41,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "reactions.*",
     "approvals.*",
     "access_requests.*",
+    "documents.*",
   ],
   member: [
     "organization.read",
@@ -78,6 +79,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "approvals.read",
     "approvals.request",
     "access_requests.create",
+    "documents.read",
+    "documents.write",
   ],
   viewer: ["organization.read"],
 };
@@ -233,6 +236,11 @@ export const MODULE_PERMISSIONS = {
     create: "access_requests.create",
     manage: "access_requests.manage",
   },
+  documents: {
+    read: "documents.read",
+    write: "documents.write",
+    manage: "documents.manage",
+  },
 } as const;
 
 /**
@@ -353,6 +361,7 @@ export const MODULE_PERMISSION_SCOPES: {
   reactions: { read: "tenant", create: "tenant", manage: "tenant" },
   approvals: { read: "tenant", request: "tenant", manage: "tenant" },
   "access-requests": { read: "tenant", create: "tenant", manage: "tenant" },
+  documents: { read: "tenant", write: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

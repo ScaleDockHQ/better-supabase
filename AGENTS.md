@@ -146,7 +146,8 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `@next/playwright` through a variable specifier in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
-    tools without it), `@supabase/lite` through variable specifiers in
+    tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`
+    (an install message, or pass the module), `@supabase/lite` through variable specifiers in
     `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
     `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
@@ -316,6 +317,7 @@ standard or sets how the repo works.
 - 0019: security definer writes refuse a read-only support or impersonation session.
 - 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
 - 0021: rows are ordered by base-62 fractional rank keys (`rank_between`, `rankBetween`); `move()` runs as the caller.
+- 0022: Yjs documents are an update log and a snapshot in Postgres, compacted in JavaScript; `yjs` is an optional peer of `better-supabase/yjs`.
 
 ## Pre-release pins
 

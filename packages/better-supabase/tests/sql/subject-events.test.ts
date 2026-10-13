@@ -29,6 +29,7 @@ const SUBJECT_EVENTS = [
   "approval.cancelled",
   "approval.expired",
   "approval.delegated",
+  "document.created",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;
