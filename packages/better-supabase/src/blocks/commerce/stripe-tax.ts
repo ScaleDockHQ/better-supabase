@@ -348,16 +348,16 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           (total, line) => total + line.tax.amount,
           0n,
         );
-        const Temporal = optionalTemporal();
+        const namespace = optionalTemporal();
         const quote: TaxQuote = {
           id,
           provider: name,
           currency: cart.currency,
           lines,
           totalTax: { amount: totalTax, currency: cart.currency },
-          ...(calculation.expires_at && Temporal
+          ...(calculation.expires_at && namespace
             ? {
-                expiresAt: Temporal.Instant.fromEpochMilliseconds(
+                expiresAt: namespace.Instant.fromEpochMilliseconds(
                   calculation.expires_at * 1000,
                 ),
               }
