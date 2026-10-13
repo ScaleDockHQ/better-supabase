@@ -125,6 +125,7 @@ expose the module schema itself.
 | [Reminders](/docs/blocks/reminders)                         | `better-supabase/blocks/reminders`                                                                                                 | `reminders`                            |
 | [Imports](/docs/blocks/imports)                             | `better-supabase/blocks/imports`                                                                                                   | `imports`                              |
 | [Rank](/docs/blocks/rank)                                   | `better-supabase/blocks/rank`                                                                                                      | `rank`                                 |
+| [Calendar](/docs/blocks/calendar)                           | `better-supabase/blocks/calendar`, `better-supabase/blocks/calendar/react`                                                         | `calendar`                             |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -216,6 +217,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `imports`            | `tenant`, `access`, `jobs`                | `attachments`, `outbox`                                                    |
 | `subjects`           | `access`                                  | none                                                                       |
 | `rank`               | `access`, `subjects`                      | `jobs`                                                                     |
+| `calendar`           | `tenant`, `access`                        | `share-links`, `reminders`, `outbox`                                       |
 | `ensure-rls`         | none                                      | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

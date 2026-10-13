@@ -1953,6 +1953,7 @@
       "RowEventData",
       "SaasEventData",
       "SaasSubjectEventData",
+      "SchedulingEventData",
       "ScimEventData",
       "SettingEventData",
       "SsoProviderEventData",
@@ -3457,6 +3458,54 @@
       "RankNeighbors",
       "RankOptions",
       "RankRebalancePayload"
+    ]
+  },
+  "./blocks/calendar": {
+    "values": [
+      "calendarEventOf",
+      "createCalendar",
+      "expandOccurrences",
+      "fromEventCalendarUpdate",
+      "parseIcs",
+      "seriesOf",
+      "splitRule",
+      "toEventCalendarEvents",
+      "toEventCalendarResources",
+      "toIcs"
+    ],
+    "types": [
+      "AttendeeResponse",
+      "AttendeeRole",
+      "Calendar",
+      "CalendarAttendee",
+      "CalendarEvent",
+      "CalendarEventInput",
+      "CalendarEventStatus",
+      "CalendarImport",
+      "CalendarInfo",
+      "CalendarOccurrence",
+      "CalendarOptions",
+      "EventCalendarEvent",
+      "EventCalendarOptions",
+      "EventCalendarResource",
+      "IcsEvent",
+      "IcsSource",
+      "OccurrenceMove",
+      "OccurrenceOptions",
+      "OccurrenceRange",
+      "ParsedIcs",
+      "SavedCalendarEvent",
+      "SplitRules",
+      "ToIcsOptions"
+    ]
+  },
+  "./blocks/calendar/react": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "CalendarState",
+      "UseCalendarOptions"
     ]
   },
   "./blocks/announcements/react": {

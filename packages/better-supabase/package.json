@@ -611,6 +611,17 @@
       "types": "./dist/blocks/rank/index.d.ts",
       "default": "./dist/blocks/rank/index.js"
     },
+    "./blocks/calendar": {
+      "@better-supabase/source": "./src/blocks/calendar/index.ts",
+      "types": "./dist/blocks/calendar/index.d.ts",
+      "default": "./dist/blocks/calendar/index.js"
+    },
+    "./blocks/calendar/react": {
+      "@better-supabase/source": "./src/blocks/calendar/react/index.ts",
+      "types": "./dist/blocks/calendar/react/index.d.ts",
+      "react-server": "./dist/blocks/calendar/react/server.js",
+      "default": "./dist/blocks/calendar/react/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1174,6 +1185,15 @@
       "./blocks/rank": {
         "types": "./dist/blocks/rank/index.d.ts",
         "default": "./dist/blocks/rank/index.js"
+      },
+      "./blocks/calendar": {
+        "types": "./dist/blocks/calendar/index.d.ts",
+        "default": "./dist/blocks/calendar/index.js"
+      },
+      "./blocks/calendar/react": {
+        "types": "./dist/blocks/calendar/react/index.d.ts",
+        "react-server": "./dist/blocks/calendar/react/server.js",
+        "default": "./dist/blocks/calendar/react/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
