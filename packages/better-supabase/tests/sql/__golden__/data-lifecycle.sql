@@ -915,7 +915,8 @@ as $$
     ('organization', 'better_supabase.recurrence_rules', '"better_supabase"."recurrence_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.reminders', '"better_supabase"."reminders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.import_runs', '"better_supabase"."import_runs"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.saved_views', '"better_supabase"."saved_views"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.saved_views', '"better_supabase"."saved_views"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.relations', '"better_supabase"."relations"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 

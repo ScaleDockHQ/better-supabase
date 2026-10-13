@@ -616,6 +616,11 @@
       "types": "./dist/blocks/saved-views/index.d.ts",
       "default": "./dist/blocks/saved-views/index.js"
     },
+    "./blocks/relations": {
+      "@better-supabase/source": "./src/blocks/relations/index.ts",
+      "types": "./dist/blocks/relations/index.d.ts",
+      "default": "./dist/blocks/relations/index.js"
+    },
     "./blocks/saved-views/react": {
       "@better-supabase/source": "./src/blocks/saved-views/react/index.ts",
       "types": "./dist/blocks/saved-views/react/index.d.ts",
@@ -1189,6 +1194,10 @@
       "./blocks/saved-views": {
         "types": "./dist/blocks/saved-views/index.d.ts",
         "default": "./dist/blocks/saved-views/index.js"
+      },
+      "./blocks/relations": {
+        "types": "./dist/blocks/relations/index.d.ts",
+        "default": "./dist/blocks/relations/index.js"
       },
       "./blocks/saved-views/react": {
         "types": "./dist/blocks/saved-views/react/index.d.ts",

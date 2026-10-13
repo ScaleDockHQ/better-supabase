@@ -3486,6 +3486,30 @@
       "SaveViewInput"
     ]
   },
+  "./blocks/relations": {
+    "values": [
+      "createRelations",
+      "toGanttTasks",
+      "toTreeItems"
+    ],
+    "types": [
+      "GanttDependency",
+      "GanttDependencyType",
+      "LinkInput",
+      "LinkResult",
+      "Relation",
+      "RelationEdge",
+      "RelationNode",
+      "RelationRollup",
+      "Relations",
+      "RelationsOptions",
+      "RollupInput",
+      "SubjectRef",
+      "TreeItem",
+      "UnlinkInput",
+      "UnlinkResult"
+    ]
+  },
   "./blocks/saved-views/react": {
     "values": [
       "useSavedViews"

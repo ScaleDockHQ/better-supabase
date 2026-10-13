@@ -49,6 +49,7 @@ import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
@@ -167,6 +168,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SUBJECTS),
       built(RANK),
       built(SAVED_VIEWS),
+      built(RELATIONS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -58,6 +58,7 @@
   "blocks/rank",
   "blocks/reminders",
   "blocks/saved-views",
+  "blocks/relations",
   "blocks/settings",
   "blocks/share-links",
   "blocks/sql",
