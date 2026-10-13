@@ -267,4 +267,174 @@ describe("calendar client", () => {
     const result = await calendar.delete("missing");
     expect(result.ok).toBe(false);
   });
+
+  it("deletes calendars and events, and lists the raw events", async () => {
+    const { calls, calendar } = recorder({
+      delete_calendar: true,
+      delete_calendar_event: true,
+      list_calendar_events: [SERIES],
+      list_calendars: [
+        {
+          id: "c1",
+          name: "Rooms",
+          tz: null,
+          color: "#f00",
+          ownerType: "team",
+          ownerId: "t1",
+        },
+      ],
+      save_calendar_event: { id: "e1", uid: "e1", created: false },
+    });
+    expect(await calendar.deleteCalendar("c1").orThrow()).toBe(true);
+    expect(await calendar.delete("e1").orThrow()).toBe(true);
+    expect(await calendar.listCalendars("org").orThrow()).toEqual([
+      {
+        id: "c1",
+        name: "Rooms",
+        tz: "UTC",
+        color: "#f00",
+        ownerType: "team",
+        ownerId: "t1",
+      },
+    ]);
+    const [event] = await calendar.events(["c1"], range).orThrow();
+    expect(event?.rrule).toBe(SERIES.rrule);
+    expect(
+      await calendar
+        .save("c1", {
+          title: "Review",
+          startsAt: range.from,
+          endsAt: range.from.add({ hours: 1 }),
+          exdates: [range.from],
+        })
+        .orThrow(),
+    ).toEqual({ id: "e1", uid: "e1", created: false });
+    expect(calls.at(-1)?.args).toEqual({
+      calendar_id: "c1",
+      item: {
+        title: "Review",
+        startsAt: "2026-03-23T00:00:00Z",
+        endsAt: "2026-03-23T01:00:00Z",
+        exdates: ["2026-03-23T00:00:00Z"],
+      },
+    });
+  });
+
+  it("sets, removes and answers attendees", async () => {
+    const { calls, calendar } = recorder({
+      set_calendar_attendee: true,
+      remove_calendar_attendee: true,
+      respond_calendar_event: true,
+    });
+    await calendar.setAttendee("e1", { email: "a@example.test" }).orThrow();
+    await calendar
+      .setAttendee("e1", {
+        email: "b@example.test",
+        name: "Bea",
+        userId: "u2",
+        role: "optional",
+      })
+      .orThrow();
+    await calendar.removeAttendee("e1", "a@example.test").orThrow();
+    await calendar.respond("e1", "tentative").orThrow();
+    expect(calls.map((call) => call.args)).toEqual([
+      {
+        event_id: "e1",
+        email: "a@example.test",
+        name: null,
+        user_id: null,
+        role: "required",
+      },
+      {
+        event_id: "e1",
+        email: "b@example.test",
+        name: "Bea",
+        user_id: "u2",
+        role: "optional",
+      },
+      { event_id: "e1", email: "a@example.test" },
+      { event_id: "e1", response: "tentative" },
+    ]);
+  });
+
+  it("edits a single event, an override and a series' extra fields in place", async () => {
+    const detailed = {
+      ...SERIES,
+      description: "Daily sync",
+      location: "Room 1",
+      subjectType: "project",
+      subjectId: "p1",
+      color: "blue",
+    };
+    const override = {
+      ...SERIES,
+      id: "o1",
+      rrule: null,
+      recurrenceId: "s1",
+      originalStart: "2026-03-30T07:00:00+00:00",
+      startsAt: "2026-03-30T09:00:00+00:00",
+      endsAt: "2026-03-30T09:15:00+00:00",
+      attendees: [{ email: "x@example.test", name: "X", role: "unknown" }],
+    };
+    const single = {
+      ...SERIES,
+      id: "e2",
+      uid: "e2",
+      rrule: null,
+      status: "unknown",
+      startsAt: "2026-04-01T08:00:00+00:00",
+      endsAt: "2026-04-01T09:00:00+00:00",
+    };
+    const { calls, calendar } = recorder({
+      list_calendar_events: [detailed, override, single],
+      save_calendar_event: { id: "x", uid: "x", created: false },
+    });
+    const found = await calendar.occurrences(["c1"], range).orThrow();
+    const moved = found.find((item) => item.event.id === "o1")!;
+    const lone = found.find((item) => item.event.id === "e2")!;
+    const third = found.find(
+      (item) => item.start.toString() === "2026-04-06T07:00:00Z",
+    )!;
+    expect(moved.event.attendees[0]).toEqual({
+      email: "x@example.test",
+      name: "X",
+      role: "required",
+      response: "needs-action",
+    });
+    expect(lone.event.status).toBe("confirmed");
+    await calendar.editOccurrence(moved, { title: "Again" }).orThrow();
+    await calendar.editOccurrence(lone, { title: "Solo" }).orThrow();
+    await calendar.editFollowing(lone, { title: "Solo 2" }).orThrow();
+    await calendar.editOccurrence(third, {}).orThrow();
+    expect(calls.slice(1).map((call) => call.args)).toEqual([
+      { calendar_id: "c1", item: { title: "Again", id: "o1" } },
+      { calendar_id: "c1", item: { title: "Solo", id: "e2" } },
+      { calendar_id: "c1", item: { title: "Solo 2", id: "e2" } },
+      {
+        calendar_id: "c1",
+        item: expect.objectContaining({
+          description: "Daily sync",
+          location: "Room 1",
+          subjectType: "project",
+          subjectId: "p1",
+          color: "blue",
+          recurrenceId: "s1",
+        }),
+      },
+    ]);
+  });
+
+  it("refuses to split a series after its last occurrence", async () => {
+    const { calls, calendar } = recorder({ list_calendar_events: [SERIES] });
+    const [, , , last] = await calendar.occurrences(["c1"], range).orThrow();
+    const beyond = {
+      ...last!,
+      originalStart: Temporal.Instant.from("2027-01-04T08:00:00Z"),
+    };
+    const result = await calendar.editFollowing(beyond, { title: "Never" });
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "CALENDAR_SPLIT_INVALID",
+    );
+    expect(calls).toHaveLength(1);
+  });
 });

@@ -190,6 +190,19 @@ describe("bookings client", () => {
     expect(calls.at(-1)?.args["resource"]).toBeNull();
   });
 
+  it("fills in a missing seat count and cancel reason", async () => {
+    const { seat: _seat, ...seatless } = BOOKING;
+    const { seats: _seats, ...open } = SLOT;
+    const { calls, bookings } = recorder({
+      cancel_booking: { ...seatless, status: "cancelled" },
+      available_slots: [open],
+    });
+    expect((await bookings.cancel("b1").orThrow()).seat).toBe(1);
+    expect(calls[0]?.args).toEqual({ booking: "b1", reason: null });
+    const [slot] = await bookings.availableSlots("s1", range).orThrow();
+    expect(slot?.seats).toBe(0);
+  });
+
   it("runs the expire job on the service transport", async () => {
     const userCalls: string[] = [];
     const serviceCalls: string[] = [];

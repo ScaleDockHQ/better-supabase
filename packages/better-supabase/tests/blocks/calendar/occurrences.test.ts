@@ -4,6 +4,7 @@ import type { CalendarEvent } from "../../../src/blocks/calendar/occurrences.ts"
 
 import {
   fromEventCalendarUpdate,
+  seriesOf,
   toEventCalendarEvents,
   toEventCalendarResources,
 } from "../../../src/blocks/calendar/event-calendar.ts";
@@ -198,5 +199,24 @@ describe("event calendar adapters", () => {
     });
     expect(move.startsAt.toString()).toBe("2026-03-23T09:00:00Z");
     expect(move).toMatchObject({ allDay: false });
+  });
+
+  it("leaves out the fields an occurrence or update does not have", () => {
+    expect(toEventCalendarResources([{ id: "c1", name: "Team" }])).toEqual([
+      { id: "c1", title: "Team" },
+    ]);
+    expect(
+      fromEventCalendarUpdate({
+        start: new Date("2026-03-23T09:00:00Z"),
+        end: new Date("2026-03-23T09:15:00Z"),
+      }),
+    ).not.toHaveProperty("allDay");
+    const [first] = toEventCalendarEvents(found, {
+      resourceOf: () => undefined,
+    });
+    expect(first).not.toHaveProperty("resourceId");
+    expect(first).not.toHaveProperty("readOnly");
+    expect(seriesOf(found[0]!).id).toBe("s1");
+    expect(seriesOf(found[2]!).id).toBe("l1");
   });
 });
