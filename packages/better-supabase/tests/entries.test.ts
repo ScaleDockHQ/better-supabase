@@ -42,6 +42,8 @@ const PURE_BARRELS = [
   "blocks/reminders",
   "blocks/imports",
   "blocks/rank",
+  "blocks/search",
+  "blocks/metrics",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",

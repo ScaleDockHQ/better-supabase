@@ -611,6 +611,22 @@
       "types": "./dist/blocks/rank/index.d.ts",
       "default": "./dist/blocks/rank/index.js"
     },
+    "./blocks/search": {
+      "@better-supabase/source": "./src/blocks/search/index.ts",
+      "types": "./dist/blocks/search/index.d.ts",
+      "default": "./dist/blocks/search/index.js"
+    },
+    "./blocks/search/react": {
+      "@better-supabase/source": "./src/blocks/search/react/index.ts",
+      "types": "./dist/blocks/search/react/index.d.ts",
+      "react-server": "./dist/blocks/search/react/server.js",
+      "default": "./dist/blocks/search/react/index.js"
+    },
+    "./blocks/metrics": {
+      "@better-supabase/source": "./src/blocks/metrics/index.ts",
+      "types": "./dist/blocks/metrics/index.d.ts",
+      "default": "./dist/blocks/metrics/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1174,6 +1190,19 @@
       "./blocks/rank": {
         "types": "./dist/blocks/rank/index.d.ts",
         "default": "./dist/blocks/rank/index.js"
+      },
+      "./blocks/search": {
+        "types": "./dist/blocks/search/index.d.ts",
+        "default": "./dist/blocks/search/index.js"
+      },
+      "./blocks/search/react": {
+        "types": "./dist/blocks/search/react/index.d.ts",
+        "react-server": "./dist/blocks/search/react/server.js",
+        "default": "./dist/blocks/search/react/index.js"
+      },
+      "./blocks/metrics": {
+        "types": "./dist/blocks/metrics/index.d.ts",
+        "default": "./dist/blocks/metrics/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
