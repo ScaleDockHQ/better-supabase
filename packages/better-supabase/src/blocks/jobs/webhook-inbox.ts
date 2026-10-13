@@ -1,7 +1,12 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
-import type { DrainResult } from "./types.ts";
+import type { DrainResult, JobHandler } from "./types.ts";
 
-import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
+import {
+  budget,
+  DEFAULT_BLOCK_SCHEMA,
+  leaseHeartbeat,
+} from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   problemResponse,
@@ -145,6 +150,40 @@ export interface WebhookInboxPurgeOptions {
   readonly includeDead?: boolean;
   readonly tenant?: string;
   readonly batch?: number;
+  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  readonly schema?: string;
+}
+
+/**
+ * Deletes processed messages from the inbox (`purge_webhooks`) over a
+ * service SQL connection or a service-role transport; returns how many.
+ */
+export function purgeWebhookInbox(
+  source: SqlClient | BlockTransport,
+  options: WebhookInboxPurgeOptions = {},
+): AsyncResult<number> {
+  const args = {
+    older_than: seconds(options.olderThan ?? "30 days"),
+    include_dead: options.includeDead ?? false,
+    batch: options.batch ?? 10_000,
+    for_tenant: options.tenant ?? null,
+  };
+  return run(async () => {
+    if ("call" in source) {
+      return Number(
+        (await source.call(
+          options.schema ?? DEFAULT_BLOCK_SCHEMA,
+          "purge_webhooks",
+          args,
+        )) ?? 0,
+      );
+    }
+    const [row] = await source.queryRaw<{ purged: number }>(
+      "select better_supabase.purge_webhooks($1::interval, $2, $3, $4) as purged",
+      [args.older_than, args.include_dead, args.batch, args.for_tenant],
+    );
+    return row?.purged ?? 0;
+  });
 }
 
 export interface WebhookInbox {
@@ -175,6 +214,8 @@ export interface WebhookInbox {
   list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry[]>;
   /** Deletes old processed (and, with `includeDead`, dead) messages of this source's table; returns how many. */
   purge(options?: WebhookInboxPurgeOptions): AsyncResult<number>;
+  /** A job handler that runs `purge`; schedule it nightly. */
+  purgeJob(options?: WebhookInboxPurgeOptions): JobHandler<unknown>;
 }
 
 interface WebhookInboxRow {
@@ -320,19 +361,9 @@ export function createWebhookInbox(
               : toInstant(row.processed_at),
         }));
       }),
-    purge: (purgeOptions = {}) =>
-      run(async () => {
-        const [row] = await sql.queryRaw<{ purged: number }>(
-          "select better_supabase.purge_webhooks($1::interval, $2, $3, $4) as purged",
-          [
-            seconds(purgeOptions.olderThan ?? "30 days"),
-            purgeOptions.includeDead ?? false,
-            purgeOptions.batch ?? 10_000,
-            purgeOptions.tenant ?? null,
-          ],
-        );
-        return row?.purged ?? 0;
-      }),
+    purge: (purgeOptions) => purgeWebhookInbox(sql, purgeOptions),
+    purgeJob: (purgeOptions) => async () =>
+      purgeWebhookInbox(sql, purgeOptions).orThrow(),
     async receive(request) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {

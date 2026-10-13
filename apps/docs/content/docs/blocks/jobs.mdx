@@ -48,6 +48,10 @@ set. `better_supabase.purge_job_archive(queue, older_than, batch,
 dead_older_than)` deletes completed jobs after `older_than` (7 days) and
 dead letters after `dead_older_than` (30 days) on both backends, so dead
 letters stay around long enough to replay.
+`jobs.purge({ olderThan, deadOlderThan, batch, queues })` calls it for every
+queue `createJobs` declared (or the `queues` given) and returns how many it
+deleted; `jobs.purgeJob(options)` is the same as a job handler. See
+[Retention](/docs/blocks/sql#retention) for the other purges.
 
 Declare queues with a Standard Schema for their payload. `enqueue`
 validates the payload, so a wrong payload is a type error at compile time
@@ -705,6 +709,9 @@ a tenant: `tenantOf(payload)` reads it from the payload, and `verify` can
 return it next to the id and payload. `list({ tenant })` shows a tenant's
 messages newest first (an integration's delivery log), and
 `purge({ tenant, olderThan: 0 })` removes them when the tenant goes.
+`purgeWebhookInbox(source, options)` runs the same purge without an inbox,
+over a service SQL connection or a service-role transport, and
+`inbox.purgeJob(options)` returns it as a job handler.
 
 ```ts
 const inbox = createWebhookInbox(postgres.admin, {

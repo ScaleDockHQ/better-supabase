@@ -145,6 +145,16 @@ export interface RetryDeadOptions {
   readonly limit?: number;
 }
 
+export interface PurgeJobsOptions<N extends string = string> {
+  readonly queues?: readonly N[];
+  /** Seconds, or an interval such as `"7 days"`. */
+  readonly olderThan?: number | string;
+  /** Seconds, or an interval such as `"30 days"`. */
+  readonly deadOlderThan?: number | string;
+  /** Defaults to 10000. */
+  readonly batch?: number;
+}
+
 /** A dead letter as `listDead` returns it. */
 export interface DeadJob<P = unknown> {
   readonly id: number;
@@ -336,6 +346,19 @@ export interface Jobs<Q extends QueueSchemas> {
     queue: Extract<keyof Q, string>,
     options?: RetryDeadOptions,
   ): AsyncResult<number>;
+  /**
+   * Deletes archived messages (`purge_job_archive`): completed ones after
+   * `olderThan` (7 days) and dead letters after `deadOlderThan` (30 days), up
+   * to `batch` per queue. Covers every queue `createJobs` declared unless
+   * `queues` is given. Returns how many. SQL connections or a transport only.
+   */
+  purge<N extends Extract<keyof Q, string>>(
+    options?: PurgeJobsOptions<N>,
+  ): AsyncResult<number>;
+  /** A job handler that runs `purge`; schedule it nightly. */
+  purgeJob(
+    options?: PurgeJobsOptions<Extract<keyof Q, string>>,
+  ): JobHandler<unknown>;
   /**
    * Enqueues `payload` on a cron schedule (`'0 3 * * *'`, `'@daily'`,
    * `'30 seconds'`), with pg_cron or the drain scheduler

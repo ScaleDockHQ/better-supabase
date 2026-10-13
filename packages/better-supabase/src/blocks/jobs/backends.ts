@@ -130,6 +130,11 @@ export interface QueueBackend {
     ids: readonly number[] | undefined,
     limit: number,
   ): Promise<number>;
+  /**
+   * Deletes up to `batch` archived messages of `queue`; an unset option keeps
+   * the SQL default. Returns how many. Absent when the backend can't.
+   */
+  purge?(queue: string, options: QueuePurgeArgs): Promise<number>;
   schedule(
     name: string,
     cron: string,
@@ -344,6 +349,18 @@ export function sqlQueueBackend(
       );
       return row?.retried ?? 0;
     },
+    async purge(queue, args) {
+      const named = Object.entries({
+        older_than: args.olderThan,
+        batch: args.batch,
+        dead_older_than: args.deadOlderThan,
+      }).filter(([, value]) => value !== undefined);
+      const [row] = await sql.queryRaw<{ purged: number }>(
+        `select better_supabase.purge_job_archive(${["queue => $1", ...named.map(([name], index) => `${name} => $${String(index + 2)}`)].join(", ")}) as purged`,
+        [queue, ...named.map(([, value]) => value)],
+      );
+      return row?.purged ?? 0;
+    },
     async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
       await sql.queryRaw(
         "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7)",
@@ -469,6 +486,13 @@ export function transportRows<T>(fn: string, value: unknown): readonly T[] {
   );
 }
 
+/** The intervals are Postgres intervals such as `"7 days"`. */
+export interface QueuePurgeArgs {
+  readonly olderThan?: string | undefined;
+  readonly deadOlderThan?: string | undefined;
+  readonly batch?: number | undefined;
+}
+
 /**
  * The `jobs` SQL module over a `BlockTransport`, with named arguments: a
  * service-role `rpcTransport(supabase, { schema: "api" })` reaches the
@@ -547,6 +571,14 @@ export function transportQueueBackend(
         queue,
         ids === undefined ? null : [...ids],
         limit,
+      ),
+    purge: (queue, args) =>
+      count(
+        "purge_job_archive",
+        queue,
+        args.olderThan,
+        args.batch,
+        args.deadOlderThan,
       ),
     async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
       await call(

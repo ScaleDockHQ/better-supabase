@@ -6,10 +6,13 @@ import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import {
   createIdempotency,
   createJobs,
+  createRateLimit,
+  purgeWebhookInbox,
   transportQueueBackend,
   withLease,
 } from "../../../src/blocks/jobs/index.ts";
 import { renderModules } from "../../../src/sql/render.ts";
+import { fakeSql } from "../../fixtures/fake-sql.ts";
 
 interface Call {
   readonly schema: string;
@@ -309,5 +312,101 @@ describe("idempotency and leases over a transport", () => {
     expect(await withLease(taken, "nightly", () => 1).orThrow()).toEqual({
       acquired: false,
     });
+  });
+});
+
+describe("purge", () => {
+  const signal = new AbortController().signal;
+
+  it("purges every declared queue's archive by name", async () => {
+    const { transport, calls } = fakeTransport({ purge_job_archive: 2 });
+    const jobs = createJobs(transport, {
+      emails: v.object({}),
+      reports: v.object({}),
+    });
+    expect(
+      await jobs
+        .purge({ olderThan: 3600, deadOlderThan: "90 days", batch: 5 })
+        .orThrow(),
+    ).toBe(4);
+    expect(
+      await jobs.purgeJob({ queues: ["emails"] })({}, {} as never, signal),
+    ).toBe(2);
+    expect(calls.map((call) => call.args)).toEqual([
+      {
+        queue: "emails",
+        older_than: "3600 seconds",
+        batch: 5,
+        dead_older_than: "90 days",
+      },
+      {
+        queue: "reports",
+        older_than: "3600 seconds",
+        batch: 5,
+        dead_older_than: "90 days",
+      },
+      { queue: "emails" },
+    ]);
+    expectWrapped("jobs", calls);
+  });
+
+  it("purges the archive over SQL with only the options given", async () => {
+    const fake = fakeSql([["purge_job_archive", [{ purged: 3 }]]]);
+    const jobs = createJobs(fake.sql, { emails: v.object({}) });
+    expect(await jobs.purge({ batch: 10 }).orThrow()).toBe(3);
+    expect(fake.calls).toEqual([
+      {
+        text: "select better_supabase.purge_job_archive(queue => $1, batch => $2) as purged",
+        values: ["emails", 10],
+      },
+    ]);
+  });
+
+  it("purges idempotency keys, rate limits and the inbox over a transport", async () => {
+    const { transport, calls } = fakeTransport({
+      purge_idempotency_keys: 4,
+      purge_rate_limits: "6",
+      purge_webhooks: 1,
+    });
+    expect(
+      await createIdempotency(transport, { schema: "api" }).purge().orThrow(),
+    ).toBe(4);
+    expect(
+      await createRateLimit(transport).purge({ batch: 100 }).orThrow(),
+    ).toBe(6);
+    expect(
+      await createRateLimit(transport).purgeJob()({}, {} as never, signal),
+    ).toBe(6);
+    expect(
+      await purgeWebhookInbox(transport, {
+        tenant: "acme",
+        olderThan: 0,
+      }).orThrow(),
+    ).toBe(1);
+    expect(calls.map((call) => [call.schema, call.fn, call.args])).toEqual([
+      ["api", "purge_idempotency_keys", {}],
+      ["better_supabase", "purge_rate_limits", { batch: 100 }],
+      ["better_supabase", "purge_rate_limits", { batch: undefined }],
+      [
+        "better_supabase",
+        "purge_webhooks",
+        {
+          older_than: "0 seconds",
+          include_dead: false,
+          batch: 10_000,
+          for_tenant: "acme",
+        },
+      ],
+    ]);
+    expectWrapped("idempotency", calls.slice(0, 1));
+  });
+
+  it("purges idempotency keys and rate limits over SQL", async () => {
+    const fake = fakeSql([
+      ["purge_idempotency_keys", [{ purged: 2 }]],
+      ["purge_rate_limits", [{ value: 7 }]],
+    ]);
+    expect(await createIdempotency(fake.sql).purge().orThrow()).toBe(2);
+    expect(await createRateLimit(fake.sql).purge().orThrow()).toBe(7);
   });
 });

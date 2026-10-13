@@ -1,6 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type { JobHandler } from "./types.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
@@ -73,6 +74,10 @@ export interface Idempotency {
   ): AsyncResult<boolean>;
   /** Forgets the key so it can be retried; `false` when `holder` lost it. */
   release(key: string, holder: string, scope?: string): AsyncResult<boolean>;
+  /** Deletes expired keys (`purge_idempotency_keys`); returns how many. */
+  purge(): AsyncResult<number>;
+  /** A job handler that runs `purge`; schedule it hourly. */
+  purgeJob(): JobHandler<unknown>;
 }
 
 async function sha256(text: string): Promise<string> {
@@ -128,6 +133,7 @@ interface IdempotencyCalls {
     body: unknown,
   ): Promise<boolean>;
   release(scope: string, key: string, holder: string): Promise<boolean>;
+  purge(): Promise<number>;
 }
 
 function sqlCalls(sql: SqlClient): IdempotencyCalls {
@@ -152,6 +158,12 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
         [scope, key, holder],
       );
       return row?.done === true;
+    },
+    async purge() {
+      const [row] = await sql.queryRaw<{ purged: number }>(
+        "select better_supabase.purge_idempotency_keys() as purged",
+      );
+      return row?.purged ?? 0;
     },
   };
 }
@@ -188,6 +200,8 @@ function transportCalls(
         key,
         holder,
       })) === true,
+    purge: async () =>
+      Number((await transport.call(schema, "purge_idempotency_keys", {})) ?? 0),
   };
 }
 
@@ -230,8 +244,11 @@ export function createIdempotency(
   ) => run(() => calls.complete(scope, key, holder, status, body));
   const release: Idempotency["release"] = (key, holder, scope = "") =>
     run(() => calls.release(scope, key, holder));
+  const purge: Idempotency["purge"] = () => run(() => calls.purge());
 
   return {
+    purge,
+    purgeJob: () => async () => purge().orThrow(),
     begin,
     complete,
     release,

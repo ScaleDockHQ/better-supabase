@@ -8,7 +8,7 @@ export { assertCron, nextCronRun } from "./cron.ts";
 export { devDrain, devDrainSecret } from "./dev.ts";
 export type { DevDrain, DevDrainOptions } from "./dev.ts";
 export { createIdempotency } from "./idempotency.ts";
-export { createWebhookInbox } from "./webhook-inbox.ts";
+export { createWebhookInbox, purgeWebhookInbox } from "./webhook-inbox.ts";
 export { withLease } from "./lease.ts";
 export type {
   Idempotency,
@@ -39,6 +39,7 @@ export type {
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
+  QueuePurgeArgs,
   TransportQueueBackendOptions,
 } from "./backends.ts";
 export { createJobs } from "./queue.ts";
@@ -70,6 +71,7 @@ export type {
   ListDeadOptions,
   QueueSchemas,
   RetryDeadOptions,
+  PurgeJobsOptions,
   RunSchedulesOptions,
   ScheduleDefinition,
   ScheduleDefinitions,

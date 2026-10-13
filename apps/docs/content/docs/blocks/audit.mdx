@@ -354,3 +354,6 @@ await purgeAuditLog(postgres.admin, {
 `purgeAuditLog` reads every tenant's days in one query. A tenant whose
 column is `null` keeps the `olderThan` default. Run the job
 until it returns 0; each call deletes at most `batch` entries per tenant.
+`purgeAuditLog` also takes a service-role transport instead of the SQL
+connection, such as `rpcTransport(admin, { schema: "api" })` over the
+wrappers `sql.modules.audit.api` writes.

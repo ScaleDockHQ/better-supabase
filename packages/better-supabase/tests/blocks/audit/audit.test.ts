@@ -343,3 +343,41 @@ describe("auditListQuery", () => {
     );
   });
 });
+
+describe("purgeAuditLog over a transport", () => {
+  it("calls purge_audit_log by name, per tenant with retention", async () => {
+    const calls: [string, string, Record<string, unknown>][] = [];
+    const transport = {
+      async call(schema: string, fn: string, args: Record<string, unknown>) {
+        calls.push([schema, fn, { ...args }]);
+        return fn === "audit_events_tenants" ? ["a", null] : 2;
+      },
+    };
+    expect(await purgeAuditLog(transport, { schema: "api" }).orThrow()).toBe(2);
+    expect(
+      await purgeAuditLog(transport, {
+        retention: (tenant) => (tenant === "a" ? 30 : undefined),
+      }).orThrow(),
+    ).toBe(4);
+    expect(calls).toEqual([
+      ["api", "purge_audit_log", { older_than: "1 year", batch: 10_000 }],
+      ["better_supabase", "audit_events_tenants", { older_than: "1 day" }],
+      [
+        "better_supabase",
+        "purge_audit_log",
+        { older_than: "30 days", batch: 10_000, tenant: "a", for_tenant: true },
+      ],
+      [
+        "better_supabase",
+        "purge_audit_log",
+        { older_than: "1 year", batch: 10_000, tenant: null, for_tenant: true },
+      ],
+    ]);
+  });
+
+  it("refuses a single value where it needs the tenant rows", async () => {
+    const transport = { call: async () => "a" };
+    const result = await purgeAuditLog(transport, { retention: () => 1 });
+    expect(result.ok).toBe(false);
+  });
+});

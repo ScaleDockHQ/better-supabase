@@ -41,6 +41,7 @@ import {
   errorText,
   pageOf,
   run,
+  seconds,
   sleep,
   toInstant,
 } from "../shared.ts";
@@ -404,6 +405,25 @@ export function createJobs<const Q extends QueueSchemas>(
       prepared.tenant,
     );
 
+  const purge: Jobs<Q>["purge"] = (purgeOptions = {}) =>
+    run(async () => {
+      if (!transport.purge) sqlOnly("purge");
+      const backendPurge = transport.purge.bind(transport);
+      const interval = (value: number | string | undefined) =>
+        value === undefined ? undefined : seconds(value);
+      const counts = await Promise.all(
+        (purgeOptions.queues ?? Object.keys(queues)).map((queue) => {
+          schemaOf(queue);
+          return backendPurge(queue, {
+            olderThan: interval(purgeOptions.olderThan),
+            deadOlderThan: interval(purgeOptions.deadOlderThan),
+            batch: purgeOptions.batch,
+          });
+        }),
+      );
+      return counts.reduce((sum, count) => sum + count, 0);
+    });
+
   return {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
@@ -490,6 +510,8 @@ export function createJobs<const Q extends QueueSchemas>(
           retryOptions.limit ?? 1000,
         );
       }),
+    purge,
+    purgeJob: (purgeOptions) => async () => purge(purgeOptions).orThrow(),
     replay: (queue, id) =>
       run(() => {
         if (!transport.replay) sqlOnly("replay");

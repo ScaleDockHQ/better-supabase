@@ -1800,6 +1800,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       const dead = await jobs.listDead(queue).orThrow();
       expect(dead.map((entry) => entry.payload)).toEqual([{ n: 1 }]);
       expect(await jobs.retryDead(queue).orThrow()).toBe(1);
+      expect(
+        await jobs.purge({ olderThan: 0, deadOlderThan: 0 }).orThrow(),
+      ).toBeGreaterThanOrEqual(0);
 
       const idempotency = createIdempotency(transport, {
         schema: api,
@@ -1815,6 +1818,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect((await idempotency.handle(request(), handler)).status).toBe(201);
       const replay = await idempotency.handle(request(), handler);
       expect(replay.headers.get("idempotency-replayed")).toBe("true");
+      expect(await idempotency.purge().orThrow()).toBeGreaterThanOrEqual(0);
 
       const lease = await withLease(
         transport,

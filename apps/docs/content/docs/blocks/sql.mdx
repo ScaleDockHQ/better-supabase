@@ -626,14 +626,16 @@ and the job archives only grow. Each module has a purge function that deletes
 rows older than an interval, at most `batch` rows per call (10,000 by
 default), and returns how many it deleted. Only `service_role` can call them.
 
-| Function                                                                         | Deletes                                                                                                            |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `purge_audit_log(older_than => '1 year')`                                        | `audit_events` entries older than `older_than`, or than the tenant's own interval                                  |
-| `purge_webhooks(older_than => '30 days')`                                        | processed messages; `include_dead => true` also deletes dead ones                                                  |
-| `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
-| `purge_idempotency_keys()`                                                       | expired idempotency keys                                                                                           |
-| `purge_webhook_deliveries(older_than => '30 days')`                              | succeeded and canceled outgoing deliveries; `include_dead => true` also deletes dead ones                          |
-| `purge_rate_limits()`                                                            | counters whose window has ended or whose rule was removed                                                          |
+| Function                                                                         | TypeScript                                   | Deletes                                                                                                            |
+| -------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `purge_audit_log(older_than => '1 year')`                                        | `purgeAuditLog(source, options)`             | `audit_events` entries older than `older_than`, or than the tenant's own interval                                  |
+| `purge_webhooks(older_than => '30 days')`                                        | `inbox.purge()`, `purgeWebhookInbox(source)` | processed messages; `include_dead => true` also deletes dead ones                                                  |
+| `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | `jobs.purge()`                               | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
+| `purge_idempotency_keys()`                                                       | `idempotency.purge()`                        | expired idempotency keys                                                                                           |
+| `purge_webhook_deliveries(older_than => '30 days')`                              | `webhooks.purge()`                           | succeeded and canceled outgoing deliveries; `include_dead => true` also deletes dead ones                          |
+| `purge_rate_limits()`                                                            | `rateLimit.purge()`                          | counters whose window has ended or whose rule was removed                                                          |
+| `purge_usage_history(older_than => '400 days')`                                  | `usage.purgeHistory()`                       | usage history entries                                                                                              |
+| `purge_usage_events(older_than => '30 days')`                                    | `usage.purgeEvents()`                        | idempotency keys of recorded usage                                                                                 |
 
 Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
 hour. Enable the extension once (`create extension pg_cron with schema
@@ -663,6 +665,25 @@ await purgeAuditLog(postgres.admin, {
   olderThan: "1 year",
   retention: async (tenant) =>
     tenant ? await plans.auditDays(tenant) : undefined,
+});
+```
+
+Each TypeScript method takes the same options in camel case (`olderThan` in
+seconds or as an interval, `includeDead`, `batch`) and returns how many rows
+it deleted as a `Result`. Each object also has a `purgeJob(options)` that
+returns a job handler, so the purges can run on the [jobs](/docs/blocks/jobs)
+scheduler instead of pg_cron. They work over a service SQL connection or a
+service-role transport, so an app without a direct connection can schedule
+them too:
+
+```ts
+const jobs = createJobs(postgres.admin, { purge: v.object({}) });
+
+await jobs.schedule("retention", "0 4 * * *", "purge", {}).orThrow();
+
+await jobs.work("purge", async (payload, job, signal) => {
+  await idempotency.purgeJob()(payload, job, signal);
+  await jobs.purgeJob({ deadOlderThan: "90 days" })(payload, job, signal);
 });
 ```
 
