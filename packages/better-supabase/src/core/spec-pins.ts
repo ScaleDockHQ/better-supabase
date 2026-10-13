@@ -42,6 +42,8 @@ export const SPEC_PINS: {
   readonly rfc5545: "2009-09";
   /** RFC 4180 CSV read by `parseCsv` and written by `toCsv`. */
   readonly rfc4180: "2005-10";
+  /** ISO 4217 List One publication behind the commerce block's minor units. */
+  readonly iso4217: "2026-09-17";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -76,4 +78,5 @@ export const SPEC_PINS: {
   anthropicMemoryTool: "20250818",
   rfc5545: "2009-09",
   rfc4180: "2005-10",
+  iso4217: "2026-09-17",
 };
