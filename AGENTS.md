@@ -27,7 +27,7 @@ apps/
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
-   validation-*/        four validation projects: centrakit, crm, monorepo, request-context
+   validation-*/        five validation projects: centrakit, crm, monorepo, recipes, request-context
 supabase/              the local stack every example and integration test uses
   schemas/             the declarative schema; pg-delta orders the files by dependency
   migrations/          migrations generated from schemas/ and reviewed
@@ -66,7 +66,7 @@ docs/
 - `pnpm --filter @better-supabase/example-nextjs test:e2e`: resets the local stack, builds the Next.js example with the testing API and runs its `instant()` specs (local only; see `docs/agents/nextjs.md`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
 - `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
-- `tests/validation-*`: four validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), and a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`).
+- `tests/validation-*`: five validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`), and the four docs Recipes installed and driven end to end against the local stack (`recipes`, also part of `pnpm test:integration`).
 - `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
 
 ## Local development

@@ -1,0 +1,24 @@
+{
+  "name": "@better-supabase/validation-recipes",
+  "private": true,
+  "description": "The four Recipes from the docs, each installed as one migration and run end to end against the local stack.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
