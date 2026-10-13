@@ -17,7 +17,6 @@ import {
   verifyWebhook,
 } from "../../core/signatures.ts";
 import { hitRateLimit } from "../jobs/rate-limit.ts";
-import { receiveWebhook } from "../jobs/webhook-inbox.ts";
 import {
   applyTemporal,
   isRecord,
@@ -25,6 +24,7 @@ import {
   readBodyCapped,
   toInstant,
 } from "../shared.ts";
+import { inboxDestination } from "./destinations.ts";
 
 /** The header that carries an endpoint's id on stored deliveries. */
 export const INCOMING_ENDPOINT_HEADER = "x-bs-endpoint-id";
@@ -58,7 +58,8 @@ const attempt = <T>(fn: () => Promise<T>): AsyncResult<T> =>
 /**
  * Tenant-owned trigger URLs over the `webhooks-in` SQL module: create
  * endpoints, then route `/hooks/<token>` to `receive`. Deliveries land in
- * the webhook inbox (`createWebhookInbox`), where a worker processes them.
+ * the webhook inbox (`createWebhookInbox`), where a worker processes them,
+ * or in `options.destination`.
  */
 export function createIncomingWebhooks(
   sql: SqlClient,
@@ -72,6 +73,7 @@ export function createIncomingWebhooks(
     );
   }
   const source = options.source ?? "webhook-in";
+  const destination = options.destination ?? inboxDestination(sql);
   const fn = (name: string) => `"${schema}"."${name}"`;
 
   const value = async <T>(text: string, params: unknown[]): Promise<T> => {
@@ -223,9 +225,14 @@ export function createIncomingWebhooks(
           ...kept,
           [INCOMING_ENDPOINT_HEADER, endpoint.id],
         ]);
-        const stored = await receiveWebhook(sql, {
+        const stored = await destination.deliver({
+          endpoint: {
+            id: endpoint.id,
+            tenant: endpoint.tenant,
+            metadata: isRecord(endpoint.metadata) ? endpoint.metadata : {},
+          },
           source,
-          id: `${endpoint.id}:${messageId}`,
+          messageId,
           type:
             typeof payload === "object" &&
             payload !== null &&
@@ -235,7 +242,6 @@ export function createIncomingWebhooks(
               : null,
           payload,
           headers,
-          tenant: endpoint.tenant,
         });
         const status = stored.duplicate ? 200 : 202;
         await sql.queryRaw(`select ${fn("record_incoming_webhook")}($1, $2)`, [

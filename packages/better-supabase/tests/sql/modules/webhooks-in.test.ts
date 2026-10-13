@@ -31,10 +31,10 @@ describe("webhooks-in module", () => {
     const vault = moduleBody("webhooks-in")!;
     expect(vault).toContain("vault.create_secret(secret,");
     expect(vault).toContain(
-      "left join vault.decrypted_secrets ds on ds.id = e.secret_id",
+      'left join vault.decrypted_secrets ds on ds.id = e."secret_id"',
     );
     expect(vault).toContain(
-      "delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);",
+      'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
     const column = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { options: { secretStorage: "column" } } },
@@ -119,7 +119,7 @@ describe("webhooks-in module", () => {
     expect(update).toContain("hint = 'WEBHOOK_IN_NOT_FOUND'");
     expect(update).toContain("hint = 'WEBHOOK_IN_VERIFY_UNKNOWN'");
     expect(update).toContain(
-      "delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);",
+      'delete from vault.secrets vs where vs.id in (previous."secret_id", previous."previous_secret_id");',
     );
     expect(sql).toContain(
       'grant execute on function "better_supabase"."update_incoming_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;',
@@ -134,21 +134,21 @@ describe("webhooks-in module", () => {
       ),
     );
     expect(rotate).toContain(
-      "previous_secret_expires_at = case when v_keep then now() + grace end",
+      '"previous_secret_expires_at" = case when v_keep then now() + grace end',
     );
     expect(rotate).toContain("hint = 'WEBHOOK_IN_NO_SECRET'");
     expect(rotate.slice(0, rotate.indexOf("$$;"))).not.toContain("token_hash");
     expect(sql).toContain(
-      "case when e.previous_secret_expires_at > now() then coalesce(dp.decrypted_secret, e.previous_secret) end",
+      'case when e."previous_secret_expires_at" > now() then coalesce(dp.decrypted_secret, e."previous_secret") end',
     );
     expect(sql).toContain(
-      "delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);",
+      'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
     const column = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { options: { secretStorage: "column" } } },
     })!;
     expect(column).toContain(
-      "case when e.previous_secret_expires_at > now() then e.previous_secret end",
+      'case when e."previous_secret_expires_at" > now() then e."previous_secret" end',
     );
   });
 
@@ -163,5 +163,75 @@ describe("webhooks-in module", () => {
     expect(sql).toContain(
       "when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')",
     );
+  });
+
+  const adopted = (
+    columns: Record<string, string | null> = {},
+    options: Record<string, unknown> = {},
+  ) =>
+    moduleBody("webhooks-in", {
+      modules: {
+        "webhooks-in": {
+          mode: "adopt",
+          tables: { endpoints: "public.hooks" },
+          columns: {
+            endpoints: {
+              tenant: "organization_id",
+              tokenHash: "token_digest",
+              secret: null,
+              previousSecret: null,
+              previousSecretId: null,
+              previousSecretExpiresAt: null,
+              receiveCount: null,
+              lastReceivedAt: null,
+              lastStatus: null,
+              subjectType: null,
+              subjectId: null,
+              ...columns,
+            },
+          },
+          options,
+        },
+      },
+    })!;
+
+  it("adopts an app's endpoints table with renamed and missing columns", () => {
+    const sql = adopted();
+    expect(sql).not.toContain("create table");
+    expect(sql).not.toContain("create policy");
+    expect(sql).not.toContain("enable row level security");
+    expect(sql).toContain('from "public"."hooks" e');
+    expect(sql).toContain(
+      "where e.\"token_digest\" = encode(extensions.digest(incoming_webhook_by_token.token, 'sha256'), 'hex')",
+    );
+    expect(sql).toContain('e."organization_id"::text');
+    expect(sql).toContain('null::text, e."metadata"');
+    expect(sql).toContain("hint = 'WEBHOOK_IN_NO_GRACE'");
+    expect(sql).toContain("hint = 'WEBHOOK_IN_SUBJECT_INVALID'");
+    expect(sql).not.toContain('"receive_count"');
+    expect(sql).toContain("'receive_count', 0");
+    expect(sql).toContain(
+      'delete from vault.secrets vs where vs.id in (old."secret_id");',
+    );
+  });
+
+  it("refuses renames of its own table and subjects without subject columns", () => {
+    expect(() =>
+      moduleBody("webhooks-in", {
+        modules: {
+          "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
+        },
+      }),
+    ).toThrow(/mode "adopt"/);
+    expect(() =>
+      adopted({}, { subjects: { project: { table: "public.projects" } } }),
+    ).toThrow(/subjectType and subjectId/);
+    expect(() => adopted({ secretId: null })).toThrow(/secretId/);
+    expect(
+      adopted(
+        { secret: "secret", secretId: null },
+        { secretStorage: "column" },
+      ),
+    ).not.toContain("vault.");
   });
 });

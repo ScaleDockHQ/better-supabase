@@ -16,6 +16,7 @@ import type {
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
 import type {
+  IncomingDestination,
   WebhookSecretStore,
   WebhookSigner,
   WebhookTransport,
@@ -91,6 +92,8 @@ import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   fetchTransport,
   hmacSigner,
+  inboxDestination,
+  jobsDestination,
   sqlSecretStore,
   standardWebhooks,
 } from "../../src/blocks/webhooks/index.ts";
@@ -146,6 +149,9 @@ describe("extension interfaces", () => {
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();
     expectTypeOf(sqlSecretStore).returns.toExtend<WebhookSecretStore>();
+    expectTypeOf(inboxDestination).returns.toExtend<IncomingDestination>();
+    expectTypeOf(jobsDestination).returns.toExtend<IncomingDestination>();
+    expectTypeOf<IncomingDestination["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<WebhookSigner["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<WebhookTransport["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<WebhookSecretStore["apiVersion"]>().toEqualTypeOf<1>();

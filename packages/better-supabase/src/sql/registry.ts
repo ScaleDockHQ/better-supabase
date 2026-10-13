@@ -96,7 +96,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RESERVED_SLUGS),
       built(JOBS),
       IDEMPOTENCY,
-      WEBHOOK_INBOX,
+      built(WEBHOOK_INBOX),
       REALTIME_TABLES,
       JSONB_SCHEMAS,
       PGTAP,

@@ -1839,6 +1839,26 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
   });
 
+  it("enqueues once per key, after the first job completed too", async () => {
+    const queue = `block_${RUN}_once`;
+    const jobs = createJobs(postgres.admin, {
+      [queue]: v.object({ n: v.number() }),
+    });
+    const first = await jobs
+      .enqueueOnce(queue, { n: 1 }, { dedupeKey: "k" })
+      .orThrow();
+    expect(first.duplicate).toBe(false);
+    const [job] = await jobs.claim(queue).orThrow();
+    await jobs.complete(job!).orThrow();
+    expect(
+      await jobs.enqueueOnce(queue, { n: 2 }, { dedupeKey: "k" }).orThrow(),
+    ).toEqual({ id: first.id, duplicate: true });
+    expect(
+      (await jobs.enqueueOnce(queue, { n: 3 }, { dedupeKey: "j" }).orThrow())
+        .duplicate,
+    ).toBe(false);
+  });
+
   it("runs jobs, idempotency and leases through the api wrappers over rpcTransport", async () => {
     const api = `bs_api_${RUN}`;
     await pool.query(

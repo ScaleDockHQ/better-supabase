@@ -127,6 +127,11 @@ await jobs.work(
   yet, so a change made while the job runs queues one follow-up instead of
   being dropped: a debounce per entity. In SQL this is
   `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
+- `enqueueOnce(queue, payload, { dedupeKey })` enqueues at most one job per
+  key, ever: a completed or dead job still holds its key, so a retried
+  webhook or a repeated import adds nothing. It returns `{ id, duplicate }`,
+  with the first job's id on a duplicate. In SQL it is
+  `enqueue_job_once(queue, payload, dedupe_key)`.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
@@ -496,8 +501,8 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 - there is no lease check on `complete`;
 - a failed job reappears when its lease ends (`retryIn` is ignored), and
   there's no heartbeat;
-- `dedupeKey`, `schedule`, `stats`, `listDead` and `retryDead` return
-  `invalid_request`.
+- `dedupeKey`, `enqueueOnce`, `schedule`, `stats`, `listDead` and
+  `retryDead` return `invalid_request`.
 
 To get the whole API without a direct connection, write wrappers for the
 module into an exposed schema with `sql.modules.jobs.api` and pass an
@@ -635,6 +640,10 @@ await inbox.process(async (message) => {
 `Inbox`, `InboxOptions` and so on. 0.6 removes the old names;
 `createInbox` from `better-supabase/blocks/inbox` is the conversation inbox
 block.
+
+To keep messages in a table your app already has, adopt it with
+`sql.modules.webhook-inbox.mode: "adopt"`; see
+[Adopting your own tables](/docs/blocks/webhooks-in#adopting-your-own-tables).
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for

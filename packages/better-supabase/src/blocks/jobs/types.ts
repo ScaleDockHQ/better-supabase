@@ -78,6 +78,20 @@ export interface EnqueueOptions {
   readonly context?: RequestContext;
 }
 
+export interface EnqueueOnceOptions extends Omit<
+  EnqueueOptions,
+  "dedupeKey" | "dedupe"
+> {
+  /** The key that makes the enqueue happen once. */
+  readonly dedupeKey: string;
+}
+
+export interface EnqueueOnceResult {
+  readonly id: number;
+  /** True when a job with the key already existed; `id` is that job. */
+  readonly duplicate: boolean;
+}
+
 export interface ScheduleOptions {
   /** The actor and tenant every scheduled run records, as in `enqueue`. */
   readonly context?: RequestContext;
@@ -301,6 +315,17 @@ export interface Jobs<Q extends QueueSchemas> {
     payload: PayloadIn<Q, N>,
     options?: EnqueueOptions,
   ): AsyncResult<number>;
+  /**
+   * Enqueues once per `dedupeKey`: while a job with the key is waiting,
+   * running or still archived (until `purge` removes it), returns its id with
+   * `duplicate: true` instead. For inbound deliveries that a sender retries.
+   * SQL connections or a transport only.
+   */
+  enqueueOnce<N extends Extract<keyof Q, string>>(
+    queue: N,
+    payload: PayloadIn<Q, N>,
+    options: EnqueueOnceOptions,
+  ): AsyncResult<EnqueueOnceResult>;
   claim<N extends Extract<keyof Q, string>>(
     queue: N,
     options?: ClaimOptions,

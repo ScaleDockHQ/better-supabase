@@ -101,6 +101,17 @@ export interface QueueBackend {
     /** `"waiting"` coalesces only onto a job no worker has claimed; `undefined` means `"always"`. */
     dedupe?: "always" | "waiting",
   ): Promise<number>;
+  /**
+   * Sends once per `dedupeKey`, counting archived messages too; `duplicate`
+   * when one existed. Absent when the backend can't.
+   */
+  sendOnce?(
+    queue: string,
+    payload: unknown,
+    delay: number,
+    maxAttempts: number,
+    dedupeKey: string,
+  ): Promise<{ readonly id: number; readonly duplicate: boolean }>;
   read(
     queue: string,
     lease: number,
@@ -270,6 +281,18 @@ const statsOf = (row: StatsRow | undefined): QueueStats => ({
       : Number(row.oldest_age_seconds),
 });
 
+interface OnceRow {
+  readonly id: string | number;
+  readonly duplicate: boolean;
+}
+
+const onceOf = (
+  row: OnceRow | undefined,
+): { readonly id: number; readonly duplicate: boolean } => {
+  if (!row) throw new TypeError("enqueue_job_once returned no row");
+  return { id: Number(row.id), duplicate: row.duplicate };
+};
+
 /**
  * The `jobs` SQL module over a service SQL connection. The same
  * functions back both `sql.modules.jobs.options.backend` values (pgmq and table)
@@ -296,6 +319,13 @@ export function sqlQueueBackend(
         ],
       );
       return Number(row!.id);
+    },
+    async sendOnce(queue, payload, delay, maxAttempts, dedupeKey) {
+      const [row] = await sql.queryRaw<OnceRow>(
+        "select * from better_supabase.enqueue_job_once($1, $2, $3, $4, $5)",
+        [queue, JSON.stringify(payload ?? {}), dedupeKey, delay, maxAttempts],
+      );
+      return onceOf(row);
     },
     read: (queue, lease, batch) =>
       sql.queryRaw<QueueMessageRow>(
@@ -428,6 +458,7 @@ const PARAMS = {
     "dedupe_key",
     "dedupe_running",
   ],
+  enqueue_job_once: ["queue", "payload", "dedupe_key", "delay", "max_attempts"],
   claim_jobs: ["queue", "lease", "batch"],
   complete_job: ["queue", "job_id", "attempt"],
   fail_job: ["queue", "job_id", "attempt", "error", "retry_in"],
@@ -543,6 +574,19 @@ export function transportQueueBackend(
       if (sent === null) throw new TypeError("enqueue_job returned no id");
       return sent;
     },
+    sendOnce: async (queue, payload, delay, maxAttempts, dedupeKey) =>
+      onceOf(
+        (
+          await rows<OnceRow>(
+            "enqueue_job_once",
+            queue,
+            payload ?? {},
+            dedupeKey,
+            delay,
+            maxAttempts,
+          )
+        )[0],
+      ),
     read: (queue, lease, batch) =>
       rows<QueueMessageRow>("claim_jobs", queue, lease, batch),
     complete: (job) => bool("complete_job", job.queue, job.id, job.attempts),

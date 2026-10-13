@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@5 managed
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.
+-- @bs-module webhook-inbox@6 managed
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -304,14 +304,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 5, 'managed')
+values ('webhook-inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@5 managed
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.
+-- @bs-module webhook-inbox@6 managed
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -614,14 +614,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 5, 'managed')
+values ('webhook-inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@5 managed
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.
+-- @bs-module webhook-inbox@6 managed
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -924,14 +924,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 5, 'managed')
+values ('webhook-inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@5 managed
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.
+-- @bs-module webhook-inbox@6 managed
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1317,6 +1317,275 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 5, 'managed')
+values ('webhook-inbox', 6, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== adopt: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
+-- better-supabase module: webhook-inbox
+-- @bs-module webhook-inbox@6 adopt
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+
+-- The webhook inbox over an app's table (adopt mode): "better_supabase"."webhook_inbox".
+-- The app owns its columns, a unique key per source, tenant and message id,
+-- and its indexes.
+
+-- The signatures before messages had a tenant, before a source set its
+-- attempts, and before the attempt was the lease token.
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
+drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
+drop function if exists better_supabase.complete_webhook(bigint, text);
+drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
+drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
+-- claim_webhooks and list_webhooks return a table over an adopted table, not
+-- the managed table's row type.
+drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
+drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
+-- duplicate = true when the source and tenant saw the message id before (the sender retried).
+-- max_attempts is the source's limit, 8 when null.
+create or replace function better_supabase.receive_webhook(
+  source text,
+  message_id text,
+  event_type text,
+  payload jsonb,
+  headers jsonb default '{}',
+  tenant text default null,
+  max_attempts integer default null
+)
+returns table (id bigint, duplicate boolean)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  inbox_id bigint;
+begin
+  -- The adopted table's unique constraint is unknown, so a lock per
+  -- message serializes the lookup and the insert.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('webhook-inbox'), pg_catalog.hashtext(concat_ws(':', source, receive_webhook.tenant, message_id)));
+  select w."id" into inbox_id from "better_supabase"."webhook_inbox" w
+  where w."source" = receive_webhook.source
+    and w."tenant" is not distinct from receive_webhook.tenant
+    and w."message_id" = receive_webhook.message_id
+  limit 1;
+  if inbox_id is not null then
+    return query select inbox_id, true;
+    return;
+  end if;
+  insert into "better_supabase"."webhook_inbox" ("source", "message_id", "event_type", "payload", "headers", "tenant", "max_attempts")
+  values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
+  returning "id" into inbox_id;
+  return query select inbox_id, false;
+end;
+$$;
+
+-- A message whose lease ran out on its last attempt lost its worker
+-- (fail_webhook marks it dead otherwise), so the claim marks it dead.
+create or replace function better_supabase.claim_webhooks(
+  source text,
+  worker text,
+  batch integer default 10,
+  lease interval default '5 minutes'
+)
+returns table (id bigint, source text, message_id text, event_type text, payload jsonb, headers jsonb, status text, attempts integer, max_attempts integer, available_at timestamptz, locked_by text, locked_until timestamptz, last_error text, received_at timestamptz, processed_at timestamptz, tenant text, checkpoint jsonb)
+language sql
+set search_path = ''
+as $$
+  update "better_supabase"."webhook_inbox" d
+  set "status" = 'dead', "last_error" = 'The lease ran out on the last attempt', "locked_by" = null, "locked_until" = null
+  where d."source" = claim_webhooks.source and d."status" = 'processing'
+    and d."locked_until" < now() and d."attempts" >= d."max_attempts";
+  with next as materialized (
+    select c."id" from "better_supabase"."webhook_inbox" c
+    where c."source" = claim_webhooks.source
+      and (
+        (c."status" = 'pending' and c."available_at" <= now())
+        or (c."status" = 'processing' and c."locked_until" < now())
+      )
+    order by c."available_at", c."id"
+    for update skip locked
+    limit batch
+  )
+  update "better_supabase"."webhook_inbox" w
+  set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "locked_until" = now() + lease
+  from next
+  where w."id" = next."id"
+  returning w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant", w."checkpoint"
+$$;
+
+-- attempt is the attempts value the claim returned: it is the lease token,
+-- so a call that lost its lease (and the claim that took the message over,
+-- even under the same worker name) can't complete, fail or extend it.
+-- Without attempt, the worker name alone decides.
+create or replace function better_supabase.complete_webhook(inbox_id bigint, worker text, attempt integer default null)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with done as (
+    update "better_supabase"."webhook_inbox"
+    set "status" = 'processed', "processed_at" = now(), "locked_by" = null, "locked_until" = null, "last_error" = null
+    where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
+      and (attempt is null or "attempts" = attempt)
+    returning 1
+  )
+  select exists (select 1 from done)
+$$;
+
+create or replace function better_supabase.fail_webhook(
+  inbox_id bigint,
+  worker text,
+  error text,
+  retry_in interval default null,
+  attempt integer default null
+)
+returns text
+language sql
+set search_path = ''
+as $$
+  update "better_supabase"."webhook_inbox"
+  set "status" = case when "attempts" >= "max_attempts" then 'dead' else 'pending' end,
+      "available_at" = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, "attempts"))),
+      "last_error" = left(error, 4000),
+      "locked_by" = null,
+      "locked_until" = null
+  where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
+    and (attempt is null or "attempts" = attempt)
+  returning "status"
+$$;
+
+-- Renews the lease of a message the worker still holds for lease more, and
+-- returns the lease in seconds; no row when the lease was lost.
+create or replace function better_supabase.extend_webhook(
+  inbox_id bigint,
+  worker text,
+  attempt integer,
+  lease interval default '5 minutes'
+)
+returns double precision
+language sql
+set search_path = ''
+as $$
+  update "better_supabase"."webhook_inbox"
+  set "locked_until" = now() + lease
+  where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
+    and "attempts" = attempt
+  returning extract(epoch from lease)::double precision
+$$;
+
+-- Saves progress for a message the worker still holds, merged into its
+-- checkpoint, so a retry resumes there. False when the lease was lost.
+create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb, attempt integer default null)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with saved as (
+    update "better_supabase"."webhook_inbox"
+    set "checkpoint" = "checkpoint" || coalesce(fields, '{}')
+    where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
+      and (attempt is null or "attempts" = attempt)
+    returning 1
+  )
+  select exists (select 1 from saved)
+$$;
+
+-- A tenant's messages, newest first, optionally of one source or status.
+create or replace function better_supabase.list_webhooks(
+  for_tenant text,
+  for_source text default null,
+  for_status text default null,
+  max_rows integer default 100
+)
+returns table (id bigint, source text, message_id text, event_type text, payload jsonb, headers jsonb, status text, attempts integer, max_attempts integer, available_at timestamptz, locked_by text, locked_until timestamptz, last_error text, received_at timestamptz, processed_at timestamptz, tenant text, checkpoint jsonb)
+language sql
+stable
+set search_path = ''
+as $$
+  select w."id", w."source", w."message_id", w."event_type", w."payload", w."headers", w."status", w."attempts", w."max_attempts", w."available_at", w."locked_by", w."locked_until", w."last_error", w."received_at", w."processed_at", w."tenant", w."checkpoint" from "better_supabase"."webhook_inbox" w
+  where w."tenant" = for_tenant
+    and (for_source is null or w."source" = for_source)
+    and (for_status is null or w."status" = for_status)
+  order by w."received_at" desc, w."id" desc
+  limit least(greatest(max_rows, 1), 1000)
+$$;
+
+-- Deletes up to batch processed messages (and dead ones with include_dead)
+-- older than older_than, of one tenant when for_tenant is set (all of that
+-- tenant's messages, whatever their status, with older_than '0'). A sender
+-- that retries a purged message id gets it stored again, so keep older_than
+-- above the sender's retry window.
+-- Nightly with pg_cron: select cron.schedule('purge-webhooks', '30 3 * * *', 'select better_supabase.purge_webhooks()');
+create or replace function better_supabase.purge_webhooks(
+  older_than interval default '30 days',
+  include_dead boolean default false,
+  batch integer default 10000,
+  for_tenant text default null
+)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from "better_supabase"."webhook_inbox"
+    where "id" in (
+      select w."id" from "better_supabase"."webhook_inbox" w
+      where ((w."status" = 'processed' and w."processed_at" < now() - older_than)
+        or (include_dead and w."status" = 'dead' and w."received_at" < now() - older_than))
+        and (for_tenant is null or w."tenant" = for_tenant)
+      order by w."id"
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
+revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
+grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
+revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
+grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
+revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer) from public, anon, authenticated;
+grant execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer) to service_role;
+revoke execute on function better_supabase.extend_webhook(bigint, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_webhook(bigint, text, integer, interval) to service_role;
+revoke execute on function better_supabase.checkpoint_webhook(bigint, text, jsonb, integer) from public, anon, authenticated;
+grant execute on function better_supabase.checkpoint_webhook(bigint, text, jsonb, integer) to service_role;
+revoke execute on function better_supabase.list_webhooks(text, text, text, integer) from public, anon, authenticated;
+grant execute on function better_supabase.list_webhooks(text, text, text, integer) to service_role;
+revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
+grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== adopt: data supabase/better-supabase-data/900_better_supabase_09_webhook_inbox.sql
+-- better-supabase module: webhook-inbox
+-- @bs-module-data webhook-inbox
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('webhook-inbox', 6, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

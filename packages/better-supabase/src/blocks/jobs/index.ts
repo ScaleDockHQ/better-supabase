@@ -59,6 +59,8 @@ export type {
   DrainResult,
   DrainRouteOptions,
   DrainRouteResult,
+  EnqueueOnceOptions,
+  EnqueueOnceResult,
   EnqueueOptions,
   EnsureSchedulesOptions,
   EnsureSchedulesResult,

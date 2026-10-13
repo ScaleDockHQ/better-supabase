@@ -26,6 +26,52 @@ export interface IncomingWebhooksOptions
   };
   /** Request headers stored with each delivery. Defaults to none. */
   readonly keepHeaders?: readonly string[];
+  /**
+   * Where verified deliveries go. Defaults to `inboxDestination(sql, {
+   * source })`, the webhook inbox; `jobsDestination(jobs, { queue })` sends
+   * them to a jobs queue. A destination can route on the endpoint's
+   * metadata.
+   */
+  readonly destination?: IncomingDestination;
+}
+
+/** A verified delivery, handed to the destination. */
+export interface IncomingDelivery {
+  readonly endpoint: {
+    readonly id: string;
+    readonly tenant: string;
+    readonly metadata: Readonly<Record<string, unknown>>;
+  };
+  /** `options.source`. */
+  readonly source: string;
+  /**
+   * Unique per endpoint and delivery: the signed `webhook-id`, the HMAC, the
+   * `webhook-id` header or a random id. A repeated delivery repeats it.
+   */
+  readonly messageId: string;
+  /** The payload's `type` when it is a string. */
+  readonly type: string | null;
+  /** The parsed JSON body, or `{ body }` when it isn't JSON. */
+  readonly payload: unknown;
+  /** `options.keepHeaders` and the endpoint id header, lowercased. */
+  readonly headers: Readonly<Record<string, string>>;
+}
+
+export interface IncomingDestinationResult {
+  readonly id: string | number;
+  /** True when the destination had the delivery already; `receive` answers 200. */
+  readonly duplicate: boolean;
+}
+
+/**
+ * Stores or forwards verified deliveries. It must detect a repeated
+ * `endpoint.id` and `messageId` and report it as a duplicate. Versioned:
+ * `apiVersion: 1`.
+ */
+export interface IncomingDestination {
+  readonly apiVersion: 1;
+  readonly name: string;
+  deliver(delivery: IncomingDelivery): Promise<IncomingDestinationResult>;
 }
 
 export interface CreateIncomingWebhookInput {
@@ -141,4 +187,5 @@ export interface EndpointRow {
   readonly signature_header: string | null;
   readonly max_body_bytes: number;
   readonly previous_secret?: string | null;
+  readonly metadata?: Readonly<Record<string, unknown>> | null;
 }

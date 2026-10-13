@@ -25,8 +25,16 @@ export {
   createIncomingWebhooks,
   INCOMING_ENDPOINT_HEADER,
 } from "./incoming.ts";
+export {
+  inboxDestination,
+  jobsDestination,
+  type JobsDestinationOptions,
+} from "./destinations.ts";
 export type {
   CreatedIncomingWebhook,
+  IncomingDelivery,
+  IncomingDestination,
+  IncomingDestinationResult,
   RotatedIncomingSecret,
   UpdatedIncomingWebhook,
   UpdateIncomingWebhookInput,

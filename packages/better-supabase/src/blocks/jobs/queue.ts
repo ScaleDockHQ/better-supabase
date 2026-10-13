@@ -6,6 +6,7 @@ import type {
   ClaimOptions,
   DrainResult,
   DrainRouteResult,
+  EnqueueOptions,
   FailOptions,
   Job,
   JobHandler,
@@ -424,33 +425,49 @@ export function createJobs<const Q extends QueueSchemas>(
       return counts.reduce((sum, count) => sum + count, 0);
     });
 
+  const delayOf = (enqueueOptions: EnqueueOptions): number =>
+    enqueueOptions.delay ??
+    (enqueueOptions.runAt
+      ? Math.max(
+          0,
+          Math.ceil(
+            (enqueueOptions.runAt.epochMilliseconds - now().epochMilliseconds) /
+              1000,
+          ),
+        )
+      : 0);
+
   return {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
         const valid = await validate(schemaOf(queue), payload, "payload");
         if (!valid.ok) return valid;
-        const delay =
-          enqueueOptions.delay ??
-          (enqueueOptions.runAt
-            ? Math.max(
-                0,
-                Math.ceil(
-                  (enqueueOptions.runAt.epochMilliseconds -
-                    now().epochMilliseconds) /
-                    1000,
-                ),
-              )
-            : 0);
         return run(() =>
           transport.send(
             queue,
             withContext(valid.data, enqueueOptions.context),
-            delay,
+            delayOf(enqueueOptions),
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
             enqueueOptions.dedupe,
           ),
         );
+      });
+    },
+    enqueueOnce(queue, payload, enqueueOptions) {
+      return AsyncResult.from(async () => {
+        const valid = await validate(schemaOf(queue), payload, "payload");
+        if (!valid.ok) return valid;
+        return run(() => {
+          if (!transport.sendOnce) sqlOnly("enqueueOnce");
+          return transport.sendOnce(
+            queue,
+            withContext(valid.data, enqueueOptions.context),
+            delayOf(enqueueOptions),
+            enqueueOptions.maxAttempts ?? 5,
+            enqueueOptions.dedupeKey,
+          );
+        });
       });
     },
     claim: claim,

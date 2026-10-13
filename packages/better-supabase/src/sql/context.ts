@@ -176,9 +176,13 @@ export interface ModuleAction extends ModuleEmit {
   readonly audit: ModuleAudit | false;
 }
 
-// access and jobs write their functions into better_supabase whatever
-// sql.modules.<name>.schema says; the schema only places access's tables.
-const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set(["access", "jobs"]);
+// These modules write their functions into better_supabase whatever
+// sql.modules.<name>.schema says; the schema only places their tables.
+const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
+  "access",
+  "jobs",
+  "webhook-inbox",
+]);
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
 export interface ModuleContractFunction {
