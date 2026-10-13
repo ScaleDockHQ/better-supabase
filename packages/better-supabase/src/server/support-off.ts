@@ -17,6 +17,7 @@ export const supportOff: SupportApi = {
   stop: notConfigured,
   revoke: notConfigured,
   current: () => Promise.resolve(undefined),
+  resolve: () => Promise.resolve(undefined),
   list: notConfigured,
   expire: notConfigured,
   expireRoute: () => () =>

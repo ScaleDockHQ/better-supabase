@@ -70,6 +70,12 @@ export interface SupportOptions {
     | Promise<Readonly<Record<string, unknown>>>;
   readonly policy?: SupportPolicy;
   readonly cookie?: SupportCookieOptions;
+  /**
+   * Where a request names its support session, for apps that keep it in a
+   * header or their own request store instead of the `bs-support` cookie.
+   * Defaults to reading the cookie.
+   */
+  readonly sessionId?: (request: Request) => string | undefined;
 }
 
 export interface SupportStartRequest {
@@ -120,9 +126,18 @@ export interface SupportApi {
    * staff with the revoke permission.
    */
   revoke(caller: AuthState, sessionId: string): AsyncResult<boolean>;
-  /** The running session the request's cookie names for `auth`, if any. */
+  /** The running session the request names (`sessionIdOf`) for `auth`, if any. */
   current(
     request: Request,
+    auth: AuthState,
+  ): Promise<ActiveSupport | undefined>;
+  /**
+   * The running session `sessionId` for the admin in `auth`, if any. Use it
+   * when the app keeps the session id in its own request context; pass the
+   * result to `contextFor(auth, { support })` or `dbFor(auth, context, { support })`.
+   */
+  resolve(
+    sessionId: string,
     auth: AuthState,
   ): Promise<ActiveSupport | undefined>;
   /** The sessions `caller` may view (the SQL store checks the view permission). */
@@ -143,7 +158,7 @@ export interface SupportApi {
   expireRoute(
     options: SupportExpireRouteOptions,
   ): (request: Request) => Promise<Response>;
-  /** The support session id in a request's cookie. */
+  /** The support session id a request names: `options.sessionId`, or the cookie. */
   sessionIdOf(request: Request): string | undefined;
   /** `Set-Cookie` that clears the support cookie. */
   clearCookie(): string;
@@ -312,6 +327,66 @@ function createSupport(
       return ok(expired);
     });
 
+  const sessionIdOf = (request: Request): string | undefined => {
+    if (options.sessionId) {
+      try {
+        const id = options.sessionId(request);
+        return id === "" ? undefined : id;
+      } catch (cause) {
+        events.logger.warn("support.sessionId threw", { cause });
+        return;
+      }
+    }
+    return supportCookieValue(request.headers.get("cookie"), cookieName);
+  };
+
+  const resolve = async (
+    id: string,
+    auth: AuthState,
+  ): Promise<ActiveSupport | undefined> => {
+    if (auth.kind !== "user") return;
+    // A support session's own token never nests another one.
+    if (auth.claims["act"] !== undefined) return;
+    if (!id) return;
+    let session: SupportSession | undefined;
+    let claims: Readonly<Record<string, unknown>>;
+    try {
+      session = await store.get(id, auth.user.id, auth.claims);
+      if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
+        return;
+      }
+      if (policy.readOnly !== "default" && !session.readOnly) {
+        session = { ...session, readOnly: true };
+      }
+      claims = supportClaims(session, await cachedTargetClaims(session));
+    } catch (cause) {
+      // The admin keeps their own view; a store outage never widens access.
+      events.logger.warn("Could not load the support session", { cause });
+      return;
+    }
+    if (claimsSchema) {
+      const checked = await validate(claimsSchema, claims, "claims");
+      if (!checked.ok) {
+        events.logger.warn(
+          "The support target's claims fail the claims schema",
+          { sessionId: session.id },
+        );
+        return;
+      }
+      if (typeof checked.data === "object" && checked.data !== null) {
+        claims = { ...claims, ...checked.data };
+      }
+    }
+    return {
+      session,
+      admin: {
+        id: auth.user.id,
+        ...(auth.user.email ? { email: auth.user.email } : {}),
+      },
+      claims,
+    };
+  };
+
   return {
     expire,
     expireRoute: (routeOptions) =>
@@ -445,49 +520,11 @@ function createSupport(
     },
 
     async current(request, auth) {
-      if (auth.kind !== "user") return;
-      // A support session's own token never nests another one.
-      if (auth.claims["act"] !== undefined) return;
-      const id = supportCookieValue(request.headers.get("cookie"), cookieName);
-      if (!id) return;
-      let session: SupportSession | undefined;
-      let claims: Readonly<Record<string, unknown>>;
-      try {
-        session = await store.get(id, auth.user.id, auth.claims);
-        if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
-          return;
-        }
-        if (policy.readOnly !== "default" && !session.readOnly) {
-          session = { ...session, readOnly: true };
-        }
-        claims = supportClaims(session, await cachedTargetClaims(session));
-      } catch (cause) {
-        // The admin keeps their own view; a store outage never widens access.
-        events.logger.warn("Could not load the support session", { cause });
-        return;
-      }
-      if (claimsSchema) {
-        const checked = await validate(claimsSchema, claims, "claims");
-        if (!checked.ok) {
-          events.logger.warn(
-            "The support target's claims fail the claims schema",
-            { sessionId: session.id },
-          );
-          return;
-        }
-        if (typeof checked.data === "object" && checked.data !== null) {
-          claims = { ...claims, ...checked.data };
-        }
-      }
-      return {
-        session,
-        admin: {
-          id: auth.user.id,
-          ...(auth.user.email ? { email: auth.user.email } : {}),
-        },
-        claims,
-      };
+      const id = sessionIdOf(request);
+      return id ? resolve(id, auth) : undefined;
     },
+
+    resolve,
 
     list(caller, filter) {
       return AsyncResult.from(async () => {
@@ -503,8 +540,7 @@ function createSupport(
       });
     },
 
-    sessionIdOf: (request) =>
-      supportCookieValue(request.headers.get("cookie"), cookieName),
+    sessionIdOf,
     clearCookie: () => clearSupportCookie(options.cookie),
   };
 }

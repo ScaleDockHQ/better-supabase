@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
@@ -371,6 +372,51 @@ describe("support sessions on the server", () => {
     const active = await server.support.current(cookie, admin());
     expect(active?.session.readOnly).toBe(true);
     expect(active?.claims["act"]).toMatchObject({ read_only: true });
+  });
+
+  it("resolves a session id the app keeps in its own request context", async () => {
+    const store = new AsyncLocalStorage<{ supportSessionId?: string }>();
+    const { server, pg } = setup({
+      support: supportSessions({
+        store: memorySupportStore({ [TARGET]: { role: "authenticated" } }),
+        sessionId: () => store.getStore()?.supportSessionId,
+      }),
+    });
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+    const bare = new Request("https://a.test/");
+    expect(server.support.sessionIdOf(bare)).toBeUndefined();
+    await store.run({ supportSessionId: session.id }, async () => {
+      expect(server.support.sessionIdOf(bare)).toBe(session.id);
+      expect((await server.support.current(bare, admin()))?.session.id).toBe(
+        session.id,
+      );
+    });
+    expect(await server.support.resolve("", admin())).toBeUndefined();
+    const active = await server.support.resolve(session.id, admin());
+    if (!active) throw new Error("no support session");
+    expect(active.session.targetUserId).toBe(TARGET);
+    const auth = server.contextFor(admin(), { support: active }).auth;
+    expect(auth.kind === "user" ? auth.user.id : undefined).toBe(TARGET);
+    const db = server.dbFor(admin(), {}, { support: active });
+    expect(() => db.$client).toThrow(/support session/);
+    await db.organizations.findMany().orThrow();
+    expect(pg.claims.at(-1)).toMatchObject({ sub: TARGET });
+  });
+
+  it("treats a throwing sessionId reader as no session", async () => {
+    const { server } = setup({
+      support: supportSessions({
+        store: memorySupportStore(),
+        sessionId: () => {
+          throw new Error("no store");
+        },
+      }),
+    });
+    expect(
+      server.support.sessionIdOf(new Request("https://a.test/")),
+    ).toBeUndefined();
   });
 
   it("loads the support session while the tenant resolver runs", async () => {

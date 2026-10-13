@@ -275,8 +275,16 @@ export interface BetterServer<
     auth: AuthState,
     headers?: Readonly<Record<string, string>>,
   ): SupabaseClient;
-  /** Repositories for an auth state (e.g. one resolved by the proxy). */
-  dbFor(auth: AuthState, context?: RequestContext): Db<M, F, E, SupabaseClient>;
+  /**
+   * Repositories for an auth state (e.g. one resolved by the proxy). With
+   * `options.support`, from `support.resolve()` or `support.current()`, they
+   * run as the support session's target, like `contextFor(auth, { support }).db`.
+   */
+  dbFor(
+    auth: AuthState,
+    context?: RequestContext,
+    options?: { readonly support?: ActiveSupport },
+  ): Db<M, F, E, SupabaseClient>;
   /** Service-role repositories. Bypasses RLS; the actor is `service`. */
   admin(context?: RequestContext): Db<M, F, E, SupabaseClient>;
   /**
