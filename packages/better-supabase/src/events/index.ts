@@ -272,6 +272,7 @@ export type {
   AuditRevealEventData,
   BillingEventData,
   CommentEventData,
+  CommerceEventData,
   ConnectorEventData,
   CredentialEventData,
   DataExportEventData,

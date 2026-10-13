@@ -376,6 +376,34 @@ export interface SaasEventData {
   readonly error?: string | null;
 }
 
+/**
+ * Events from the catalog and inventory blocks. Amounts and quantities are
+ * text: JSON numbers lose `bigint` precision.
+ */
+export interface CommerceEventData {
+  readonly organizationId: string | null;
+  readonly id?: string;
+  readonly slug?: string;
+  readonly kind?: string | null;
+  readonly from?: string;
+  readonly to?: string;
+  readonly productId?: string;
+  readonly variantId?: string;
+  readonly sku?: string;
+  readonly priceListId?: string | null;
+  readonly currency?: string;
+  readonly amount?: string;
+  readonly previousAmount?: string | null;
+  readonly locationId?: string;
+  readonly quantity?: string;
+  readonly reason?: string;
+  readonly status?: string;
+  readonly available?: string;
+  readonly reorderPoint?: string;
+  readonly supplierType?: string | null;
+  readonly supplierId?: string | null;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -509,6 +537,16 @@ export interface BlockEventMap {
   "reminder.sent": SaasSubjectEventData;
   "import.completed": SaasEventData;
   "import.failed": SaasEventData;
+  "product.created": CommerceEventData;
+  "product.updated": CommerceEventData;
+  "product.status_changed": CommerceEventData;
+  "product.deleted": CommerceEventData;
+  "variant.created": CommerceEventData;
+  "variant.updated": CommerceEventData;
+  "variant.deleted": CommerceEventData;
+  "catalog.price_changed": CommerceEventData;
+  "storefront.published": CommerceEventData;
+  "storefront.unpublished": CommerceEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

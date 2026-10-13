@@ -616,6 +616,11 @@
       "types": "./dist/blocks/commerce/index.d.ts",
       "default": "./dist/blocks/commerce/index.js"
     },
+    "./blocks/catalog": {
+      "@better-supabase/source": "./src/blocks/catalog/index.ts",
+      "types": "./dist/blocks/catalog/index.d.ts",
+      "default": "./dist/blocks/catalog/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1183,6 +1188,10 @@
       "./blocks/commerce": {
         "types": "./dist/blocks/commerce/index.d.ts",
         "default": "./dist/blocks/commerce/index.js"
+      },
+      "./blocks/catalog": {
+        "types": "./dist/blocks/catalog/index.d.ts",
+        "default": "./dist/blocks/catalog/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

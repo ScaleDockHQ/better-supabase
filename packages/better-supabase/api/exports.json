@@ -1931,6 +1931,7 @@
       "CloudEvent",
       "CloudEventOptions",
       "CommentEventData",
+      "CommerceEventData",
       "ConnectorEventData",
       "CredentialEventData",
       "DataExportEventData",
@@ -3530,6 +3531,48 @@
       "TaxRates",
       "TaxReverseInput",
       "TaxTransaction"
+    ]
+  },
+  "./blocks/catalog": {
+    "values": [
+      "catalogSubjects",
+      "createCatalog",
+      "dbTransport",
+      "extendBlock",
+      "PRODUCT_KINDS",
+      "PRODUCT_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Catalog",
+      "CatalogOptions",
+      "CatalogSubjectsOptions",
+      "CategoryInput",
+      "CollectionInput",
+      "OptionInput",
+      "OptionValue",
+      "Price",
+      "PriceInput",
+      "PriceListInput",
+      "ProductInput",
+      "ProductKind",
+      "ProductStatus",
+      "RpcClient",
+      "SavedCategory",
+      "SavedCollection",
+      "SavedOption",
+      "SavedPrice",
+      "SavedProduct",
+      "SavedVariant",
+      "StatusChange",
+      "VariantInput",
+      "VariantPriceOptions"
     ]
   },
   "./blocks/announcements/react": {

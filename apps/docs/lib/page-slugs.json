@@ -36,6 +36,7 @@
   "blocks/attachments",
   "blocks/audit",
   "blocks/billing",
+  "blocks/catalog",
   "blocks/comments",
   "blocks/commerce",
   "blocks/connectors",
