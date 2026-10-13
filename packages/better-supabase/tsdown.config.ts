@@ -70,6 +70,7 @@ const entries = [
   "blocks/imports/index",
   "blocks/rank/index",
   "blocks/versions/index",
+  "blocks/trash/index",
   "ai-sdk/index",
   "ai-sdk/chat/index",
   "ai-sdk/files/index",

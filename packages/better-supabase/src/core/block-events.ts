@@ -353,7 +353,10 @@ export type SubjectEventType =
   | "reminder.sent"
   | "version.created"
   | "version.restored"
-  | "version.deleted";
+  | "version.deleted"
+  | "subject.trashed"
+  | "subject.restored"
+  | "subject.purged";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -386,6 +389,8 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly label?: string | null;
   readonly source?: string;
   readonly restoredFrom?: number;
+  /** The trash batch: a subject and the children trashed with it. */
+  readonly batchId?: string;
 }
 
 /** Every block event type and its data. */
@@ -524,6 +529,9 @@ export interface BlockEventMap {
   "version.created": CollaborationEventData;
   "version.restored": CollaborationEventData;
   "version.deleted": CollaborationEventData;
+  "subject.trashed": CollaborationEventData;
+  "subject.restored": CollaborationEventData;
+  "subject.purged": CollaborationEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

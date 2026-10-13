@@ -62,6 +62,7 @@ import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TENANT } from "./modules/tenant.ts";
+import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
@@ -167,6 +168,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SUBJECTS),
       built(RANK),
       built(VERSIONS),
+      built(TRASH),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

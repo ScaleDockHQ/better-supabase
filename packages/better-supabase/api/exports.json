@@ -3485,6 +3485,22 @@
       "VersionSource"
     ]
   },
+  "./blocks/trash": {
+    "values": [
+      "createTrash",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Trash",
+      "TrashBatch",
+      "TrashItem",
+      "TrashListOptions",
+      "TrashOptions"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

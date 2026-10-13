@@ -616,6 +616,11 @@
       "types": "./dist/blocks/versions/index.d.ts",
       "default": "./dist/blocks/versions/index.js"
     },
+    "./blocks/trash": {
+      "@better-supabase/source": "./src/blocks/trash/index.ts",
+      "types": "./dist/blocks/trash/index.d.ts",
+      "default": "./dist/blocks/trash/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1183,6 +1188,10 @@
       "./blocks/versions": {
         "types": "./dist/blocks/versions/index.d.ts",
         "default": "./dist/blocks/versions/index.js"
+      },
+      "./blocks/trash": {
+        "types": "./dist/blocks/trash/index.d.ts",
+        "default": "./dist/blocks/trash/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

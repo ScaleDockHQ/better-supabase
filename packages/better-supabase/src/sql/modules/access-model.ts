@@ -37,6 +37,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "reminders.*",
     "imports.*",
     "versions.*",
+    "trash.*",
   ],
   member: [
     "organization.read",
@@ -66,6 +67,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "versions.read",
     "versions.create",
     "versions.restore",
+    "trash.read",
+    "trash.create",
+    "trash.restore",
   ],
   viewer: ["organization.read"],
 };
@@ -200,6 +204,12 @@ export const MODULE_PERMISSIONS = {
     restore: "versions.restore",
     manage: "versions.manage",
   },
+  trash: {
+    read: "trash.read",
+    create: "trash.create",
+    restore: "trash.restore",
+    manage: "trash.manage",
+  },
 } as const;
 
 /**
@@ -306,6 +316,12 @@ export const MODULE_PERMISSION_SCOPES: {
   reminders: { manage: "tenant", read: "tenant" },
   imports: { manage: "tenant" },
   versions: {
+    read: "tenant",
+    create: "tenant",
+    restore: "tenant",
+    manage: "tenant",
+  },
+  trash: {
     read: "tenant",
     create: "tenant",
     restore: "tenant",
