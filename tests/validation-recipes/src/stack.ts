@@ -196,6 +196,10 @@ export async function withRecipe(
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // validation-centrakit installs blocks on the same database; concurrent installs deadlock.
+    await client.query(
+      "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
+    );
     await client.query(migration(recipe));
     await body(new Session(client));
   } finally {
