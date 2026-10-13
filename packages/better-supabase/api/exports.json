@@ -3590,6 +3590,43 @@
       "OpenedDocument"
     ]
   },
+  "./blocks/drive": {
+    "values": [
+      "createDrive",
+      "dbTransport",
+      "DRIVE_ROOT",
+      "driveSubject",
+      "driveTree",
+      "fileTypeCategory",
+      "nodeType",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Drive",
+      "DriveBatch",
+      "DriveBinEntry",
+      "DriveConflict",
+      "DriveCrumb",
+      "DriveFile",
+      "DriveFileType",
+      "DriveGrant",
+      "DriveLinkView",
+      "DriveNode",
+      "DriveNodeKind",
+      "DriveOptions",
+      "DrivePage",
+      "DrivePrincipal",
+      "DrivePrincipalType",
+      "DriveRevision",
+      "DriveStoredObject",
+      "DriveTreeData",
+      "DriveUpload",
+      "NewDriveFile",
+      "NewDriveFolder"
+    ]
+  },
   "./blocks/reactions/react": {
     "values": [
       "useReactions"
