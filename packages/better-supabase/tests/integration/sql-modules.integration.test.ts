@@ -1537,6 +1537,79 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("reads comments through a grant on the subject record's provider scope", async () => {
+    const pd = `authz_scope_${RUN}`;
+    const me = "00000000-0000-4000-8000-0000000000b1";
+    const granted = "00000000-0000-4000-8000-0000000000b2";
+    const hidden = "00000000-0000-4000-8000-0000000000b3";
+    const layout = {
+      modules: {
+        access: { model: "provider" as const },
+        comments: {
+          options: {
+            subjects: {
+              project: {
+                table: `${pd}.projects`,
+                idType: "uuid",
+                scope: "project",
+              },
+            },
+          },
+        },
+      },
+      accessProvider: {
+        name: "test",
+        scope: "organization",
+        scopes: ["organization", "project"],
+        idType: "uuid" as const,
+        functions: {
+          idsWith: `${pd}.{scope}_ids_with({permission})`,
+          isPlatform: `${pd}.is_platform({permission})`,
+        },
+      },
+    };
+    const client = await pool.connect();
+    try {
+      // The module's functions and policies are shared, so this runs in a
+      // transaction that rolls back.
+      await client.query("begin");
+      await client.query(`
+        create schema ${pd};
+        grant usage on schema ${pd} to authenticated;
+        create table ${pd}.projects (id uuid primary key, organization_id uuid not null);
+        grant select on ${pd}.projects to authenticated;
+        insert into ${pd}.projects values ('${granted}', '${ACME}'), ('${hidden}', '${ACME}');
+        create function ${pd}.organization_ids_with(permission text) returns setof uuid
+        language sql stable as $$ select null::uuid where false $$;
+        create function ${pd}.project_ids_with(permission text) returns setof uuid
+        language sql stable as $$ select '${granted}'::uuid where permission = 'comments.read' $$;
+        create function ${pd}.is_platform(permission text) returns boolean
+        language sql stable as $$ select false $$;
+        grant execute on all functions in schema ${pd} to authenticated;
+        insert into auth.users (id, instance_id, aud, role, email)
+        values ('${me}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'scope-${RUN}@example.com');`);
+      await client.query(moduleBody("access", layout)!);
+      await client.query(moduleBody("comments", layout)!);
+      await client.query(
+        `insert into better_supabase.comments (organization_id, subject_type, subject_id, body, author_id)
+         values ($1, 'project', $2, 'seen', $4), ($1, 'project', $3, 'unseen', $4)`,
+        [ACME, granted, hidden, me],
+      );
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ sub: me, role: "authenticated" }),
+      ]);
+      await client.query("set local role authenticated");
+      const { rows } = await client.query<{ body: string }>(
+        "select body from better_supabase.comments where subject_id = any($1)",
+        [[granted, hidden]],
+      );
+      expect(rows.map((row) => row.body)).toEqual(["seen"]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `block_${RUN}`;
     const jobs = createJobs(postgres.admin, {

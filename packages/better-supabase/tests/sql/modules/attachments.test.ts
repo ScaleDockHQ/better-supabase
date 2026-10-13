@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -82,6 +83,52 @@ describe("attachments module", () => {
         },
       }),
     ).toThrow(/tenant can't be false/);
+  });
+
+  it("takes keys per subject type and checks a subject record's provider scope", () => {
+    const sql = sqlOf(["attachments"], {
+      subjects: {
+        contract: {
+          table: "contracts",
+          permissions: { read: "contracts.read", upload: "contracts.edit" },
+        },
+      },
+    });
+    expect(sql).toContain(
+      `("subject_type" = 'contract' and ("organization_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
+    );
+    expect(sql).toContain(
+      `case "subject_type" when 'contract' then 'contracts.edit' else 'attachments.upload' end`,
+    );
+    expect(sql).toContain(
+      `case a."subject_type" when 'contract' then 'contracts.read' else 'attachments.read' end`,
+    );
+    expect(() =>
+      sqlOf(["attachments"], {
+        subjects: { contract: { table: "c", permissions: { write: "x" } } },
+      }),
+    ).toThrow(/use read, upload and manage/);
+
+    const scoped = renderModules(["attachments"], {
+      modules: {
+        access: { model: "provider" },
+        attachments: {
+          options: {
+            subjects: { project: { table: "projects", scope: "project" } },
+          },
+        },
+      },
+      accessProvider: moduleProvider,
+    })
+      .filter((file) => file.module === "attachments")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(scoped).toContain(
+      `or "subject_id" in (select t.id::text from authz.ids_project('attachments.read') as t(id))`,
+    );
+    expect(scoped).toContain(
+      `or a."subject_id" in (select t.id::text from authz.ids_project('attachments.manage') as t(id))`,
+    );
   });
 
   it("accepts any valid bucket id, short ones included", () => {

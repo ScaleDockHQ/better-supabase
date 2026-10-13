@@ -146,12 +146,13 @@ describe("accessProviderMode", () => {
       "/project",
     );
 
-  it("passes the tenant scope, its id type and the functions", () => {
+  it("passes the tenant scope, every scope, its id type and the functions", () => {
     expect(accessProviderMode(config())).toEqual({
       kind: "provider",
       access: {
         name: "stub",
         scope: "organization",
+        scopes: ["organization", "project"],
         idType: "uuid",
         functions: stubProvider.functions,
       },

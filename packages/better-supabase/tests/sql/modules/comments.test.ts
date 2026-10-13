@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -115,6 +116,75 @@ describe("comments module", () => {
         subjects: { deal: { table: "deals", permissions: "x" } },
       }),
     ).toThrow(/must be \{ read\?/);
+  });
+
+  it("checks a subject record's provider scope next to the tenant", () => {
+    const withProvider = (options: Readonly<Record<string, unknown>>) =>
+      renderModules(["comments"], {
+        modules: { access: { model: "provider" }, comments: { options } },
+        accessProvider: moduleProvider,
+      })
+        .filter((file) => file.module === "comments")
+        .map((file) => file.contents)
+        .join("\n");
+    const sql = withProvider({
+      subjects: {
+        project: { table: "projects", scope: "project" },
+        note: { table: "notes" },
+      },
+    });
+    expect(sql).toContain(
+      `("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or "subject_id" in (select t.id::text from authz.ids_project('comments.read') as t(id))))`,
+    );
+    expect(sql).toContain(
+      `(not coalesce("subject_type" in ('project'), false) and "organization_id" in (select better_supabase.tenant_ids_with('comments.read')))`,
+    );
+    expect(sql).toContain(
+      `or "subject_id" in (select t.id::text from authz.ids_project('comments.create') as t(id))`,
+    );
+    expect(() =>
+      withProvider({
+        subjects: { project: { table: "projects", scope: "team" } },
+      }),
+    ).toThrow(/"team" is not a scope stub declares below its tenant scope/);
+    expect(() =>
+      withProvider({
+        subjects: { project: { table: "projects", scope: "organization" } },
+      }),
+    ).toThrow(/is not a scope stub declares/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { project: { table: "projects", scope: "project" } },
+      }),
+    ).toThrow(/needs sql.modules.access.model "provider"/);
+  });
+
+  it("applies an enforced readableBy to the read policy", () => {
+    const enforced = sqlOf(["comments"], {
+      subjects: {
+        task: {
+          table: "tasks",
+          readableBy: { sql: "{row}.owner_id = {user}", enforce: true },
+        },
+        note: { table: "notes", readableBy: "{row}.public" },
+      },
+    });
+    expect(enforced).toContain(
+      `and case "subject_type" when 'task' then exists (select 1 from "public"."tasks" s where s."id"::text = "better_supabase"."comments"."subject_id"::text and (s.owner_id = (select auth.uid()))) else true end);`,
+    );
+    expect(enforced).not.toContain("s.public)) else true");
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: {
+          task: { table: "t", readableBy: { sql: "{row}.x", strict: true } },
+        },
+      }),
+    ).toThrow(/readableBy.strict is not an option/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { task: { table: "t", readableBy: { enforce: true } } },
+      }),
+    ).toThrow(/readableBy must be SQL on the subject row/);
   });
 
   it.each([

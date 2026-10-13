@@ -229,6 +229,8 @@ export interface ModuleAccessProvider {
   readonly name: string;
   /** The provider scope tenants are. */
   readonly scope: string;
+  /** Every scope it declares, for `options.subjects.<type>.scope`. */
+  readonly scopes?: readonly string[];
   readonly idType: ModuleIdType;
   readonly functions: AuthorizationFunctions;
   /** The access module's `disabled` setting defaults to these. */
