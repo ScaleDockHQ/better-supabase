@@ -2,6 +2,7 @@ import type { ModulesConfig } from "../config/modules.ts";
 import type { ModuleLayout } from "./module-types.ts";
 import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 
+import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS } from "./modules/access.ts";
@@ -21,12 +22,14 @@ import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
+import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
+import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
@@ -35,6 +38,7 @@ import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
+import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
@@ -44,12 +48,17 @@ import { PUSH } from "./modules/push.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
+import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SSO } from "./modules/sso.ts";
+import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
+import { TAGS } from "./modules/tags.ts";
+import { TEAMS } from "./modules/teams.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
@@ -67,8 +76,8 @@ function built(definition: ModuleDefinition): SqlModule {
   return {
     ...definition,
     get sql() {
-      return (cached ??= definition.build(
-        moduleContext(definition.name, {}),
+      return (cached ??= applyActorWriteGuards(
+        definition.build(moduleContext(definition.name, {}), {}),
         {},
       ));
     },
@@ -144,6 +153,14 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(PUSH),
       built(AI_CACHE),
       built(AI_PROVIDERS),
+      built(NUMBER_SEQUENCES),
+      built(TEAMS),
+      built(TAGS),
+      built(STATE_MACHINE),
+      built(CUSTOM_FIELDS),
+      built(SHARE_LINKS),
+      built(REMINDERS),
+      built(IMPORTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

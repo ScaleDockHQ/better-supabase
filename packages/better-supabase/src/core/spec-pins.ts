@@ -38,6 +38,10 @@ export const SPEC_PINS: {
   readonly aiMessage: "1";
   readonly aiSdkUiMessageStream: "v1";
   readonly anthropicMemoryTool: "20250818";
+  /** RFC 5545 recurrence rules expanded by the reminders block. */
+  readonly rfc5545: "2009-09";
+  /** RFC 4180 CSV read by `parseCsv` and written by `toCsv`. */
+  readonly rfc4180: "2005-10";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -70,4 +74,6 @@ export const SPEC_PINS: {
   aiMessage: "1",
   aiSdkUiMessageStream: "v1",
   anthropicMemoryTool: "20250818",
+  rfc5545: "2009-09",
+  rfc4180: "2005-10",
 };

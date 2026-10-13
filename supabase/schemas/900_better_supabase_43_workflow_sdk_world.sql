@@ -1,4 +1,4 @@
--- better-supabase module: workflow-sdk-world (0.5.1)
+-- better-supabase module: workflow-sdk-world (0.8.0)
 -- @bs-module workflow-sdk-world@1 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.

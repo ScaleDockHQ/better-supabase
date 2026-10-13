@@ -1,9 +1,40 @@
--- better-supabase module: comments (0.5.1)
+-- better-supabase module: comments (0.8.0)
 -- @bs-module comments@3 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Comments on any subject in a tenant. options.subjects maps each subject
@@ -53,14 +84,14 @@ create policy "comments_read" on "better_supabase"."comments" for select to auth
   using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
-  with check (
+  with check ((
     "author_id" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false)
-  );
+  ) and (select better_supabase.actor_may_write()));
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
-  using ("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate')))
-  with check ("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate')));
+  using (("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate'))) and (select better_supabase.actor_may_write()))
+  with check (("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate'))) and (select better_supabase.actor_may_write()));
 
 -- Keeps mentions to distinct members other than the author, a reply on its
 -- parent's subject, and edited_at; a deleted comment keeps no body.
@@ -426,6 +457,24 @@ drop function if exists "api"."comment_subject_readable"(text, text, uuid);
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "api"."edit_comment"(uuid, text, uuid[]);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."create_comment"(tenant uuid, subject_type text, subject_id text, body text, mentions uuid[] default '{}', parent uuid default null, document jsonb default null)
 returns jsonb

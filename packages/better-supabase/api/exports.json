@@ -3314,6 +3314,100 @@
       "ManagedAnnouncement"
     ]
   },
+  "./blocks/number-sequences": {
+    "values": [
+      "createNumberSequences"
+    ],
+    "types": [
+      "NumberSequences",
+      "NumberSequencesOptions"
+    ]
+  },
+  "./blocks/teams": {
+    "values": [
+      "createTeams"
+    ],
+    "types": [
+      "Team",
+      "Teams",
+      "TeamsOptions"
+    ]
+  },
+  "./blocks/tags": {
+    "values": [
+      "createTags"
+    ],
+    "types": [
+      "Tag",
+      "Tags",
+      "TagsOptions"
+    ]
+  },
+  "./blocks/state-machine": {
+    "values": [
+      "createStateMachine"
+    ],
+    "types": [
+      "StateMachine",
+      "StateMachineOptions"
+    ]
+  },
+  "./blocks/custom-fields": {
+    "values": [
+      "createCustomFields"
+    ],
+    "types": [
+      "CustomFields",
+      "CustomFieldsOptions",
+      "FieldDefinition"
+    ]
+  },
+  "./blocks/share-links": {
+    "values": [
+      "createShareLinks"
+    ],
+    "types": [
+      "CreatedShareLink",
+      "ShareLinks",
+      "ShareLinksOptions"
+    ]
+  },
+  "./blocks/reminders": {
+    "values": [
+      "createReminders",
+      "deliverReminder",
+      "expandRule",
+      "planReminderDeliveries",
+      "weekdayName"
+    ],
+    "types": [
+      "DeliveryPayload",
+      "ExpandInput",
+      "PlannedDelivery",
+      "ReminderPlanInput",
+      "Reminders",
+      "RemindersOptions"
+    ]
+  },
+  "./blocks/imports": {
+    "values": [
+      "createImports",
+      "defineImport",
+      "dryRun",
+      "parseCsv",
+      "runImport",
+      "suggestMapping"
+    ],
+    "types": [
+      "DryRunResult",
+      "ImportColumn",
+      "ImportDefinition",
+      "ImportRowError",
+      "Imports",
+      "ImportsOptions",
+      "RunImportResult"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

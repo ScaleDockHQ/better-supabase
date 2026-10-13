@@ -1,0 +1,22 @@
+---
+title: State machine
+description: Allowed status transitions, a history row and a status.changed event.
+---
+
+`state-machine` rejects a status change the machine does not allow (`STATE_TRANSITION_INVALID`), writes a history row and records `status.changed`. Audit, webhooks and notifications pick that event up when those modules are installed.
+
+```bash
+better-supabase sql add state-machine
+```
+
+```ts
+import { createStateMachine } from "better-supabase/blocks/state-machine";
+```
+
+`options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check. `transition(subject_type, id, to, reason)` is the RPC path and stores the reason for the trigger.
+
+History goes to `status_history`, or to a table named on the machine (`history.table` and its columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage. Pause and pin state stay in the app or in workflow-builder.
+
+## Adopt mode
+
+Point `history.table` at `public.quote_status_history` or `public.invoice_status_history`. Portal-only columns such as `actor_customer_id` stay on the table and are not required by the module.

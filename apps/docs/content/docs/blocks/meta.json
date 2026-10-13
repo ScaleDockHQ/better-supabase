@@ -41,6 +41,14 @@
     "connectors",
     "ai-tasks",
     "ai-cache",
-    "ai-providers"
+    "ai-providers",
+    "number-sequences",
+    "teams",
+    "tags",
+    "state-machine",
+    "custom-fields",
+    "share-links",
+    "reminders",
+    "imports"
   ]
 }

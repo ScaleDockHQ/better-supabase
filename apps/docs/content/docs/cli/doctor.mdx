@@ -1109,6 +1109,14 @@ cookie, or reads a session without one and `session.user` throws. Set the same
 `encode` in `createClient` and on the server. See
 [Encoding](/docs/auth/sessions#encoding).
 
+### BS413
+
+**Warning: support sessions are not tied to the provider's read-only check.**
+Support sessions are installed, `sql.modules.access.model` is `provider`, and
+`authorization.functions.actorMayWrite` is not set. Writes still refuse a
+read-only `act` through the built-in check. Set `actorMayWrite` to the
+provider's read-only helper so that helper is the only check.
+
 ## Env files
 
 ### BS501

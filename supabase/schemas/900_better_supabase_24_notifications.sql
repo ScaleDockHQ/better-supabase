@@ -1,9 +1,40 @@
--- better-supabase module: notifications (0.5.1)
+-- better-supabase module: notifications (0.8.0)
 -- @bs-module notifications@4 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."notification_events" (
@@ -55,7 +86,7 @@ grant all on "better_supabase"."notification_recipients" to service_role;
 drop policy if exists "bs_notification_recipients_read" on "better_supabase"."notification_recipients";
 create policy "bs_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
 drop policy if exists "bs_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bs_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+create policy "bs_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 drop policy if exists "bs_notification_events_read" on "better_supabase"."notification_events";
 create policy "bs_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
   exists (
@@ -195,6 +226,9 @@ declare
   v_want_members uuid[];
   v_want_channels text[];
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if v_type is null or btrim(v_type) = '' then
     raise exception 'A notification needs a type' using errcode = '22023', hint = 'NOTIFICATION_TYPE_REQUIRED';
   end if;
@@ -239,6 +273,19 @@ begin
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
+  end if;
+  
+  if nullif(notification ->> 'permission', '') is not null and v_tenant is null then
+    raise exception 'A permission audience needs a tenant' using errcode = '22023', hint = 'NOTIFICATION_PERMISSION_NEEDS_TENANT';
+  end if;
+  if nullif(notification ->> 'permission', '') is not null then
+    v_recipients := v_recipients || coalesce(array(
+      select m."user_id"
+      from "public"."memberships" m
+      where m."organization_id" = v_tenant
+        and coalesce(better_supabase.can_user(m."user_id", 'tenant', v_tenant, notification ->> 'permission'), false)
+      
+    ), '{}');
   end if;
   -- exclude: users the composer already reached (the mentioned ones, say).
   if jsonb_typeof(notification -> 'exclude') = 'array' then
@@ -483,6 +530,8 @@ language sql
 security definer
 set search_path = ''
 as $$
+  select better_supabase.raise_actor_readonly() where not (better_supabase.actor_may_write());
+
   with rc as (
     update "better_supabase"."notification_recipients" rc set "read_at" = null
     where rc."user_id" = auth.uid()
@@ -506,6 +555,8 @@ language sql
 security definer
 set search_path = ''
 as $$
+  select better_supabase.raise_actor_readonly() where not (better_supabase.actor_may_write());
+
   with rc as (
     update "better_supabase"."notification_recipients" rc set "read_at" = now()
     where rc."user_id" = auth.uid()
@@ -529,6 +580,8 @@ language sql
 security definer
 set search_path = ''
 as $$
+  select better_supabase.raise_actor_readonly() where not (better_supabase.actor_may_write());
+
   with rc as (
     update "better_supabase"."notification_recipients" rc
     set "dismissed_at" = now(), "read_at" = coalesce(rc."read_at", now())
@@ -556,6 +609,9 @@ as $$
 declare
   v_changed jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) or coalesce(better_supabase.member_can(auth.uid(), resolve_notifications.tenant, 'notifications.send'), false)) then
     raise exception 'Not allowed to resolve notifications here' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
   end if;
@@ -635,6 +691,9 @@ as $$
 declare
   v_user uuid := coalesce(set_notification_subscription.member, auth.uid());
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if v_user is distinct from auth.uid() and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not (
     coalesce(set_notification_subscription.if_absent, false) and set_notification_subscription.level is not null and set_notification_subscription.tenant is not null
     and coalesce(better_supabase.member_can(auth.uid(), set_notification_subscription.tenant, 'notifications.send'), false)
@@ -685,6 +744,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if auth.uid() is null then
     raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
   end if;
@@ -914,6 +976,24 @@ drop function if exists "api"."resolve_notifications"(text, text, text, uuid);
 drop function if exists "api"."set_notification_subscription"(text, text, text, uuid, uuid);
 drop function if exists "api"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "api"."complete_notification_delivery"(uuid, text, text, text, text);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
 returns boolean

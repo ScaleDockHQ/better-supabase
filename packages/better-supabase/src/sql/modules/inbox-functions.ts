@@ -9,7 +9,14 @@ export const missing = (what: string, hint: string): string =>
   fail(hint, `${what} not found`, "P0002");
 
 /** The SQL functions: the writes and the reads with joined rows. */
-export function inboxFunctions(q: InboxSql): string {
+export function inboxFunctions(
+  q: InboxSql,
+  teamFns?: {
+    readonly create: string;
+    readonly add: string;
+    readonly remove: string;
+  },
+): string {
   const { id, fn } = q;
   const ib = q.cols("inboxes");
   const mb = q.cols("members");
@@ -199,15 +206,21 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_row ${T("teams")}%rowtype;
 begin
   if not (${service} or ${q.can("create_inbox_team.tenant", "manage")}) then
     ${forbidden("not allowed to manage inboxes")}
   end if;
-  insert into ${T("teams")} (${tm("tenant")}, ${tm("name")}) values (create_inbox_team.tenant, create_inbox_team.name)
-  returning * into v_row;
-  return to_jsonb(v_row);
+  ${
+    teamFns
+      ? `return ${teamFns.create}(create_inbox_team.tenant, create_inbox_team.name, null);`
+      : `declare
+    v_row ${T("teams")}%rowtype;
+  begin
+    insert into ${T("teams")} (${tm("tenant")}, ${tm("name")}) values (create_inbox_team.tenant, create_inbox_team.name)
+    returning * into v_row;
+    return to_jsonb(v_row);
+  end;`
+  }
 end;
 $$;
 ${authed(`${fn("create_inbox_team")}(${id}, text)`)}
@@ -218,7 +231,15 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
+${
+  teamFns
+    ? `begin
+  if not coalesce(present, true) then
+    return ${teamFns.remove}(set_inbox_team_member.team, member);
+  end if;
+  return ${teamFns.add}(set_inbox_team_member.team, member);
+end;`
+    : `declare
   v_tenant ${id};
 begin
   select ${tm("tenant")} into v_tenant from ${T("teams")} where ${tm("id")} = set_inbox_team_member.team;
@@ -235,7 +256,8 @@ begin
   insert into ${T("teamMembers")} (${tmm("team")}, ${tmm("user")}) values (set_inbox_team_member.team, member)
   on conflict do nothing;
   return true;
-end;
+end;`
+}
 $$;
 ${authed(`${fn("set_inbox_team_member")}(uuid, uuid, boolean)`)}
 

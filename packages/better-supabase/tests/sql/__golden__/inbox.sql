@@ -5,6 +5,37 @@
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A shared inbox: conversations with contacts across the in-app widget and
@@ -57,35 +88,7 @@ drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_membe
 create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
-create table if not exists "better_supabase"."inbox_teams" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "name")
-);
-alter table "better_supabase"."inbox_teams" enable row level security;
-revoke all on "better_supabase"."inbox_teams" from anon, authenticated;
-grant select on "better_supabase"."inbox_teams" to authenticated;
-grant all on "better_supabase"."inbox_teams" to service_role;
-drop policy if exists inbox_teams_staff_read on "better_supabase"."inbox_teams";
-create policy inbox_teams_staff_read on "better_supabase"."inbox_teams" for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
-
-create table if not exists "better_supabase"."inbox_team_members" (
-  "team_id" uuid not null references "better_supabase"."inbox_teams" ("id") on delete cascade,
-  "user_id" uuid not null references auth.users (id) on delete cascade,
-  "created_at" timestamptz not null default now(),
-  primary key ("team_id", "user_id")
-);
-create index if not exists inbox_team_members_user_idx on "better_supabase"."inbox_team_members" ("user_id");
-alter table "better_supabase"."inbox_team_members" enable row level security;
-revoke all on "better_supabase"."inbox_team_members" from anon, authenticated;
-grant select on "better_supabase"."inbox_team_members" to authenticated;
-grant all on "better_supabase"."inbox_team_members" to service_role;
-drop policy if exists inbox_team_members_staff_read on "better_supabase"."inbox_team_members";
-create policy inbox_team_members_staff_read on "better_supabase"."inbox_team_members" for select to authenticated
-  using (exists (select 1 from "better_supabase"."inbox_teams" t where t."id" = "team_id" and t."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
+-- Teams live in the teams module. Assignment stores that module's id.
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
 -- anonymous Auth user works too) to their contact.
@@ -145,7 +148,7 @@ create table if not exists "better_supabase"."conversations" (
   "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
   "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
-  "team_id" uuid references "better_supabase"."inbox_teams" ("id") on delete set null,
+  "team_id" uuid,
   "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
@@ -446,6 +449,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -469,6 +475,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."inboxes" where "id" = update_inbox.inbox for update;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -501,6 +510,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."inboxes" where "id" = set_inbox_member.inbox;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -529,15 +541,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_row "better_supabase"."inbox_teams"%rowtype;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox_team.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."inbox_teams" ("tenant_id", "name") values (create_inbox_team.tenant, create_inbox_team.name)
-  returning * into v_row;
-  return to_jsonb(v_row);
+  return "better_supabase"."create_team"(create_inbox_team.tenant, create_inbox_team.name, null);
 end;
 $$;
 revoke execute on function "better_supabase"."create_inbox_team"(uuid, text) from public, anon;
@@ -549,23 +557,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."inbox_teams" where "id" = set_inbox_team_member.team;
-  if not found then
-    raise exception 'team not found' using errcode = 'P0002', hint = 'INBOX_TEAM_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'inbox.manage'), false)) then
-    raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
-  end if;
   if not coalesce(present, true) then
-    delete from "better_supabase"."inbox_team_members" t where t."team_id" = set_inbox_team_member.team and t."user_id" = member;
-    return found;
+    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
   end if;
-  insert into "better_supabase"."inbox_team_members" ("team_id", "user_id") values (set_inbox_team_member.team, member)
-  on conflict do nothing;
-  return true;
+  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -742,6 +738,9 @@ declare
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_inbox from "better_supabase"."inboxes" where "id" = start_conversation.inbox and "archived_at" is null;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -815,6 +814,9 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = send_message.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -922,6 +924,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = assign_conversation.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -966,6 +971,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_conversation_status.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -1011,6 +1019,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_bot_mode.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -1042,6 +1053,9 @@ as $$
 declare
   v_at timestamptz := clock_timestamp();
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(conversation::text) then
     raise exception 'not allowed to read this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -1066,6 +1080,9 @@ declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_who text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = react_to_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -1114,6 +1131,9 @@ as $$
 declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = edit_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -1460,6 +1480,9 @@ as $$
 declare
   v_row "better_supabase"."message_templates"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage templates' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -1486,6 +1509,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."message_templates" where "id" = delete_message_template.template;
   if not found then
     return false;
@@ -1516,6 +1542,9 @@ declare
   v_messages integer;
   v_paths jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select c."tenant_id" into v_tenant from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
@@ -1653,12 +1682,12 @@ begin
       );
     drop policy if exists "bs_inbox_broadcast" on realtime.messages;
     create policy "bs_inbox_broadcast" on realtime.messages for insert to authenticated
-      with check (
+      with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'inbox:' || '%'
         and (select realtime.topic()) not like 'inbox:org:' || '%'
         and "better_supabase"."inbox_conversation_allowed"(substr((select realtime.topic()), 7))
-      );
+      ) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -1688,7 +1717,7 @@ begin
       using (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, false));
     drop policy if exists "bs_inbox_files_write" on storage.objects;
     create policy "bs_inbox_files_write" on storage.objects for insert to authenticated
-      with check (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true));
+      with check ((bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true)) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -1729,6 +1758,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A shared inbox: conversations with contacts across the in-app widget and
@@ -1781,35 +1841,7 @@ drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_membe
 create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
-create table if not exists "better_supabase"."inbox_teams" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "name")
-);
-alter table "better_supabase"."inbox_teams" enable row level security;
-revoke all on "better_supabase"."inbox_teams" from anon, authenticated;
-grant select on "better_supabase"."inbox_teams" to authenticated;
-grant all on "better_supabase"."inbox_teams" to service_role;
-drop policy if exists inbox_teams_staff_read on "better_supabase"."inbox_teams";
-create policy inbox_teams_staff_read on "better_supabase"."inbox_teams" for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
-
-create table if not exists "better_supabase"."inbox_team_members" (
-  "team_id" uuid not null references "better_supabase"."inbox_teams" ("id") on delete cascade,
-  "user_id" uuid not null references auth.users (id) on delete cascade,
-  "created_at" timestamptz not null default now(),
-  primary key ("team_id", "user_id")
-);
-create index if not exists inbox_team_members_user_idx on "better_supabase"."inbox_team_members" ("user_id");
-alter table "better_supabase"."inbox_team_members" enable row level security;
-revoke all on "better_supabase"."inbox_team_members" from anon, authenticated;
-grant select on "better_supabase"."inbox_team_members" to authenticated;
-grant all on "better_supabase"."inbox_team_members" to service_role;
-drop policy if exists inbox_team_members_staff_read on "better_supabase"."inbox_team_members";
-create policy inbox_team_members_staff_read on "better_supabase"."inbox_team_members" for select to authenticated
-  using (exists (select 1 from "better_supabase"."inbox_teams" t where t."id" = "team_id" and t."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
+-- Teams live in the teams module. Assignment stores that module's id.
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
 -- anonymous Auth user works too) to their contact.
@@ -1869,7 +1901,7 @@ create table if not exists "better_supabase"."conversations" (
   "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
   "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
-  "team_id" uuid references "better_supabase"."inbox_teams" ("id") on delete set null,
+  "team_id" uuid,
   "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
@@ -2170,6 +2202,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -2193,6 +2228,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."inboxes" where "id" = update_inbox.inbox for update;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -2225,6 +2263,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."inboxes" where "id" = set_inbox_member.inbox;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -2253,15 +2294,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_row "better_supabase"."inbox_teams"%rowtype;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox_team.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."inbox_teams" ("tenant_id", "name") values (create_inbox_team.tenant, create_inbox_team.name)
-  returning * into v_row;
-  return to_jsonb(v_row);
+  return "better_supabase"."create_team"(create_inbox_team.tenant, create_inbox_team.name, null);
 end;
 $$;
 revoke execute on function "better_supabase"."create_inbox_team"(uuid, text) from public, anon;
@@ -2273,23 +2310,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."inbox_teams" where "id" = set_inbox_team_member.team;
-  if not found then
-    raise exception 'team not found' using errcode = 'P0002', hint = 'INBOX_TEAM_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'inbox.manage'), false)) then
-    raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
-  end if;
   if not coalesce(present, true) then
-    delete from "better_supabase"."inbox_team_members" t where t."team_id" = set_inbox_team_member.team and t."user_id" = member;
-    return found;
+    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
   end if;
-  insert into "better_supabase"."inbox_team_members" ("team_id", "user_id") values (set_inbox_team_member.team, member)
-  on conflict do nothing;
-  return true;
+  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -2497,6 +2522,9 @@ declare
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_inbox from "better_supabase"."inboxes" where "id" = start_conversation.inbox and "archived_at" is null;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -2570,6 +2598,9 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = send_message.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -2678,6 +2709,9 @@ declare
   v_before uuid;
   v_claims text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = assign_conversation.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -2736,6 +2770,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_conversation_status.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -2782,6 +2819,9 @@ declare
   v_before text;
   v_claims text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_bot_mode.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -2828,6 +2868,9 @@ as $$
 declare
   v_at timestamptz := clock_timestamp();
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(conversation::text) then
     raise exception 'not allowed to read this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -2852,6 +2895,9 @@ declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_who text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = react_to_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -2900,6 +2946,9 @@ as $$
 declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = edit_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -3246,6 +3295,9 @@ as $$
 declare
   v_row "better_supabase"."message_templates"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage templates' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -3272,6 +3324,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."message_templates" where "id" = delete_message_template.template;
   if not found then
     return false;
@@ -3302,6 +3357,9 @@ declare
   v_messages integer;
   v_paths jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select c."tenant_id" into v_tenant from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
@@ -3439,12 +3497,12 @@ begin
       );
     drop policy if exists "bs_inbox_broadcast" on realtime.messages;
     create policy "bs_inbox_broadcast" on realtime.messages for insert to authenticated
-      with check (
+      with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'inbox:' || '%'
         and (select realtime.topic()) not like 'inbox:org:' || '%'
         and "better_supabase"."inbox_conversation_allowed"(substr((select realtime.topic()), 7))
-      );
+      ) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -3474,7 +3532,7 @@ begin
       using (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, false));
     drop policy if exists "bs_inbox_files_write" on storage.objects;
     create policy "bs_inbox_files_write" on storage.objects for insert to authenticated
-      with check (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true));
+      with check ((bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true)) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -3515,6 +3573,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -3569,35 +3658,7 @@ drop policy if exists inbox_members_staff_read on "app_private"."inbox_members";
 create policy inbox_members_staff_read on "app_private"."inbox_members" for select to authenticated
   using (exists (select 1 from "app_private"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
-create table if not exists "app_private"."inbox_teams" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "name")
-);
-alter table "app_private"."inbox_teams" enable row level security;
-revoke all on "app_private"."inbox_teams" from anon, authenticated;
-grant select on "app_private"."inbox_teams" to authenticated;
-grant all on "app_private"."inbox_teams" to service_role;
-drop policy if exists inbox_teams_staff_read on "app_private"."inbox_teams";
-create policy inbox_teams_staff_read on "app_private"."inbox_teams" for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
-
-create table if not exists "app_private"."inbox_team_members" (
-  "team_id" uuid not null references "app_private"."inbox_teams" ("id") on delete cascade,
-  "user_id" uuid not null references auth.users (id) on delete cascade,
-  "created_at" timestamptz not null default now(),
-  primary key ("team_id", "user_id")
-);
-create index if not exists inbox_team_members_user_idx on "app_private"."inbox_team_members" ("user_id");
-alter table "app_private"."inbox_team_members" enable row level security;
-revoke all on "app_private"."inbox_team_members" from anon, authenticated;
-grant select on "app_private"."inbox_team_members" to authenticated;
-grant all on "app_private"."inbox_team_members" to service_role;
-drop policy if exists inbox_team_members_staff_read on "app_private"."inbox_team_members";
-create policy inbox_team_members_staff_read on "app_private"."inbox_team_members" for select to authenticated
-  using (exists (select 1 from "app_private"."inbox_teams" t where t."id" = "team_id" and t."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
+-- Teams live in the teams module. Assignment stores that module's id.
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
 -- anonymous Auth user works too) to their contact.
@@ -3657,7 +3718,7 @@ create table if not exists "app_private"."conversations" (
   "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
   "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
-  "team_id" uuid references "app_private"."inbox_teams" ("id") on delete set null,
+  "team_id" uuid,
   "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
@@ -3958,6 +4019,9 @@ as $$
 declare
   v_row "app_private"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -3981,6 +4045,9 @@ as $$
 declare
   v_row "app_private"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "app_private"."inboxes" where "id" = update_inbox.inbox for update;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -4013,6 +4080,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "app_private"."inboxes" where "id" = set_inbox_member.inbox;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -4041,15 +4111,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_row "app_private"."inbox_teams"%rowtype;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox_team.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "app_private"."inbox_teams" ("tenant_id", "name") values (create_inbox_team.tenant, create_inbox_team.name)
-  returning * into v_row;
-  return to_jsonb(v_row);
+  return "better_supabase"."create_team"(create_inbox_team.tenant, create_inbox_team.name, null);
 end;
 $$;
 revoke execute on function "app_private"."create_inbox_team"(uuid, text) from public, anon;
@@ -4061,23 +4127,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant uuid;
 begin
-  select "tenant_id" into v_tenant from "app_private"."inbox_teams" where "id" = set_inbox_team_member.team;
-  if not found then
-    raise exception 'team not found' using errcode = 'P0002', hint = 'INBOX_TEAM_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'inbox.manage'), false)) then
-    raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
-  end if;
   if not coalesce(present, true) then
-    delete from "app_private"."inbox_team_members" t where t."team_id" = set_inbox_team_member.team and t."user_id" = member;
-    return found;
+    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
   end if;
-  insert into "app_private"."inbox_team_members" ("team_id", "user_id") values (set_inbox_team_member.team, member)
-  on conflict do nothing;
-  return true;
+  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "app_private"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -4254,6 +4308,9 @@ declare
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_inbox from "app_private"."inboxes" where "id" = start_conversation.inbox and "archived_at" is null;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -4327,6 +4384,9 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "app_private"."conversations" where "id" = send_message.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -4434,6 +4494,9 @@ declare
   v_conv "app_private"."conversations"%rowtype;
   v_before uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "app_private"."conversations" where "id" = assign_conversation.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -4478,6 +4541,9 @@ declare
   v_conv "app_private"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "app_private"."conversations" where "id" = set_conversation_status.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -4523,6 +4589,9 @@ declare
   v_conv "app_private"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "app_private"."conversations" where "id" = set_bot_mode.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -4554,6 +4623,9 @@ as $$
 declare
   v_at timestamptz := clock_timestamp();
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if (select auth.uid()) is null or not "app_private"."inbox_conversation_allowed"(conversation::text) then
     raise exception 'not allowed to read this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -4578,6 +4650,9 @@ declare
   v_msg "app_private"."inbox_messages"%rowtype;
   v_who text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "app_private"."inbox_messages" where "id" = react_to_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -4626,6 +4701,9 @@ as $$
 declare
   v_msg "app_private"."inbox_messages"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "app_private"."inbox_messages" where "id" = edit_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -4972,6 +5050,9 @@ as $$
 declare
   v_row "app_private"."message_templates"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage templates' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -4998,6 +5079,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "app_private"."message_templates" where "id" = delete_message_template.template;
   if not found then
     return false;
@@ -5028,6 +5112,9 @@ declare
   v_messages integer;
   v_paths jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select c."tenant_id" into v_tenant from "app_private"."contacts" c where c."id" = purge_contact.contact;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
@@ -5165,12 +5252,12 @@ begin
       );
     drop policy if exists "bs_inbox_broadcast" on realtime.messages;
     create policy "bs_inbox_broadcast" on realtime.messages for insert to authenticated
-      with check (
+      with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'inbox:' || '%'
         and (select realtime.topic()) not like 'inbox:org:' || '%'
         and "app_private"."inbox_conversation_allowed"(substr((select realtime.topic()), 7))
-      );
+      ) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -5200,7 +5287,7 @@ begin
       using (bucket_id = 'inbox-files' and "app_private"."inbox_file_allowed"(name, false));
     drop policy if exists "bs_inbox_files_write" on storage.objects;
     create policy "bs_inbox_files_write" on storage.objects for insert to authenticated
-      with check (bucket_id = 'inbox-files' and "app_private"."inbox_file_allowed"(name, true));
+      with check ((bucket_id = 'inbox-files' and "app_private"."inbox_file_allowed"(name, true)) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -5241,6 +5328,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A shared inbox: conversations with contacts across the in-app widget and
@@ -5293,35 +5411,7 @@ drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_membe
 create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
-create table if not exists "better_supabase"."inbox_teams" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "name")
-);
-alter table "better_supabase"."inbox_teams" enable row level security;
-revoke all on "better_supabase"."inbox_teams" from anon, authenticated;
-grant select on "better_supabase"."inbox_teams" to authenticated;
-grant all on "better_supabase"."inbox_teams" to service_role;
-drop policy if exists inbox_teams_staff_read on "better_supabase"."inbox_teams";
-create policy inbox_teams_staff_read on "better_supabase"."inbox_teams" for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
-
-create table if not exists "better_supabase"."inbox_team_members" (
-  "team_id" uuid not null references "better_supabase"."inbox_teams" ("id") on delete cascade,
-  "user_id" uuid not null references auth.users (id) on delete cascade,
-  "created_at" timestamptz not null default now(),
-  primary key ("team_id", "user_id")
-);
-create index if not exists inbox_team_members_user_idx on "better_supabase"."inbox_team_members" ("user_id");
-alter table "better_supabase"."inbox_team_members" enable row level security;
-revoke all on "better_supabase"."inbox_team_members" from anon, authenticated;
-grant select on "better_supabase"."inbox_team_members" to authenticated;
-grant all on "better_supabase"."inbox_team_members" to service_role;
-drop policy if exists inbox_team_members_staff_read on "better_supabase"."inbox_team_members";
-create policy inbox_team_members_staff_read on "better_supabase"."inbox_team_members" for select to authenticated
-  using (exists (select 1 from "better_supabase"."inbox_teams" t where t."id" = "team_id" and t."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
+-- Teams live in the teams module. Assignment stores that module's id.
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
 -- anonymous Auth user works too) to their contact.
@@ -5381,7 +5471,7 @@ create table if not exists "better_supabase"."conversations" (
   "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
   "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
-  "team_id" uuid references "better_supabase"."inbox_teams" ("id") on delete set null,
+  "team_id" uuid,
   "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
@@ -5682,6 +5772,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -5705,6 +5798,9 @@ as $$
 declare
   v_row "better_supabase"."inboxes"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_row from "better_supabase"."inboxes" where "id" = update_inbox.inbox for update;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -5737,6 +5833,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."inboxes" where "id" = set_inbox_member.inbox;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -5765,15 +5864,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_row "better_supabase"."inbox_teams"%rowtype;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_inbox_team.tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."inbox_teams" ("tenant_id", "name") values (create_inbox_team.tenant, create_inbox_team.name)
-  returning * into v_row;
-  return to_jsonb(v_row);
+  return "better_supabase"."create_team"(create_inbox_team.tenant, create_inbox_team.name, null);
 end;
 $$;
 revoke execute on function "better_supabase"."create_inbox_team"(uuid, text) from public, anon;
@@ -5785,23 +5880,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_tenant uuid;
 begin
-  select "tenant_id" into v_tenant from "better_supabase"."inbox_teams" where "id" = set_inbox_team_member.team;
-  if not found then
-    raise exception 'team not found' using errcode = 'P0002', hint = 'INBOX_TEAM_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'inbox.manage'), false)) then
-    raise exception 'not allowed to manage inboxes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
-  end if;
   if not coalesce(present, true) then
-    delete from "better_supabase"."inbox_team_members" t where t."team_id" = set_inbox_team_member.team and t."user_id" = member;
-    return found;
+    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
   end if;
-  insert into "better_supabase"."inbox_team_members" ("team_id", "user_id") values (set_inbox_team_member.team, member)
-  on conflict do nothing;
-  return true;
+  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -5978,6 +6061,9 @@ declare
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_inbox from "better_supabase"."inboxes" where "id" = start_conversation.inbox and "archived_at" is null;
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
@@ -6051,6 +6137,9 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = send_message.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -6158,6 +6247,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = assign_conversation.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -6202,6 +6294,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_conversation_status.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -6247,6 +6342,9 @@ declare
   v_conv "better_supabase"."conversations"%rowtype;
   v_before text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_conv from "better_supabase"."conversations" where "id" = set_bot_mode.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
@@ -6278,6 +6376,9 @@ as $$
 declare
   v_at timestamptz := clock_timestamp();
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(conversation::text) then
     raise exception 'not allowed to read this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -6302,6 +6403,9 @@ declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_who text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = react_to_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -6350,6 +6454,9 @@ as $$
 declare
   v_msg "better_supabase"."inbox_messages"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select * into v_msg from "better_supabase"."inbox_messages" where "id" = edit_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
@@ -6696,6 +6803,9 @@ as $$
 declare
   v_row "better_supabase"."message_templates"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to manage templates' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -6722,6 +6832,9 @@ as $$
 declare
   v_tenant uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."message_templates" where "id" = delete_message_template.template;
   if not found then
     return false;
@@ -6752,6 +6865,9 @@ declare
   v_messages integer;
   v_paths jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select c."tenant_id" into v_tenant from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
@@ -6889,12 +7005,12 @@ begin
       );
     drop policy if exists "bs_inbox_broadcast" on realtime.messages;
     create policy "bs_inbox_broadcast" on realtime.messages for insert to authenticated
-      with check (
+      with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'inbox:' || '%'
         and (select realtime.topic()) not like 'inbox:org:' || '%'
         and "better_supabase"."inbox_conversation_allowed"(substr((select realtime.topic()), 7))
-      );
+      ) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -6924,7 +7040,7 @@ begin
       using (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, false));
     drop policy if exists "bs_inbox_files_write" on storage.objects;
     create policy "bs_inbox_files_write" on storage.objects for insert to authenticated
-      with check (bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true));
+      with check ((bucket_id = 'inbox-files' and "better_supabase"."inbox_file_allowed"(name, true)) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -6939,6 +7055,24 @@ drop function if exists "api"."inbox_contact_conversation_ids"();
 drop function if exists "api"."inbox_conversation_allowed"(text, boolean);
 drop function if exists "api"."inbox_conversation_json"(uuid);
 drop function if exists "api"."inbox_file_allowed"(text, boolean);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."inbox_contact_read_at"(conversation uuid)
 returns timestamptz

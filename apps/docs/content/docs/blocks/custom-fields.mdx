@@ -1,0 +1,22 @@
+---
+title: Custom fields
+description: Field definitions, options and typed values, with a permission check for sensitive values.
+---
+
+`custom-fields` stores definitions (`entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`) and one typed value per subject. Types are `text`, `number`, `date`, `bool`, `option` and `json`.
+
+```bash
+better-supabase sql add custom-fields
+```
+
+```ts
+import { createCustomFields } from "better-supabase/blocks/custom-fields";
+```
+
+A sensitive value is returned only when `can` passes for the field's `permission`, or `custom_fields.sensitive.read` when the field names none. A provider implements field-level grants behind that key.
+
+`options.layout` is `normalized` (the default) or `inline`. Inline layout stores the definition columns on the value row and skips the definitions table, which is how `asset_custom_attributes` is adopted.
+
+## Adopt mode
+
+Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to `null` when the existing table does not have it. For the inline layout, map `values.definition` to `null` and set `layout` to `inline`.

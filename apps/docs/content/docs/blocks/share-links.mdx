@@ -1,0 +1,24 @@
+---
+title: Share links
+description: Hashed share links, view counts and per-user state. The token is returned once.
+---
+
+`share-links` creates a link, returns the token once and stores only its SHA-256. `resolve_share_link` is granted to `anon` and hashes the token it is given, so a row that still holds a plaintext token keeps working after you store `sha256` of it. Revoking, listing, recording a view and setting starred or last-opened state are the other calls.
+
+```bash
+better-supabase sql add share-links
+```
+
+```ts
+import { createShareLinks } from "better-supabase/blocks/share-links";
+```
+
+Creating a link needs `share_links.create`. When the rate-limit module is installed, resolve is a place to apply it.
+
+## AI chat
+
+AI chat sharing uses this block. `share_ai_chat`, `revoke_ai_chat_share`, `list_ai_chat_shares` and `get_shared_ai_chat` stay callable and read or write `share_links`. Existing `ai_chat_shares` rows are copied, including `leaf_id`.
+
+## Adopt mode
+
+Map `tables.links`, `tables.views` and `tables.state`. CentraKit's `file_share_links` stores plaintext tokens: run `update ... set token = encode(sha256(convert_to(token, 'utf8')), 'hex')` once. `document_views` and `file_node_user_state` map onto `views` and `state` when their columns fit.

@@ -37,6 +37,19 @@ export function adoptedTables(modules: ModulesConfig): readonly AdoptedTable[] {
       const { schema, name: tableName } = ctx.tableName(logical);
       tables.push({ module: name, logical, schema, table: tableName, columns });
     }
+    for (const extra of SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []) {
+      const columns: Record<string, string> = {};
+      for (const [column, physical] of Object.entries(extra.columns)) {
+        if (physical !== null) columns[column] = physical;
+      }
+      tables.push({
+        module: name,
+        logical: extra.logical,
+        schema: extra.schema,
+        table: extra.table,
+        columns,
+      });
+    }
   }
   return tables;
 }
@@ -76,6 +89,16 @@ export function adoptedColumnProblems(
         if (columns.has(used)) continue;
         problems.push(
           `sql.modules.${name} is in adopt mode and uses ${schema}.${tableName}.${used} (${logical}.${column}), but that column is not in the table. Map sql.modules.${name}.columns.${logical}.${column} to null, or add the column.`,
+        );
+      }
+    }
+    for (const extra of SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []) {
+      const columns = declared.get(`${extra.schema}.${extra.table}`);
+      if (columns === undefined) continue;
+      for (const [column, physical] of Object.entries(extra.columns)) {
+        if (physical === null || columns.has(physical)) continue;
+        problems.push(
+          `sql.modules.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set options.subjects so that column matches the table, or add the column.`,
         );
       }
     }

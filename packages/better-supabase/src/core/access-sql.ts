@@ -22,6 +22,8 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   canAssignFor: ["user", "role", "tenant", "scope"],
   permissionsFor: ["user", "tenant", "scope"],
   canApprove: ["tool", "tenant", "scope"],
+  holdersOf: ["permission", "tenant", "scope"],
+  actorMayWrite: [],
 };
 
 /** The Postgres types a scope's ids can have. */

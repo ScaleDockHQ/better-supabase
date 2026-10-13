@@ -40,6 +40,17 @@ export interface AuthorizationFunctions {
    * `{tenant}`. Without it only the chat's owner and the service role decide.
    */
   readonly canApprove?: string;
+  /**
+   * The user ids that hold `{permission}` on `{tenant}`, as a set: it is
+   * used as `select u from <template> as t(u)`. A notification's `permission`
+   * audience calls it. Without it, naming `permission` is refused.
+   */
+  readonly holdersOf?: string;
+  /**
+   * Whether the caller's session may write. No placeholders. Write functions
+   * and write policies call it instead of the built-in act check.
+   */
+  readonly actorMayWrite?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */

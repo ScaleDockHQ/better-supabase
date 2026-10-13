@@ -566,6 +566,46 @@
       "types": "./dist/blocks/announcements/index.d.ts",
       "default": "./dist/blocks/announcements/index.js"
     },
+    "./blocks/number-sequences": {
+      "@better-supabase/source": "./src/blocks/number-sequences/index.ts",
+      "types": "./dist/blocks/number-sequences/index.d.ts",
+      "default": "./dist/blocks/number-sequences/index.js"
+    },
+    "./blocks/teams": {
+      "@better-supabase/source": "./src/blocks/teams/index.ts",
+      "types": "./dist/blocks/teams/index.d.ts",
+      "default": "./dist/blocks/teams/index.js"
+    },
+    "./blocks/tags": {
+      "@better-supabase/source": "./src/blocks/tags/index.ts",
+      "types": "./dist/blocks/tags/index.d.ts",
+      "default": "./dist/blocks/tags/index.js"
+    },
+    "./blocks/state-machine": {
+      "@better-supabase/source": "./src/blocks/state-machine/index.ts",
+      "types": "./dist/blocks/state-machine/index.d.ts",
+      "default": "./dist/blocks/state-machine/index.js"
+    },
+    "./blocks/custom-fields": {
+      "@better-supabase/source": "./src/blocks/custom-fields/index.ts",
+      "types": "./dist/blocks/custom-fields/index.d.ts",
+      "default": "./dist/blocks/custom-fields/index.js"
+    },
+    "./blocks/share-links": {
+      "@better-supabase/source": "./src/blocks/share-links/index.ts",
+      "types": "./dist/blocks/share-links/index.d.ts",
+      "default": "./dist/blocks/share-links/index.js"
+    },
+    "./blocks/reminders": {
+      "@better-supabase/source": "./src/blocks/reminders/index.ts",
+      "types": "./dist/blocks/reminders/index.d.ts",
+      "default": "./dist/blocks/reminders/index.js"
+    },
+    "./blocks/imports": {
+      "@better-supabase/source": "./src/blocks/imports/index.ts",
+      "types": "./dist/blocks/imports/index.d.ts",
+      "default": "./dist/blocks/imports/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1093,6 +1133,38 @@
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
         "default": "./dist/blocks/announcements/index.js"
+      },
+      "./blocks/number-sequences": {
+        "types": "./dist/blocks/number-sequences/index.d.ts",
+        "default": "./dist/blocks/number-sequences/index.js"
+      },
+      "./blocks/teams": {
+        "types": "./dist/blocks/teams/index.d.ts",
+        "default": "./dist/blocks/teams/index.js"
+      },
+      "./blocks/tags": {
+        "types": "./dist/blocks/tags/index.d.ts",
+        "default": "./dist/blocks/tags/index.js"
+      },
+      "./blocks/state-machine": {
+        "types": "./dist/blocks/state-machine/index.d.ts",
+        "default": "./dist/blocks/state-machine/index.js"
+      },
+      "./blocks/custom-fields": {
+        "types": "./dist/blocks/custom-fields/index.d.ts",
+        "default": "./dist/blocks/custom-fields/index.js"
+      },
+      "./blocks/share-links": {
+        "types": "./dist/blocks/share-links/index.d.ts",
+        "default": "./dist/blocks/share-links/index.js"
+      },
+      "./blocks/reminders": {
+        "types": "./dist/blocks/reminders/index.d.ts",
+        "default": "./dist/blocks/reminders/index.js"
+      },
+      "./blocks/imports": {
+        "types": "./dist/blocks/imports/index.d.ts",
+        "default": "./dist/blocks/imports/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

@@ -126,6 +126,16 @@ export interface SqlModule {
   readonly adoptOptional?: (
     ctx: ModuleContext,
   ) => Readonly<Record<string, readonly string[]>>;
+  /**
+   * Adopted tables a subject carries (`options.subjects.<type>.<key>`),
+   * checked by `adoptedColumnProblems`. A null column is mapped away.
+   */
+  readonly adoptSubjectTables?: (ctx: ModuleContext) => readonly {
+    readonly logical: string;
+    readonly schema: string;
+    readonly table: string;
+    readonly columns: Readonly<Record<string, string | null>>;
+  }[];
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */

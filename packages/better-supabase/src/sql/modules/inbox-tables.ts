@@ -24,7 +24,7 @@ const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
 /** Tables, indexes, grants and read policies. Writes go through functions. */
-export function inboxTables(q: InboxSql): string {
+export function inboxTables(q: InboxSql, sharedTeams = false): string {
   const { id } = q;
   const ib = q.cols("inboxes");
   const mb = q.cols("members");
@@ -96,7 +96,10 @@ create index if not exists inbox_members_user_idx on ${T.members} (${mb("user")}
 ${lockTable(T.members, { read: true })}
 ${policy(T.members, "inbox_members_staff_read", `exists (select 1 from ${T.inboxes} i where i.${ib("id")} = ${mb("inbox")} and ${q.staff(`i.${ib("tenant")}`)})`)}
 
-create table if not exists ${T.teams} (
+${
+  sharedTeams
+    ? "-- Teams live in the teams module. Assignment stores that module's id."
+    : `create table if not exists ${T.teams} (
   ${tm("id")} uuid primary key default gen_random_uuid(),
   ${tm("tenant")} ${id} not null,
   ${tm("name")} text not null check (length(${tm("name")}) between 1 and 200),
@@ -114,7 +117,8 @@ create table if not exists ${T.teamMembers} (
 );
 create index if not exists inbox_team_members_user_idx on ${T.teamMembers} (${tmm("user")});
 ${lockTable(T.teamMembers, { read: true })}
-${policy(T.teamMembers, "inbox_team_members_staff_read", `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}
+${policy(T.teamMembers, "inbox_team_members_staff_read", `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}`
+}
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
 -- anonymous Auth user works too) to their contact.
@@ -161,7 +165,7 @@ create table if not exists ${T.conversations} (
   ${cv("status")} text not null default 'open' check (${cv("status")} in ('open', 'pending', 'snoozed', 'resolved')),
   ${cv("priority")} text not null default 'normal' check (${cv("priority")} in ('low', 'normal', 'high', 'urgent')),
   ${cv("assignee")} uuid references auth.users (id) on delete set null,
-  ${cv("team")} uuid references ${T.teams} (${tm("id")}) on delete set null,
+  ${cv("team")} uuid${sharedTeams ? "" : ` references ${T.teams} (${tm("id")}) on delete set null`},
   ${cv("botMode")} text not null default 'human' check (${cv("botMode")} in (${botModes})),
   ${cv("thread")} text,
   ${cv("snoozedUntil")} timestamptz,

@@ -490,7 +490,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   );
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
-    functions(ctx, n),
+    functions(ctx, n, layout),
     realtime(ctx, n),
   ].join("\n");
 }
@@ -618,7 +618,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   requires: ["updated-at"],
-  integrates: ["access", "profiles"],
+  integrates: ["access", "profiles", "tenant"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

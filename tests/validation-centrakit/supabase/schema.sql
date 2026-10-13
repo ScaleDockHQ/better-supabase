@@ -382,6 +382,184 @@ as $$
   on conflict (user_id) do update set display_name = excluded.display_name;
 $$;
 
+-- Tables the eight SaaS blocks adopt. Column names match the modules' defaults.
+create table centrakit.organization_number_sequences (
+  tenant_id uuid not null references centrakit.organizations (id) on delete cascade,
+  entity text not null,
+  period text not null default '',
+  last_number bigint not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, entity, period)
+);
+
+create table centrakit.teams (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references centrakit.organizations (id) on delete cascade,
+  name text not null,
+  slug text not null,
+  description text,
+  status text not null default 'active',
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, slug)
+);
+
+create table centrakit.team_members (
+  team_id uuid not null references centrakit.teams (id) on delete cascade,
+  user_id uuid not null,
+  tenant_id uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (team_id, user_id)
+);
+
+create table centrakit.organization_tags (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references centrakit.organizations (id) on delete cascade,
+  kind text not null,
+  name text not null,
+  slug text not null,
+  color text,
+  description text,
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, kind, slug)
+);
+
+create table centrakit.task_tags (
+  tag_id uuid not null references centrakit.organization_tags (id) on delete cascade,
+  task_id uuid not null,
+  primary key (tag_id, task_id)
+);
+
+create table centrakit.status_history (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  from_status text,
+  to_status text not null,
+  actor_user_id uuid,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+create table centrakit.field_definitions (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  entity text not null,
+  key text not null,
+  label text not null,
+  type text not null,
+  required boolean not null default false,
+  sensitive boolean not null default false,
+  permission text,
+  position integer not null default 0,
+  unique (tenant_id, entity, key)
+);
+
+create table centrakit.field_options (
+  id uuid primary key default gen_random_uuid(),
+  definition_id uuid not null references centrakit.field_definitions (id) on delete cascade,
+  value text not null,
+  label text not null,
+  position integer not null default 0
+);
+
+create table centrakit.field_values (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  definition_id uuid references centrakit.field_definitions (id) on delete cascade,
+  subject_type text not null,
+  subject_id text not null,
+  value_text text,
+  value_number numeric,
+  value_date date,
+  value_bool boolean,
+  option_id uuid,
+  value_json jsonb
+);
+
+create table centrakit.share_links (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  token_hash text not null unique,
+  role text not null default 'view',
+  version integer not null default 1,
+  expires_at timestamptz,
+  revoked_at timestamptz,
+  max_uses integer,
+  created_by uuid,
+  leaf_id text
+);
+
+create table centrakit.subject_views (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  version integer not null default 1,
+  viewer_kind text not null,
+  viewer text,
+  first_viewed_at timestamptz not null default now(),
+  last_viewed_at timestamptz not null default now(),
+  view_count integer not null default 1
+);
+
+create table centrakit.subject_user_state (
+  subject_type text not null,
+  subject_id text not null,
+  user_id uuid not null,
+  starred_at timestamptz,
+  last_opened_at timestamptz,
+  primary key (subject_type, subject_id, user_id)
+);
+
+create table centrakit.recurrence_rules (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  dtstart timestamptz not null,
+  tzid text not null default 'UTC',
+  rrule text,
+  unique (tenant_id, subject_type, subject_id)
+);
+
+create table centrakit.reminders (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  user_id uuid,
+  method text not null default 'notification',
+  offset_minutes integer not null default 0
+);
+
+create table centrakit.reminder_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  reminder_id uuid not null references centrakit.reminders (id) on delete cascade,
+  occurrence_at timestamptz not null,
+  sent_at timestamptz,
+  unique (reminder_id, occurrence_at)
+);
+
+create table centrakit.import_runs (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  kind text not null,
+  status text not null default 'pending',
+  mapping jsonb not null default '{}'::jsonb,
+  counts jsonb not null default '{}'::jsonb,
+  errors jsonb not null default '[]'::jsonb,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+
 do $$
 declare
   t text;

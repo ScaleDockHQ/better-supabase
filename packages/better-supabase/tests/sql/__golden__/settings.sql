@@ -5,6 +5,37 @@
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
@@ -45,14 +76,14 @@ create policy "organization_settings_read" on "better_supabase"."organization_se
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
 create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
-  with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
 create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
-  with check ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
 create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -77,14 +108,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false))
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -261,6 +292,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
@@ -301,14 +363,14 @@ create policy "organization_settings_read" on "better_supabase"."organization_se
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
 create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
-  with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
 create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
-  with check ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
 create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -333,14 +395,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false))
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -589,6 +651,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -631,14 +724,14 @@ create policy "organization_settings_read" on "app_private"."organization_settin
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists "organization_settings_insert" on "app_private"."organization_settings";
 create policy "organization_settings_insert" on "app_private"."organization_settings" for insert to authenticated
-  with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_update" on "app_private"."organization_settings";
 create policy "organization_settings_update" on "app_private"."organization_settings" for update to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
-  with check ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_delete" on "app_private"."organization_settings";
 create policy "organization_settings_delete" on "app_private"."organization_settings" for delete to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -663,14 +756,14 @@ create policy "platform_settings_read_public" on "app_private"."platform_setting
   using (false);
 drop policy if exists "platform_settings_insert" on "app_private"."platform_settings";
 create policy "platform_settings_insert" on "app_private"."platform_settings" for insert to authenticated
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "app_private"."platform_settings";
 create policy "platform_settings_update" on "app_private"."platform_settings" for update to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false))
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "app_private"."platform_settings";
 create policy "platform_settings_delete" on "app_private"."platform_settings" for delete to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -847,6 +940,37 @@ on conflict (name) do update
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
@@ -887,14 +1011,14 @@ create policy "organization_settings_read" on "better_supabase"."organization_se
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
 create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
-  with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
 create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
-  with check ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
 create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -919,14 +1043,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false))
-  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
+  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using (coalesce(better_supabase.is_platform('settings.manage'), false));
+  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -1074,6 +1198,24 @@ drop function if exists "better_supabase"."record_platform_setting"();
 -- sql.modules.settings.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."get_platform_settings"()
 returns jsonb

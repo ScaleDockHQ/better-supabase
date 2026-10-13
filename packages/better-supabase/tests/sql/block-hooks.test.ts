@@ -18,6 +18,9 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   ],
   profiles: ["before_profile_update", "after_profile_update"],
   notifications: ["before_notification_send", "after_notify"],
+  "number-sequences": ["before_number_assign", "after_number_assign"],
+  teams: ["before_team_create", "after_team_create"],
+  tags: ["before_tag_apply", "after_tag_apply"],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

@@ -1,4 +1,4 @@
--- better-supabase module: credentials (0.5.1)
+-- better-supabase module: credentials (0.8.0)
 -- @bs-module credentials@1 managed
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.

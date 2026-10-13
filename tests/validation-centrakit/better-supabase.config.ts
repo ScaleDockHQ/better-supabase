@@ -299,6 +299,66 @@ export default defineConfig({
           },
         },
       },
+      "number-sequences": {
+        mode: "adopt",
+        tables: { sequences: "centrakit.organization_number_sequences" },
+      },
+      teams: {
+        mode: "adopt",
+        tables: {
+          teams: "centrakit.teams",
+          members: "centrakit.team_members",
+        },
+      },
+      tags: {
+        mode: "adopt",
+        tables: { tags: "centrakit.organization_tags", taggings: null },
+        options: {
+          subjects: {
+            task: {
+              table: "centrakit.tasks",
+              kinds: ["task"],
+              links: {
+                table: "centrakit.task_tags",
+                subject: "task_id",
+                tag: "tag_id",
+              },
+            },
+          },
+        },
+      },
+      "state-machine": {
+        mode: "adopt",
+        tables: { history: "centrakit.status_history" },
+      },
+      "custom-fields": {
+        mode: "adopt",
+        tables: {
+          definitions: "centrakit.field_definitions",
+          options: "centrakit.field_options",
+          values: "centrakit.field_values",
+        },
+      },
+      "share-links": {
+        mode: "adopt",
+        tables: {
+          links: "centrakit.share_links",
+          views: "centrakit.subject_views",
+          state: "centrakit.subject_user_state",
+        },
+      },
+      reminders: {
+        mode: "adopt",
+        tables: {
+          rules: "centrakit.recurrence_rules",
+          reminders: "centrakit.reminders",
+          deliveries: "centrakit.reminder_deliveries",
+        },
+      },
+      imports: {
+        mode: "adopt",
+        tables: { runs: "centrakit.import_runs" },
+      },
       "realtime-tables": {},
     },
   },

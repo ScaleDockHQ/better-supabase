@@ -326,6 +326,27 @@ export interface AiChatEventData {
   readonly leafId?: string;
 }
 
+/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports). */
+export interface SaasEventData {
+  readonly organizationId?: string | null;
+  readonly id?: string;
+  readonly entity?: string;
+  readonly period?: string;
+  readonly number?: number;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly reason?: string;
+  readonly userId?: string;
+  readonly kind?: string;
+  readonly name?: string;
+  readonly status?: string;
+  readonly count?: number;
+  readonly role?: string;
+  readonly error?: string | null;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -437,6 +458,28 @@ export interface BlockEventMap {
   "ai_chat_message.completed": AiChatEventData;
   "ai_chat.shared": AiChatEventData;
   "ai_chat.share_revoked": AiChatEventData;
+  "number.assigned": SaasEventData;
+  "team.created": SaasEventData;
+  "team.updated": SaasEventData;
+  "team.archived": SaasEventData;
+  "team.deleted": SaasEventData;
+  "team_member.added": SaasEventData;
+  "team_member.removed": SaasEventData;
+  "tag.created": SaasEventData;
+  "tag.updated": SaasEventData;
+  "tag.deleted": SaasEventData;
+  "subject.tagged": SaasEventData;
+  "subject.untagged": SaasEventData;
+  "status.changed": SaasEventData;
+  "custom_field.saved": SaasEventData;
+  "custom_field.deleted": SaasEventData;
+  "field_value.set": SaasEventData;
+  "share_link.created": SaasEventData;
+  "share_link.revoked": SaasEventData;
+  "subject.viewed": SaasEventData;
+  "reminder.sent": SaasEventData;
+  "import.completed": SaasEventData;
+  "import.failed": SaasEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

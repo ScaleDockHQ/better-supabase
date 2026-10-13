@@ -1,4 +1,4 @@
--- better-supabase module: vector-search (0.5.1)
+-- better-supabase module: vector-search (0.8.0)
 -- @bs-module vector-search@1 managed
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
