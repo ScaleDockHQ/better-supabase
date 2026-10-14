@@ -46,7 +46,8 @@ export interface AuthorizationFunctions {
   readonly canApprove?: string;
   /**
    * Whether the caller may approve the request `{subject}` (text) of kind
-   * `{kind}` (a text literal: `'tool'`, `'support'`, `'workflow'`) in
+   * `{kind}` (a text literal: `'ai-tool'` with the tool name as `{subject}`,
+   * `'support-session'` with the request id, or the app's own kind) in
    * `{tenant}`. It replaces each module's own eligibility check; the
    * requester is refused before it runs. Without it a module falls back to
    * its default approver (the chat's owner, a platform permission).

@@ -64,9 +64,9 @@ export type SubscriberPolicy = <S extends Subscriber>(
 
 /** A request that waits for someone other than the requester to approve it. */
 export interface ApprovalRequestRef {
-  /** `tool` (an AI tool call), `support` (a support session), `workflow` (a hook), or the app's own kind. */
+  /** `ai-tool` (an AI tool call), `support-session`, or the app's own kind. */
   readonly kind: string;
-  /** The request's id, such as the approval id or the support request id. */
+  /** The tool name for `ai-tool`, the request id for `support-session`. */
   readonly subject: string;
   readonly tenant?: string;
   /** The user who asked; never their own approver. */

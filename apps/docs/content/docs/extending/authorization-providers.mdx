@@ -120,7 +120,7 @@ puts the result into a policy or a module function:
 | `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`    | as `canAssign`, for another user                                       |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`              | `text[]`: the permission keys `{user}` holds in `{tenant}`             |
 | `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}` |
-| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`              | deprecated: `isApprover` with `{kind}` `'tool'`                        |
+| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`              | deprecated: `isApprover` with `{kind}` `'ai-tool'`                     |
 | `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`        | a set of user ids that hold `{permission}` on `{tenant}`               |
 | `actorMayWrite`  | none                                         | `boolean`: the caller's session may write                              |
 
@@ -190,8 +190,8 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 
 `isApprover` is the one eligibility check for every request that waits for
 someone else: AI tool calls in the [ai-chat block](/docs/blocks/ai-chat)
-(`{kind}` `'tool'`, `{subject}` the tool's name) and support sessions
-(`{kind}` `'support'`). `{tenant}` is required. Under the `provider` model,
+(`{kind}` `'ai-tool'`, `{subject}` the tool's name) and support sessions
+(`{kind}` `'support-session'`, `{subject}` the request id). `{tenant}` is required. Under the `provider` model,
 `decide_ai_tool_approval` lets the service role and any caller `isApprover`
 allows decide the call. `approvals.distinctApprover: true` keeps the
 requester from deciding their own request, for four-eyes approval. Without

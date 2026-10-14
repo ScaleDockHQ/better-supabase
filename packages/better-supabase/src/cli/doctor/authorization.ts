@@ -625,7 +625,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       if (provider?.functions.canApprove === undefined) return [];
       return [
         {
-          message: `${providerLabel(provider)} sets authorization.functions.canApprove, which is deprecated. Set isApprover with {kind}, {subject} and {tenant}; {kind} is 'tool' and {subject} the tool name for AI tool calls.`,
+          message: `${providerLabel(provider)} sets authorization.functions.canApprove, which is deprecated. Set isApprover with {kind}, {subject} and {tenant}; {kind} is 'ai-tool' and {subject} the tool name for AI tool calls.`,
           target: "authorization.functions.canApprove",
         },
       ];
