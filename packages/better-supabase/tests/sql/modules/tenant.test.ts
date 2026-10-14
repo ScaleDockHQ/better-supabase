@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (
   sameTenant: unknown,
@@ -198,5 +199,35 @@ describe("tenant module sameTenant", () => {
         },
       ]),
     ).toThrow(/match\.customer_id must be a lowercase column name/);
+  });
+});
+
+describe("tenant role helpers under a provider", () => {
+  const fn = (sql: string, name: string): string => {
+    const start = sql.indexOf(`function better_supabase.${name}(`);
+    return sql.slice(start, sql.indexOf("$$;", start));
+  };
+
+  it("take membership from the provider's memberIds and memberIdsFor", () => {
+    const sql = moduleBody("tenant", {
+      modules: { access: { model: "provider" } },
+      accessProvider: moduleProvider,
+    })!;
+    const ids = fn(sql, "member_organization_ids");
+    expect(ids).toContain("from authz.member_organization_ids() as p(id)");
+    expect(ids).toContain(
+      `and m."organization_id" in (select p.id from authz.member_organization_ids() as p(id))`,
+    );
+    expect(fn(sql, "has_organization_role")).toContain(
+      "better_supabase.member_organization_ids(has_organization_role.roles)",
+    );
+    expect(fn(sql, "organization_member_role")).toContain(
+      "in (select p.id from authz.member_organization_ids_for(organization_member_role.member) as p(id))",
+    );
+  });
+
+  it("read the memberships table under the built-in roles", () => {
+    const sql = moduleBody("tenant", { accessProvider: moduleProvider })!;
+    expect(sql).not.toContain("authz.");
   });
 });

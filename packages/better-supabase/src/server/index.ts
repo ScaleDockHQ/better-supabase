@@ -51,6 +51,8 @@ export type {
   AutomationRef,
   ChatAction,
   ChatActionHook,
+  DelegationPermissions,
+  DelegationRef,
   IdentityRef,
   IdentityTarget,
   PrincipalByIdentity,

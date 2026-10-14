@@ -908,6 +908,17 @@ publisher is demoted. Call `builder.versions.runAs(call.version)` in each step
 and query with the claims it returns. See
 [publisher rights](/docs/blocks/workflow-builder#publisher-rights).
 
+### BS334
+
+**Info: a policy checks a role name instead of a permission.** An app policy
+or a function in `schemas` calls `member_organization_ids()`,
+`has_organization_role()` or `organization_member_role()`. Under an
+authorization provider these take membership from its `memberIds`, but a role
+list still names roles the provider may not have, and a role check skips the
+delegation cap. Check a permission with
+`better_supabase.tenant_ids_with('<permission>')` or `member_can()` instead.
+The modules' own `bs_` policies aren't reported.
+
 ## Auth config
 
 ### BS401

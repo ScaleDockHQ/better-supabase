@@ -299,7 +299,7 @@ lowercase form. `segment` picks another path segment than `{organizationId}`.
 The config key is plain data for SQL. `AuthorizationHooks` is the runtime
 half: functions that decide the same things in server code, so one provider
 can own automations, support sessions, delivery, identity links, chat
-actions and approvals end to end. Build it with `defineAuthorizationHooks`
+actions, approvals and delegated tokens end to end. Build it with `defineAuthorizationHooks`
 from `better-supabase/server` and pass it to `createServer`:
 
 ```ts title="src/server.ts"
@@ -330,6 +330,7 @@ Every hook is optional. A slot passed to a block directly wins over the hook.
 | `chat.onAction`                  | a button a linked chat user pressed, such as an approval                                  | [Chat SDK](/docs/chat-sdk)                        |
 | `approverOf`                     | whether a user may approve a request; the server side of `isApprover`                     | [Approvals](#approvals)                           |
 | `tickets.subject`                | the context an opaque run ticket stands for, for jobs and workflow steps                  | [Jobs](/docs/blocks/jobs)                         |
+| `delegation.permissions`         | the permission keys a delegated token's scopes grant, as the cap `forContext` runs with   | [Access](/docs/blocks/access#delegated-tokens)    |
 
 Each hook fails closed. A throw or rejection refuses, `null` from `runAs`,
 `principalByIdentity` or `tickets.subject` refuses, and no hook falls back to
@@ -346,7 +347,8 @@ provider sets against cases every provider must refuse: subscriber and
 audience policies return a subset of their input, an unlinked identity is
 `null`, a requester never approves their own request, a forged ticket is
 `null`, an unknown publisher gets no claims, an unlinked chat author is
-refused, and an admin with no claims cannot start a support session.
+refused, an admin with no claims cannot start a support session, and a
+delegated token with no scopes maps to no permissions.
 
 ```ts title="tests/provider.test.ts"
 import { testAuthorizationHooks } from "better-supabase/testing";

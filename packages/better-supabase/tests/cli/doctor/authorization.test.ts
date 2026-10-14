@@ -744,6 +744,72 @@ describe("BS414", () => {
   });
 });
 
+describe("BS334", () => {
+  const withRolePolicies = (): Snapshot => {
+    const copy = structuredClone(toCatalog(base)) as {
+      -readonly [K in keyof Catalog]: Catalog[K];
+    };
+    const index = copy.tables.findIndex(
+      (table) => table.schema !== "better_supabase",
+    );
+    const first = copy.tables[index];
+    const policy = (name: string, using: string) => ({
+      name,
+      command: "select" as const,
+      roles: ["authenticated"],
+      permissive: true,
+      using,
+      check: null,
+    });
+    copy.tables = [
+      {
+        ...first!,
+        policies: [
+          policy(
+            "admins read",
+            "organization_id in (select better_supabase.member_organization_ids('{owner,admin}'))",
+          ),
+          policy(
+            "bs_module_read",
+            "organization_id in (select better_supabase.member_organization_ids())",
+          ),
+          policy(
+            "by permission",
+            "organization_id in (select better_supabase.tenant_ids_with('posts.read'))",
+          ),
+          policy("quoted", "note = 'better_supabase.has_organization_role('"),
+        ],
+      },
+      ...copy.tables.filter((_, i) => i !== index),
+    ];
+    return fromCatalog(copy);
+  };
+
+  it("reports app policies that call a role helper", async () => {
+    const result = await findings(
+      "BS334",
+      { sql: { modules: ["tenant", "access"] } },
+      { snapshot: withRolePolicies() },
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.severity).toBe("info");
+    expect(result[0]!.message).toMatch(
+      /^Policy "admins read" on \S+ calls better_supabase\.member_organization_ids\(\);/,
+    );
+    expect(result[0]!.message).toContain("tenant_ids_with('<permission>')");
+  });
+
+  it("stays quiet without the tenant module", async () => {
+    expect(
+      await findings(
+        "BS334",
+        { sql: { modules: [] } },
+        { snapshot: withRolePolicies() },
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("BS415", () => {
   it("warns while the provider sets canApprove", async () => {
     const provider: AuthorizationProvider = {

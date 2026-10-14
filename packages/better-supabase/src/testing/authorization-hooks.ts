@@ -7,7 +7,8 @@ import { type ConformanceReport, conform, expect } from "./conformance.ts";
  * fan-out returns only subscribers it was given, an identity nobody linked
  * and a forged ticket resolve to `null`, a requester never approves their
  * own request, an unknown publisher and an unlinked chat author get
- * nothing, and an admin with no claims cannot start a support session.
+ * nothing, an admin with no claims cannot start a support session, and a
+ * delegated token with no scopes maps to no permissions.
  */
 export function testAuthorizationHooks(
   hooks: AuthorizationHooks,
@@ -40,7 +41,15 @@ export function testAuthorizationHooks(
       `${where} returned subscribers from an empty list`,
     );
   };
-  const { delivery, identities, approverOf, tickets, automation, chat } = hooks;
+  const {
+    delivery,
+    identities,
+    approverOf,
+    tickets,
+    automation,
+    chat,
+    delegation,
+  } = hooks;
   return conform(`AuthorizationHooks "${hooks.name}"`, [
     [
       "targets API v1 and has a name",
@@ -151,6 +160,21 @@ export function testAuthorizationHooks(
         expect(
           decision === false,
           "support.authorize allowed an admin with no claims",
+        );
+      },
+    ],
+    delegation && [
+      "a delegation with no scopes grants no permissions",
+      async () => {
+        const keys = await delegation.permissions({
+          userId: stranger,
+          tenant: event.tenant,
+          clientId: "conformance",
+          scopes: [],
+        });
+        expect(
+          keys.length === 0,
+          "delegation.permissions granted keys to a token with no scopes",
         );
       },
     ],
