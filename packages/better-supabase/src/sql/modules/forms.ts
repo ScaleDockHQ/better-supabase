@@ -23,9 +23,9 @@ import { DURATION } from "./approvals-policies.ts";
 import { formSchemaFunctions } from "./forms-schema.ts";
 
 /** The share-links subject type of a public form link. */
-export const FORM_SUBJECT = "form";
+const FORM_SUBJECT = "form";
 /** The share-links role a public form link carries. */
-export const FORM_LINK_ROLE = "respond";
+const FORM_LINK_ROLE = "respond";
 
 const WHERE = "sql.modules.forms.options";
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;

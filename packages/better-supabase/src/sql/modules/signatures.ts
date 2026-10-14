@@ -96,17 +96,17 @@ const NAMES: ModuleNames = {
 };
 
 /** How many people one request can ask to sign. */
-export const MAX_SIGNERS = 20;
+const MAX_SIGNERS = 20;
 
 /** The hash `versions` stores for a version's content. */
-export const versionHash = (content: string, storagePath: string): string =>
+const versionHash = (content: string, storagePath: string): string =>
   sha256Hex(`coalesce(${content}::text, '') || coalesce(${storagePath}, '')`);
 
 /**
  * The hash a signature stores: the request, the signed version's content
  * hash, the signer, how they signed and when, so `verify` can recompute it.
  */
-export const signedHash = (parts: {
+const signedHash = (parts: {
   readonly request: string;
   readonly contentHash: string;
   readonly signer: string;

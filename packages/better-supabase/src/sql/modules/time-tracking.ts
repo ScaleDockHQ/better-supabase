@@ -107,7 +107,7 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.timeZone`: the IANA zone weeks start in. Default `UTC`. */
-export function weekTimeZone(ctx: ModuleContext): string {
+function weekTimeZone(ctx: ModuleContext): string {
   const raw = ctx.option("timeZone") ?? "UTC";
   if (typeof raw !== "string" || raw.length === 0) {
     throw new TypeError(`${WHERE}.timeZone must be an IANA time zone`);
