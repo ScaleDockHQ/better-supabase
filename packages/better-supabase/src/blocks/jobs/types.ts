@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AuthorizationDetail } from "../../auth/delegation.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
@@ -19,15 +20,28 @@ type PayloadOut<
   N extends keyof Q,
 > = StandardSchemaV1.InferOutput<Q[N]>;
 
-/** The actor and tenant of the request that enqueued a job. */
+/**
+ * What a job records about the request that enqueued it, under wire names:
+ * the actor, the tenant, the ticket, and the delegation of the token, so
+ * `bs.forContext(job.context)` runs the job under the same terms.
+ */
 export interface JobContext {
   readonly actor?: Actor;
   readonly tenant?: string;
   /**
-   * The `act` claim of a support or impersonated session, so the job runs
-   * under the same terms (a read-only support session stays read-only).
+   * The RFC 8693 `act` claim: a support or impersonated session (a
+   * read-only support session stays read-only), or the full chain of an
+   * OAuth client or agent.
    */
   readonly act?: Readonly<Record<string, unknown>>;
+  /** The OAuth client of a delegated token. */
+  readonly client_id?: string;
+  /** The scopes the user granted the client, space-separated. */
+  readonly scope?: string;
+  /** The token's RFC 9396 authorization details. */
+  readonly authorization_details?: readonly AuthorizationDetail[];
+  /** The opaque ticket `forContext` resolves into the context the job runs as. */
+  readonly ticket?: string;
 }
 
 export interface Job<P = unknown> {
@@ -54,7 +68,7 @@ export interface Job<P = unknown> {
 export interface EnqueueOptions {
   /** Run no earlier than this. */
   readonly runAt?: Temporal.Instant;
-  /** Seconds to wait before running. */
+  /** Whole seconds to wait before running; a fraction or a negative number is a `validation` error. */
   readonly delay?: number;
   /** Defaults to 5. After this many failed attempts the job is archived as dead. */
   readonly maxAttempts?: number;
@@ -73,9 +87,17 @@ export interface EnqueueOptions {
   /**
    * The request context whose actor and tenant the job records, next to the
    * payload. The tenant is `context.tenant`, the one `tenant()` resolved, or
-   * the `tenant_id` claim (then `app_metadata.tenant_id`).
+   * the `tenant_id` claim (then `app_metadata.tenant_id`). A delegated
+   * token's `client_id`, `scope`, `authorization_details` and `act` chain
+   * are recorded too; an invalid `act` chain fails with `forbidden`.
    */
   readonly context?: RequestContext;
+  /**
+   * An opaque ticket, recorded instead of `context.ticket`.
+   * `bs.forContext(job.context)` resolves it through the authorization
+   * provider's `tickets.subject` and runs as the context it returns.
+   */
+  readonly ticket?: string;
 }
 
 export interface EnqueueOnceOptions extends Omit<

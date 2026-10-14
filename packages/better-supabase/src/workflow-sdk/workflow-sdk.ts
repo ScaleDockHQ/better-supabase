@@ -25,27 +25,42 @@ export type WorkflowFn<
   TResult = unknown,
 > = (...args: TArgs) => Promise<TResult>;
 
-/**
- * The actor and tenant of `context` as plain data, to pass into a workflow
- * as an argument; inside a step, `bs.forContext(context)` runs as that user
- * with RLS. Claims and anything else in `context` stay out of the run's
- * serialized state.
- */
-export function workflowContext(context: RequestContext): RequestContext {
-  return unwrap(withContext(null, context)).context;
+export interface WorkflowContextOptions {
+  /** The opaque ticket `bs.forContext` resolves; wins over `context.ticket`. */
+  readonly ticket?: string;
 }
 
-/** The `bs.tenant` and `bs.actor` attributes for `context`. */
+/**
+ * The actor, tenant and ticket of `context` as plain data, to pass into a
+ * workflow as an argument; inside a step, `bs.forContext(context)` runs as
+ * that user with RLS. A delegated token's `client_id`, `scope`,
+ * `authorization_details` and `act` chain stay in `claims`, so the step is
+ * as narrow as the token; other claims stay out of the run's serialized
+ * state. Throws a `TypeError` for an invalid `act` chain or ticket.
+ */
+export function workflowContext(
+  context: RequestContext,
+  options: WorkflowContextOptions = {},
+): RequestContext {
+  return unwrap(withContext(null, context, options)).context;
+}
+
+/** The `bs.tenant`, `bs.actor` and `bs.ticket` attributes for `context`. */
 export function contextAttributes(
   context: RequestContext,
+  options: WorkflowContextOptions = {},
 ): Record<string, string> {
-  const recorded = workflowContext(context);
+  const recorded = workflowContext(context, options);
+  const ticket = recorded["ticket"];
   return {
     ...(recorded.tenant === undefined
       ? {}
       : { [WORKFLOW_ATTRIBUTES.tenant]: recorded.tenant }),
     ...(recorded.actor?.kind === "user"
       ? { [WORKFLOW_ATTRIBUTES.actor]: recorded.actor.id }
+      : {}),
+    ...(typeof ticket === "string"
+      ? { [WORKFLOW_ATTRIBUTES.ticket]: ticket }
       : {}),
   };
 }
@@ -61,6 +76,12 @@ export interface StartForOptions {
   readonly attributes?: Readonly<Record<string, string>>;
   /** The World to look the key up in. Defaults to the configured one. */
   readonly world?: World;
+  /**
+   * An opaque ticket, stored as the `bs.ticket` attribute instead of
+   * `context.ticket`. Pass `workflowContext(context, { ticket })` as an
+   * argument too, so a step's `bs.forContext` resolves it.
+   */
+  readonly ticket?: string;
 }
 
 /** The run a start with idempotency `key` created, while it is in the World. */
@@ -98,7 +119,10 @@ export async function startFor<TArgs extends unknown[], TResult>(
   return start(workflow, args, {
     attributes: {
       ...options.attributes,
-      ...contextAttributes(context),
+      ...contextAttributes(
+        context,
+        options.ticket === undefined ? {} : { ticket: options.ticket },
+      ),
       ...(key === undefined ? {} : { [WORKFLOW_ATTRIBUTES.key]: key }),
     },
     ...(options.world === undefined ? {} : { world: options.world }),
@@ -224,8 +248,13 @@ function matches(pattern: string, type: string): boolean {
 export interface StartOnEventOptions<TArgs extends unknown[]> {
   /** Type patterns such as `invoice.paid` or `organization.*`. */
   readonly types: readonly string[];
-  /** The workflow's arguments for an event. Defaults to `[event.payload]`. */
-  readonly args?: (event: OutboxEvent) => TArgs;
+  /**
+   * The workflow's arguments for an event. Defaults to `[event.payload]`.
+   * `context` is the event's `workflowContext`, with its ticket.
+   */
+  readonly args?: (event: OutboxEvent, context: RequestContext) => TArgs;
+  /** The opaque ticket for an event's run, stored as `bs.ticket`; `undefined` for none. */
+  readonly ticket?: (event: OutboxEvent) => string | undefined;
   readonly world?: World;
 }
 
@@ -242,22 +271,20 @@ export function startOnEvent<TArgs extends unknown[]>(
     for (const event of events) {
       if (!options.types.some((pattern) => matches(pattern, event.type)))
         continue;
+      const ticket = options.ticket?.(event);
+      const context = workflowContext({
+        ...(event.actorId === null
+          ? {}
+          : { actor: { id: event.actorId, kind: "user" } }),
+        ...(event.tenant === null ? {} : { tenant: event.tenant }),
+        ...(ticket === undefined ? {} : { ticket }),
+      });
       // SAFETY: without `args`, the workflow takes the event payload as its one argument.
-      const args = options.args?.(event) ?? ([event.payload] as TArgs);
-      await startFor(
-        {
-          ...(event.actorId === null
-            ? {}
-            : { actor: { id: event.actorId, kind: "user" } }),
-          ...(event.tenant === null ? {} : { tenant: event.tenant }),
-        },
-        workflow,
-        args,
-        {
-          idempotencyKey: `event:${event.id}`,
-          ...(options.world === undefined ? {} : { world: options.world }),
-        },
-      );
+      const args = options.args?.(event, context) ?? ([event.payload] as TArgs);
+      await startFor(context, workflow, args, {
+        idempotencyKey: `event:${event.id}`,
+        ...(options.world === undefined ? {} : { world: options.world }),
+      });
     }
   };
 }

@@ -1,3 +1,9 @@
+export {
+  approvalWaiter,
+  type ApprovalWaiter,
+  type ApprovalWaitOptions,
+  type ApprovalWaitResult,
+} from "./approval-waiter.ts";
 export { WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 export {
   authorizeHook,
@@ -13,5 +19,6 @@ export {
   type ProtectWebHandlerOptions,
   type StartForOptions,
   type StartOnEventOptions,
+  type WorkflowContextOptions,
   type WorkflowFn,
 } from "./workflow-sdk.ts";

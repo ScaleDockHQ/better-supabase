@@ -3,7 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImpersonationOptions } from "../auth/impersonation.ts";
 import type { CookieWrite } from "../auth/session.ts";
 import type { AnyAuthorizer } from "../core/authorizer.ts";
-import type { AuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
+import type {
+  AuthorizationHooks,
+  TicketSubject,
+} from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
@@ -161,6 +164,11 @@ export interface ServerOptions {
 export interface ForContextOptions {
   /** Recorded as `act.reason` when the context carries an impersonator. Defaults to `"job"`. */
   readonly reason?: string;
+  /**
+   * Resolves a context's `ticket` into the context the work runs as.
+   * Defaults to `ServerOptions.authorization.tickets.subject`.
+   */
+  readonly ticket?: TicketSubject;
 }
 
 /** The header `current_tenant_id()` reads over the Data API. */
@@ -327,8 +335,14 @@ export interface BetterServer<
   /**
    * Repositories for the user in a recorded context (`job.context`), with
    * RLS, over direct Postgres: `actingAs` with the context's tenant and
-   * `ServerOptions.claimsFor`. Fails with `forbidden` when the actor is not a
-   * user; it never falls back to `admin()`.
+   * `ServerOptions.claimsFor`. A delegated token's `client_id`, `scope`,
+   * `authorization_details` and `act` chain go back into the claims, so
+   * the work stays as narrow as the token that queued it; `claimsFor`
+   * can't set them. A context with a `ticket` runs as the context
+   * `options.ticket` or `authorization.tickets.subject` resolves it to.
+   * Fails with `forbidden` when the actor is not a user, the `act` chain
+   * or delegation is malformed, or the ticket has no resolver or is
+   * refused; it never falls back to the recorded actor or `admin()`.
    */
   forContext(
     context: RequestContext,

@@ -80,5 +80,34 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
-${actorWriteFunctions()}`,
+${actorWriteFunctions()}
+
+-- using (better_supabase.token_scope_allows('posts:write'))
+-- True for a token no OAuth client or agent acts with. A delegated token
+-- (a client_id, or an act that is not a support or impersonation level)
+-- needs p_scope in its scope claim, a space-separated string or a list.
+create or replace function better_supabase.token_scope_allows(p_scope text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    when coalesce(p_scope, '') = '' then false
+    when jsonb_typeof(jwt -> 'scope') = 'string'
+      then p_scope = any(regexp_split_to_array(btrim(jwt ->> 'scope'), '\\s+'))
+    when jsonb_typeof(jwt -> 'scope') = 'array'
+      then jwt -> 'scope' @> jsonb_build_array(p_scope)
+    else false
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+revoke execute on function better_supabase.token_scope_allows(text) from public;
+grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;`,
 };
