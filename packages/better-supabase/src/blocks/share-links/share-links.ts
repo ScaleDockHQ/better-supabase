@@ -67,7 +67,9 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
   return {
     create: (organizationId, subjectType, subjectId, options = {}) => {
       const { role, versionId } =
-        typeof options === "string" ? { role: options, versionId: undefined } : options;
+        typeof options === "string"
+          ? { role: options, versionId: undefined }
+          : options;
       return call(
         "create_share_link",
         {

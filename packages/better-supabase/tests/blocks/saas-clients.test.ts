@@ -195,11 +195,8 @@ describe("saas block clients", () => {
       versionId: "v1",
     });
     expect(
-      (
-        await links
-          .create("org", "files", "f1", { versionId: "v1" })
-          .orThrow()
-      ).id,
+      (await links.create("org", "files", "f1", { versionId: "v1" }).orThrow())
+        .id,
     ).toBe("s1");
     expect(
       await links.recordView("org", "files", "f1", "user", "u1").orThrow(),
