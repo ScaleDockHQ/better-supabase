@@ -29,6 +29,7 @@ import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
+import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -165,6 +166,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IMPORTS),
       built(SUBJECTS),
       built(RANK),
+      built(IDENTITIES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

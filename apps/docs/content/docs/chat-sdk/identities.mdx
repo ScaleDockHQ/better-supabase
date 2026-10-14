@@ -1,0 +1,85 @@
+---
+title: Identities
+description: Run bot jobs as the chat author's linked user, decide approval buttons through the authorization provider, and link approval prompts to the app.
+---
+
+A chat message names a platform user, not an app user. These helpers resolve the author through `principalByIdentity`, usually the [identities block](/docs/blocks/identities), and act only for a linked user. An unlinked author stays anonymous.
+
+Each helper takes `principalByIdentity` directly or reads it from `bs.authorization.identities`, where `bs` is the `createServer(betterSupabase, { authorization })` instance; pass it as `server: bs`. The option passed to the helper wins.
+
+## Bot jobs as the linked user
+
+`botJobs` resolves the author, then enqueues the job with a ticket for a linked user. The worker's `forContext(job.context)` turns the ticket back into that user's context through the provider's `tickets.subject`, so the bot reads and writes with the user's row level security.
+
+```ts title="lib/bot.ts"
+import { botJobs, chatIdentityOf } from "better-supabase/chat-sdk";
+
+const botQueue = botJobs({
+  server: bs,
+  enqueue: (payload, options) => jobs.enqueue("bot_reply", payload, options),
+  ticketFor: (userId) => tickets.issue(userId),
+});
+
+bot.onNewMention(async (thread, message) => {
+  await botQueue.enqueue(chatIdentityOf(message.author, thread.adapter), {
+    threadId: thread.id,
+    text: message.text,
+  });
+});
+```
+
+`ticketFor` is the app's: the authorization provider issues the opaque ticket its `tickets.subject` accepts. An author with no link, or one linked to a contact, gets no ticket and no context, so the job runs anonymous. It never falls back to the bot's service role. When the resolver or `ticketFor` throws, nothing is enqueued and the promise rejects.
+
+Pass the `options` argument to `jobs.enqueue` as it is. Adding a `context` there would give an unlinked author's job a user.
+
+## Approval buttons
+
+`chatActions` decides a button press through the provider's `chat.onAction` hook. It resolves the author, then calls `onAction(action, author)`.
+
+```ts title="lib/bot.ts"
+import { chatActionOf, chatActions } from "better-supabase/chat-sdk";
+
+const decide = chatActions({ server: bs });
+
+bot.onAction("approve", async (event) => {
+  const decision = await decide(chatActionOf(event));
+  if (!decision.allowed) {
+    await event.thread?.post("You can't approve this request here.");
+    return;
+  }
+  await approvals.approve(event.value, { as: decision.userId });
+});
+```
+
+Everything except `allowed: true` refuses, with a `reason`:
+
+| `reason`    | When                                                                              |
+| ----------- | --------------------------------------------------------------------------------- |
+| `unlinked`  | The author has no link. The hook never runs.                                      |
+| `unhandled` | There is no `onAction` hook, or it returned `undefined`.                          |
+| `refused`   | The hook returned `allowed: false`, or a `userId` other than the linked author's. |
+| `error`     | The resolver or the hook threw or rejected.                                       |
+
+For a user author, `decision.userId` is always the linked user. For a contact, it is the user the hook named, if any.
+
+## Approval prompts
+
+An approval sent by chat or email links to the app's approval page. Opening the link approves nothing: the approver signs in, and the page's server action or POST route decides. better-supabase has no GET handler that approves.
+
+```ts
+import { approvalLink, approvalPrompt } from "better-supabase/chat-sdk";
+
+const request = { kind: "tool", subject: approvalId, requester: userId };
+
+await thread.post(
+  approvalPrompt({
+    page: "https://app.example.com/approvals",
+    request,
+    text: "The agent wants to send invoice 1042.",
+  }),
+);
+
+const emailUrl = approvalLink("https://app.example.com/approvals", request);
+```
+
+`approvalLink` adds `kind` and `subject` as query parameters. `approvalPrompt` returns `{ markdown }` with the link, labelled `Review the request` unless you pass `label`.

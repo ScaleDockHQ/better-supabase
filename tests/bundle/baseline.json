@@ -108,6 +108,7 @@
   "./blocks/state-machine": 32302,
   "./blocks/custom-fields": 34218,
   "./blocks/share-links": 32526,
+  "./blocks/identities": 33311,
   "./blocks/reminders": 35468,
   "./blocks/imports": 34968,
   "./blocks/rank": 34262,

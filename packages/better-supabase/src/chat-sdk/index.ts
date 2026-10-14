@@ -34,6 +34,24 @@ export {
   type InboxBotJob,
 } from "./inbox-adapter.ts";
 export {
+  approvalLink,
+  approvalPrompt,
+  type ApprovalPromptOptions,
+  type BotJobEnqueueOptions,
+  type BotJobs,
+  botJobs,
+  type BotJobsOptions,
+  chatActionOf,
+  type ChatActionDecision,
+  type ChatActionRefusal,
+  chatActions,
+  type ChatActionsOptions,
+  chatIdentityOf,
+  type ChatIdentityOptions,
+  type EnqueuedBotJob,
+  resolveChatAuthor,
+} from "./identity.ts";
+export {
   type ChatInstallation,
   type ChatInstallations,
   type ChatInstallationsOptions,
