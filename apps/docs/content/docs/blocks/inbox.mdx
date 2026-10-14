@@ -34,6 +34,11 @@ contract grant them like any other permission.
 | `inbox.assign` | Assigning, changing the status, snoozing and handing off to staff           |
 | `inbox.manage` | Creating inboxes and teams, members, templates and `purgeContact`           |
 
+Under the provider access model, an operations entry `inbox.command.<name>`
+replaces the key for the `assign`, `set_status`, `set_bot_mode` and `reply`
+commands; without one, the key above applies after the rename in
+`sql.modules.inbox.permissions`.
+
 A contact who is a signed-in user reads only their own conversations and
 never sees internal notes. Inboxes with `settings.widget = true` let such a
 visitor open a conversation; other inboxes take new conversations only from

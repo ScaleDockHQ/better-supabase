@@ -1,5 +1,5 @@
 -- better-supabase module: notifications (0.8.0)
--- @bs-module notifications@4 managed
+-- @bs-module notifications@5 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,6 +170,26 @@ grant select, insert, update, delete on "better_supabase"."notification_preferen
 grant all on "better_supabase"."notification_preferences" to service_role;
 drop policy if exists "bs_notification_preferences_own" on "better_supabase"."notification_preferences";
 create policy "bs_notification_preferences_own" on "better_supabase"."notification_preferences" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))));
+
+create table if not exists "better_supabase"."notification_suppressions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "channel" text not null default 'email',
+  "address" text not null check ("address" = lower("address")),
+  "user_id" uuid references auth.users (id) on delete cascade,
+  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "provider" text,
+  "provider_event_id" text,
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now(),
+  unique ("channel", "address")
+);
+create index if not exists notification_suppressions_user_idx on "better_supabase"."notification_suppressions" ("user_id");
+alter table "better_supabase"."notification_suppressions" enable row level security;
+revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
+grant select on "better_supabase"."notification_suppressions" to authenticated;
+grant all on "better_supabase"."notification_suppressions" to service_role;
+drop policy if exists "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions";
+create policy "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -852,12 +872,14 @@ begin
     'attempts', l."attempts",
     'user_id', rc."user_id",
     'email', u.email,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at")
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at"),
+    'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
   join "better_supabase"."notification_recipients" rc on rc."id" = l."recipient_id"
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
-  left join auth.users u on u.id = rc."user_id";
+  left join auth.users u on u.id = rc."user_id"
+  left join "better_supabase"."notification_suppressions" s on s."channel" = l."channel" and s."address" = lower(u.email);
   return claimed;
 end;
 $$;
@@ -900,6 +922,82 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+
+-- Stops a channel from sending to an address after a bounce, a complaint
+-- or by hand. The first suppression wins; returns whether it is new.
+create or replace function "better_supabase"."suppress_notification_address"(address text, reason text, channel text default 'email', provider text default null, provider_event_id text default null, detail jsonb default '{}')
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_address text := lower(btrim(suppress_notification_address.address));
+begin
+  if v_address is null or v_address = '' then
+    raise exception 'address is required' using errcode = '22023', hint = 'NOTIFICATION_SUPPRESSION_ADDRESS';
+  end if;
+  if suppress_notification_address.reason is null or suppress_notification_address.reason not in ('bounce', 'complaint', 'manual') then
+    raise exception 'reason must be bounce, complaint or manual' using errcode = '22023', hint = 'NOTIFICATION_SUPPRESSION_REASON';
+  end if;
+  insert into "better_supabase"."notification_suppressions" ("channel", "address", "user_id", "reason", "provider", "provider_event_id", "detail")
+  values (
+    coalesce(suppress_notification_address.channel, 'email'),
+    v_address,
+    (select u.id from auth.users u where lower(u.email) = v_address order by u.created_at limit 1),
+    suppress_notification_address.reason,
+    suppress_notification_address.provider,
+    suppress_notification_address.provider_event_id,
+    coalesce(suppress_notification_address.detail, '{}')
+  )
+  on conflict ("channel", "address") do nothing;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."suppress_notification_address"(text, text, text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suppress_notification_address"(text, text, text, text, text, jsonb) to service_role;
+
+create or replace function "better_supabase"."unsuppress_notification_address"(address text, channel text default 'email')
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."notification_suppressions" s
+  where s."channel" = coalesce(unsuppress_notification_address.channel, 'email')
+    and s."address" = lower(btrim(unsuppress_notification_address.address));
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."unsuppress_notification_address"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."unsuppress_notification_address"(text, text) to service_role;
+
+-- The caller's suppressions, newest first; the service sees every row.
+create or replace function "better_supabase"."list_notification_suppressions"(max_items integer default 50)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'channel', s."channel",
+    'address', s."address",
+    'user_id', s."user_id",
+    'reason', s."reason",
+    'provider', s."provider",
+    'created_at', s."created_at"
+  ) order by s."created_at" desc), '[]')
+  from (
+    select * from "better_supabase"."notification_suppressions" s
+    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    order by s."created_at" desc
+    limit least(greatest(coalesce(max_items, 50), 1), 200)
+  ) s
+$$;
+revoke execute on function "better_supabase"."list_notification_suppressions"(integer) from public, anon;
+grant execute on function "better_supabase"."list_notification_suppressions"(integer) to authenticated, service_role;
 
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
@@ -1156,6 +1254,33 @@ set search_path = ''
 as $$ select "better_supabase"."complete_notification_delivery"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
 grant execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+
+create or replace function "api"."suppress_notification_address"(address text, reason text, channel text default 'email', provider text default null, provider_event_id text default null, detail jsonb default '{}')
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."suppress_notification_address"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."suppress_notification_address"(text, text, text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."suppress_notification_address"(text, text, text, text, text, jsonb) to service_role;
+
+create or replace function "api"."unsuppress_notification_address"(address text, channel text default 'email')
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."unsuppress_notification_address"($1, $2) $$;
+revoke execute on function "api"."unsuppress_notification_address"(text, text) from public, anon, authenticated;
+grant execute on function "api"."unsuppress_notification_address"(text, text) to service_role;
+
+create or replace function "api"."list_notification_suppressions"(max_items integer default 50)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_notification_suppressions"($1) $$;
+revoke execute on function "api"."list_notification_suppressions"(integer) from public, anon;
+grant execute on function "api"."list_notification_suppressions"(integer) to authenticated, service_role;
 
 create or replace function "api"."purge_notifications"(older_than interval default '90 days', batch integer default 10000)
 returns integer

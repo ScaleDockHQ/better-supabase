@@ -612,6 +612,11 @@
       "types": "./dist/blocks/share-links/index.d.ts",
       "default": "./dist/blocks/share-links/index.js"
     },
+    "./blocks/identities": {
+      "@better-supabase/source": "./src/blocks/identities/index.ts",
+      "types": "./dist/blocks/identities/index.d.ts",
+      "default": "./dist/blocks/identities/index.js"
+    },
     "./blocks/reminders": {
       "@better-supabase/source": "./src/blocks/reminders/index.ts",
       "types": "./dist/blocks/reminders/index.d.ts",
@@ -1332,6 +1337,10 @@
       "./blocks/share-links": {
         "types": "./dist/blocks/share-links/index.d.ts",
         "default": "./dist/blocks/share-links/index.js"
+      },
+      "./blocks/identities": {
+        "types": "./dist/blocks/identities/index.d.ts",
+        "default": "./dist/blocks/identities/index.js"
       },
       "./blocks/reminders": {
         "types": "./dist/blocks/reminders/index.d.ts",

@@ -188,6 +188,9 @@ export function accessProviderMode(
       ...(provider.approvals?.distinctApprover === true
         ? { approvals: { distinctApprover: true } }
         : {}),
+      ...(provider.operations && Object.keys(provider.operations).length > 0
+        ? { operations: provider.operations }
+        : {}),
     },
   };
 }

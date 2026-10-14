@@ -10,6 +10,7 @@ import {
   checkTool,
   contextOf,
   permittedTools,
+  toolPermission,
 } from "../../src/mcp/permissions.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -85,6 +86,25 @@ describe("permittedTools", () => {
         undefined,
       ),
     ).toEqual([false]);
+  });
+});
+
+describe("toolPermission", () => {
+  it("prefers the tool's mcp.tool entry over its declared permission", () => {
+    const operations = {
+      "mcp.tool.export": { permission: "reports.export" },
+      "mcp.tool.blank": { permission: "" },
+      "ai.tool.open": { permission: "ignored" },
+    };
+    expect(toolPermission(operations, "export", "export")).toBe(
+      "reports.export",
+    );
+    expect(toolPermission(operations, "blank", "export")).toBe("export");
+    expect(toolPermission(operations, "open", undefined)).toBeUndefined();
+    expect(toolPermission(undefined, "export", "export")).toBe("export");
+    const ref = { key: "export" };
+    expect(toolPermission({}, "export", ref)).toBe(ref);
+    expect(toolPermission(operations, "export", ref)).toBe("reports.export");
   });
 });
 
@@ -179,6 +199,54 @@ describe("createMcp authorizer", () => {
       code: "APPROVAL_REQUIRED",
       approval: { id: "apr_1" },
     });
+  });
+
+  it("takes a tool's permission from the operations table first", async () => {
+    const keyed: string[] = [];
+    const swapped = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      authorizer: defineAuthorizer<Ref>({
+        name: "test",
+        key: (ref) => (keyed.push(ref), ref),
+        evaluate: decide,
+      }),
+      operations: {
+        "mcp.tool.export": { permission: "purge" },
+        "mcp.tool.open": { permission: "invite" },
+        "inbox.command.invite": { permission: "purge" },
+      },
+    })
+      .tool({
+        name: "export",
+        description: "Exports.",
+        permission: "export",
+        run: () => ({ exported: true }),
+      })
+      .tool({
+        name: "invite",
+        description: "Invites.",
+        permission: "invite",
+        run: () => ({ invited: true }),
+      })
+      .tool({ name: "open", description: "Open.", run: () => "ok" });
+    const response = await swapped.fetch(
+      new Request("https://tools.test/mcp", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: { tools: { name: string }[] };
+    };
+    expect(result.tools.map((tool) => tool.name)).toEqual([]);
+    expect(new Set(keyed)).toEqual(new Set(["purge", "invite"]));
   });
 
   it("types permissions from the authorizer", () => {

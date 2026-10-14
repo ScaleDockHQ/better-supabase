@@ -1,6 +1,61 @@
 import type { TableMeta } from "../schema/types.ts";
 
+import { accessCheck, fillTemplate, isScopeName } from "../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+
+const segmentSql = (index: number): string =>
+  `split_part((select realtime.topic()), ':', ${String(index)})`;
+
+export interface TopicPermissionSql {
+  /** `defineTopic(<template>)`, for errors. */
+  readonly where: string;
+  readonly key: string;
+  /** 1-based segment holding the instance id. */
+  readonly idSegment: number;
+  /** 1-based segment holding the tenant id, when the topic has one. */
+  readonly tenantSegment: number | undefined;
+  readonly resource: string;
+  readonly scope: string;
+  /** The provider's instance template, when one is configured. */
+  readonly permitted: string | undefined;
+}
+
+/**
+ * The receive condition for a topic's instance permission. With the
+ * provider's `permitted` template it asks about the instance in the topic
+ * (`{permission}`, `{id}` and `{tenant}` as text, `{resource}` as a text
+ * literal, `{scope}` unquoted). Without one it falls back to the access
+ * contract's tenant check, `tenant_ids_with(permission)` on the tenant
+ * segment, and a topic without a tenant segment is refused.
+ */
+export function topicPermissionSql(input: TopicPermissionSql): string {
+  const { where, key, tenantSegment } = input;
+  const tenant =
+    tenantSegment === undefined ? undefined : segmentSql(tenantSegment);
+  if (input.permitted !== undefined) {
+    if (!isScopeName(input.scope))
+      throw new TypeError(
+        `${where}: invalid permission scope "${input.scope}"`,
+      );
+    return `coalesce((${fillTemplate(
+      `${where} authorization.functions.permitted`,
+      input.permitted,
+      {
+        permission: sqlString(key),
+        id: segmentSql(input.idSegment),
+        tenant: tenant ?? "null::text",
+        resource: sqlString(input.resource),
+        scope: input.scope,
+      },
+    )}), false)`;
+  }
+  if (tenant === undefined) {
+    throw new TypeError(
+      `${where}: permission "${key}" needs the authorization provider's \`permitted\` template, or a tenant segment for the tenant check`,
+    );
+  }
+  return accessCheck(where, {}, key, tenant);
+}
 
 export type AnyTriggerValue =
   | string

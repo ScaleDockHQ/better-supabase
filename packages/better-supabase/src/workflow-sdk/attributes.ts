@@ -7,4 +7,6 @@ export const WORKFLOW_ATTRIBUTES = {
   definition: "bs.definition",
   /** The builder version number a run started from. */
   version: "bs.version",
+  /** The opaque ticket `bs.forContext` resolves into the context a step runs as. */
+  ticket: "bs.ticket",
 } as const;

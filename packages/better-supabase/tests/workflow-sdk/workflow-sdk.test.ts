@@ -22,6 +22,7 @@ const world = { analytics: { runs: { list: listRuns } } };
 
 vi.mock("workflow/api", () => ({ start, getRun, getHookByToken }));
 vi.mock("workflow/runtime", () => ({ getWorld: async () => world }));
+vi.mock("workflow", () => ({ createHook: vi.fn(), sleep: vi.fn() }));
 
 const {
   authorizeHook,
@@ -79,6 +80,29 @@ describe("context", () => {
     });
     expect(hookMetadata({})).toEqual({});
   });
+
+  it("keeps the delegation claims and the ticket", () => {
+    const delegated = {
+      ...user,
+      claims: { client_id: "mcp", scope: "posts:read", email: "x@y.z" },
+    };
+    expect(workflowContext(delegated)).toEqual({
+      ...user,
+      claims: { client_id: "mcp", scope: "posts:read" },
+    });
+    expect(workflowContext(user, { ticket: "tk-1" })).toEqual({
+      ...user,
+      ticket: "tk-1",
+    });
+    expect(contextAttributes({ ...user, ticket: "tk-1" })).toEqual({
+      "bs.tenant": "t1",
+      "bs.actor": "u1",
+      "bs.ticket": "tk-1",
+    });
+    expect(() =>
+      workflowContext({ ...user, claims: { act: { kind: "root", sub: "a" } } }),
+    ).toThrow(TypeError);
+  });
 });
 
 describe("startFor", () => {
@@ -100,6 +124,20 @@ describe("startFor", () => {
         "bs.key": "k1",
       },
     });
+  });
+
+  it("stores the ticket as bs.ticket", async () => {
+    await startFor(user, approve, ["i1"], { ticket: "tk-1" });
+    expect(start.mock.calls[0]?.[2]).toEqual({
+      attributes: { "bs.tenant": "t1", "bs.actor": "u1", "bs.ticket": "tk-1" },
+    });
+    await startFor({ ...user, ticket: "from-context" }, approve, ["i1"]);
+    expect(start.mock.calls[1]?.[2]).toMatchObject({
+      attributes: { "bs.ticket": "from-context" },
+    });
+    await expect(
+      startFor(user, approve, ["i1"], { ticket: "" }),
+    ).rejects.toThrow(TypeError);
   });
 
   it("returns the run that already has the key", async () => {
@@ -234,6 +272,28 @@ describe("startOnEvent", () => {
     const exact = startOnEvent(approve, { types: ["invoice.paid"] });
     await exact([event({ type: "invoice.paidx" })]);
     expect(start).toHaveBeenCalledOnce();
+  });
+
+  it("records a ticket per event and passes the context to args", async () => {
+    const seen: unknown[] = [];
+    const handler = startOnEvent(approve, {
+      types: ["*"],
+      ticket: (entry) => (entry.id === "e1" ? `ticket:${entry.id}` : undefined),
+      args: (entry, context): [string] => {
+        seen.push(context);
+        return [entry.id];
+      },
+    });
+    await handler([event(), event({ id: "e2" })]);
+    expect(seen).toEqual([{ ...user, ticket: "ticket:e1" }, { ...user }]);
+    expect(start.mock.calls[0]?.[2]).toEqual({
+      attributes: {
+        "bs.tenant": "t1",
+        "bs.actor": "u1",
+        "bs.ticket": "ticket:e1",
+        "bs.key": "event:e1",
+      },
+    });
   });
 });
 

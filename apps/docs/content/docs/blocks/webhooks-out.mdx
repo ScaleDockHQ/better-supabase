@@ -87,6 +87,44 @@ eventId? })` sends to one endpoint outside its subscriptions, for example
 from a workflow step, and returns the delivery id. A member with
 `webhooks.manage` may call it too.
 
+### Who receives an event
+
+`publish` queues an event only for endpoints whose owner may read it. Pass
+`subject` (the row the event is about, such as `invoices/42`) and
+`readPermission`, the permission a reader of that row needs:
+
+```ts
+await webhooks
+  .publish({
+    type: "invoice.paid",
+    data: { id: invoice.id },
+    tenant: organizationId,
+    subject: `invoices/${invoice.id}`,
+    readPermission: "invoices.read",
+  })
+  .orThrow();
+```
+
+| Endpoint owner                                    | Gets the event when                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| A user (`created_by` is set)                      | The user holds `readPermission` (else `webhooks.read`) in the tenant      |
+| A service principal (`created_by` is null)        | `readPermission` is unset, or `permissions` holds it, `*` or a `prefix.*` |
+| A user who was deleted (`created_by` set to null) | As a service principal                                                    |
+
+A service endpoint declares what it holds in its `permissions` column, for
+example `{invoices.*}`. The user check asks the
+[authorization provider](/docs/extending/authorization-providers) when one is
+configured, otherwise the [access contract](/docs/blocks/access); without
+either, user endpoints receive nothing.
+
+The SQL check runs once, when the event is queued. For a check at send time,
+such as row-level rules the provider doesn't know, pass `subscribers`, a
+`SubscriberPolicy`. `deliver` calls it once per event with the candidate
+endpoints (`{ principal, kind }`, where `principal` is the owner's user id or
+the endpoint id of a service endpoint) and cancels the deliveries it leaves
+out. A throw retries every delivery of that event. Without the option the
+block uses `authorization.delivery.subscribers`.
+
 To publish from the [outbox](/docs/blocks/outbox), pass `webhooks.sink()` to
 the relay. It publishes each CloudEvent with its `partitionkey` as the
 organization and its `id` as the event id, and removes the relay's type
@@ -112,10 +150,39 @@ up, and the attempt is the lease token: a worker whose lease ran out and was
 claimed again can't record its result. A batch (`batch`, 25) is sent with
 `concurrency` (10) requests in flight, so it finishes inside the lease.
 Each request carries the Standard Webhooks headers (`webhook-id`,
-`webhook-timestamp` and `webhook-signature`) and the body
-`{ type, timestamp, data }`. Receivers check it with
+`webhook-timestamp` and `webhook-signature`) and a
+[CloudEvents 1.0](/docs/standards/events) event in structured mode
+(`content-type: application/cloudevents+json`). Receivers check it with
 [`verifyWebhook`](/docs/standards/webhooks) or any Standard Webhooks library.
-The delivery id is the `webhook-id`, the same on every retry.
+The delivery id is the `webhook-id` and the CloudEvent `id`, the same on every
+retry.
+
+```json
+{
+  "specversion": "1.0",
+  "id": "8f6c1e0a-…",
+  "source": "https://app.example.com/webhooks",
+  "type": "invoice.paid",
+  "subject": "invoices/42",
+  "time": "2026-10-14T09:30:00Z",
+  "datacontenttype": "application/json",
+  "data": { "id": "42", "amount": 1200 }
+}
+```
+
+| Attribute     | Value                                                                       |
+| ------------- | --------------------------------------------------------------------------- |
+| `source`      | `source`, else `/webhooks` on `appUrl`, else `urn:better-supabase:webhooks` |
+| `type`        | The event type, after `typePrefix` and a dot when you set one               |
+| `subject`     | The `subject` given to `publish`, left out without one                      |
+| `time`        | When the event was queued                                                   |
+| `dataschema`  | `dataschema`, a URI or a function of the delivery                           |
+| `traceparent` | `traceparent(delivery)`, left out when it isn't a valid W3C trace context   |
+
+An endpoint with `batch` set to `true` gets its claimed deliveries in one
+request, as a CloudEvents batch (`application/cloudevents-batch+json`, a JSON
+array of events). The `webhook-id` of a batch is `batch_` and a hash of its
+delivery ids, and the deliveries succeed or fail together.
 
 | Response                       | Result                            |
 | ------------------------------ | --------------------------------- |
@@ -225,7 +292,8 @@ The DNS caveat above applies here too.
 | Option or hook                | Use                                                                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
 | `signer`                      | `standardWebhooks({ headers })` renames the headers; `hmacSigner` matches other formats |
-| `transform`                   | The JSON body for a delivery                                                            |
+| `transform`                   | The CloudEvent `data` for a delivery                                                    |
+| `subscribers`                 | A `SubscriberPolicy` that narrows each event's endpoints at send time                   |
 | `headers`                     | Extra headers per delivery, e.g. an `idempotency-key`                                   |
 | `shouldDeliver`               | Return `false` (or throw) to cancel a delivery, e.g. for a suspended plan               |
 | `retry`                       | `maxAttempts`, `backoff(attempt)` in seconds, `retryable(status)`                       |
@@ -309,6 +377,12 @@ the `vault_secret_id` column (map `columns.secrets.vaultId` when yours has
 another name) and no `secret` column: the module never reads it, so `sql
 sync` doesn't ask you to map it to `null`. With `secretStorage: "column"` it
 is the other way round.
+
+The `permissions` and `batch` endpoint columns and the `subject` delivery
+column are new in version 3 of the module. An adopted table has them only
+when you map them under `columns`, so without them service endpoints get only
+events published without `readPermission`, nothing is sent as a batch and
+deliveries carry no `subject`.
 
 Without `failingSince`, endpoints are never disabled automatically.
 Without `expiresAt`, rotating replaces the secret at once instead of

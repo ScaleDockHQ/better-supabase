@@ -7,6 +7,7 @@ import {
   moduleBody,
   renderModules,
 } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const schemaOf = (names: readonly string[]) =>
   renderModules(names, {})
@@ -54,6 +55,86 @@ describe("workflow-builder module", () => {
     expect(body).toContain("(v_node ->> 'id') !~ '^[A-Za-z0-9_-]{1,100}$'");
   });
 
+  it("stores the publisher and refuses one who lacks a step's permission", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    expect(body).toContain(
+      'add column if not exists "published_by" uuid references auth.users (id) on delete set null',
+    );
+    expect(body).toContain(
+      `add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
+    );
+    const publish = body.slice(
+      body.indexOf('"publish_workflow_version"(version uuid'),
+    );
+    expect(publish).toMatch(
+      /v_permissions := "better_supabase"\."workflow_graph_permissions"\(v_row\."graph"\);\s+if not v_service then/,
+    );
+    expect(publish).toContain(
+      "where not coalesce(better_supabase.can('tenant', v_tenant, p), false);",
+    );
+    expect(publish).toContain("hint = 'WORKFLOW_PUBLISHER_FORBIDDEN'");
+    expect(publish).toContain(
+      `"owner_kind" = case when v_service then 'organization' else 'user' end`,
+    );
+    expect(publish.indexOf("WORKFLOW_GRAPH_INVALID")).toBeLessThan(
+      publish.indexOf("WORKFLOW_PUBLISHER_FORBIDDEN"),
+    );
+  });
+
+  it("checks the stored publisher for every step and never answers for a gone one", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    const principal = body.slice(
+      body.indexOf('"workflow_run_principal"(version uuid'),
+    );
+    expect(principal).toContain(
+      "where not coalesce(better_supabase.can_user(v_row.\"published_by\", 'tenant', v_tenant, p), false);",
+    );
+    expect(principal).toContain(
+      `unnest(array_append(v_row."permissions", 'workflow.publish'))`,
+    );
+    expect(principal).toContain("hint = 'WORKFLOW_PUBLISHER_REVOKED'");
+    expect(principal).toContain(
+      "The user who published this workflow no longer exists",
+    );
+    expect(principal).toContain("published before publishers were recorded");
+    expect(principal).toMatch(
+      /revoke execute on function "better_supabase"\."workflow_run_principal"\(uuid\) from public, anon, authenticated;/,
+    );
+  });
+
+  it("resolves step permissions from the provider's operations, then the renamed module key", () => {
+    const permissionsFn = (sql: string) =>
+      sql.slice(
+        sql.indexOf('"workflow_graph_permissions"(graph jsonb)'),
+        sql.indexOf(
+          "$$;",
+          sql.indexOf('"workflow_graph_permissions"(graph jsonb)'),
+        ),
+      );
+    expect(permissionsFn(moduleBody("workflow-builder", {})!)).toContain(
+      `coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run')`,
+    );
+    const layout = {
+      modules: {
+        "workflow-builder": { permissions: { run: "automations.run" } },
+      } satisfies ModulesConfig,
+      accessProvider: {
+        ...moduleProvider,
+        operations: {
+          "workflow.node.crm.lookup": { permission: "crm.read" },
+          "workflow.node.": { permission: "ignored" },
+          "workflow.node.email.send": { permission: "" },
+          "mcp.tool.search": { permission: "search.run" },
+        },
+      },
+    };
+    const sql = permissionsFn(moduleBody("workflow-builder", layout)!);
+    expect(sql).toContain(
+      `coalesce('{"crm.lookup":"crm.read"}'::jsonb ->> (n.value ->> 'step'), 'automations.run')`,
+    );
+    expect(sql).not.toContain("search.run");
+  });
+
   it("rejects a credential ref outside the credential's tenant", () => {
     expect(schemaOf(["workflow-builder"])).toContain(
       "(save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text",
@@ -72,6 +153,8 @@ describe("workflow-builder module", () => {
       "publish_workflow_version",
       "workflow_start_target",
       "workflow_webhook_target",
+      "workflow_graph_permissions",
+      "workflow_run_principal",
       "record_workflow_node_run",
       "check_workflow_alerts",
     ]) {

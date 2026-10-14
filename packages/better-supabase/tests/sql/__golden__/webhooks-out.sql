@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@2 managed
+-- @bs-module webhooks-out@3 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "url" text not null check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
   "event_types" text[] not null default '{}',
+  "permissions" text[],
+  "batch" boolean not null default false,
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -52,6 +54,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_endpoints" add column if not exists "permissions" text[];
+alter table "better_supabase"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
 create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
@@ -83,6 +87,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "event_id" text,
   "run_id" text,
   "event_type" text not null,
+  "subject" text,
   "payload" jsonb not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
   "attempt" integer not null default 0 check ("attempt" >= 0),
@@ -96,6 +101,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_deliveries" add column if not exists "subject" text;
 create index if not exists webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index if not exists webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
@@ -141,12 +147,16 @@ drop trigger if exists "bs_webhook_secret_vault" on "better_supabase"."webhook_e
 create trigger "bs_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
 
+drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -157,6 +167,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
@@ -165,19 +177,25 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
-  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id")
-  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
+  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id", "subject")
+  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
   from "better_supabase"."webhook_endpoints" d
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
+    and (case when d."created_by" is not null then false else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -287,7 +305,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -535,13 +553,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 2, 'managed')
+values ('webhooks-out', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@2 managed
+-- @bs-module webhooks-out@3 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -586,6 +604,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "url" text not null check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
   "event_types" text[] not null default '{}',
+  "permissions" text[],
+  "batch" boolean not null default false,
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -593,6 +613,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_endpoints" add column if not exists "permissions" text[];
+alter table "better_supabase"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
 create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
@@ -634,6 +656,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "event_id" text,
   "run_id" text,
   "event_type" text not null,
+  "subject" text,
   "payload" jsonb not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
   "attempt" integer not null default 0 check ("attempt" >= 0),
@@ -647,6 +670,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_deliveries" add column if not exists "subject" text;
 create index if not exists webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index if not exists webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
@@ -695,12 +719,16 @@ drop trigger if exists "bs_webhook_secret_vault" on "better_supabase"."webhook_e
 create trigger "bs_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
 
+drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -711,6 +739,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
@@ -719,19 +749,25 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
-  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id")
-  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
+  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id", "subject")
+  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
   from "better_supabase"."webhook_endpoints" d
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
+    and (case when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false) else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -841,7 +877,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -1106,13 +1142,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 2, 'managed')
+values ('webhooks-out', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@2 managed
+-- @bs-module webhooks-out@3 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1159,6 +1195,8 @@ create table if not exists "app_private"."webhook_endpoints" (
   "url" text not null check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
   "event_types" text[] not null default '{}',
+  "permissions" text[],
+  "batch" boolean not null default false,
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -1166,6 +1204,8 @@ create table if not exists "app_private"."webhook_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "app_private"."webhook_endpoints" add column if not exists "permissions" text[];
+alter table "app_private"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
 create index if not exists webhook_endpoints_types_idx on "app_private"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "app_private"."webhook_endpoints" ("organization_id");
 create index if not exists webhook_endpoints_created_by_idx on "app_private"."webhook_endpoints" ("created_by");
@@ -1197,6 +1237,7 @@ create table if not exists "app_private"."webhook_deliveries" (
   "event_id" text,
   "run_id" text,
   "event_type" text not null,
+  "subject" text,
   "payload" jsonb not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
   "attempt" integer not null default 0 check ("attempt" >= 0),
@@ -1210,6 +1251,7 @@ create table if not exists "app_private"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "app_private"."webhook_deliveries" add column if not exists "subject" text;
 create index if not exists webhook_deliveries_due_idx on "app_private"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on "app_private"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index if not exists webhook_deliveries_open_idx on "app_private"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
@@ -1255,12 +1297,16 @@ drop trigger if exists "bs_webhook_secret_vault" on "app_private"."webhook_endpo
 create trigger "bs_webhook_secret_vault" after delete on "app_private"."webhook_endpoint_secrets"
   for each row execute function "app_private"."drop_webhook_vault_secret"();
 
+drop function if exists "app_private"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function "app_private"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function "app_private"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -1271,6 +1317,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
@@ -1279,19 +1327,25 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
-  insert into "app_private"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id")
-  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
+  insert into "app_private"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id", "subject")
+  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
   from "app_private"."webhook_endpoints" d
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
+    and (case when d."created_by" is not null then false else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-revoke execute on function "app_private"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "app_private"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+revoke execute on function "app_private"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -1401,7 +1455,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -1649,13 +1703,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 2, 'managed')
+values ('webhooks-out', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@2 managed
+-- @bs-module webhooks-out@3 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1700,6 +1754,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "url" text not null check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
   "event_types" text[] not null default '{}',
+  "permissions" text[],
+  "batch" boolean not null default false,
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -1707,6 +1763,8 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_endpoints" add column if not exists "permissions" text[];
+alter table "better_supabase"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
 create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
@@ -1738,6 +1796,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "event_id" text,
   "run_id" text,
   "event_type" text not null,
+  "subject" text,
   "payload" jsonb not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
   "attempt" integer not null default 0 check ("attempt" >= 0),
@@ -1751,6 +1810,7 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."webhook_deliveries" add column if not exists "subject" text;
 create index if not exists webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index if not exists webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
@@ -1796,12 +1856,16 @@ drop trigger if exists "bs_webhook_secret_vault" on "better_supabase"."webhook_e
 create trigger "bs_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
 
+drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -1812,6 +1876,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
@@ -1820,19 +1886,25 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
-  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id")
-  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
+  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id", "subject")
+  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
   from "better_supabase"."webhook_endpoints" d
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
+    and (case when d."created_by" is not null then false else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -1942,7 +2014,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -2173,6 +2245,7 @@ grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_r
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."publish_webhook_event"(text, jsonb, uuid, text);
 drop function if exists "api"."claim_webhook_deliveries"(integer, interval);
 
 create or replace function "api"."actor_may_write"()
@@ -2193,14 +2266,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+create or replace function "api"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."publish_webhook_event"($1, $2, $3, $4) $$;
-revoke execute on function "api"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "api"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+as $$ select "better_supabase"."publish_webhook_event"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 create or replace function "api"."dispatch_webhook"(endpoint uuid, event_type text, payload jsonb, run_id text default null, event_id text default null)
 returns uuid
@@ -2286,13 +2359,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 2, 'managed')
+values ('webhooks-out', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@2 adopt
+-- @bs-module webhooks-out@3 adopt
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -2366,12 +2439,16 @@ drop trigger if exists "bs_webhook_secret_vault" on "better_supabase"."webhook_e
 create trigger "bs_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
 
+drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -2382,6 +2459,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
@@ -2390,19 +2469,25 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
   insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id")
   select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text
   from "better_supabase"."webhook_endpoints" d
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
+    and (case when d."created_by" is not null then false else publish_webhook_event.read_permission is null end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text) to service_role;
+revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -2512,7 +2597,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'owner', d."created_by"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -2760,6 +2845,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 2, 'adopt')
+values ('webhooks-out', 3, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -115,7 +115,8 @@ export interface DisabledRow {
 
 export interface AccessModuleConfig extends ModuleConfig {
   /**
-   * `roles`: a fixed role list from `roles` (the default). `catalog`: role,
+   * `roles`: a fixed role list from `roles` (the default without
+   * `authorization`; with it, `provider` is the default). `catalog`: role,
    * permission and override tables (`tables.roles`, `permissions`,
    * `rolePermissions`, `overrides`, `platformAssignments`). `provider`: the
    * functions of the config's `authorization` provider. `custom`:

@@ -865,7 +865,7 @@ describe("problem details", () => {
     );
     const body = await response.json();
     expect(body).toEqual({
-      type: "https://bettersupabase.com/problems/conflict",
+      type: "about:blank",
       title: "Conflict",
       status: 409,
       kind: "conflict",

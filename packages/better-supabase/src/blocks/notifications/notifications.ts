@@ -1,11 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
 import type {
   ListOptions,
   NotificationActor,
   NotificationOf,
   NotificationPreference,
   NotificationSubscription,
+  NotificationSuppression,
   NotificationTypes,
   NotificationUpdate,
   Notifications,
@@ -13,6 +15,7 @@ import type {
   Rendered,
   SendInput,
   SentNotification,
+  SuppressionReason,
   TypeName,
 } from "./api-types.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
@@ -34,6 +37,7 @@ import {
 } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
   DEFAULT_BLOCK_SCHEMA,
   applyTemporal,
@@ -44,6 +48,7 @@ import {
   nullableInstant,
   nullableText,
 } from "../shared.ts";
+import { emailChannel } from "./email.ts";
 import {
   LEVELS,
   cursorOf,
@@ -51,6 +56,44 @@ import {
   publicObjectUrl,
   toItem,
 } from "./rows.ts";
+
+const SUPPRESSION_REASONS: readonly SuppressionReason[] = [
+  "bounce",
+  "complaint",
+  "manual",
+];
+
+interface Claimed {
+  readonly message: NotificationMessage;
+  /** The suppression's reason when the address is suppressed on the channel. */
+  readonly suppressed: string | null;
+}
+
+function deliveryChannels(
+  options: Pick<NotificationsOptions<NotificationTypes>, "channels" | "email">,
+): readonly NotificationChannel[] {
+  const channels = options.channels ?? [];
+  if (options.email === undefined) return channels;
+  if (channels.some((channel) => channel.name === "email")) {
+    throw new TypeError(
+      'createNotifications: `email` adds the "email" channel; remove the channel named "email" from `channels`',
+    );
+  }
+  return [...channels, emailChannel(options.email)];
+}
+
+/** The event a delivery's audience check sees: the notification, as its recipients read it. */
+const subscriberEventOf = (
+  notification: NotificationItem,
+): SubscriberEvent => ({
+  type: notification.type,
+  tenant: notification.tenant,
+  actorId: notification.actorId,
+  payload: notification.data,
+  subject: notification.subject
+    ? `${notification.subject.type}/${notification.subject.id}`
+    : null,
+});
 
 export function createNotifications<
   const K extends NotificationTypes,
@@ -195,25 +238,128 @@ export function createNotifications<
     }
   };
 
-  async function deliverOne(
+  const channelList = deliveryChannels(options);
+  const audience =
+    options.audience ?? options.server?.authorization?.delivery?.audience;
+
+  const claimedOf = (
     channel: NotificationChannel,
     row: Record<string, unknown>,
-    maxAttempts: number,
-  ): Promise<"sent" | "skipped" | "failed"> {
+  ): Claimed => {
     const notification = isRecord(row["notification"])
       ? toItem(row["notification"])
       : undefined;
     if (!notification) throw new TypeError("claim returned no notification");
-    const attempts = Number(row["attempts"] ?? 1);
-    const message: NotificationMessage = {
-      deliveryId: String(row["delivery_id"]),
-      channel: channel.name,
-      attempts,
-      userId: String(row["user_id"]),
-      email: nullableText(row["email"]),
-      notification,
-      ...(options.render ? { text: options.render(notification, {}) } : {}),
+    return {
+      message: {
+        deliveryId: String(row["delivery_id"]),
+        channel: channel.name,
+        attempts: Number(row["attempts"] ?? 1),
+        userId: String(row["user_id"]),
+        email: nullableText(row["email"]),
+        notification,
+        ...(options.render ? { text: options.render(notification, {}) } : {}),
+      },
+      suppressed: nullableText(row["suppressed"]),
     };
+  };
+
+  const fail = async (
+    channel: NotificationChannel,
+    message: NotificationMessage,
+    error: string,
+    maxAttempts: number,
+  ): Promise<"failed"> => {
+    await call("complete_notification_delivery", {
+      delivery: message.deliveryId,
+      status: "pending",
+      error,
+      max_attempts: maxAttempts,
+    });
+    emit(
+      "notification.failed",
+      {
+        notificationId: message.notification.eventId,
+        type: message.notification.type,
+        channel: channel.name,
+        error,
+      },
+      message.notification.tenant,
+    );
+    return "failed";
+  };
+
+  const skip = async (
+    message: NotificationMessage,
+    error: string,
+  ): Promise<"skipped"> => {
+    await call("complete_notification_delivery", {
+      delivery: message.deliveryId,
+      status: "skipped",
+      error,
+    });
+    return "skipped";
+  };
+
+  /**
+   * Sends a claimed batch: suppressed addresses are skipped first, then
+   * each notification's remaining recipients go through `audience` once.
+   */
+  async function deliverBatch(
+    channel: NotificationChannel,
+    rows: readonly Record<string, unknown>[],
+    maxAttempts: number,
+  ): Promise<("sent" | "skipped" | "failed")[]> {
+    const claimed = rows.map((row) => claimedOf(channel, row));
+    const outcomes: ("sent" | "skipped" | "failed")[] = [];
+    const byEvent = new Map<string, NotificationMessage[]>();
+    for (const { message, suppressed } of claimed) {
+      if (suppressed !== null) {
+        outcomes.push(await skip(message, `suppressed: ${suppressed}`));
+        continue;
+      }
+      const group = byEvent.get(message.notification.eventId) ?? [];
+      group.push(message);
+      byEvent.set(message.notification.eventId, group);
+    }
+    for (const messages of byEvent.values()) {
+      const notification = messages[0]!.notification;
+      const subscribers = messages.map((message) => ({
+        principal: message.userId,
+        kind: "user" as const,
+        message,
+      }));
+      const checked = await allowedSubscribers(
+        audience,
+        subscriberEventOf(notification),
+        subscribers,
+      );
+      if (!checked.ok) {
+        const error = `audience check failed: ${errorText(checked.cause)}`;
+        for (const message of messages)
+          outcomes.push(await fail(channel, message, error, maxAttempts));
+        continue;
+      }
+      const allowed = new Set(
+        checked.allowed.map((subscriber) => subscriber.message),
+      );
+      for (const message of messages) {
+        outcomes.push(
+          allowed.has(message)
+            ? await deliverOne(channel, message, maxAttempts)
+            : await skip(message, "audience"),
+        );
+      }
+    }
+    return outcomes;
+  }
+
+  async function deliverOne(
+    channel: NotificationChannel,
+    message: NotificationMessage,
+    maxAttempts: number,
+  ): Promise<"sent" | "skipped" | "failed"> {
+    const notification = message.notification;
     try {
       const result = await channel.send(message);
       const status = result?.status ?? "sent";
@@ -236,24 +382,7 @@ export function createNotifications<
       }
       return status;
     } catch (cause) {
-      const error = errorText(cause);
-      await call("complete_notification_delivery", {
-        delivery: message.deliveryId,
-        status: "pending",
-        error,
-        max_attempts: maxAttempts,
-      });
-      emit(
-        "notification.failed",
-        {
-          notificationId: notification.eventId,
-          type: notification.type,
-          channel: channel.name,
-          error,
-        },
-        notification.tenant,
-      );
-      return "failed";
+      return fail(channel, message, errorText(cause), maxAttempts);
     }
   }
 
@@ -502,7 +631,7 @@ export function createNotifications<
     },
     async deliver(deliverOptions = {}) {
       const wanted = deliverOptions.channels;
-      const channels = (options.channels ?? []).filter(
+      const channels = channelList.filter(
         (channel) => !wanted || wanted.includes(channel.name),
       );
       const spent = budget(deliverOptions.budgetMs);
@@ -522,11 +651,12 @@ export function createNotifications<
             const rows = (Array.isArray(claimed) ? claimed : []).filter(
               isRecord,
             );
-            for (const row of rows) {
-              counts[
-                await deliverOne(channel, row, deliverOptions.maxAttempts ?? 5)
-              ] += 1;
-            }
+            const outcomes = await deliverBatch(
+              channel,
+              rows,
+              deliverOptions.maxAttempts ?? 5,
+            );
+            for (const outcome of outcomes) counts[outcome] += 1;
             if (rows.length < batch) break;
           }
         }),
@@ -538,6 +668,53 @@ export function createNotifications<
         "purge_notifications",
         { older_than: olderThan ?? null, batch: batch ?? null },
         Number,
+      );
+    },
+    suppress(input) {
+      return run(
+        "suppress_notification_address",
+        {
+          address: input.address,
+          reason: input.reason,
+          channel: input.channel ?? "email",
+          provider: input.provider ?? null,
+          provider_event_id: input.providerEventId ?? null,
+          detail: input.detail ?? {},
+        },
+        (value) => value === true,
+      );
+    },
+    unsuppress(address, channel = "email") {
+      return run(
+        "unsuppress_notification_address",
+        { address, channel },
+        (value) => value === true,
+      );
+    },
+    suppressions(suppressionOptions = {}) {
+      return run(
+        "list_notification_suppressions",
+        { max_items: suppressionOptions.limit ?? 50 },
+        (value) =>
+          (Array.isArray(value) ? value : [])
+            .filter(isRecord)
+            .flatMap((row): NotificationSuppression[] => {
+              const reason = SUPPRESSION_REASONS.find(
+                (entry) => entry === row["reason"],
+              );
+              return reason === undefined
+                ? []
+                : [
+                    {
+                      channel: String(row["channel"]),
+                      address: String(row["address"]),
+                      userId: nullableText(row["user_id"]),
+                      reason,
+                      provider: nullableText(row["provider"]),
+                      createdAt: nullableInstant(row["created_at"]),
+                    },
+                  ];
+            }),
       );
     },
     sink(sinkOptions) {

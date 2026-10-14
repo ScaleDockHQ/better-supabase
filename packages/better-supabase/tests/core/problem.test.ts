@@ -34,8 +34,8 @@ describe("rate_limited", () => {
     expect(response.headers.get("retry-after")).toBe("12");
     const problem = toProblem(error);
     expect(problem).toMatchObject({
-      type: "https://bettersupabase.com/problems/rate-limited",
-      title: "Too many requests",
+      type: "about:blank",
+      title: "Too Many Requests",
       retryAfter: 12,
     });
     expect(fromProblem(await response.json())).toMatchObject({

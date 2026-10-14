@@ -58,7 +58,7 @@ import {
   type QueueStats,
 } from "./backends.ts";
 import { nextCronRun } from "./cron.ts";
-import { unwrap, withContext } from "./envelope.ts";
+import { unwrap, wrapPayload } from "./envelope.ts";
 
 /** Transient claim errors in a row a lane retries, with backoff, before the loop throws. */
 const CLAIM_RETRIES = 3;
@@ -380,11 +380,13 @@ export function createJobs<const Q extends QueueSchemas>(
         }),
       );
     }
+    const wrapped = wrapPayload(valid.data, scheduleOptions.context);
+    if (!wrapped.ok) return wrapped;
     return ok({
       name,
       cron,
       queue,
-      payload: withContext(valid.data, scheduleOptions.context),
+      payload: wrapped.data,
       timeZone,
       tenant:
         scheduleOptions.tenant ??
@@ -425,28 +427,62 @@ export function createJobs<const Q extends QueueSchemas>(
       return counts.reduce((sum, count) => sum + count, 0);
     });
 
-  const delayOf = (enqueueOptions: EnqueueOptions): number =>
-    enqueueOptions.delay ??
-    (enqueueOptions.runAt
-      ? Math.max(
-          0,
-          Math.ceil(
-            (enqueueOptions.runAt.epochMilliseconds - now().epochMilliseconds) /
-              1000,
-          ),
-        )
-      : 0);
+  const delayOf = (enqueueOptions: EnqueueOptions): Result<number> => {
+    const delay = enqueueOptions.delay;
+    if (delay !== undefined && (!Number.isInteger(delay) || delay < 0)) {
+      return err(
+        dbError("validation", "delay is a whole number of seconds", {
+          issues: [
+            { message: "Expected a non-negative integer", path: ["delay"] },
+          ],
+        }),
+      );
+    }
+    return ok(
+      delay ??
+        (enqueueOptions.runAt
+          ? Math.max(
+              0,
+              Math.ceil(
+                (enqueueOptions.runAt.epochMilliseconds -
+                  now().epochMilliseconds) /
+                  1000,
+              ),
+            )
+          : 0),
+    );
+  };
+
+  /** The validated payload in its envelope, and the delay, for `enqueue` and `enqueueOnce`. */
+  const prepareSend = async (
+    queue: string,
+    payload: unknown,
+    enqueueOptions: EnqueueOptions,
+  ): Promise<Result<{ message: unknown; delay: number }>> => {
+    const valid = await validate(schemaOf(queue), payload, "payload");
+    if (!valid.ok) return valid;
+    const delay = delayOf(enqueueOptions);
+    if (!delay.ok) return delay;
+    const message = wrapPayload(valid.data, enqueueOptions.context, {
+      ...(enqueueOptions.ticket === undefined
+        ? {}
+        : { ticket: enqueueOptions.ticket }),
+    });
+    if (!message.ok) return message;
+    return ok({ message: message.data, delay: delay.data });
+  };
 
   return {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
-        const valid = await validate(schemaOf(queue), payload, "payload");
-        if (!valid.ok) return valid;
+        const prepared = await prepareSend(queue, payload, enqueueOptions);
+        if (!prepared.ok) return prepared;
+        const { message, delay } = prepared.data;
         return run(() =>
           transport.send(
             queue,
-            withContext(valid.data, enqueueOptions.context),
-            delayOf(enqueueOptions),
+            message,
+            delay,
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
             enqueueOptions.dedupe,
@@ -456,14 +492,15 @@ export function createJobs<const Q extends QueueSchemas>(
     },
     enqueueOnce(queue, payload, enqueueOptions) {
       return AsyncResult.from(async () => {
-        const valid = await validate(schemaOf(queue), payload, "payload");
-        if (!valid.ok) return valid;
+        const prepared = await prepareSend(queue, payload, enqueueOptions);
+        if (!prepared.ok) return prepared;
+        const { message, delay } = prepared.data;
         return run(() => {
           if (!transport.sendOnce) sqlOnly("enqueueOnce");
           return transport.sendOnce(
             queue,
-            withContext(valid.data, enqueueOptions.context),
-            delayOf(enqueueOptions),
+            message,
+            delay,
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
           );

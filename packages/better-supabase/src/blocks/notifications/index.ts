@@ -19,6 +19,30 @@ export type {
   NotificationSendResult,
 } from "./channel.ts";
 export { createNotifications } from "./notifications.ts";
+export { mailHeaders } from "./delivery.ts";
+export type {
+  DeliveryChannel,
+  DeliveryMessages,
+  DeliveryReceipt,
+  DeliverySendOptions,
+  DeliveryTransport,
+  EmailMessage,
+  MailCategory,
+  UnsubscribeTarget,
+} from "./delivery.ts";
+export { emailChannel } from "./email.ts";
+export type { ComposedEmail, EmailChannelOptions } from "./email.ts";
+export {
+  ResendError,
+  resendTransport,
+  type ResendTransportOptions,
+} from "./transports/resend.ts";
+export {
+  resendSuppressions,
+  resendWebhook,
+  type ResendWebhookOptions,
+  type SuppressionWriter,
+} from "./transports/resend-webhook.ts";
 export {
   watcherHandler,
   watcherSink,
@@ -39,6 +63,7 @@ export type {
   NotificationPreference,
   NotificationSinkOptions,
   NotificationSubscription,
+  NotificationSuppression,
   NotificationTypes,
   NotificationUpdate,
   Notifications,
@@ -49,6 +74,8 @@ export type {
   SentNotification,
   SinkNotification,
   SubscriptionLevel,
+  SuppressInput,
+  SuppressionReason,
 } from "./api-types.ts";
 export type {
   NotificationItem,

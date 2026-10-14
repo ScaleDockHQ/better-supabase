@@ -67,6 +67,116 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Caller and actor
+
+Pass `caller` with the user id from the verified session. That user is the
+principal of every check the runtime makes and the `user` the AI Gateway
+bills; the agent row is only the actor (`{ kind: "agent", id }`) and never
+becomes the subject. For a run nobody invoked, such as a schedule, pass the
+user who published the agent (`agent.ownerId`).
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  tools,
+  caller: { userId: session.userId, organizationId },
+});
+```
+
+The runtime passes the same context to `authorizeModel`, `authorizeTool`,
+`results` and the AI SDK's `runtimeContext`: `userId`, `organizationId`
+(the caller's tenant, else the agent's) and `actor`. A `runtimeContext`
+passed to `generate` or `stream` can't replace these keys.
+`agentRunContext(agent, caller)` builds it for your own code.
+
+## Model access
+
+`authorizeModel(modelId, context)` runs before every model call, with the
+model's id (the string, or `modelId` of a model object). `false` or a
+throw refuses the run with a `forbidden` `DbException` (code
+`AI_MODEL_NOT_ALLOWED`, status 403) before the model is called, so no
+tokens are spent. Every model is allowed without it, so set it when some
+plans or roles may not use expensive models.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  caller,
+  authorizeModel: (modelId, { organizationId }) =>
+    plans.allowsModel(organizationId, modelId),
+});
+```
+
+## Tool permissions
+
+Each tool is the operation `ai.tool.<name>`. The runtime reads its
+permission from the authorization provider's `operations` first and from
+`permissions` (the tool's own key) otherwise. `false` in `permissions`
+marks a tool that needs no permission. With `authorizeTool`, every call
+needs the caller to hold that permission: a tool with no permission, a
+`false` answer and a throw all deny the call before `toolApproval` runs.
+That includes `search_knowledge`: give it a permission, or `false` when
+the knowledge block's own access rules are enough.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  tools,
+  caller,
+  operations: config.authorization?.operations,
+  permissions: { search_docs: "docs.read", send_email: "email.send" },
+  authorizeTool: (permission, { userId, organizationId }) =>
+    can(userId, organizationId, permission),
+});
+```
+
+An operation whose provider entry has `meta.risk: "high"` waits for the
+user's approval, as an `ask` tool does. `agentToolOperation(name,
+operations, permissions)` returns the operation, its permission and the
+provider's `risk`, `effects` and `title`, for a settings page or an audit
+entry.
+
+## Search results
+
+`results` drops knowledge hits the caller may not read. It gets the hits
+and the run context with `toolName` and `query`, and runs before the
+reranker, `onHits` and the model see them. A throw fails the tool call.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  caller,
+  knowledge: { knowledge, organizationId },
+  results: (hits, { userId }) =>
+    hits.filter((hit) => mayRead(userId, hit.documentId)),
+});
+```
+
+`searchTool` and `recallTool` take the same `results` option when you
+build them yourself.
+
+## AI Gateway attribution
+
+With `caller` or `gateway`, every model call carries
+[`gatewayOptions`](/docs/ai-sdk#ai-gateway): the caller's id as
+`user`, then the tags `org:<tenant>`, `feature:<feature>` (default
+`agent`), `agent:<id>` and your `tags`. `gateway.options` adds gateway
+options such as `order`; a `user` in it is dropped, and model output or
+tool input can't change these options.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  caller,
+  gateway: { feature: "support", tags: ["team:billing"] },
+});
+```
+
 ## Moderation
 
 ```ts

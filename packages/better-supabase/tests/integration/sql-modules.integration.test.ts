@@ -234,6 +234,47 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await installSchemaModules(pool);
   });
 
+  it("resolves an identity linked to an inbox contact", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const { rows: fk } = await client.query<{ target: string }>(
+        `select confrelid::regclass::text as target from pg_constraint
+         where conrelid = 'better_supabase.identity_links'::regclass and contype = 'f'
+           and conkey = array[(select attnum from pg_attribute where attrelid = 'better_supabase.identity_links'::regclass and attname = 'contact_id')]`,
+      );
+      expect(fk.map((row) => row.target)).toEqual(["better_supabase.contacts"]);
+      const {
+        rows: [contact],
+      } = await client.query<{ id: string }>(
+        "insert into better_supabase.contacts (tenant_id, name) values ($1, 'Visitor') returning id",
+        [ACME],
+      );
+      const value = `wa-${RUN}`;
+      await client.query(
+        "insert into better_supabase.identity_links (kind, provider, value, contact_id, source) values ('chat', 'whatsapp', $1, $2, 'link')",
+        [value, contact!.id],
+      );
+      const { rows } = await client.query<{ target: unknown }>(
+        "select better_supabase.principal_by_identity('chat', 'whatsapp', $1) as target",
+        [value],
+      );
+      expect(rows[0]?.target).toEqual({
+        kind: "contact",
+        contactId: contact!.id,
+      });
+      await expect(
+        client.query(
+          "insert into better_supabase.identity_links (kind, value, source) values ('chat', $1, 'link')",
+          [`${value}-none`],
+        ),
+      ).rejects.toThrow(/identity_links_one_target/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("indexes the columns of every foreign key", async () => {
     const { rows } = await pool.query<{ constraint: string }>(
       `select c.conrelid::regclass::text || ' ' || c.conname as constraint

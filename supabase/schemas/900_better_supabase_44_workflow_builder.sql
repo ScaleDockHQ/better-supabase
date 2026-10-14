@@ -74,6 +74,14 @@ create table if not exists "better_supabase"."workflow_versions" (
   "published_at" timestamptz,
   constraint workflow_versions_definition_version_key unique ("definition_id", "version")
 );
+-- Who published a version and with which rights: its steps run as that
+-- user, narrowed to permissions, or as the app's service principal when an
+-- organization owns it (published by the service role). A deleted user
+-- leaves published_by null with owner_kind 'user', so the steps fail.
+alter table "better_supabase"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
+alter table "better_supabase"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+create index if not exists workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
 create unique index if not exists workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
@@ -425,6 +433,9 @@ begin
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
     'compiled', v_row."compiled"
   );
@@ -433,10 +444,88 @@ $$;
 revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
--- Publishes a version: workflow.publish in its tenant, and a graph
--- validate_workflow_graph accepts. The version published before is
--- archived. Only the service role may store the engine's compiled form,
--- also on a version that is already published.
+-- The permissions the step nodes of graph need, sorted and distinct: the
+-- provider's workflow.node.<step> operation, else workflow.run. Trigger,
+-- sleep, approval and condition nodes need none.
+create or replace function "better_supabase"."workflow_graph_permissions"(graph jsonb)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
+  from (
+    select coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run') as p
+    from jsonb_array_elements(
+      case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
+        then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end
+    ) n
+    where n.value ->> 'kind' = 'step'
+  ) x;
+$$;
+revoke execute on function "better_supabase"."workflow_graph_permissions"(jsonb) from public, anon;
+grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) to authenticated, service_role;
+
+-- Whom the steps of a published or archived version run as (service role;
+-- call it for every step). A user-owned version needs its publisher to
+-- still hold workflow.publish and every stored permission in the tenant;
+-- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
+-- organization-owned version returns publisher null, for the app's service
+-- principal. The trigger that started the run never changes the answer.
+create or replace function "better_supabase"."workflow_run_principal"(version uuid)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_versions"%rowtype;
+  v_tenant uuid;
+  v_missing text;
+begin
+  select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
+  if not found then
+    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if v_row."status" = 'draft' then
+    raise exception 'This workflow version was never published' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
+  if v_row."owner_kind" is null then
+    raise exception 'This workflow version was published before publishers were recorded; publish it again'
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+  end if;
+  if v_row."owner_kind" = 'user' then
+    if v_row."published_by" is null then
+      raise exception 'The user who published this workflow no longer exists'
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(array_append(v_row."permissions", 'workflow.publish')) p
+    where not coalesce(better_supabase.can_user(v_row."published_by", 'tenant', v_tenant, p), false);
+    if v_missing is not null then
+      raise exception 'The user who published this workflow no longer holds %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+  end if;
+  return jsonb_build_object(
+    'publisher', v_row."published_by",
+    'tenant', v_tenant,
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions")
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_run_principal"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_run_principal"(uuid) to service_role;
+
+-- Publishes a version: workflow.publish in its tenant, a graph
+-- validate_workflow_graph accepts, and every permission its steps need
+-- (workflow_graph_permissions), which are stored with the publisher. The
+-- service role publishes for the organization. The version published
+-- before is archived. Only the service role may store the engine's
+-- compiled form, also on a version that is already published.
 create or replace function "better_supabase"."publish_workflow_version"(version uuid, compiled jsonb default null)
 returns jsonb
 language plpgsql
@@ -448,6 +537,9 @@ declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
   v_errors jsonb;
+  v_permissions text[];
+  v_missing text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -477,6 +569,9 @@ begin
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
     'compiled', v_row."compiled"
   );
@@ -486,9 +581,25 @@ begin
     raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
       using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
+  v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
+  if not v_service then
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(v_permissions) p
+    where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
+    if v_missing is not null then
+      raise exception 'You may not publish a workflow whose steps need %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+    end if;
+  end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
   where x."definition_id" = v_row."definition_id" and x."status" = 'published';
-  update "better_supabase"."workflow_versions" x set "status" = 'published', "compiled" = compiled, "published_at" = now()
+  update "better_supabase"."workflow_versions" x set
+    "status" = 'published',
+    "compiled" = compiled,
+    "published_at" = now(),
+    "published_by" = case when v_service then null else (select auth.uid()) end,
+    "owner_kind" = case when v_service then 'organization' else 'user' end,
+    "permissions" = v_permissions
   where x."id" = v_row."id"
   returning * into v_row;
   perform better_supabase.audit_event(
@@ -508,6 +619,9 @@ begin
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
     'compiled', v_row."compiled"
   );
@@ -530,7 +644,10 @@ as $$
     'status', x."status",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
-    'publishedAt', x."published_at"
+    'publishedAt', x."published_at",
+    'publishedBy', x."published_by",
+    'owner', x."owner_kind",
+    'permissions', to_jsonb(x."permissions")
   ) order by x."version" desc), '[]'::jsonb)
   from "better_supabase"."workflow_versions" x where x."definition_id" = workflow_versions_list.definition;
 $$;
@@ -551,6 +668,9 @@ as $$
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'publishedAt', x."published_at",
+    'publishedBy', x."published_by",
+    'owner', x."owner_kind",
+    'permissions', to_jsonb(x."permissions"),
     'graph', x."graph",
     'compiled', x."compiled"
   ) from "better_supabase"."workflow_versions" x where x."id" = workflow_version_get.version;
@@ -600,6 +720,9 @@ begin
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
     'compiled', v_row."compiled"
   ));
@@ -1294,6 +1417,24 @@ set search_path = ''
 as $$ select "better_supabase"."save_workflow_draft"($1, $2) $$;
 revoke execute on function "api"."save_workflow_draft"(uuid, jsonb) from public, anon;
 grant execute on function "api"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."workflow_graph_permissions"(graph jsonb)
+returns text[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_graph_permissions"($1) $$;
+revoke execute on function "api"."workflow_graph_permissions"(jsonb) from public, anon;
+grant execute on function "api"."workflow_graph_permissions"(jsonb) to authenticated, service_role;
+
+create or replace function "api"."workflow_run_principal"(version uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_run_principal"($1) $$;
+revoke execute on function "api"."workflow_run_principal"(uuid) from public, anon, authenticated;
+grant execute on function "api"."workflow_run_principal"(uuid) to service_role;
 
 create or replace function "api"."publish_workflow_version"(version uuid, compiled jsonb default null)
 returns jsonb

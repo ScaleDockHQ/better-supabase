@@ -2,6 +2,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  AuthorizationHooks,
+  SubscriberPolicy,
+} from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -9,6 +13,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { NotificationChannel } from "./channel.ts";
+import type { EmailChannelOptions } from "./email.ts";
 import type {
   NotificationItem,
   NotificationSubject,
@@ -173,9 +178,42 @@ export interface DeliverOptions {
 
 export interface DeliverResult {
   readonly sent: number;
+  /**
+   * Deliveries not sent on purpose: the channel skipped them, the address
+   * is suppressed, or `audience` left the recipient out.
+   */
   readonly skipped: number;
-  /** Deliveries that threw; retried later unless they ran out of attempts. */
+  /**
+   * Deliveries that threw, or whose `audience` check threw; retried later
+   * unless they ran out of attempts.
+   */
   readonly failed: number;
+}
+
+export type SuppressionReason = "bounce" | "complaint" | "manual";
+
+/** An address a channel stops sending to, written by a bounce or complaint webhook. */
+export interface SuppressInput {
+  /** Stored in lower case. */
+  readonly address: string;
+  readonly reason: SuppressionReason;
+  /** Defaults to `email`. */
+  readonly channel?: string;
+  /** The provider that reported it, e.g. `resend`. */
+  readonly provider?: string;
+  /** The provider's event or webhook message id. */
+  readonly providerEventId?: string;
+  readonly detail?: Readonly<Record<string, unknown>>;
+}
+
+export interface NotificationSuppression {
+  readonly channel: string;
+  readonly address: string;
+  /** The user with that address when it was suppressed, or `null`. */
+  readonly userId: string | null;
+  readonly reason: SuppressionReason;
+  readonly provider: string | null;
+  readonly createdAt: Temporal.Instant | null;
 }
 
 export interface Rendered<
@@ -233,6 +271,23 @@ export interface NotificationsOptions<
   readonly avatars?: AvatarUrls;
   /** Senders for the non-`in_app` channels, used by `deliver()`. */
   readonly channels?: readonly NotificationChannel[];
+  /**
+   * Adds the `email` channel (`emailChannel`) over a
+   * `DeliveryTransport<"email">`, such as `resendTransport`. Don't also
+   * list a channel named `email`.
+   */
+  readonly email?: EmailChannelOptions;
+  /**
+   * Checks each claimed delivery's recipient before a channel sends it;
+   * a recipient it leaves out is skipped, and a throw retries the
+   * deliveries later. Defaults to `server.authorization.delivery.audience`.
+   * In-app recipients are decided in SQL (`holdersOf`, membership).
+   */
+  readonly audience?: SubscriberPolicy;
+  /** The `createServer` result, whose `authorization` hooks give the default `audience`. */
+  readonly server?: {
+    readonly authorization?: AuthorizationHooks | undefined;
+  };
   /** Runs after a notification is stored, e.g. to call Next's `updateTag`. */
   readonly onSent?: (sent: {
     readonly id: string;
@@ -327,6 +382,18 @@ export interface Notifications<K extends NotificationTypes> {
    * (`90 days`) with their recipients and deliveries. Service only.
    */
   purge(olderThan?: string, batch?: number): AsyncResult<number>;
+  /**
+   * Stops `channel` from sending to an address; `deliver()` skips its
+   * deliveries. `true` when the address was not suppressed yet. Service
+   * only; `resendWebhook` calls it for bounces and complaints.
+   */
+  suppress(input: SuppressInput): AsyncResult<boolean>;
+  /** Lifts a suppression. `true` when there was one. Service only. */
+  unsuppress(address: string, channel?: string): AsyncResult<boolean>;
+  /** The caller's own suppressions, newest first (every row for the service). */
+  suppressions(options?: {
+    readonly limit?: number;
+  }): AsyncResult<readonly NotificationSuppression[]>;
   /**
    * An `EventSink` that sends a notification for each event `map` returns
    * one for. The key defaults to the event id and the tenant to its

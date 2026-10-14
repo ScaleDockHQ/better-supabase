@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { WebhookRequest } from "../../src/blocks/webhooks/index.ts";
+
+import { createWebhooks } from "../../src/blocks/webhooks/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import {
   fromHttp,
@@ -131,5 +134,112 @@ describe("CloudEvents 1.0", () => {
         specversion: "0.3",
       }),
     ).toBe(false);
+  });
+});
+
+describe("CloudEvents 1.0 from webhooks-out", () => {
+  const TRACE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+  const claimed = (batch: boolean) =>
+    ["del-1", "del-2"].map((id) => ({
+      id,
+      endpoint_id: "dest-1",
+      url: "https://hooks.example.com/in",
+      type: "invoice.paid",
+      subject: `invoices/${id}`,
+      payload: { id },
+      attempt: 1,
+      tenant: "org-1",
+      event_id: `evt-${id}`,
+      batch,
+      created_at: "2026-10-03T10:00:00.123Z",
+    }));
+
+  async function send(batch: boolean): Promise<WebhookRequest[]> {
+    const sent: WebhookRequest[] = [];
+    let rows: unknown = claimed(batch);
+    const webhooks = createWebhooks({
+      transport: {
+        async call(_schema, fn) {
+          if (fn === "claim_webhook_deliveries") {
+            const next = rows;
+            rows = [];
+            return next;
+          }
+          if (fn === "webhook_secrets")
+            return ["whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"];
+          return "ok";
+        },
+      },
+      http: {
+        apiVersion: 1,
+        name: "capture",
+        async send(request) {
+          sent.push(request);
+          return { status: 204, body: "" };
+        },
+      },
+      appUrl: "https://app.example.com",
+      dataschema: "https://app.example.com/schemas/invoice-paid.json",
+      traceparent: () => TRACE,
+    });
+    await webhooks.deliver();
+    return sent;
+  }
+
+  it("structured mode: one application/cloudevents+json event per delivery that validates against the official schema", async () => {
+    const validate = validatorFor("cloudevents-1.0.2.json");
+    const sent = await send(false);
+    expect(sent).toHaveLength(2);
+    for (const request of sent) {
+      expect(request.headers["content-type"]).toBe(
+        "application/cloudevents+json",
+      );
+      const event = JSON.parse(request.body);
+      expect(problems(validate, event)).toEqual([]);
+      expect(event).toMatchObject({
+        specversion: "1.0",
+        id: request.headers["webhook-id"],
+        source: "https://app.example.com/webhooks",
+        type: "invoice.paid",
+        subject: `invoices/${request.headers["webhook-id"]!}`,
+        datacontenttype: "application/json",
+        dataschema: "https://app.example.com/schemas/invoice-paid.json",
+        traceparent: TRACE,
+      });
+      expect(URL.canParse(event.source)).toBe(true);
+      expect(Temporal.Instant.from(event.time).toString()).toBe(event.time);
+      const parsed = await fromHttp(
+        new Request("https://sink.test", {
+          method: "POST",
+          headers: request.headers,
+          body: request.body,
+        }),
+      );
+      expect(parsed).toEqual([event]);
+    }
+  });
+
+  it("batch mode: one application/cloudevents-batch+json array per endpoint, each entry valid", async () => {
+    const validate = validatorFor("cloudevents-1.0.2.json");
+    const [request, ...rest] = await send(true);
+    expect(rest).toEqual([]);
+    expect(request!.headers["content-type"]).toBe(
+      "application/cloudevents-batch+json",
+    );
+    const events = JSON.parse(request!.body);
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.map((event: { id: string }) => event.id)).toEqual([
+      "del-1",
+      "del-2",
+    ]);
+    for (const event of events) expect(problems(validate, event)).toEqual([]);
+    const parsed = await fromHttp(
+      new Request("https://sink.test", {
+        method: "POST",
+        headers: request!.headers,
+        body: request!.body,
+      }),
+    );
+    expect(parsed).toEqual(events);
   });
 });

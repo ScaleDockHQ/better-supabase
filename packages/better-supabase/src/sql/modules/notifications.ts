@@ -16,6 +16,10 @@ import {
   type NotifyNames,
   notifyNames,
 } from "./notifications-sql.ts";
+import {
+  suppressionContract,
+  suppressionsTable,
+} from "./notifications-suppressions.ts";
 
 const EVENTS: ModuleEvents = {
   "notification.created": {
@@ -145,6 +149,22 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
       optional: ["tenant", "updatedAt"],
+      optionalTable: true,
+    },
+    suppressions: {
+      name: "notification_suppressions",
+      lifecycle: { user: "user" },
+      columns: {
+        id: "id",
+        channel: "channel",
+        address: "address",
+        user: "user_id",
+        reason: "reason",
+        provider: "provider",
+        providerEventId: "provider_event_id",
+        detail: "detail",
+        createdAt: "created_at",
+      },
       optionalTable: true,
     },
   },
@@ -352,6 +372,7 @@ grant all on ${n.table(table)} to service_role;${policy(
       })`,
     )}`);
   }
+  parts.push(suppressionsTable(ctx, n));
   return parts.join("\n");
 }
 
@@ -609,6 +630,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       },
     );
   }
+  fns.push(...suppressionContract(ctx));
   return fns;
 }
 
@@ -622,7 +644,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 4,
+  version: 5,
   names: NAMES,
   contract,
   upgrades: [
@@ -649,6 +671,12 @@ export const NOTIFICATIONS: ModuleDefinition = {
           `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer);`,
           integerMutations(ctx),
         ].join("\n"),
+    },
+    {
+      from: 4,
+      description:
+        "notification_suppressions holds addresses a channel no longer sends to after a bounce or a complaint; claim_notification_deliveries returns each delivery's suppression, and suppress_notification_address, unsuppress_notification_address and list_notification_suppressions are new.",
+      sql: () => "",
     },
   ],
   build,

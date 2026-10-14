@@ -51,6 +51,20 @@ describe("gatewayOptions", () => {
     });
     expect(gatewayOptions({})).toEqual({ gateway: {} });
   });
+
+  it("takes the user only from the caller and appends the app's tags", () => {
+    expect(
+      gatewayOptions(
+        { userId: "u", organizationId: "o", tags: ["agent:a1"] },
+        { user: "model-said", tags: ["team:x"] },
+      ),
+    ).toEqual({
+      gateway: { user: "u", tags: ["org:o", "agent:a1", "team:x"] },
+    });
+    expect(gatewayOptions({}, { user: "model-said" })).toEqual({
+      gateway: {},
+    });
+  });
 });
 
 describe("usageOf", () => {

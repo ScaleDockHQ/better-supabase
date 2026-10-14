@@ -21,6 +21,18 @@ export interface VerifyOptions {
   /** Allowed clock skew in seconds. Defaults to 300. */
   readonly tolerance?: number;
   readonly now?: () => Temporal.Instant;
+  /**
+   * Records a verified `webhook-id` and answers whether it was already
+   * recorded, atomically (a unique insert, Redis `SET NX`). A seen id is
+   * refused as a replay (`WEBHOOK_REPLAYED`, 409). `until` is when the
+   * timestamp leaves the tolerance window, so the store may forget the id
+   * after it. Runs only after the signature checks out, and a throw
+   * refuses the request.
+   */
+  readonly seen?: (
+    id: string,
+    until: Temporal.Instant,
+  ) => boolean | Promise<boolean>;
 }
 
 export type WebhookInput =
@@ -97,6 +109,32 @@ export function header(
 export const unauthorized = (code: string, message: string): DbError =>
   dbError("unauthorized", message, { code });
 
+/**
+ * The error for a webhook id `options.seen` already recorded, or for a
+ * `seen` that throws; `undefined` for a first delivery or without `seen`.
+ */
+export async function replayed(
+  options: VerifyOptions,
+  id: string,
+  until: Temporal.Instant,
+): Promise<DbError | undefined> {
+  if (!options.seen || id === "") return undefined;
+  try {
+    if (!(await options.seen(id, until))) return undefined;
+  } catch {
+    return dbError(
+      "unexpected",
+      "Could not check the webhook id for a replay",
+      {
+        code: "WEBHOOK_DEDUPE_FAILED",
+      },
+    );
+  }
+  return dbError("conflict", "Webhook was already received", {
+    code: "WEBHOOK_REPLAYED",
+  });
+}
+
 /** Headers for a signed Standard Webhooks request. */
 export async function signWebhook(
   secret: string,
@@ -169,31 +207,52 @@ export async function verifyWebhook<T = unknown>(
     .filter(([version, value]) => version === "v1" && value)
     .flatMap(([, value]) => decodeSignature(value!) ?? []);
   let valid = false;
+  let malformed = false;
   for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
-    const key = await keyFor(secret);
+    let key: Awaited<ImportedKey>;
+    try {
+      key = await keyFor(secret);
+    } catch {
+      malformed = true;
+      continue;
+    }
     for (const candidate of offered) {
       // crypto.subtle.verify compares HMACs in constant time.
       if (await crypto.subtle.verify("HMAC", key, candidate, content))
         valid = true;
     }
   }
+  if (!valid && malformed)
+    return err(
+      dbError("unexpected", "Webhook secret is not whsec_ followed by base64", {
+        code: "WEBHOOK_INVALID_SECRET",
+      }),
+    );
   if (!valid)
     return err(
       unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
     );
 
+  let payload: T;
   try {
     // SAFETY: the caller names the payload type T; the signature check above
     // proves the sender, not the shape.
-    return ok({
-      id,
-      timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
-      payload: JSON.parse(body) as T,
-      body,
-    });
+    payload = JSON.parse(body) as T;
   } catch {
     return err(dbError("invalid_request", "Webhook body is not JSON"));
   }
+  const replay = await replayed(
+    options,
+    id,
+    namespace.Instant.fromEpochMilliseconds((seconds + tolerance) * 1000),
+  );
+  if (replay) return err(replay);
+  return ok({
+    id,
+    timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
+    payload,
+    body,
+  });
 }
 
 /** Checks a shared-secret header (database webhooks), in constant time. */

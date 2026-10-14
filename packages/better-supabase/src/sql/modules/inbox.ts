@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
@@ -13,9 +13,9 @@ import {
   inboxTables,
 } from "./inbox-tables.ts";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
-  const q = inboxSql(ctx);
+  const q = inboxSql(ctx, layout.accessProvider?.operations);
   const teams = ctx.installed("teams") ? ctx.of("teams") : undefined;
   const sharedTeams = teams !== undefined;
   return `${schemaPreamble(ctx)}

@@ -215,10 +215,14 @@ describe("ai-chat module", () => {
   });
 });
 
-describe("ai-chat tool approvals with the provider's canApprove", () => {
-  const withProvider = (distinctApprover?: boolean) =>
+describe("ai-chat tool approvals with the provider's approver templates", () => {
+  const withProvider = (
+    distinctApprover?: boolean,
+    isApprover?: string,
+    model: "provider" | "roles" = "provider",
+  ) =>
     moduleBody("ai-chat", {
-      modules: { access: { model: "provider" } },
+      modules: { access: { model } },
       accessProvider: {
         name: "stub",
         scope: "organization",
@@ -226,13 +230,39 @@ describe("ai-chat tool approvals with the provider's canApprove", () => {
         functions: {
           idsWith: "authz.ids_with({permission}, {scope})",
           isPlatform: "authz.is_platform({permission})",
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still works.
           canApprove: "authz.can_approve({tool}, {tenant})",
+          ...(isApprover === undefined ? {} : { isApprover }),
         },
         ...(distinctApprover === undefined
           ? {}
           : { approvals: { distinctApprover } }),
       },
     })!;
+
+  it("asks isApprover with kind ai-tool and the tool name, never the requester", () => {
+    const sql = withProvider(
+      false,
+      "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
+    );
+    expect(sql).toContain(
+      `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
+    );
+    expect(sql).not.toContain("can_approve");
+    expect(sql).toContain(
+      "a user the authorization provider's isApprover allows other than the chat's owner",
+    );
+  });
+
+  it("ignores the provider outside the provider access model", () => {
+    const sql = withProvider(
+      true,
+      "authz.is_approver({kind}, {subject}, {tenant})",
+      "roles",
+    );
+    expect(sql).not.toContain("is_approver");
+    expect(sql).not.toContain("can_approve");
+  });
 
   it("lets the owner decide without canApprove", () => {
     const sql = body();

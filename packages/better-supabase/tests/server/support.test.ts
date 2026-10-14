@@ -15,7 +15,10 @@ import { dbTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
-import { supportSessions } from "../../src/server/support.ts";
+import {
+  type SupportOptions,
+  supportSessions as denyingSupportSessions,
+} from "../../src/server/support.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -28,6 +31,15 @@ const env = {
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
 const signer = await createTestSigner();
+
+// These tests cover sessions once allowed; tests/server/support-approval.test.ts
+// covers the deny-by-default authorize and the second admin.
+const supportSessions = (options: SupportOptions) =>
+  denyingSupportSessions({
+    authorize: () => true,
+    ...options,
+    policy: { approval: "none", ...options.policy },
+  });
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 

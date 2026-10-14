@@ -38,6 +38,7 @@ import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
+import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVENTORY } from "./modules/inventory.ts";
@@ -208,6 +209,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(FORMS),
       built(SIGNATURES),
       built(TIME_TRACKING),
+      built(IDENTITIES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

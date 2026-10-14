@@ -53,6 +53,16 @@ const KINDS: readonly DbErrorKind[] = [
   "unexpected",
 ];
 
+const GENERIC: ReadonlySet<DbErrorKind> = new Set([
+  "invalid_request",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+  "conflict",
+  "rate_limited",
+  "unexpected",
+]);
+
 const sample = (kind: DbErrorKind): DbError =>
   kind === "validation"
     ? dbError("validation", "Invalid", {
@@ -81,7 +91,9 @@ describe("RFC 9457 Problem Details", () => {
       expect(validProblem(problem)).toBe(true);
       expect(problem.status).toBe(statusOf(kind));
       expect(problem.type).toMatch(
-        /^https:\/\/bettersupabase\.com\/problems\/[a-z-]+$/,
+        GENERIC.has(kind)
+          ? /^about:blank$/
+          : /^https:\/\/bettersupabase\.com\/problems\/[a-z-]+$/,
       );
       expect(problem.title).toMatch(/\S/);
       expect(problem.instance).toBe("/api/x");
@@ -98,9 +110,31 @@ describe("RFC 9457 Problem Details", () => {
         message: "different occurrence",
       });
       expect(two.title).toBe(one.title);
-      titles.set(one.type, one.title);
+      if (one.type !== "about:blank") titles.set(one.type, one.title);
     }
-    expect(titles.size).toBe(KINDS.length);
+    expect(titles.size).toBe(KINDS.length - GENERIC.size);
+  });
+
+  it("generic statuses use about:blank with the HTTP status phrase as title (section 4.2.1)", () => {
+    const phrases: Record<number, string> = {
+      400: "Bad Request",
+      401: "Unauthorized",
+      403: "Forbidden",
+      404: "Not Found",
+      409: "Conflict",
+      429: "Too Many Requests",
+      500: "Internal Server Error",
+    };
+    for (const kind of GENERIC) {
+      const problem = toProblem(sample(kind));
+      expect(problem).toMatchObject({
+        type: "about:blank",
+        title: phrases[problem.status],
+        kind,
+      });
+    }
+    const moved = toProblem(dbError("not_found", "Gone", { status: 410 }));
+    expect(moved.type).toBe("https://bettersupabase.com/problems/not-found");
   });
 
   it("the response has application/problem+json and the same status as the body (section 3.1.2)", async () => {

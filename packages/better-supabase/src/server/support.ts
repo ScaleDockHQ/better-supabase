@@ -1,6 +1,12 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type {
+  AuthorizationHooks,
+  SupportAuthorize,
+  SupportAuthorizeInput,
+  SupportDecision,
+} from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 
 import {
@@ -12,6 +18,7 @@ import {
 import {
   supportClaims,
   type SupportListFilter,
+  type SupportRequest,
   type SupportSession,
   type SupportSessionStore,
 } from "../auth/support.ts";
@@ -26,6 +33,9 @@ import { fromPgError } from "../postgres/executor.ts";
 
 type UserAuth = Extract<AuthState, { kind: "user" }>;
 
+/** The `kind` an `approverOf` hook sees for a support request; the SQL `isApprover` sees the same. */
+const SUPPORT_SESSION_APPROVAL = "support-session";
+
 export interface SupportPolicy {
   /** Seconds a session lasts. Defaults to 1800 (30 minutes). */
   readonly ttl?: number;
@@ -38,27 +48,32 @@ export interface SupportPolicy {
    * unless the start passes `readOnly: false`.
    */
   readonly readOnly?: "always" | "default";
+  /**
+   * `distinct` (the default): a start needs a request that another admin
+   * approved (`support.request`, then `support.approve`), or an `authorize`
+   * decision of `{ approvedBy }` naming someone else. `none`: no second
+   * admin. Set `sql.modules.support-sessions.options.approval` to the same
+   * value, because the SQL store checks it again.
+   */
+  readonly approval?: "distinct" | "none";
 }
 
-export interface SupportAuthorizeInput {
-  readonly admin: UserAuth;
-  readonly targetUserId: string;
-  readonly reason: string;
-  readonly readOnly: boolean;
-  readonly tenant?: string;
-  readonly metadata: Readonly<Record<string, unknown>>;
-}
+export type { SupportAuthorizeInput };
 
 export interface SupportOptions {
   readonly store: SupportSessionStore;
   /**
-   * Whether `admin` may view the app as the target. A throw or rejection
-   * counts as a deny. Defaults to allowing, so the store decides: the SQL
-   * store checks `is_platform(modules.support-sessions.permissions.start)`.
+   * Whether `admin` may view the app as the target. Without it, the
+   * authorization hooks' `support.authorize` decides, and without those
+   * every start is refused (`SUPPORT_FORBIDDEN`). A throw or rejection
+   * counts as a deny. `true` still needs a second admin under
+   * `policy.approval: 'distinct'`; `{ approvedBy }` names that admin.
+   *
+   * `'store'` hands the decision to the store alone: the SQL store checks
+   * `is_platform(modules.support-sessions.permissions.start)` and nothing
+   * else, so use it only when that permission is the whole rule.
    */
-  readonly authorize?: (
-    input: SupportAuthorizeInput,
-  ) => boolean | Promise<boolean>;
+  readonly authorize?: SupportAuthorize | "store";
   /**
    * The claims the target gets. Defaults to `store.claims` (the SQL store
    * runs your custom access token hook), then `{ role: 'authenticated' }`.
@@ -116,6 +131,21 @@ export interface SupportApi {
     admin: AuthState,
     request: SupportStartRequest,
   ): AsyncResult<{ readonly session: SupportSession; readonly cookie: string }>;
+  /**
+   * Asks for a session that a second admin approves with `approve`; the
+   * policy checks of `start` apply. `ttl` is not stored: `start` passes it.
+   */
+  request(
+    admin: AuthState,
+    request: SupportStartRequest,
+  ): AsyncResult<SupportRequest>;
+  /**
+   * Approves a request as `approver`, who is never the admin who asked. With
+   * the hooks' `approverOf`, it decides who may approve; otherwise the
+   * store does (the SQL store: the provider's `isApprover`, else the start
+   * permission).
+   */
+  approve(approver: AuthState, requestId: string): AsyncResult<SupportRequest>;
   /** Ends the admin's own session and returns the `Set-Cookie` that clears the cookie. */
   stop(
     admin: AuthState,
@@ -184,12 +214,14 @@ export interface SupportSessions {
   readonly options: SupportOptions;
   /**
    * Builds `bs.support`; `createServer` calls it once, with the definition's
-   * `temporal`, which goes on to the store's `withTemporal`.
+   * `temporal`, which goes on to the store's `withTemporal`, and the
+   * server's authorization hooks.
    */
   readonly create: (
     events: EventHub,
     claimsSchema: StandardSchemaV1 | undefined,
     temporal?: typeof Temporal,
+    authorization?: AuthorizationHooks,
   ) => SupportApi;
 }
 
@@ -200,16 +232,26 @@ export interface SupportSessions {
 export function supportSessions(options: SupportOptions): SupportSessions {
   return {
     options,
-    create: (events, claimsSchema, temporal) =>
-      createSupport(options, events, claimsSchema, temporal),
+    create: (events, claimsSchema, temporal, authorization) =>
+      createSupport(options, events, claimsSchema, temporal, authorization),
   };
 }
+
+const forbidden = (): DbError =>
+  denied("Not allowed to start a support session", "SUPPORT_FORBIDDEN");
+
+const selfApproval = (): DbError =>
+  denied(
+    "An admin cannot approve their own support session",
+    "SUPPORT_SELF_APPROVAL",
+  );
 
 function createSupport(
   options: SupportOptions,
   events: EventHub,
   claimsSchema: StandardSchemaV1 | undefined,
   temporal: typeof Temporal | undefined,
+  authorization: AuthorizationHooks | undefined,
 ): SupportApi {
   const store =
     temporal !== undefined && options.store.withTemporal
@@ -286,14 +328,79 @@ function createSupport(
     return;
   };
 
-  const authorized = async (input: SupportAuthorizeInput): Promise<boolean> => {
-    if (!options.authorize) return true;
+  const approval = policy.approval ?? "distinct";
+  const authorize = options.authorize ?? authorization?.support?.authorize;
+
+  /** The decision for a start; a missing hook and a throw refuse it. */
+  const decide = async (
+    input: SupportAuthorizeInput,
+  ): Promise<SupportDecision> => {
+    if (authorize === undefined) return false;
+    if (authorize === "store") return true;
     try {
-      return await options.authorize(input);
+      return await authorize(input);
     } catch {
       return false;
     }
   };
+
+  const mayApprove = async (
+    approver: UserAuth,
+    request: SupportRequest,
+  ): Promise<boolean> => {
+    const approverOf = authorization?.approverOf;
+    if (approverOf === undefined) return true;
+    try {
+      return await approverOf(
+        { userId: approver.user.id, claims: approver.claims },
+        {
+          kind: SUPPORT_SESSION_APPROVAL,
+          subject: request.id,
+          requester: request.adminId,
+          ...(request.tenant === undefined ? {} : { tenant: request.tenant }),
+        },
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  /** The approved request a start uses: recorded now for an `{ approvedBy }` decision, else looked up. */
+  const approvedRequest = async (
+    admin: UserAuth,
+    request: SupportStartRequest,
+    reason: string,
+    readOnly: boolean,
+    approvedBy: string | undefined,
+  ): Promise<SupportRequest | undefined> => {
+    const tenant =
+      request.tenant === undefined ? {} : { tenant: request.tenant };
+    if (approvedBy !== undefined) {
+      return store.request?.({
+        adminId: admin.user.id,
+        adminClaims: admin.claims,
+        targetUserId: request.targetUserId,
+        reason,
+        readOnly,
+        ...tenant,
+        metadata: request.metadata ?? {},
+        approvedBy,
+      });
+    }
+    return store.approvedRequest?.({
+      adminId: admin.user.id,
+      targetUserId: request.targetUserId,
+      readOnly,
+      ...tenant,
+    });
+  };
+
+  const noApprovals = (): DbError =>
+    dbError(
+      "unsupported",
+      `The "${store.name}" support session store does not record approvals; set policy.approval to "none" or use a store that does`,
+      { code: "SUPPORT_APPROVAL_UNSUPPORTED" },
+    );
 
   const expire = (): AsyncResult<readonly SupportSession[]> =>
     AsyncResult.from(async () => {
@@ -430,22 +537,47 @@ function createSupport(
         };
         const violation = checkPolicy(admin, request, reason, seconds);
         if (violation) return deny(violation, "policy");
+        const tenant =
+          request.tenant === undefined ? {} : { tenant: request.tenant };
         const input: SupportAuthorizeInput = {
           admin,
           targetUserId: request.targetUserId,
           reason,
           readOnly,
-          ...(request.tenant === undefined ? {} : { tenant: request.tenant }),
+          ...tenant,
           metadata: request.metadata ?? {},
         };
-        if (!(await authorized(input))) {
-          return deny(
-            denied(
-              "Not allowed to start a support session",
-              "SUPPORT_FORBIDDEN",
-            ),
-            "authorize",
-          );
+        const decision = await decide(input);
+        if (decision === false) return deny(forbidden(), "authorize");
+        const approvedBy =
+          typeof decision === "object" ? decision.approvedBy : undefined;
+        if (approvedBy === admin.user.id)
+          return deny(selfApproval(), "authorize");
+        let requestId: string | undefined;
+        if (approval === "distinct") {
+          let approved: SupportRequest | undefined;
+          try {
+            approved = await approvedRequest(
+              admin,
+              request,
+              reason,
+              readOnly,
+              approvedBy,
+            );
+          } catch (cause) {
+            const error = storeError(cause);
+            return deny(error, error.code === "42501" ? "permission" : "store");
+          }
+          if (approved === undefined || approved.approvedBy === admin.user.id) {
+            return deny(
+              denied(
+                "A second admin must approve this support session",
+                "SUPPORT_APPROVAL_REQUIRED",
+              ),
+              "policy",
+            );
+          }
+          requestId = approved.id;
         }
         let session: SupportSession;
         try {
@@ -456,8 +588,9 @@ function createSupport(
             reason,
             ttlSeconds: seconds,
             readOnly,
-            ...(request.tenant === undefined ? {} : { tenant: request.tenant }),
+            ...tenant,
             metadata: request.metadata ?? {},
+            ...(requestId === undefined ? {} : { requestId }),
           });
         } catch (cause) {
           const error = storeError(cause);
@@ -472,6 +605,89 @@ function createSupport(
           expiresAt: session.expiresAt,
         });
         return ok({ session, cookie: supportCookie(session, options.cookie) });
+      });
+    },
+
+    request(admin, request) {
+      return AsyncResult.from(async () => {
+        if (admin.kind !== "user")
+          return err(
+            dbError("unauthorized", "Sign in to ask for a support session"),
+          );
+        const reason = request.reason?.trim() ?? "";
+        const violation = checkPolicy(
+          admin,
+          request,
+          reason,
+          request.ttl ?? ttl,
+        );
+        if (violation) return err(violation);
+        if (!store.request) return err(noApprovals());
+        try {
+          return ok(
+            await store.request({
+              adminId: admin.user.id,
+              adminClaims: admin.claims,
+              targetUserId: request.targetUserId,
+              reason,
+              readOnly:
+                policy.readOnly === "default"
+                  ? (request.readOnly ?? true)
+                  : true,
+              ...(request.tenant === undefined
+                ? {}
+                : { tenant: request.tenant }),
+              metadata: request.metadata ?? {},
+            }),
+          );
+        } catch (cause) {
+          return err(storeError(cause));
+        }
+      });
+    },
+
+    approve(approver, requestId) {
+      return AsyncResult.from(async () => {
+        if (approver.kind !== "user")
+          return err(
+            dbError("unauthorized", "Sign in to approve a support session"),
+          );
+        if (approver.claims["act"] !== undefined)
+          return err(
+            denied(
+              "An impersonated session cannot approve a support session",
+              "SUPPORT_NESTED",
+            ),
+          );
+        if (!store.approve || !store.getRequest) return err(noApprovals());
+        try {
+          const found = await store.getRequest(requestId);
+          if (!found)
+            return err(
+              dbError("not_found", "No such support request", {
+                code: "SUPPORT_REQUEST_MISSING",
+              }),
+            );
+          if (found.adminId === approver.user.id) return err(selfApproval());
+          if (authorization?.approverOf === undefined) {
+            return ok(
+              await store.approve(requestId, {
+                id: approver.user.id,
+                claims: approver.claims,
+              }),
+            );
+          }
+          if (!(await mayApprove(approver, found)))
+            return err(
+              denied(
+                "Not allowed to approve this support session",
+                "SUPPORT_FORBIDDEN",
+              ),
+            );
+          return ok(await store.approve(requestId, { id: approver.user.id }));
+        } catch (cause) {
+          return err(storeError(cause));
+        }
       });
     },
 

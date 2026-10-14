@@ -1,4 +1,5 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { AuthorizationHooks } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
@@ -14,6 +15,8 @@ import type {
 import type { WorkflowGraph, WorkflowGraphDiff } from "./graph.ts";
 
 export type WorkflowVersionStatus = "draft" | "published" | "archived";
+
+export type WorkflowVersionOwner = "user" | "organization";
 
 export type WorkflowTriggerKind =
   | "manual"
@@ -53,6 +56,16 @@ export interface WorkflowVersion {
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly publishedAt: Temporal.Instant | undefined;
+  /** The user who published it; `undefined` for an organization-owned version or one not published. */
+  readonly publishedBy: string | undefined;
+  /**
+   * `user` when a user published it (its steps run as that user),
+   * `organization` when the service role did (its steps run as the app's
+   * service principal); `undefined` until it is published.
+   */
+  readonly owner: WorkflowVersionOwner | undefined;
+  /** The permissions its step nodes need, stored when it was published. */
+  readonly permissions: readonly string[];
   /** Set by `get`, `save` and `publish`; lists leave it out. */
   readonly graph?: WorkflowGraph;
   /** What the engine's `compile` returned on publish. */
@@ -170,6 +183,21 @@ export interface BuilderOptions extends BlockTemporalOptions {
   readonly start?: BuilderStarter;
   /** The providers credential rows resolve through, picked by `ref.provider`. */
   readonly credentials?: CredentialProvider | readonly CredentialProvider[];
+  /**
+   * The provider's runtime hooks, usually `server.authorization`.
+   * `automation.mayPublish` can refuse a publish, and `automation.runAs`
+   * gives the claims `versions.runAs` returns; without `runAs`, steps of a
+   * published version can't resolve whom they run as and fail.
+   */
+  readonly authorization?: Pick<AuthorizationHooks, "automation">;
+}
+
+export interface PublishOptions {
+  /**
+   * The publisher's verified claims, for `authorization.automation.mayPublish`.
+   * A publish with `mayPublish` set and no claims is refused.
+   */
+  readonly claims?: Readonly<Record<string, unknown>>;
 }
 
 export interface DefinitionInput {
@@ -248,13 +276,30 @@ export interface WorkflowBuilder {
     ): AsyncResult<WorkflowVersion>;
     /**
      * Compiles the graph with `compile`, then publishes as the caller; the
-     * previous version is archived. The compiled form is stored through
-     * `service` only, and not at all without it.
+     * previous version is archived. The caller must hold every permission
+     * the step nodes need (`WORKFLOW_PUBLISHER_FORBIDDEN` otherwise), and
+     * `authorization.automation.mayPublish` must allow it when set. The
+     * compiled form is stored through `service` only, and not at all
+     * without it.
      */
-    publish(version: string): AsyncResult<WorkflowVersion>;
+    publish(
+      version: string,
+      options?: PublishOptions,
+    ): AsyncResult<WorkflowVersion>;
     list(definition: string): AsyncResult<readonly WorkflowVersion[]>;
     get(version: string): AsyncResult<WorkflowVersion | undefined>;
     diff(from: string, to: string): AsyncResult<WorkflowGraphDiff>;
+    /**
+     * The claims a step of `version` runs with (through `service`): the
+     * publisher's, narrowed to the stored permissions, from
+     * `authorization.automation.runAs`. A publisher who is gone or no
+     * longer holds a stored permission, a `runAs` that returns `null` and
+     * a missing `runAs` are a `forbidden` error (`WORKFLOW_PUBLISHER_REVOKED`);
+     * there is no fallback to the service role. Call it inside every step.
+     */
+    runAs(
+      version: string | undefined,
+    ): AsyncResult<Readonly<Record<string, unknown>>>;
   };
   /** Starts a run of the published version: `workflow.run` in its tenant. */
   run(input: RunInput): AsyncResult<string>;

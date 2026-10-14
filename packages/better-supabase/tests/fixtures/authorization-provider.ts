@@ -5,7 +5,12 @@ type StubProvider = AuthorizationProvider & {
   readonly functions: Required<
     Omit<
       AuthorizationProvider["functions"],
-      "permissionsFor" | "canApprove" | "holdersOf" | "actorMayWrite"
+      | "permissionsFor"
+      | "canApprove"
+      | "isApprover"
+      | "holdersOf"
+      | "actorMayWrite"
+      | "permitted"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

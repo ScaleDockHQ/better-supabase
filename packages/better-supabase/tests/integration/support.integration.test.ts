@@ -45,7 +45,10 @@ describe.skipIf(!live)("support sessions against the local database", () => {
   beforeAll(async () => {
     await postgres.admin.queryRaw(
       [
-        ...renderModules(["support-sessions"], {}).map((file) => file.contents),
+        // The second admin is covered in support-approval.integration.test.ts.
+        ...renderModules(["support-sessions"], {
+          modules: { "support-sessions": { options: { approval: "none" } } },
+        }).map((file) => file.contents),
         FIXTURE_TENANT_SQL,
       ].join("\n;\n"),
     );

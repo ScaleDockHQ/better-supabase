@@ -4,11 +4,12 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, updatedAt, lockTable } from "../shared.ts";
 import {
+  ADDED_COLUMNS,
   functions,
   type HookNames,
   hookNames,
@@ -48,6 +49,8 @@ const NAMES: ModuleNames = {
         url: "url",
         enabled: "enabled",
         eventTypes: "event_types",
+        permissions: "permissions",
+        batch: "batch",
         failingSince: "failing_since",
         disabledAt: "disabled_at",
         disabledReason: "disabled_reason",
@@ -58,6 +61,8 @@ const NAMES: ModuleNames = {
       optional: [
         "tenant",
         "name",
+        "permissions",
+        "batch",
         "failingSince",
         "disabledAt",
         "disabledReason",
@@ -90,6 +95,7 @@ const NAMES: ModuleNames = {
         event: "event_id",
         run: "run_id",
         type: "event_type",
+        subject: "subject",
         payload: "payload",
         status: "status",
         attempt: "attempt",
@@ -107,6 +113,7 @@ const NAMES: ModuleNames = {
         "tenant",
         "event",
         "run",
+        "subject",
         "responseStatus",
         "responseBody",
         "durationMs",
@@ -118,6 +125,21 @@ const NAMES: ModuleNames = {
   },
   hooks: ["after_webhook_delivery"],
 };
+
+/** `add column if not exists` for columns a table created by version 2 lacks. */
+function added(
+  n: HookNames,
+  table: string,
+  columns: readonly (readonly [string, string])[],
+): string {
+  return columns
+    .filter(([logical]) => n.has(table, logical))
+    .map(
+      ([logical, definition]) =>
+        `alter table ${n.table(table)} add column if not exists ${n.col(table, logical)} ${definition};\n`,
+    )
+    .join("");
+}
 
 function tables(ctx: ModuleContext, n: HookNames): string {
   if (!ctx.manages) return "";
@@ -148,6 +170,8 @@ create table if not exists ${n.table("endpoints")} (
     `${d("url")} text not null ${urlCheck}`,
     `${d("enabled")} boolean not null default true`,
     `${d("eventTypes")} text[] not null default '{}'`,
+    ...opt("endpoints", "permissions", "text[]"),
+    ...opt("endpoints", "batch", "boolean not null default false"),
     ...opt("endpoints", "failingSince", "timestamptz"),
     ...opt("endpoints", "disabledAt", "timestamptz"),
     ...opt("endpoints", "disabledReason", "text"),
@@ -160,7 +184,10 @@ create table if not exists ${n.table("endpoints")} (
     ...opt("endpoints", "updatedAt", "timestamptz not null default now()"),
   ].join(",\n  ")}
 );
-create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
+${added(n, "endpoints", [
+  ["permissions", "text[]"],
+  ["batch", "boolean not null default false"],
+])}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
 ${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
       ? `
@@ -210,6 +237,7 @@ create table if not exists ${n.table("deliveries")} (
     ...opt("deliveries", "event", n.eventIdType),
     ...opt("deliveries", "run", n.runIdType),
     `${v("type")} text not null`,
+    ...opt("deliveries", "subject", "text"),
     `${v("payload")} jsonb not null default '{}'`,
     `${v("status")} text not null default 'pending' check (${v("status")} in (${WEBHOOK_STATUSES.map((status) => `'${status}'`).join(", ")}))`,
     `${v("attempt")} integer not null default 0 check (${v("attempt")} >= 0)`,
@@ -224,7 +252,7 @@ create table if not exists ${n.table("deliveries")} (
     ...opt("deliveries", "updatedAt", "timestamptz not null default now()"),
   ].join(",\n  ")}
 );
-create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
+${added(n, "deliveries", [["subject", "text"]])}create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);
 create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');
 create index if not exists webhook_deliveries_finished_idx on ${n.table("deliveries")} (${v("createdAt")}) where ${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")}, ${n.status("dead")});${
@@ -309,9 +337,9 @@ create trigger ${trigger} after delete on ${t}
   for each row execute function ${ctx.fn("drop_webhook_vault_secret")}();`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
-  const n = hookNames(ctx);
+  const n = hookNames(ctx, layout);
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     reenable(ctx, n),
@@ -324,7 +352,7 @@ function contract(): readonly ModuleContractFunction[] {
   return [
     {
       name: "publish_webhook_event",
-      args: ["text", "jsonb", "{id}", "text"],
+      args: ["text", "jsonb", "{id}", "text", "text", "text"],
       returns: "integer",
     },
     {
@@ -364,11 +392,13 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
   requires: ["updated-at"],
   integrates: ["access"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   adoptOptional: (ctx) => ({
+    ...ADDED_COLUMNS,
     secrets: [
       ctx.text("secretStorage", "vault") === "column" ? "vaultId" : "secret",
     ],
@@ -379,6 +409,12 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
       from: 1,
       description:
         "Endpoint writes have one policy per command, so reads check one policy; an index finds an endpoint's open deliveries.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "publish_webhook_event takes a subject and a read permission and queues an event only for endpoints whose owner may read it; endpoints get permissions and batch, deliveries a subject.",
       sql: () => "",
     },
   ],

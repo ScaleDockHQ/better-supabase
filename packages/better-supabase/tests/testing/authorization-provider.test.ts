@@ -320,6 +320,7 @@ describe("testAuthorizationProvider", () => {
         functions: {
           ...stubProvider.functions,
           permissionsFor: "authz.permissions_for({user}, {tenant})",
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still passes.
           canApprove: "authz.can_approve({tenant}, {tool})",
         },
         requires: [
@@ -339,5 +340,56 @@ describe("testAuthorizationProvider", () => {
       }),
     );
     expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
+
+  it("accepts isApprover with its placeholders and requires {tenant}", async () => {
+    const isApprover = (template: string) =>
+      withProvider({
+        functions: { ...stubProvider.functions, isApprover: template },
+        requires: [
+          ...stubProvider.requires,
+          {
+            function: "authz.is_approver",
+            args: "text, text, uuid",
+            role: "authenticated",
+          },
+        ],
+      });
+    const report = await testAuthorizationProvider(
+      isApprover("authz.is_approver({kind}, {subject}, {tenant})"),
+    );
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(
+      await failures(isApprover("authz.is_approver({kind}, {subject})")),
+    ).toEqual([
+      "templates use only their placeholders: functions.isApprover doesn't use {tenant}",
+    ]);
+    expect(
+      await failures(isApprover("authz.is_approver({tool}, {tenant})")),
+    ).toContainEqual(
+      expect.stringMatching(/functions\.isApprover uses \{tool\}/),
+    );
+  });
+
+  it("checks that operations name listed permissions", async () => {
+    const report = await testAuthorizationProvider(
+      withProvider({
+        operations: {
+          "mcp.tool.search_documents": { permission: "documents.read" },
+        },
+      }),
+    );
+    expect(report.checks.map((check) => check.name)).toContain(
+      "operations name listed permissions",
+    );
+    expect(
+      await failures(
+        withProvider({
+          operations: { "ai.tool.delete": { permission: "documents.delete" } },
+        }),
+      ),
+    ).toEqual([
+      `operations name listed permissions: operation "ai.tool.delete" needs "documents.delete", which permissions doesn't list`,
+    ]);
   });
 });

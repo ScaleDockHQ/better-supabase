@@ -8,6 +8,7 @@ export {
   modelName,
   type Reranker,
   rerankWith,
+  type ResultsFilter,
   searchTool,
   type SearchToolOptions,
   type SearchToolResult,

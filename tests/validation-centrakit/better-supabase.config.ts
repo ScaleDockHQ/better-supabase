@@ -111,7 +111,8 @@ export default defineConfig({
           start: "system.users.manage",
           view: "system.users.manage",
         },
-        options: { auditCategory: "security" },
+        // CentraKit's support staff start sessions alone; it has no second approver.
+        options: { auditCategory: "security", approval: "none" },
       },
       audit: {
         mode: "adopt",

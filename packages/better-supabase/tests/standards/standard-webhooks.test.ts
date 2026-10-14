@@ -2,8 +2,11 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  signStripeWebhook,
   signWebhook,
+  standardWebhooks,
   timingSafeEqual,
+  verifyStripeWebhook,
   verifyWebhook,
 } from "../../src/blocks/webhooks/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
@@ -130,5 +133,120 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
       false,
     );
     expect(timingSafeEqual(SIGNATURE, `${SIGNATURE}x`)).toBe(false);
+  });
+
+  it("accepts a timestamp at either edge of the 5-minute tolerance", async () => {
+    for (const offset of [-300, 300]) {
+      const at = Temporal.Instant.fromEpochMilliseconds(
+        (TIMESTAMP + offset) * 1000,
+      );
+      const signed = await signWebhook(SECRET, {
+        id: ID,
+        body: BODY,
+        timestamp: at,
+      });
+      expect((await verify({ headers: signed, body: BODY })).ok).toBe(true);
+    }
+  });
+
+  it("reads the secret as base64 after the whsec_ prefix", async () => {
+    const bare = SECRET.slice("whsec_".length);
+    expect((await verify({ headers: headers(), body: BODY }, bare)).ok).toBe(
+      true,
+    );
+    expect(
+      (await verify({ headers: headers(), body: BODY }, "whsec_not base64!"))
+        .error,
+    ).toMatchObject({ code: "WEBHOOK_INVALID_SECRET" });
+    expect(
+      (
+        await verify({ headers: headers(), body: BODY }, [
+          "whsec_not base64!",
+          SECRET,
+        ])
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("signs with every live secret in one header while rotating", async () => {
+    const next = "whsec_" + btoa("the-next-secret-of-32-bytes-long");
+    const signed = await standardWebhooks().sign({
+      id: ID,
+      body: BODY,
+      timestamp: now(),
+      secrets: [next, SECRET],
+    });
+    expect(signed["webhook-signature"]!.split(" ")).toHaveLength(2);
+    expect(signed["webhook-signature"]).toContain(SIGNATURE);
+    for (const secret of [next, SECRET])
+      expect((await verify({ headers: signed, body: BODY }, secret)).ok).toBe(
+        true,
+      );
+  });
+
+  it("refuses a replayed webhook-id once seen recorded it", async () => {
+    const ids = new Map<string, Temporal.Instant>();
+    const seen = (id: string, until: Temporal.Instant) => {
+      if (ids.has(id)) return true;
+      ids.set(id, until);
+      return false;
+    };
+    const input = { headers: headers(), body: BODY };
+    expect((await verifyWebhook(input, SECRET, { now, seen })).ok).toBe(true);
+    expect(ids.get(ID)?.epochMilliseconds).toBe((TIMESTAMP + 300) * 1000);
+    const replay = await verifyWebhook(input, SECRET, { now, seen });
+    expect(replay.error).toMatchObject({
+      kind: "conflict",
+      status: 409,
+      code: "WEBHOOK_REPLAYED",
+    });
+  });
+
+  it("asks seen only after the signature checks out, and refuses when it throws", async () => {
+    let asked = 0;
+    const counting = () => {
+      asked += 1;
+      return false;
+    };
+    await verifyWebhook({ headers: headers(), body: '{"x":1}' }, SECRET, {
+      now,
+      seen: counting,
+    });
+    await verifyWebhook({ headers: headers(), body: "not json" }, SECRET, {
+      now,
+      seen: counting,
+    });
+    expect(asked).toBe(0);
+    const broken = await verifyWebhook(
+      { headers: headers(), body: BODY },
+      SECRET,
+      {
+        now,
+        seen: () => {
+          throw new Error("redis down");
+        },
+      },
+    );
+    expect(broken.error).toMatchObject({ code: "WEBHOOK_DEDUPE_FAILED" });
+  });
+
+  it("applies seen to Stripe events by event id", async () => {
+    const body = '{"id":"evt_1"}';
+    const at = now();
+    const input = {
+      headers: {
+        "stripe-signature": await signStripeWebhook("whsec_stripe", body, at),
+      },
+      body,
+    };
+    const ids = new Set<string>();
+    const seen = (id: string) => ids.has(id) || (ids.add(id), false);
+    expect(
+      (await verifyStripeWebhook(input, "whsec_stripe", { now, seen })).ok,
+    ).toBe(true);
+    expect(
+      (await verifyStripeWebhook(input, "whsec_stripe", { now, seen })).error
+        ?.code,
+    ).toBe("WEBHOOK_REPLAYED");
   });
 });

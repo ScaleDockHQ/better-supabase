@@ -1,5 +1,7 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout } from "../module-types.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, serviceGrant } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
@@ -25,6 +27,18 @@ export interface HookNames {
   readonly status: (status: WebhookStatus) => string;
   /** `expression` (a status name) as the stored value. */
   readonly stored: (expression: string) => string;
+  /**
+   * Whether `user` (a uuid expression) holds `permission` (a text
+   * expression) in `tenant`: the provider's `idsWithFor` when it has one,
+   * else the access contract's `can_user`, else `false`.
+   */
+  readonly userMay: (
+    user: string,
+    tenant: string,
+    permission: string,
+  ) => string;
+  /** The module's view permission, as a SQL literal. */
+  readonly viewPermission: string;
 }
 
 export const WEBHOOK_STATUSES = [
@@ -92,8 +106,44 @@ function typeOption(ctx: ModuleContext, name: string): string {
   return type;
 }
 
-export function hookNames(ctx: ModuleContext): HookNames {
-  const has = (table: string, logical: string) => ctx.has(table, logical);
+function userMay(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): HookNames["userMay"] {
+  const provider = layout.accessProvider;
+  const template = provider?.functions.idsWithFor;
+  if (provider !== undefined && template !== undefined)
+    return (user, tenant, permission) =>
+      `${tenant}::text in (select t.id::text from ${fillTemplate(
+        "authorization.functions.idsWithFor",
+        template,
+        { user, permission, scope: provider.scope },
+      )} as t(id))`;
+  if (ctx.installed("access"))
+    return (user, tenant, permission) =>
+      `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${permission}), false)`;
+  return () => "false";
+}
+
+/**
+ * Columns added in version 3. An adopted table has them only when
+ * `sql.modules.webhooks-out.columns` maps them, so existing adopters keep
+ * working without the columns.
+ */
+export const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  endpoints: ["permissions", "batch"],
+  deliveries: ["subject"],
+};
+
+export function hookNames(
+  ctx: ModuleContext,
+  layout: ModuleLayout = {},
+): HookNames {
+  const has = (table: string, logical: string) =>
+    ctx.has(table, logical) &&
+    (ctx.manages ||
+      !ADDED_COLUMNS[table]?.includes(logical) ||
+      typeof ctx.config.columns[table]?.[logical] === "string");
   const storage = ctx.text("secretStorage", "vault");
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
@@ -132,6 +182,8 @@ export function hookNames(ctx: ModuleContext): HookNames {
       WEBHOOK_STATUSES.every((status) => values[status] === status)
         ? expression
         : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
+    userMay: userMay(ctx, layout),
+    viewPermission: ctx.permission("view", permissions.view),
   };
 }
 
@@ -194,6 +246,8 @@ function publish(ctx: ModuleContext, n: HookNames): string {
       v("event"),
       `publish_webhook_event.event_id::${n.eventIdType}`,
     ]);
+  if (n.has("deliveries", "subject"))
+    columns.push([v("subject"), "publish_webhook_event.subject"]);
   const tenant = n.has("endpoints", "tenant")
     ? `\n    and d.${d("tenant")} is not distinct from publish_webhook_event.tenant`
     : "";
@@ -201,12 +255,16 @@ function publish(ctx: ModuleContext, n: HookNames): string {
     ? `\n  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
     : "";
   return `
+drop function if exists ${fn}(text, jsonb, ${id}, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
 -- index on the subscriptions. The same event id never queues twice for one
--- endpoint.
-create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null)
+-- endpoint. An endpoint only gets events its owner may read: a user's
+-- endpoint needs read_permission (the module's view permission when unset)
+-- in the tenant; one without a user owner is a service principal's and
+-- needs read_permission among its declared permissions.
+create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
 security definer
@@ -217,6 +275,8 @@ declare
   inserted integer;
   segments text[] := string_to_array(publish_webhook_event.event_type, '.');
   patterns text[];
+  v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), ${n.viewPermission});
+  v_held text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     ${fail("WEBHOOK_TYPE_REQUIRED", "An event type is required", "22023")}
@@ -225,16 +285,42 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
+  v_held := array[v_permission, '*'] || array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  );
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   select ${columns.map(([, value]) => value).join(", ")}
   from ${n.table("endpoints")} d
   where d.${d("enabled")}${tenant}
-    and d.${d("eventTypes")} && patterns${conflict};
+    and d.${d("eventTypes")} && patterns
+    and ${readable(n)}${conflict};
   get diagnostics inserted = row_count;
   return inserted;
 end;
 $$;
-${grants(fn, `text, jsonb, ${id}, text`, false)}`;
+${grants(fn, `text, jsonb, ${id}, text, text, text`, false)}`;
+}
+
+/**
+ * Whether endpoint `d`'s owner may read the event being published. Without
+ * a tenant column there is nothing to check a permission in, so only events
+ * that declare none go out.
+ */
+function readable(n: HookNames): string {
+  const d = (logical: string) => n.col("endpoints", logical);
+  const declared = "publish_webhook_event.read_permission is null";
+  const user =
+    n.has("endpoints", "tenant") && n.has("endpoints", "createdBy")
+      ? n.userMay(`d.${d("createdBy")}`, `d.${d("tenant")}`, "v_permission")
+      : declared;
+  const service = n.has("endpoints", "permissions")
+    ? `(${declared} or coalesce(d.${d("permissions")} && v_held, false))`
+    : declared;
+  return n.has("endpoints", "createdBy")
+    ? `(case when d.${d("createdBy")} is not null then ${user} else ${service} end)`
+    : service;
 }
 
 function dispatch(ctx: ModuleContext, n: HookNames): string {
@@ -317,6 +403,8 @@ function claim(ctx: ModuleContext, n: HookNames): string {
   const v = (logical: string) => n.col("deliveries", logical);
   const optional = (logical: string, key: string) =>
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
+  const endpointField = (logical: string, key: string) =>
+    n.has("endpoints", logical) ? `, '${key}', d.${d(logical)}` : "";
   const stamp = [
     n.has("deliveries", "lastError")
       ? `, ${v("lastError")} = 'The lease ran out on the last attempt'`
@@ -384,7 +472,7 @@ begin
     'payload', c.${v("payload")},
     'attempt', c.${v("attempt")},
     'url', d.${d("url")},
-    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}
+    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
   ) order by c.${v("availableAt")}), '[]')
   into result
   from claimed c

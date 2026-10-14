@@ -153,7 +153,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
     );
     expect(await missing.json()).toEqual({
       type: "https://errors.example.com/IDEMPOTENCY_KEY_MISSING",
-      title: "Invalid request",
+      title: "Bad Request",
       status: 400,
       errorCode: "IDEMPOTENCY_KEY_MISSING",
     });

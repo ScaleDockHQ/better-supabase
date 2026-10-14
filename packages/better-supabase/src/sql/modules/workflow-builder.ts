@@ -4,7 +4,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -14,6 +14,7 @@ import {
   lockTable,
   fail,
 } from "../shared.ts";
+import { builderPublisherSql } from "./workflow-builder-publisher.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
 
 const EVENTS: ModuleEvents = {
@@ -66,6 +67,9 @@ const NAMES: ModuleNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         publishedAt: "published_at",
+        publishedBy: "published_by",
+        owner: "owner_kind",
+        permissions: "permissions",
       },
     },
     triggers: {
@@ -178,9 +182,9 @@ const NODE_RUN_STATUSES = [
 const list = (values: readonly string[]): string =>
   values.map(sqlString).join(", ");
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
-  const s = builderSql(ctx);
+  const s = builderSql(ctx, layout.accessProvider?.operations);
   const {
     id,
     fn,
@@ -205,6 +209,7 @@ function build(ctx: ModuleContext): string {
     r,
     cr,
     allowed,
+    holds,
     forbidden,
     callable,
     readable,
@@ -251,6 +256,14 @@ create table if not exists ${v} (
   ${cv("publishedAt")} timestamptz,
   constraint workflow_versions_definition_version_key unique (${cv("definition")}, ${cv("version")})
 );
+-- Who published a version and with which rights: its steps run as that
+-- user, narrowed to permissions, or as the app's service principal when an
+-- organization owns it (published by the service role). A deleted user
+-- leaves published_by null with owner_kind 'user', so the steps fail.
+alter table ${v} add column if not exists ${cv("publishedBy")} uuid references auth.users (id) on delete set null;
+alter table ${v} add column if not exists ${cv("owner")} text check (${cv("owner")} in ('user', 'organization'));
+alter table ${v} add column if not exists ${cv("permissions")} text[] not null default '{}';
+create index if not exists workflow_versions_published_by_idx on ${v} (${cv("publishedBy")});
 create unique index if not exists workflow_versions_one_draft_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'published';
 create index if not exists workflow_versions_created_by_idx on ${v} (${cv("createdBy")});
@@ -554,10 +567,14 @@ end;
 $$;
 ${callable(`${fn("save_workflow_draft")}(uuid, jsonb)`)}
 
--- Publishes a version: workflow.publish in its tenant, and a graph
--- validate_workflow_graph accepts. The version published before is
--- archived. Only the service role may store the engine's compiled form,
--- also on a version that is already published.
+${builderPublisherSql(s)}
+
+-- Publishes a version: workflow.publish in its tenant, a graph
+-- validate_workflow_graph accepts, and every permission its steps need
+-- (workflow_graph_permissions), which are stored with the publisher. The
+-- service role publishes for the organization. The version published
+-- before is archived. Only the service role may store the engine's
+-- compiled form, also on a version that is already published.
 create or replace function ${fn("publish_workflow_version")}(version uuid, compiled jsonb default null)
 returns jsonb
 language plpgsql
@@ -569,6 +586,9 @@ declare
   v_row ${v}%rowtype;
   v_tenant ${id};
   v_errors jsonb;
+  v_permissions text[];
+  v_missing text;
+  v_service boolean := ${SERVICE_CALLER};
 begin
   select * into v_row from ${v} x where x.${cv("id")} = version for update;
   if not found then
@@ -594,9 +614,25 @@ begin
     raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
       using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
+  v_permissions := ${fn("workflow_graph_permissions")}(v_row.${cv("graph")});
+  if not v_service then
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(v_permissions) p
+    where not ${holds("v_tenant", "p")};
+    if v_missing is not null then
+      raise exception 'You may not publish a workflow whose steps need %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+    end if;
+  end if;
   update ${v} x set ${cv("status")} = 'archived'
   where x.${cv("definition")} = v_row.${cv("definition")} and x.${cv("status")} = 'published';
-  update ${v} x set ${cv("status")} = 'published', ${cv("compiled")} = compiled, ${cv("publishedAt")} = now()
+  update ${v} x set
+    ${cv("status")} = 'published',
+    ${cv("compiled")} = compiled,
+    ${cv("publishedAt")} = now(),
+    ${cv("publishedBy")} = case when v_service then null else (select auth.uid()) end,
+    ${cv("owner")} = case when v_service then 'organization' else 'user' end,
+    ${cv("permissions")} = v_permissions
   where x.${cv("id")} = v_row.${cv("id")}
   returning * into v_row;
   ${ctx.record({
@@ -691,6 +727,8 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "workflow_versions_list", args: ["uuid"], returns: "jsonb" },
     { name: "workflow_version_get", args: ["uuid"], returns: "jsonb" },
     { name: "workflow_start_target", args: ["uuid"], returns: "jsonb" },
+    { name: "workflow_graph_permissions", args: ["jsonb"], returns: "text[]" },
+    { name: "workflow_run_principal", args: ["uuid"], returns: "jsonb" },
     {
       name: "save_workflow_trigger",
       args: ["uuid", "text", "jsonb", "boolean", "uuid"],

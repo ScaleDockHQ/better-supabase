@@ -1,4 +1,4 @@
-import type { InboxSql } from "./inbox-names.ts";
+import type { InboxCommand, InboxSql } from "./inbox-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { serviceGrant, pageSize, fail } from "../shared.ts";
@@ -91,6 +91,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const conversationJson = fn("inbox_conversation_json");
   const staffCan = (action: "read" | "reply" | "assign" | "manage"): string =>
     q.can(`v_conv.${cv("tenant")}`, action);
+  const command = (
+    name: InboxCommand,
+    action: "read" | "reply" | "assign" | "manage",
+  ): string => q.command(`v_conv.${cv("tenant")}`, name, action);
   const loadConversation = (
     param: string,
   ): string => `select * into v_conv from ${T("conversations")} where ${cv("id")} = ${param} for update;
@@ -553,7 +557,7 @@ begin
     end if;
     v_author_type := 'contact';
     v_direction := 'inbound';
-  elsif ${staffCan("reply")} then
+  elsif ${command("reply", "reply")} then
     v_author_type := 'agent';
     v_direction := 'outbound';
   else
@@ -643,7 +647,7 @@ declare
   v_before uuid;${notifyDeclare}
 begin
   ${loadConversation("assign_conversation.conversation")}
-  if not (${service} or ${staffCan("assign")} or (assignee = (select auth.uid()) and ${staffCan("reply")})) then
+  if not (${service} or ${command("assign", "assign")} or (assignee = (select auth.uid()) and ${staffCan("reply")})) then
     ${forbidden("not allowed to assign this conversation")}
   end if;
   if assignee is not null and not coalesce(better_supabase.can_user(assignee, 'tenant', v_conv.${cv("tenant")}, ${q.key("read")}), false) then
@@ -692,7 +696,7 @@ declare
   v_before text;
 begin
   ${loadConversation("set_conversation_status.conversation")}
-  if not (${service} or ${staffCan("reply")}) then
+  if not (${service} or ${command("set_status", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
   if status = 'snoozed' and snoozed_until is null then
@@ -732,7 +736,7 @@ declare
   v_before text;${notifyDeclare}
 begin
   ${loadConversation("set_bot_mode.conversation")}
-  if not (${service} or ${staffCan("reply")}) then
+  if not (${service} or ${command("set_bot_mode", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
   v_before := v_conv.${cv("botMode")};

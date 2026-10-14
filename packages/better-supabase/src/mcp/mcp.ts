@@ -10,6 +10,7 @@ import {
 
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { OperationTable } from "../core/operations.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
@@ -63,6 +64,7 @@ import {
   missingRole,
   permittedTools,
   type RequiredRoles,
+  toolPermission,
 } from "./permissions.ts";
 
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
@@ -230,6 +232,12 @@ export interface McpOptions<
   /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
   readonly resources?: ToolResources<M, Ref>;
   readonly tools?: readonly McpTool<M, F, E, C, P>[];
+  /**
+   * The authorization provider's operations (`authorization.operations` in
+   * the config). A tool's `mcp.tool.<name>` entry replaces its `permission`,
+   * so the provider decides what each tool needs.
+   */
+  readonly operations?: OperationTable;
   /**
    * Canonical URL of this MCP server (RFC 9728 `resource`). Defaults to the
    * request URL without query; on Supabase Edge Functions, to the public
@@ -721,11 +729,17 @@ export function createMcp<
     }
   }
 
-  const addTool = (tool: McpTool<M, F, E, C, P>): void => {
+  const addTool = (declared: McpTool<M, F, E, C, P>): void => {
+    const permission = toolPermission(
+      options.operations,
+      declared.info.name,
+      declared.permission,
+    );
+    const tool = { ...declared, permission };
     const ref: ToolRef = { info: tool.info, meta: tool.meta };
     register({
       ...ref,
-      ...(tool.permission === undefined ? {} : { permission: tool.permission }),
+      ...(permission === undefined ? {} : { permission }),
       infoFor: toolDialects(tool.info, tool.inputSchemaFor),
       async call(args, ctx) {
         let value: unknown = args ?? {};

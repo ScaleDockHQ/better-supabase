@@ -85,6 +85,13 @@ const usage = usageOf({
 });
 ```
 
+`user` is always `userId`, the caller from the verified session: a `user`
+in the second argument (gateway options such as `order`) is dropped, so a
+request body or a model can't change whom the spend is billed to. `tags`
+in the context adds the app's tags after `org:`, `chat:` and `feature:`.
+The [agent runtime](/docs/ai-sdk/agents#ai-gateway-attribution) sets both
+for every model call.
+
 `usageOf` returns the token counts, the gateway's `generationId` and the
 cost in micro-dollars when the gateway reported it. `usageEntries(usage)`
 turns it into entries for the [usage block](/docs/blocks/usage)

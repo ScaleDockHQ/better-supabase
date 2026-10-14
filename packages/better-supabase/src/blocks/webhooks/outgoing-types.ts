@@ -1,4 +1,8 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  AuthorizationHooks,
+  SubscriberPolicy,
+} from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -24,6 +28,14 @@ export interface WebhookDelivery {
   readonly tenant: string | null;
   readonly eventId: string | null;
   readonly runId: string | null;
+  /** The CloudEvents `subject`, such as `invoices/123`, when the event has one. */
+  readonly subject: string | null;
+  /** The user who owns the endpoint, or `null` for a service principal's endpoint. */
+  readonly owner: string | null;
+  /** The permissions a service principal's endpoint declares. */
+  readonly permissions: readonly string[] | null;
+  /** The endpoint takes CloudEvents batches. */
+  readonly batch: boolean;
   readonly createdAt: Temporal.Instant;
 }
 
@@ -39,6 +51,14 @@ export interface RetryPolicy {
   readonly backoff?: (attempt: number) => number;
   /** Statuses worth retrying. Defaults to 408, 429 and 5xx; network errors always retry. */
   readonly retryable?: (status: number) => boolean;
+}
+
+/** The subscription a `subscribers` policy sees for one claimed delivery. */
+export interface WebhookSubscriber {
+  /** The endpoint owner's user id, or the endpoint id for a service principal's endpoint. */
+  readonly principal: string;
+  readonly kind: "user" | "service";
+  readonly delivery: WebhookDelivery;
 }
 
 export interface WebhooksOptions extends BlockTemporalOptions {
@@ -59,11 +79,38 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly shouldDeliver?: (
     delivery: WebhookDelivery,
   ) => boolean | Promise<boolean>;
-  /**
-   * The JSON body. Defaults to the Standard Webhooks envelope,
-   * `{ type, timestamp, data }`.
-   */
+  /** The CloudEvent's `data`. Defaults to the published payload. */
   readonly transform?: (delivery: WebhookDelivery) => unknown;
+  /**
+   * The CloudEvents `source`, an absolute URI. Defaults to `/webhooks` on
+   * `appUrl`, or `urn:better-supabase:webhooks` without one.
+   */
+  readonly source?: string;
+  /** The app's public URL, such as `https://app.example.com`. */
+  readonly appUrl?: string;
+  /** Prepended to each type with a dot, such as `com.example`. Defaults to none. */
+  readonly typePrefix?: string;
+  /**
+   * The CloudEvents `dataschema`: an absolute URI, or a function that picks
+   * one per delivery or leaves it out with `undefined`.
+   */
+  readonly dataschema?:
+    | string
+    | ((delivery: WebhookDelivery) => string | undefined);
+  /**
+   * The W3C `traceparent` of the delivery, sent as the CloudEvents
+   * `traceparent` extension. A value that is not a valid trace context is
+   * left out.
+   */
+  readonly traceparent?: (delivery: WebhookDelivery) => string | undefined;
+  /**
+   * Narrows each event's claimed deliveries to the endpoints whose owner
+   * may read it. A delivery it leaves out is canceled; a throw retries every
+   * delivery of the event. Defaults to `authorization.delivery.subscribers`.
+   */
+  readonly subscribers?: SubscriberPolicy;
+  /** `server.authorization`, for its `delivery.subscribers` policy. */
+  readonly authorization?: Pick<AuthorizationHooks, "delivery">;
   /** Extra headers, e.g. an `idempotency-key`. */
   readonly headers?: (
     delivery: WebhookDelivery,
@@ -83,6 +130,14 @@ export interface PublishInput {
   readonly tenant?: string;
   /** With an id, publishing it again never queues a second delivery. */
   readonly id?: string;
+  /** What the event is about, such as `invoices/123`: the CloudEvents `subject`. */
+  readonly subject?: string;
+  /**
+   * The permission an endpoint owner needs in the tenant to receive the
+   * event, such as `invoices.read`. Defaults to the module's view
+   * permission (`webhooks.read`).
+   */
+  readonly readPermission?: string;
 }
 
 export interface DispatchInput {

@@ -7,6 +7,7 @@ import {
   moduleBody,
   renderModules,
 } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("webhooks-out", { modules })!;
@@ -150,5 +151,96 @@ describe("webhooks-out module", () => {
       "rotate_webhook_secret",
       "webhook_secrets",
     ]);
+  });
+
+  describe("fan-out read check", () => {
+    const publish = (sql: string) =>
+      sql.slice(
+        sql.indexOf('function "better_supabase"."publish_webhook_event"'),
+        sql.indexOf("-- Sends one event to one endpoint"),
+      );
+
+    it("checks the endpoint owner with can_user and service endpoints with their declared permissions", () => {
+      const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
+        (file) => file.contents.includes("publish_webhook_event"),
+      )!.contents;
+      const fn = publish(sql);
+      expect(fn).toContain(
+        "subject text default null, read_permission text default null",
+      );
+      expect(fn).toContain(
+        "v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');",
+      );
+      expect(fn).toContain(
+        `when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false)`,
+      );
+      expect(fn).toContain(
+        `(publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false))`,
+      );
+      expect(fn).toContain('"subject")\n  select');
+      expect(sql).toContain(
+        'drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);',
+      );
+      expect(sql).toContain(
+        `'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"`,
+      );
+    });
+
+    it("asks the authorization provider's idsWithFor when it has one", () => {
+      const fn = publish(
+        moduleBody("webhooks-out", {
+          accessProvider: moduleProvider,
+          modules: { access: { model: "provider" } },
+        })!,
+      );
+      expect(fn).toContain(
+        `d."organization_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
+      );
+      expect(fn).not.toContain("can_user");
+    });
+
+    it("fails closed for user endpoints without the access module or a tenant", () => {
+      expect(publish(body())).toContain(
+        `when d."created_by" is not null then false else`,
+      );
+      const untenanted = publish(
+        body({
+          "webhooks-out": {
+            mode: "adopt",
+            columns: {
+              endpoints: { tenant: null, permissions: null, batch: null },
+              deliveries: { tenant: null, subject: null },
+              secrets: { tenant: null },
+            },
+          },
+        }),
+      );
+      expect(untenanted).toContain(
+        `when d."created_by" is not null then publish_webhook_event.read_permission is null else publish_webhook_event.read_permission is null end`,
+      );
+      const ownerless = publish(
+        body({
+          "webhooks-out": {
+            mode: "adopt",
+            columns: {
+              endpoints: { createdBy: null, permissions: "held_permissions" },
+            },
+          },
+        }),
+      );
+      expect(ownerless).toContain(
+        `and (publish_webhook_event.read_permission is null or coalesce(d."held_permissions" && v_held, false))`,
+      );
+      expect(publish(body({ "webhooks-out": { mode: "adopt" } }))).toContain(
+        "else publish_webhook_event.read_permission is null end",
+      );
+    });
+
+    it("leaves the new columns out of an adopted table unless they are mapped", () => {
+      const sql = body(CENTRAKIT);
+      expect(sql).not.toContain('"permissions"');
+      expect(sql).not.toContain("add column if not exists");
+      expect(sql).not.toContain("'subject', c.");
+    });
   });
 });

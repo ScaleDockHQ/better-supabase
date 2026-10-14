@@ -51,6 +51,8 @@ export interface GraphRunMeta {
   readonly runKey: string;
   readonly definition: string;
   readonly version: number;
+  /** The version's id, for `builder.versions.runAs` inside each step. */
+  readonly versionId: string;
 }
 
 const EXPORT_NAME = "workflow";
@@ -63,6 +65,7 @@ const aliasOf = (node: WorkflowGraphNode, index: number): string =>
 const RUNTIME = `  const results = {};
   const ran = Object.create(null);
   const runKey = meta !== null && typeof meta === "object" && typeof meta.runKey === "string" ? meta.runKey : "";
+  const versionId = meta !== null && typeof meta === "object" && typeof meta.versionId === "string" ? meta.versionId : undefined;
   function read(path) {
     const parts = path.split(".");
     let value = parts[0] === "input" ? input : results;
@@ -101,7 +104,7 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
       return `results[${id}] = input;\n    ran[${id}] = true;`;
     }
     case "step": {
-      return `const output = await steps.${alias ?? ""}({ node: ${id}, step: ${literal(node.step)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey });
+      return `const output = await steps.${alias ?? ""}({ node: ${id}, step: ${literal(node.step)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId });
     results[${id}] = output === undefined ? null : output;
     ran[${id}] = true;`;
     }
@@ -270,6 +273,7 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
       runKey: key,
       definition: call.definition.id,
       version: call.version.version,
+      versionId: call.version.id,
     };
     const startOptions = {
       attributes: {

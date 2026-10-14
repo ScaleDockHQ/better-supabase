@@ -431,3 +431,72 @@ describe("relayRoute", () => {
     expect(actors).toEqual(["u1"]);
   });
 });
+
+describe("createOutbox subscribers", () => {
+  it("hands a consumer only the events the policy keeps and moves past the rest", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1), row(2, "invoice.paid"), row(3)]],
+      outbox_ack: [true],
+    });
+    const asked: { type: string; principal: string; kind?: string }[] = [];
+    const outbox = createOutbox(sql, {
+      ...OPTIONS,
+      subscribers: (event, subscribers) => {
+        for (const subscriber of subscribers)
+          asked.push({ type: event.type, ...subscriber });
+        return event.type === "invoice.paid" ? [] : subscribers;
+      },
+    });
+    const seen: number[] = [];
+    expect(
+      await outbox.consume("search", (events) => {
+        seen.push(...events.map((event) => event.position));
+      }),
+    ).toEqual({ delivered: 2, refused: 1 });
+    expect(seen).toEqual([1, 3]);
+    expect(asked).toContainEqual({
+      type: "invoice.paid",
+      principal: "search",
+      kind: "service",
+    });
+    expect(calls.find((call) => call.fn === "outbox_ack")!.args[2]).toBe(3);
+  });
+
+  it("skips the handler when nothing is kept, and reads authorization.delivery", async () => {
+    const { sql } = fakeSql({
+      outbox_claim: [[row(1)]],
+      outbox_ack: [true],
+    });
+    let handled = 0;
+    const outbox = createOutbox(sql, {
+      ...OPTIONS,
+      authorization: { delivery: { subscribers: () => [] } },
+    });
+    expect(
+      await outbox.consume("search", () => {
+        handled += 1;
+      }),
+    ).toEqual({ delivered: 0, refused: 1 });
+    expect(handled).toBe(0);
+  });
+
+  it("counts a policy that throws as a failed attempt", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1)]],
+      outbox_fail: ["dead"],
+    });
+    const outbox = createOutbox(sql, {
+      ...OPTIONS,
+      subscribers: () => {
+        throw new Error("provider down");
+      },
+    });
+    const result = await outbox.consume("search", () => undefined);
+    expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
+    expect(result.error?.message).toBe("provider down");
+    expect(calls.map((call) => call.fn)).toEqual([
+      "outbox_claim",
+      "outbox_fail",
+    ]);
+  });
+});

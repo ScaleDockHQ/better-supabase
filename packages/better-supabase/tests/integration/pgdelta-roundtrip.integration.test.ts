@@ -176,6 +176,7 @@ declarative_schema_path = "./schemas"
           "select tgname from pg_catalog.pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal order by 1",
         );
         expect(triggers.map((row) => row.tgname)).toEqual([
+          "bs_identity_email",
           "bs_profile_email",
           "bs_profile_sync",
           "bs_sso_auth_user",

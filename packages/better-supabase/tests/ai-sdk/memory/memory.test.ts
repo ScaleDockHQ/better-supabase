@@ -136,6 +136,21 @@ describe("recallTool", () => {
       recallTool(failing, "org").execute?.({ query: "q" }, options),
     ).rejects.toBeInstanceOf(DbException);
   });
+
+  it("drops the memories the results filter removes", async () => {
+    const { memory } = fakeMemory();
+    const results = vi.fn(() => []);
+    expect(
+      await recallTool(memory, "org", undefined, { results }).execute?.(
+        { query: "drinks" },
+        options,
+      ),
+    ).toEqual({ memories: [] });
+    expect(results).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "m1" })],
+      { query: "drinks" },
+    );
+  });
 });
 
 describe("withMemory", () => {

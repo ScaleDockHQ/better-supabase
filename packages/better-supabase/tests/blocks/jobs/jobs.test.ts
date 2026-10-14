@@ -382,17 +382,93 @@ describe("job context", () => {
     });
   });
 
-  it("drops a recorded act claim that isn't a support or impersonation level", async () => {
+  it("keeps a recorded OAuth client chain, so the job stays delegated", async () => {
     const { client, sent } = memoryQueue();
     sent.push({
       payload: {
         $bs: 1,
-        context: { actor: ACTOR, act: { sub: "client-1" } },
+        context: { actor: ACTOR, act: { sub: "client-1" }, scope: "a" },
         payload: { to: "a@example.com" },
       },
     });
     const [job] = await createJobs(client, queues).claim("emails").orThrow();
-    expect(job?.context).toEqual({ actor: ACTOR });
+    expect(job?.context).toEqual({
+      actor: ACTOR,
+      claims: { act: { sub: "client-1" }, scope: "a" },
+    });
+  });
+
+  it("records a delegated client's claims and the ticket at enqueue", async () => {
+    const { client, sent } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        {
+          context: {
+            actor: ACTOR,
+            claims: { client_id: "mcp", scope: "mail:send" },
+          },
+          ticket: "tk-1",
+        },
+      )
+      .orThrow();
+    expect(sent).toMatchObject([
+      {
+        payload: {
+          $bs: 1,
+          context: {
+            actor: ACTOR,
+            client_id: "mcp",
+            scope: "mail:send",
+            ticket: "tk-1",
+          },
+        },
+      },
+    ]);
+    const [job] = await jobs.claim("emails").orThrow();
+    expect(job?.context).toEqual({
+      actor: ACTOR,
+      ticket: "tk-1",
+      claims: { client_id: "mcp", scope: "mail:send" },
+    });
+  });
+
+  it("refuses an invalid act chain, a bad ticket and a fractional delay", async () => {
+    const { client, sent } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    const refused = await jobs.enqueue(
+      "emails",
+      { to: "a@example.com" },
+      {
+        context: { actor: ACTOR, claims: { act: { kind: "root", sub: "x" } } },
+      },
+    );
+    expect(refused.error).toMatchObject({ kind: "forbidden" });
+    const scheduled = await jobs.schedule(
+      "daily",
+      "@daily",
+      "emails",
+      { to: "a@example.com" },
+      { context: { actor: ACTOR, claims: { client_id: "" } } },
+    );
+    expect(scheduled.error).toMatchObject({ kind: "forbidden" });
+    const ticket = await jobs.enqueue(
+      "emails",
+      { to: "a@example.com" },
+      { ticket: "" },
+    );
+    expect(ticket.error).toMatchObject({ kind: "validation" });
+    for (const delay of [1.5, -1, Number.NaN]) {
+      const result = await jobs.enqueue(
+        "emails",
+        { to: "a@example.com" },
+        { delay },
+      );
+      expect(result.error).toMatchObject({ kind: "validation" });
+    }
+    expect(sent).toEqual([]);
   });
 
   it("prefers context.tenant, and stores bare payloads without an actor or tenant", async () => {

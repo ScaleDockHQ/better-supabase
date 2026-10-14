@@ -1,6 +1,7 @@
 import type {
   AuthorizationFunctions,
   AuthorizationMembership,
+  AuthorizationOperation,
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
 import type {
@@ -261,4 +262,6 @@ export interface ModuleAccessProvider {
   readonly roleSources?: readonly AuthorizationRoleSource[];
   /** How `ai-chat` applies `functions.canApprove`. */
   readonly approvals?: { readonly distinctApprover?: boolean };
+  /** The provider's operations table; `operationPermission` reads it. */
+  readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
 }

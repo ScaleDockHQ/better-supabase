@@ -1,4 +1,4 @@
-import type { JSONValue, LanguageModelUsage } from "ai";
+import type { LanguageModelUsage } from "ai";
 
 import type {
   AiChat,
@@ -15,44 +15,11 @@ import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { nowInstant } from "../core/temporal.ts";
 
-/** Who a generation is for, as the AI Gateway reports spend. */
-export interface GatewayContext {
-  readonly userId?: string;
-  readonly organizationId?: string;
-  readonly chatId?: string;
-  /** What the generation is for, such as `chat` or `summary`. */
-  readonly feature?: string;
-}
-
-/** The AI Gateway's own options (`providerOptions.gateway`). */
-export type GatewayOptions = { readonly [key: string]: JSONValue | undefined };
-
-/**
- * `providerOptions` for `streamText` and agents that attribute the spend in
- * the AI Gateway: `user` is the user id, and `tags` name the tenant, the chat
- * and the feature. `extra` adds gateway options such as `order` or
- * `zeroDataRetention`; its `tags` are appended.
- */
-export function gatewayOptions(
-  context: GatewayContext,
-  extra: GatewayOptions = {},
-): { readonly gateway: GatewayOptions } {
-  const tags: string[] = [];
-  if (context.organizationId !== undefined)
-    tags.push(`org:${context.organizationId}`);
-  if (context.chatId !== undefined) tags.push(`chat:${context.chatId}`);
-  if (context.feature !== undefined) tags.push(`feature:${context.feature}`);
-  const more = extra["tags"];
-  if (Array.isArray(more))
-    for (const tag of more) if (typeof tag === "string") tags.push(tag);
-  return {
-    gateway: {
-      ...extra,
-      ...(context.userId === undefined ? {} : { user: context.userId }),
-      ...(tags.length === 0 ? {} : { tags }),
-    },
-  };
-}
+export {
+  gatewayOptions,
+  type GatewayContext,
+  type GatewayOptions,
+} from "./gateway-options.ts";
 
 /** Token counts and the gateway's cost of one generation. */
 export interface AiUsage {

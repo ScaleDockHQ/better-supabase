@@ -141,8 +141,10 @@ const authorization = v.strictObject({
     canAssignFor: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),
     canApprove: v.optional(v.string()),
+    isApprover: v.optional(v.string()),
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
+    permitted: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(
@@ -159,6 +161,23 @@ const authorization = v.strictObject({
         key: v.string(),
         sqlComplete: v.optional(v.boolean()),
         scopes: v.optional(strings),
+      }),
+    ),
+  ),
+  operations: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        permission: v.pipe(v.string(), v.minLength(1)),
+        meta: v.optional(
+          v.strictObject({
+            risk: v.optional(v.picklist(["low", "medium", "high"])),
+            effects: v.optional(
+              v.array(v.picklist(["read", "write", "delete", "external"])),
+            ),
+            title: v.optional(v.string()),
+          }),
+        ),
       }),
     ),
   ),

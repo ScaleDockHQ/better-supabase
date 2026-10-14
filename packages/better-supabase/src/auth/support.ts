@@ -36,6 +36,60 @@ export interface SupportStartInput {
   readonly readOnly: boolean;
   readonly tenant?: string;
   readonly metadata: Readonly<Record<string, unknown>>;
+  /** The approved request this start uses, when the server found one. */
+  readonly requestId?: string;
+}
+
+/**
+ * A request for a support session that waits for a second admin. A start
+ * uses an approved request once; `approvedBy` is never `adminId`.
+ */
+export interface SupportRequest {
+  readonly id: string;
+  readonly adminId: string;
+  readonly targetUserId: string;
+  readonly reason: string;
+  readonly readOnly: boolean;
+  readonly tenant?: string;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly requestedAt: Temporal.Instant;
+  /** An unapproved or unused request is closed after this. */
+  readonly expiresAt: Temporal.Instant;
+  readonly approvedBy?: string;
+  readonly approvedAt?: Temporal.Instant;
+  /** The session the approval started. */
+  readonly sessionId?: string;
+}
+
+export interface SupportRequestInput {
+  readonly adminId: string;
+  /** The admin's verified claims; the SQL store asks as the admin with them. */
+  readonly adminClaims: Readonly<Record<string, unknown>>;
+  readonly targetUserId: string;
+  readonly reason: string;
+  readonly readOnly: boolean;
+  readonly tenant?: string;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  /**
+   * An approver the server's authorization hook already decided, never the
+   * admin. The SQL store then records the request approved, over the admin
+   * connection.
+   */
+  readonly approvedBy?: string;
+}
+
+/** Who approves a request: with `claims` the store runs as them and decides eligibility itself. */
+export interface SupportApprover {
+  readonly id: string;
+  readonly claims?: SupportCallerClaims;
+}
+
+/** What `approvedRequest` looks up. */
+export interface SupportApprovalQuery {
+  readonly adminId: string;
+  readonly targetUserId: string;
+  readonly tenant?: string;
+  readonly readOnly: boolean;
 }
 
 /** A caller's verified claims, which the store runs a call with. */
@@ -97,6 +151,62 @@ export interface SupportSessionStore {
    * `temporal`.
    */
   withTemporal?(namespace: typeof Temporal): SupportSessionStore;
+  /**
+   * Records a request for a session that waits for a second admin.
+   * Optional; without it and the two methods below, starts that need an
+   * approval are refused.
+   */
+  request?(input: SupportRequestInput): Promise<SupportRequest>;
+  /** A request by id, or `undefined`. */
+  getRequest?(requestId: string): Promise<SupportRequest | undefined>;
+  /** Approves a request. Rejects when the approver is the requester. */
+  approve?(
+    requestId: string,
+    approver: SupportApprover,
+  ): Promise<SupportRequest>;
+  /** The approved, unused, unexpired request a start would use, or `undefined`. */
+  approvedRequest?(
+    query: SupportApprovalQuery,
+  ): Promise<SupportRequest | undefined>;
+}
+
+interface SupportRequestRow {
+  readonly id: string;
+  readonly admin_id: string;
+  readonly target_user_id: string;
+  readonly reason: string;
+  readonly read_only: boolean;
+  readonly tenant: string | number | null;
+  readonly metadata: Record<string, unknown> | null;
+  readonly requested_at: string;
+  readonly expires_at: string;
+  readonly approved_by: string | null;
+  readonly approved_at: string | null;
+  readonly session_id: string | null;
+}
+
+/** A request from the jsonb the `support-sessions` request functions return. */
+function supportRequestFromRow(
+  row: SupportRequestRow,
+  namespace?: typeof Temporal,
+): SupportRequest {
+  const Instant = (namespace ?? temporal()).Instant;
+  return {
+    id: row.id,
+    adminId: row.admin_id,
+    targetUserId: row.target_user_id,
+    reason: row.reason,
+    readOnly: row.read_only,
+    ...(row.tenant === null ? {} : { tenant: String(row.tenant) }),
+    metadata: row.metadata ?? {},
+    requestedAt: Instant.from(row.requested_at),
+    expiresAt: Instant.from(row.expires_at),
+    ...(row.approved_by === null ? {} : { approvedBy: row.approved_by }),
+    ...(row.approved_at === null
+      ? {}
+      : { approvedAt: Instant.from(row.approved_at) }),
+    ...(row.session_id === null ? {} : { sessionId: row.session_id }),
+  };
 }
 
 interface SupportRow {
@@ -240,7 +350,67 @@ export function sqlSupportStore(
       }>(`select ${fn("support_target_claims")}($1) as claims`, [targetUserId]);
       return row?.claims ?? {};
     },
+    async request(input) {
+      const approved = input.approvedBy !== undefined;
+      const row = await oneRequest(
+        approved ? postgres.admin : postgres.asUser(input.adminClaims),
+        `select ${fn("request_support_session")}($1, $2, $3, $4, $5, $6, $7) as request`,
+        [
+          input.targetUserId,
+          input.reason,
+          input.readOnly,
+          JSON.stringify(input.metadata),
+          input.tenant ?? null,
+          input.adminId,
+          input.approvedBy ?? null,
+        ],
+      );
+      if (!row) throw new Error("request_support_session returned no request");
+      return supportRequestFromRow(row, options.temporal);
+    },
+    async getRequest(requestId) {
+      const row = await oneRequest(
+        postgres.admin,
+        `select ${fn("support_request")}($1) as request`,
+        [requestId],
+      );
+      return row ? supportRequestFromRow(row, options.temporal) : undefined;
+    },
+    async approve(requestId, approver) {
+      const row = await oneRequest(
+        as(approver.claims),
+        `select ${fn("approve_support_request")}($1, $2) as request`,
+        [requestId, approver.id],
+      );
+      if (!row) throw new Error("approve_support_request returned no request");
+      return supportRequestFromRow(row, options.temporal);
+    },
+    async approvedRequest(query) {
+      const row = await oneRequest(
+        postgres.admin,
+        `select ${fn("approved_support_request")}($1, $2, $3, $4) as request`,
+        [
+          query.targetUserId,
+          query.tenant ?? null,
+          query.readOnly,
+          query.adminId,
+        ],
+      );
+      return row ? supportRequestFromRow(row, options.temporal) : undefined;
+    },
   };
+}
+
+async function oneRequest(
+  client: SqlClient,
+  text: string,
+  params: unknown[],
+): Promise<SupportRequestRow | null> {
+  const [row] = await client.queryRaw<{ request: SupportRequestRow | null }>(
+    text,
+    params,
+  );
+  return row?.request ?? null;
 }
 
 /**

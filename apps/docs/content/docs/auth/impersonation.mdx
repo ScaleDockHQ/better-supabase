@@ -29,10 +29,17 @@ export const bs = createServer(betterSupabase, {
   postgres,
   support: supportSessions({
     store: sqlSupportStore(postgres),
+    authorize: ({ admin }) => admin.claims.app_metadata?.role === "support",
     policy: { ttl: 30 * 60, requireReason: true },
   }),
 });
 ```
+
+Support sessions deny by default. A start needs an `authorize` decision (or
+the [authorization hooks](/docs/extending/authorization-providers#runtime-hooks))
+and a second admin's approval of the request; see
+[Deciding who may start one](#deciding-who-may-start-one) and
+[Approval by a second admin](#approval-by-a-second-admin).
 
 `supportSessions` lives in its own function so apps without support mode
 don't bundle it. The store reads its time values with the `temporal` you pass
@@ -40,9 +47,11 @@ to `defineSupabase`; `sqlSupportStore(postgres, { temporal })` takes its own
 instead. `createNext` takes the same option, and `better-supabase/next`
 exports `supportSessions` too.
 
-The module adds a `support_sessions` table and five functions:
-`start_support_session`, `end_support_session`, `active_support_session`,
-`list_support_sessions` and `expire_support_sessions`. Starting a session checks
+The module adds the `support_sessions` and `support_requests` tables and the
+functions `start_support_session`, `end_support_session`,
+`active_support_session`, `list_support_sessions`, `expire_support_sessions`,
+`request_support_session`, `approve_support_request`, `support_request` and
+`approved_support_request`. Starting a session checks
 `is_platform('support.start')` in the database with the admin's own claims, so
 only admins your [access model](/docs/blocks/access) grants that permission
 can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
@@ -100,12 +109,13 @@ as the target over Postgres.
 
 ### What the admin can do
 
-| Policy option   | Default    | Effect                                                                                    |
-| --------------- | ---------- | ----------------------------------------------------------------------------------------- |
-| `ttl`           | `1800`     | Session length in seconds when the request names none                                     |
-| `maxTtl`        | `14400`    | Longest session allowed (`SUPPORT_TTL` above it); the SQL module checks `maxTtl` too      |
-| `requireReason` | `true`     | Refuses a start without a reason (`SUPPORT_REASON_REQUIRED`)                              |
-| `readOnly`      | `"always"` | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
+| Policy option   | Default      | Effect                                                                                    |
+| --------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `ttl`           | `1800`       | Session length in seconds when the request names none                                     |
+| `maxTtl`        | `14400`      | Longest session allowed (`SUPPORT_TTL` above it); the SQL module checks `maxTtl` too      |
+| `requireReason` | `true`       | Refuses a start without a reason (`SUPPORT_REASON_REQUIRED`)                              |
+| `readOnly`      | `"always"`   | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
+| `approval`      | `"distinct"` | A start needs another admin's approval; `"none"` turns it off                             |
 
 A read-only session runs each transaction with `begin read only`, so any write
 fails with Postgres error `25006`, which a repository or block call returns as
@@ -178,9 +188,14 @@ session for themselves (`SUPPORT_SELF`) or from inside another one
 
 ### Deciding who may start one
 
-`authorize` runs before the store, with the admin's verified auth, the target
-and the reason. Returning `false` (or throwing) refuses the start with
-`SUPPORT_FORBIDDEN`:
+`authorize` runs before the store, with the admin's verified auth, the target,
+the reason, `readOnly`, `tenant` and `metadata`. It returns a decision:
+
+| Decision                 | Effect                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `false`, a throw         | Refused with `SUPPORT_FORBIDDEN`                                               |
+| `true`                   | Allowed once another admin approved a request (see below)                      |
+| `{ approvedBy: "<id>" }` | Allowed, and `<id>` is recorded as the approver; the admin's own id is refused |
 
 ```ts
 support: supportSessions({
@@ -190,10 +205,67 @@ support: supportSessions({
 }),
 ```
 
+Without `authorize`, the `support.authorize` hook of the
+[authorization hooks](/docs/extending/authorization-providers#runtime-hooks)
+decides. Without either, every start is refused. `authorize: "store"` hands
+the decision to the store alone: the SQL store then checks
+`is_platform('support.start')` and nothing else, so use it only when that
+permission is the whole rule. A start refused by the decision never reaches
+the store.
+
 In SQL, the `before_support_start(admin, target, reason, metadata)` hook can
 refuse a start too, for example when no open ticket names the user. See
 [support sessions](/docs/blocks/sql#support-sessions) for the module's names,
 hooks and options.
+
+### Approval by a second admin
+
+With `policy.approval: "distinct"`, the default, one admin asks for a session
+and a different admin approves it before the start:
+
+```ts title="src/admin/support.ts"
+const asked = await server.support
+  .request(auth, { targetUserId, reason: "Ticket 4821: missing invoices" })
+  .orThrow();
+
+// Later, signed in as a second admin:
+await server.support.approve(reviewerAuth, asked.id).orThrow();
+
+// The first admin starts the session; it uses the approved request.
+const { session, cookie } = await server.support
+  .start(auth, { targetUserId, reason: asked.reason })
+  .orThrow();
+```
+
+A start without an approved request fails with `SUPPORT_APPROVAL_REQUIRED`.
+The requester can never approve their own request (`SUPPORT_SELF_APPROVAL`),
+and the SQL module refuses it again in a check constraint, so a client that
+calls the database directly can't skip the second admin. A request stays open
+for the module's `approvalTtl` (1 hour) and starts one session. A read-only
+request never starts a writable session.
+
+`approverOf` in the authorization hooks decides who may approve, with
+`{ kind: "support-session", subject: requestId, requester }`. It is never
+asked about the requester as approver: better-supabase refuses them first. Without it, the SQL store
+checks the approver in the database: the provider's `isApprover` template,
+or `is_platform('support.start')` without a provider. Rename that key with
+`blocks["support-sessions"].permissions.approve`.
+
+| Code                           | When                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| `SUPPORT_APPROVAL_REQUIRED`    | A start finds no approved, unused request                  |
+| `SUPPORT_SELF_APPROVAL`        | The requester approves, or `approvedBy` names the admin    |
+| `SUPPORT_REQUEST_MISSING`      | `approve` names a request that doesn't exist               |
+| `SUPPORT_REQUEST_DECIDED`      | Another admin already approved the request                 |
+| `SUPPORT_REQUEST_CLOSED`       | The request expired or already started a session           |
+| `SUPPORT_APPROVAL_UNSUPPORTED` | `request` or `approve` on a store without approval methods |
+
+Set `policy.approval: "none"` and the module's `options.approval: "none"`
+together to start without a second admin; the SQL store checks its own
+option. `createNext` has no request or approve helper yet: call them on a
+`createServer` instance, or call `request_support_session` and
+`approve_support_request` as the signed-in admin. A custom store implements
+`request`, `getRequest`, `approve` and `approvedRequest` to support approval.
 
 ### The target's claims
 

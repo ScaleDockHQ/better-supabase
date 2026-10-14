@@ -145,6 +145,28 @@ await outbox.consume("search", async (events) => {
 `relayRoute` takes a handler in place of a sink too:
 `consumers: { search: (events) => indexEvents(events) }`.
 
+### Which events a consumer gets
+
+Pass `subscribers`, a `SubscriberPolicy`, to keep events from consumers that
+may not read them. Without it, `createOutbox` uses
+`authorization.delivery.subscribers`. `relay` and `consume` call the policy
+once per claimed event with the consumer as a service subscriber
+(`{ principal: "search", kind: "service" }`). An event it leaves out is
+acknowledged without reaching the sink or handler, and the result's `refused`
+counts it. A policy that throws fails the batch like a sink that throws.
+
+```ts
+const outbox = createOutbox(postgres.admin, {
+  subscribers: (event, subscribers) =>
+    event.type.startsWith("billing.")
+      ? subscribers.filter((s) => s.principal === "ledger")
+      : subscribers,
+});
+```
+
+The outbox SQL doesn't filter: every registered consumer claims every event,
+and the policy runs in TypeScript.
+
 ### Ordering and open transactions
 
 Positions come from an identity column, which hands out numbers before

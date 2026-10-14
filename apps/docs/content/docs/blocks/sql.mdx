@@ -78,7 +78,7 @@ lists the steps to move to pg-delta.
 | Module               | What it adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `updated-at`         | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `actor`              | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                                                                                                                                                                                                                                     |
+| `actor`              | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin; `token_scope_allows(scope)` checks a delegated token's OAuth scope in a policy                                                                                                                                                                                                                     |
 | `audit`              | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                                                                                                                                                                                                                              |
 | `tenant`             | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                                                                                                                                                                                                            |
 | `access`             | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, an authorization provider or your functions. See [Access contract](/docs/blocks/access)                                                                                                                                                                                                                                                               |
@@ -97,7 +97,7 @@ lists the steps to move to pg-delta.
 | `entitlements`       | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/blocks/entitlements)                                                                                                                                                                                                                                                                                                          |
 | `vector-search`      | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/blocks/vector-search)                                                                                                                                                                                                                                                                                                                                                    |
 | `rate-limit`         | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                                                                                                                                                                                                                                    |
-| `support-sessions`   | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                                                                                                                                                                                                          |
+| `support-sessions`   | Support sessions: `start_support_session(target, reason)` checks `is_platform` and a second admin's approval, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                                                                                                                                                                            |
 | `organizations`      | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)`, `list_my_organizations()`, `list_members(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                                                                                                                                                                   |
 | `profiles`           | A profile per user from sign-up metadata, with a unique username, an email mirror, `my_profile()`, `update_my_profile(attrs)`, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                                                                                                                                                                                |
 | `outbox`             | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, backoff and dead letters, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                                                                                                                                                                                                               |
@@ -165,6 +165,7 @@ lists the steps to move to pg-delta.
 | `forms`              | Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that `pg_jsonschema` checks on every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record. See [Forms](/docs/blocks/forms).                                                                                                                                                         |
 | `signatures`         | Simple electronic signatures on a frozen version from the versions module: click, typed or drawn signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide. See [Forms](/docs/blocks/forms#signatures).                                                                                                                                                                                                          |
 | `time-tracking`      | Timers and logged time on any record with one running timer per member and no overlaps, weekly timesheets approved through approvals, and weeks that lock while pending or approved. See [Time tracking](/docs/blocks/time-tracking).                                                                                                                                                                                                                                        |
+| `identities`         | Links an email address or a chat user to an app user or a contact, through a one-time code or a confirmed address. See [Identities](/docs/blocks/identities).                                                                                                                                                                                                                                                                                                                |
 | `ensure-rls`         | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                                                                                                                                                                                                         |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
@@ -745,8 +746,35 @@ for the service role only, ends every running session past its expiry with
 `support.ended` entry. `active_support_session` called
 as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
 `SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
-`SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL` or `SUPPORT_REASON_REQUIRED` in the
-`hint`.
+`SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL`, `SUPPORT_REASON_REQUIRED` or
+`SUPPORT_APPROVAL_REQUIRED` in the `hint`.
+
+A start needs a second admin by default (`options.approval: "distinct"`).
+The admin asks with `request_support_session(target, reason, read_only,
+metadata, tenant)`, which runs the same checks as a start and stores a row in
+`support_requests`. Another admin approves it with
+`approve_support_request(request_id)`. `start_support_session` then uses the
+newest approved, unused request for the same admin, target and tenant (a
+read-only approval never starts a writable session) and records its id and
+approver in the `support.started` audit entry. A request is open for
+`approvalTtl` and starts one session.
+
+The requester never approves their own request: `approve_support_request`
+refuses it with `SUPPORT_SELF_APPROVAL`, and the
+`support_requests_distinct_approver` check constraint refuses the row even
+for the service role. Clients can read their own requests but can't insert
+or update the table. Without an authorization provider, an approver needs
+`is_platform('support.start')` (rename it with
+`blocks["support-sessions"].permissions.approve`). With one that sets
+[`isApprover`](/docs/extending/authorization-providers#approvals), the module
+calls it with `{kind}` `'support-session'` and `{subject}` the request id
+instead. The service role may pass `admin_id`, `approved_by` and
+`approver_id` for decisions the server already made; `approved_by` still
+can't be the admin. `support_request(request_id)` returns a request to the
+service role, its requester and its approvers, and
+`approved_support_request(target, tenant, read_only)` the request a start
+would use. Errors carry `SUPPORT_REQUEST_MISSING`, `SUPPORT_REQUEST_DECIDED`
+(another admin approved it) or `SUPPORT_REQUEST_CLOSED` (expired or used).
 
 A read-only session (`read_only` true, the default) is refused by every
 `security definer` write granted to `authenticated` or `anon`, with
@@ -760,21 +788,26 @@ and runs before reads.
 With an authorization provider, set `authorization.functions.actorMayWrite`
 and the writes call that instead of the built-in check.
 
-| Option                 | Default   | What it does                                                             |
-| ---------------------- | --------- | ------------------------------------------------------------------------ |
-| `maxTtl`               | `4 hours` | the longest session `start_support_session` accepts                      |
-| `requireReason`        | `true`    | refuses a start without a reason                                         |
-| `allowWrites`          | `false`   | accepts `read_only => false`                                             |
-| `allowPlatformTargets` | `false`   | lets a session target platform staff                                     |
-| `auditCategory`        | `support` | the audit log category of `support.started` and `support.ended`          |
-| `claimsHook`           | none      | `schema.function` of your access token hook, for `support_target_claims` |
+| Option                 | Default    | What it does                                                             |
+| ---------------------- | ---------- | ------------------------------------------------------------------------ |
+| `maxTtl`               | `4 hours`  | the longest session `start_support_session` accepts                      |
+| `requireReason`        | `true`     | refuses a start or request with an empty or blank reason                 |
+| `approval`             | `distinct` | `none` starts without a second admin's approval                          |
+| `approvalTtl`          | `1 hour`   | how long a request stays open for approval and a start                   |
+| `allowWrites`          | `false`    | accepts `read_only => false`                                             |
+| `allowPlatformTargets` | `false`    | lets a session target platform staff                                     |
+| `auditCategory`        | `support`  | the audit log category of `support.started` and `support.ended`          |
+| `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims` |
 
 The permission keys are `support.start`, `support.read` and `support.revoke`;
 rename them with `blocks["support-sessions"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in
 the schema `hooks.schema` names. An existing sessions table can be adopted:
-the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional.
+the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional. In
+`adopt` mode the module still creates `support_requests` unless
+`tables.requests` names your own table; `tables.requests: null` needs
+`options.approval: "none"`.
 
 ```ts title="better-supabase.config.ts"
 sql: {

@@ -12,6 +12,7 @@ import { err, ok, type Result } from "../../core/result.ts";
 import {
   header,
   hmacHex,
+  replayed,
   unauthorized,
   type VerifiedWebhook,
   type VerifyOptions,
@@ -113,6 +114,14 @@ export async function verifyStripeWebhook<T = unknown>(
     typeof payload === "object" && payload !== null && "id" in payload
       ? String(payload.id)
       : "";
+  const replay = await replayed(
+    options,
+    id,
+    namespace.Instant.fromEpochMilliseconds(
+      (seconds + (options.tolerance ?? 300)) * 1000,
+    ),
+  );
+  if (replay) return err(replay);
   // SAFETY: the caller names the event type T; the signature proves the
   // sender, not the shape.
   return ok({

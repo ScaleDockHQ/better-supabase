@@ -12,13 +12,9 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type { ActiveSupport } from "./support.ts";
 
-import { actorOf } from "../auth/actor.ts";
 import { authContext } from "../auth/context.ts";
-import {
-  actClaim,
-  impersonatorClaim,
-  userContext,
-} from "../auth/impersonation.ts";
+import { contextClaims } from "../auth/delegation.ts";
+import { actClaim, userContext } from "../auth/impersonation.ts";
 import {
   prefetchJwks,
   resolveAuth,
@@ -26,12 +22,16 @@ import {
   type AuthState,
 } from "../auth/resolve.ts";
 import { sessionCookieName, type SessionEncoding } from "../auth/session.ts";
+import {
+  hooksApiProblem,
+  type TicketSubject,
+} from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
 import {
   postgrestExecutor,
   type PostgrestClientLike,
 } from "../core/postgrest-executor.ts";
-import { AsyncResult, ok } from "../core/result.ts";
+import { AsyncResult, err, ok, type Result } from "../core/result.ts";
 import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
 import {
@@ -243,12 +243,18 @@ export function createServer<
       "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
     );
   }
+  const hooksProblem =
+    options.authorization === undefined
+      ? undefined
+      : hooksApiProblem(options.authorization);
+  if (hooksProblem !== undefined) throw new TypeError(hooksProblem);
   const audit = serverAudit(betterSupabase, options.audit);
   const support = options.support
     ? options.support.create(
         betterSupabase.events,
         options.auth?.claims ?? betterSupabase.claimsSchema,
         betterSupabase.temporal,
+        options.authorization,
       )
     : supportOff;
 
@@ -609,6 +615,7 @@ export function createServer<
     },
     events: betterSupabase.events,
     authorizer: options.authorizer,
+    authorization: options.authorization,
     resolve,
     supabaseFor,
     dbFor: (auth, context, dbOptions) =>
@@ -749,58 +756,42 @@ export function createServer<
         claims: full,
       });
     },
-    forContext: (context, forOptions = {}) => {
-      const { actor, tenant } = context;
-      if (actor?.kind !== "user") {
-        return AsyncResult.err(
-          dbError(
-            "forbidden",
-            `forContext needs a user actor, got ${actor ? actor.kind : "none"}: use admin() for service work`,
-          ),
+    forContext: (context, forOptions = {}) =>
+      AsyncResult.from(async () => {
+        const subject = await ticketSubject(
+          context,
+          forOptions.ticket ?? options.authorization?.tickets?.subject,
         );
-      }
-      if (!options.postgres) {
-        return AsyncResult.err(
-          dbError(
-            "invalid_request",
-            "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
-          ),
-        );
-      }
-      const recorded = actorOf(context.claims ?? {});
-      if (!recorded.ok) {
-        return AsyncResult.err(
-          dbError("forbidden", "forContext got an invalid act claim"),
-        );
-      }
-      const support =
-        recorded.actor?.kind === "support" ? recorded.actor : undefined;
-      const impersonator = support?.id ?? actor.impersonator;
-      return AsyncResult.from(async () => {
-        const extra = (await options.claimsFor?.(actor.id, context)) ?? {};
-        const claims: SqlClaims = {
-          ...extra,
-          role: "authenticated",
-          sub: actor.id,
-          ...(tenant === undefined ? {} : { tenant_id: tenant }),
-          ...(support
-            ? { act: impersonatorClaim(support) }
-            : actor.impersonator
-              ? {
-                  act: actClaim({
-                    actor: actor.impersonator,
-                    reason: forOptions.reason ?? "job",
-                  }),
-                }
-              : {}),
-        };
-        const session = sessionWith({}, tenant, support?.readOnly);
+        if (!subject.ok) return subject;
+        const target = subject.data;
+        const { tenant } = target;
+        const checked = contextClaims(target);
+        if (!checked.ok) return err(dbError("forbidden", checked.message));
+        if (!options.postgres) {
+          return err(
+            dbError(
+              "invalid_request",
+              "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
+            ),
+          );
+        }
+        const userId = checked.claims.sub;
+        const extra = (await options.claimsFor?.(userId, target)) ?? {};
+        const built = contextClaims(target, {
+          extra,
+          ...(forOptions.reason === undefined
+            ? {}
+            : { reason: forOptions.reason }),
+        });
+        if (!built.ok) return err(dbError("forbidden", built.message));
+        const { claims, impersonator, readOnly } = built;
+        const session = sessionWith({}, tenant, readOnly);
         return ok(
           sqlFor(
             claims,
             {
               actor: {
-                id: actor.id,
+                id: userId,
                 kind: "user",
                 role: "authenticated",
                 ...(impersonator ? { impersonator } : {}),
@@ -812,8 +803,7 @@ export function createServer<
             session,
           ),
         );
-      });
-    },
+      }),
   };
 
   const core: ServerCore<M, F, E, C, P> = {
@@ -842,4 +832,38 @@ export function createServer<
     },
   );
   return server;
+}
+
+/**
+ * The context `forContext` runs as: `context` itself, or for a context
+ * with a ticket, the context `resolve` returns for it. A ticket without a
+ * resolver, a `null` answer and a throw are `forbidden`; none of them fall
+ * back to the recorded actor.
+ */
+async function ticketSubject(
+  context: RequestContext,
+  resolve: TicketSubject | undefined,
+): Promise<Result<RequestContext>> {
+  const ticket = context["ticket"];
+  if (ticket === undefined) return ok(context);
+  if (typeof ticket !== "string" || ticket === "")
+    return err(dbError("forbidden", "forContext got an invalid ticket"));
+  if (resolve === undefined) {
+    return err(
+      dbError(
+        "forbidden",
+        "forContext got a ticket but no ticket resolver: pass { ticket } or authorization.tickets.subject",
+      ),
+    );
+  }
+  let resolved: unknown;
+  try {
+    resolved = await resolve(ticket);
+  } catch {
+    resolved = null;
+  }
+  if (typeof resolved !== "object" || resolved === null)
+    return err(dbError("forbidden", "The ticket resolver refused the ticket"));
+  // SAFETY: TicketSubject returns a RequestContext or null; null and non-objects were refused above.
+  return ok(resolved as RequestContext);
 }

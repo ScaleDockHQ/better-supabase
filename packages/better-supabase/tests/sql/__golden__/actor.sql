@@ -109,6 +109,35 @@ $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
+-- using (better_supabase.token_scope_allows('posts:write'))
+-- True for a token no OAuth client or agent acts with. A delegated token
+-- (a client_id, or an act that is not a support or impersonation level)
+-- needs p_scope in its scope claim, a space-separated string or a list.
+create or replace function better_supabase.token_scope_allows(p_scope text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    when coalesce(p_scope, '') = '' then false
+    when jsonb_typeof(jwt -> 'scope') = 'string'
+      then p_scope = any(regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+'))
+    when jsonb_typeof(jwt -> 'scope') = 'array'
+      then jwt -> 'scope' @> jsonb_build_array(p_scope)
+    else false
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+revoke execute on function better_supabase.token_scope_allows(text) from public;
+grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -244,6 +273,35 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+
+-- using (better_supabase.token_scope_allows('posts:write'))
+-- True for a token no OAuth client or agent acts with. A delegated token
+-- (a client_id, or an act that is not a support or impersonation level)
+-- needs p_scope in its scope claim, a space-separated string or a list.
+create or replace function better_supabase.token_scope_allows(p_scope text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    when coalesce(p_scope, '') = '' then false
+    when jsonb_typeof(jwt -> 'scope') = 'string'
+      then p_scope = any(regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+'))
+    when jsonb_typeof(jwt -> 'scope') = 'array'
+      then jwt -> 'scope' @> jsonb_build_array(p_scope)
+    else false
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+revoke execute on function better_supabase.token_scope_allows(text) from public;
+grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -381,6 +439,35 @@ $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
+-- using (better_supabase.token_scope_allows('posts:write'))
+-- True for a token no OAuth client or agent acts with. A delegated token
+-- (a client_id, or an act that is not a support or impersonation level)
+-- needs p_scope in its scope claim, a space-separated string or a list.
+create or replace function better_supabase.token_scope_allows(p_scope text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    when coalesce(p_scope, '') = '' then false
+    when jsonb_typeof(jwt -> 'scope') = 'string'
+      then p_scope = any(regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+'))
+    when jsonb_typeof(jwt -> 'scope') = 'array'
+      then jwt -> 'scope' @> jsonb_build_array(p_scope)
+    else false
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+revoke execute on function better_supabase.token_scope_allows(text) from public;
+grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -517,6 +604,35 @@ $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
+-- using (better_supabase.token_scope_allows('posts:write'))
+-- True for a token no OAuth client or agent acts with. A delegated token
+-- (a client_id, or an act that is not a support or impersonation level)
+-- needs p_scope in its scope claim, a space-separated string or a list.
+create or replace function better_supabase.token_scope_allows(p_scope text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    when coalesce(p_scope, '') = '' then false
+    when jsonb_typeof(jwt -> 'scope') = 'string'
+      then p_scope = any(regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+'))
+    when jsonb_typeof(jwt -> 'scope') = 'array'
+      then jwt -> 'scope' @> jsonb_build_array(p_scope)
+    else false
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+revoke execute on function better_supabase.token_scope_allows(text) from public;
+grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
+
 -- sql.modules.actor.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -538,6 +654,15 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."token_scope_allows"(p_scope text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."token_scope_allows"($1) $$;
+revoke execute on function "api"."token_scope_allows"(text) from public;
+grant execute on function "api"."token_scope_allows"(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

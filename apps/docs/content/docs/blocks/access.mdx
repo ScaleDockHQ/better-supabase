@@ -159,6 +159,13 @@ the config's `authorization` key, `can()` and `tenant_ids_with()` call the
 provider's `idsWith` template at its `tenantScope`, and `platform_can()` calls
 its `isPlatform`. The id type is that scope's `idType`.
 
+`provider` is the default model whenever the config sets `authorization`, so
+every module check that goes through `can()` or `tenant_ids_with()` answers
+from the provider. Set another `model` to keep the built-in roles; doctor then
+reports policies and functions that call the access contract
+([BS334](/docs/cli/doctor#bs334)), because they answer from roles the provider
+never sees.
+
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   authorization: authorizationProvider(),
@@ -166,7 +173,7 @@ export default defineConfig({
     modules: {
       organizations: {},
       invitations: {},
-      access: { model: "provider" },
+      access: {},
     },
   },
 });

@@ -9,6 +9,7 @@ import type {
   WorkflowTrigger,
   WorkflowTriggerKind,
   WorkflowVersion,
+  WorkflowVersionOwner,
   WorkflowVersionStatus,
 } from "./types.ts";
 
@@ -28,6 +29,10 @@ const VERSION_STATUSES: readonly WorkflowVersionStatus[] = [
   "draft",
   "published",
   "archived",
+];
+const VERSION_OWNERS: readonly WorkflowVersionOwner[] = [
+  "user",
+  "organization",
 ];
 const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "manual",
@@ -72,6 +77,14 @@ export function versionOf(row: Record<string, unknown>): WorkflowVersion {
     createdBy: optionalText(row["createdBy"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     publishedAt: optionalInstant(row["publishedAt"]),
+    publishedBy: optionalText(row["publishedBy"]),
+    owner:
+      row["owner"] === null || row["owner"] === undefined
+        ? undefined
+        : enumOrThrow(row["owner"], VERSION_OWNERS, "version owner"),
+    permissions: Array.isArray(row["permissions"])
+      ? stringsOf(row["permissions"])
+      : [],
     ...("graph" in row ? { graph: graphOf(row["graph"]) } : {}),
     ...("compiled" in row && row["compiled"] !== null
       ? { compiled: row["compiled"] }

@@ -7,6 +7,11 @@ import type {
   WebhooksOptions,
 } from "../../../src/blocks/webhooks/index.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
+import type {
+  Subscriber,
+  SubscriberEvent,
+  SubscriberPolicy,
+} from "../../../src/core/contracts/authorization-hooks.ts";
 
 import {
   createWebhooks,
@@ -128,7 +133,7 @@ function setup(
 }
 
 describe("createWebhooks: deliver", () => {
-  it("signs the Standard Webhooks envelope and completes the delivery", async () => {
+  it("signs a structured CloudEvent and completes the delivery", async () => {
     const { webhooks, sent, outcomes, seen, calls } = setup([row()]);
     expect(await webhooks.deliver()).toEqual({
       succeeded: 1,
@@ -139,10 +144,17 @@ describe("createWebhooks: deliver", () => {
     });
     const request = sent[0]!;
     expect(JSON.parse(request.body)).toEqual({
+      specversion: "1.0",
+      id: "del-1",
+      source: "urn:better-supabase:webhooks",
       type: "invoice.paid",
-      timestamp: "2026-10-03T10:00:00Z",
+      time: "2026-10-03T10:00:00Z",
+      datacontenttype: "application/json",
       data: { id: 7 },
     });
+    expect(request.headers["content-type"]).toBe(
+      "application/cloudevents+json",
+    );
     expect(request.headers["webhook-id"]).toBe("del-1");
     expect((await verifyWebhook(request, SECRET)).ok).toBe(true);
     expect(outcomes()).toEqual([
@@ -336,13 +348,13 @@ describe("createWebhooks: deliver", () => {
       },
     );
     await webhooks.deliver();
-    expect(JSON.parse(sent[0]!.body)).toEqual({
+    expect(JSON.parse(sent[0]!.body).data).toEqual({
       kind: "invoice.paid",
       runId: "run-9",
       body: { id: 7 },
     });
     expect(sent[0]!.headers).toEqual({
-      "content-type": "application/json",
+      "content-type": "application/cloudevents+json",
       "user-agent": "better-supabase-webhooks",
       "idempotency-key": "del-1",
       "x-sig": "a|b",
@@ -475,6 +487,207 @@ describe("createWebhooks: deliver", () => {
   });
 });
 
+describe("createWebhooks: CloudEvents", () => {
+  const TRACE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+
+  it("sets source from appUrl, subject, dataschema, a type prefix and traceparent", async () => {
+    const { webhooks, sent } = setup(
+      [row({ subject: "invoices/7" }), row({ id: "del-2", type: "deal.won" })],
+      ok,
+      {
+        appUrl: "https://app.example.com/dashboard",
+        typePrefix: "com.example.",
+        dataschema: (delivery) =>
+          delivery.type === "invoice.paid"
+            ? "https://app.example.com/schemas/invoice-paid.json"
+            : undefined,
+        traceparent: (delivery) =>
+          delivery.id === "del-1" ? TRACE : "not-a-trace",
+      },
+    );
+    await webhooks.deliver();
+    const [first, second] = ["del-1", "del-2"].map((id) =>
+      JSON.parse(
+        sent.find((request) => request.headers["webhook-id"] === id)!.body,
+      ),
+    );
+    expect(first).toMatchObject({
+      source: "https://app.example.com/webhooks",
+      type: "com.example.invoice.paid",
+      subject: "invoices/7",
+      dataschema: "https://app.example.com/schemas/invoice-paid.json",
+      traceparent: TRACE,
+    });
+    expect(second).not.toHaveProperty("subject");
+    expect(second).not.toHaveProperty("dataschema");
+    expect(second).not.toHaveProperty("traceparent");
+  });
+
+  it("refuses a source or dataschema that is not an absolute URI", () => {
+    const transport = fakeBlock([]).transport;
+    expect(() => createWebhooks({ transport, source: "/events" })).toThrow(
+      "createWebhooks: source must be an absolute URI",
+    );
+    expect(() => createWebhooks({ transport, appUrl: "app.test" })).toThrow(
+      "createWebhooks: appUrl must be an absolute URI",
+    );
+    expect(() => createWebhooks({ transport, dataschema: "x.json" })).toThrow(
+      "createWebhooks: dataschema must be an absolute URI",
+    );
+    expect(
+      createWebhooks({ transport, source: "https://crm.test/events" }),
+    ).toBeDefined();
+  });
+
+  it("retries a delivery whose dataschema function returns a relative URI", async () => {
+    const { webhooks, sent, outcomes } = setup([row()], ok, {
+      dataschema: () => "schemas/x.json",
+    });
+    expect(await webhooks.deliver()).toMatchObject({ retrying: 1 });
+    expect(sent).toHaveLength(0);
+    expect(outcomes()[0]!["error"]).toContain("must be an absolute URI");
+  });
+
+  it("sends one signed batch per endpoint that takes batches", async () => {
+    const { webhooks, sent, outcomes } = setup(
+      [
+        row({ batch: true }),
+        row({ id: "del-2", batch: true, event_id: "evt-2" }),
+        row({ id: "del-3", endpoint_id: "dest-2" }),
+      ],
+      ok,
+    );
+    expect(await webhooks.deliver()).toMatchObject({ succeeded: 3 });
+    expect(sent).toHaveLength(2);
+    const batch = sent.find(
+      (request) =>
+        request.headers["content-type"] ===
+        "application/cloudevents-batch+json",
+    )!;
+    const events = JSON.parse(batch.body);
+    expect(events.map((event: { id: string }) => event.id)).toEqual([
+      "del-1",
+      "del-2",
+    ]);
+    expect(batch.headers["webhook-id"]).toMatch(/^batch_[0-9a-f]{32}$/);
+    expect((await verifyWebhook(batch, SECRET)).ok).toBe(true);
+    expect(outcomes()).toHaveLength(3);
+
+    const again = setup(
+      [row({ id: "del-2", batch: true }), row({ batch: true })],
+      ok,
+    );
+    await again.webhooks.deliver();
+    expect(again.sent[0]!.headers["webhook-id"]).toBe(
+      batch.headers["webhook-id"],
+    );
+  });
+
+  it("fails every delivery of a batch together", async () => {
+    const { webhooks, outcomes } = setup(
+      [row({ batch: true }), row({ id: "del-2", batch: true, attempt: 8 })],
+      () => ({ status: 503, body: "" }),
+    );
+    expect(await webhooks.deliver()).toMatchObject({ retrying: 1, dead: 1 });
+    expect(
+      outcomes()
+        .map((outcome) => String(outcome["status"]))
+        .toSorted((a, b) => a.localeCompare(b)),
+    ).toEqual(["dead", "retrying"]);
+  });
+});
+
+describe("createWebhooks: subscribers", () => {
+  it("cancels deliveries whose endpoint owner the policy leaves out, once per event", async () => {
+    const calls: [SubscriberEvent, readonly Subscriber[]][] = [];
+    const policy: SubscriberPolicy = (event, subscribers) => {
+      calls.push([event, subscribers]);
+      return subscribers.filter((subscriber) => subscriber.principal !== "bob");
+    };
+    const { webhooks, sent, outcomes } = setup(
+      [
+        row({ owner: "alice", subject: "invoices/7" }),
+        row({ id: "del-2", endpoint_id: "dest-2", owner: "bob" }),
+        row({ id: "del-3", endpoint_id: "dest-3", owner: null }),
+      ],
+      ok,
+      { subscribers: policy },
+    );
+    expect(await webhooks.deliver()).toMatchObject({
+      succeeded: 2,
+      canceled: 1,
+    });
+    expect(calls).toHaveLength(1);
+    const [event, candidates] = calls[0]!;
+    expect(event).toMatchObject({
+      type: "invoice.paid",
+      tenant: "org-1",
+      subject: "invoices/7",
+      actorId: null,
+    });
+    expect(
+      candidates.map(({ principal, kind }) => ({ principal, kind })),
+    ).toEqual([
+      { principal: "alice", kind: "user" },
+      { principal: "bob", kind: "user" },
+      { principal: "dest-3", kind: "service" },
+    ]);
+    expect(
+      sent
+        .map((request) => request.headers["webhook-id"] ?? "")
+        .toSorted((a, b) => a.localeCompare(b)),
+    ).toEqual(["del-1", "del-3"]);
+    expect(outcomes()).toContainEqual({
+      status: "canceled",
+      attempt: 1,
+      error: "Refused by the subscriber policy",
+    });
+  });
+
+  it("reads the policy from authorization.delivery and passes the payload actor", async () => {
+    const seen: unknown[] = [];
+    const { webhooks, sent } = setup(
+      [row({ event_id: null, payload: { actorId: "u-1" } })],
+      ok,
+      {
+        authorization: {
+          delivery: {
+            subscribers: (event, subscribers) => {
+              seen.push(event.actorId);
+              return subscribers;
+            },
+          },
+        },
+      },
+    );
+    expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
+    expect(seen).toEqual(["u-1"]);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("retries every delivery of an event when the policy throws, and drops copies it returns", async () => {
+    const thrown = setup([row(), row({ id: "del-2", attempt: 8 })], ok, {
+      subscribers: async () => {
+        throw new Error("provider down");
+      },
+    });
+    expect(await thrown.webhooks.deliver()).toMatchObject({
+      retrying: 1,
+      dead: 1,
+    });
+    expect(thrown.sent).toHaveLength(0);
+    expect(thrown.outcomes()[0]!["error"]).toBe(
+      "Subscriber policy failed: provider down",
+    );
+
+    const copied = setup([row()], ok, {
+      subscribers: (_event, subscribers) =>
+        subscribers.map((subscriber) => ({ ...subscriber })),
+    });
+    expect(await copied.webhooks.deliver()).toMatchObject({ canceled: 1 });
+  });
+});
+
 describe("createWebhooks: management", () => {
   it("publishes, dispatches, redelivers and rotates through the block functions", async () => {
     const { webhooks, calls } = setup(
@@ -495,6 +708,8 @@ describe("createWebhooks: management", () => {
           data: { id: 7 },
           tenant: "org-1",
           id: "evt-1",
+          subject: "invoices/7",
+          readPermission: "invoices.read",
         })
         .orThrow(),
     ).toBe(2);
@@ -520,6 +735,8 @@ describe("createWebhooks: management", () => {
           payload: { id: 7 },
           tenant: "org-1",
           event_id: "evt-1",
+          subject: "invoices/7",
+          read_permission: "invoices.read",
         },
       ],
       [
@@ -589,6 +806,7 @@ describe("createWebhooks: management", () => {
         id: "ce-1",
         source: "/crm",
         type: "deal.won",
+        subject: "deals/1",
         data: { id: 1 },
         partitionkey: "org-1",
       },
@@ -600,6 +818,7 @@ describe("createWebhooks: management", () => {
         payload: { id: 1 },
         tenant: "org-1",
         event_id: "ce-1",
+        subject: "deals/1",
       },
       { event_type: "deal.lost", payload: {}, tenant: null, event_id: "ce-2" },
     ]);

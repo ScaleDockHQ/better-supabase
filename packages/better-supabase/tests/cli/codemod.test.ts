@@ -182,3 +182,22 @@ const db = defineSupabase(schema, { urlLengthLimit: 4000 });
     expect(result.review.map((entry) => entry.line)).toEqual([1, 3, 3]);
   });
 });
+
+describe("codemod 0.9", () => {
+  const v09 = CODEMODS["0.9"]!;
+
+  it("lists the behaviour changes for review and rewrites nothing", () => {
+    const source = [
+      'import { supportSessions } from "better-supabase/server";',
+      "const support = supportSessions({ store });",
+      'const functions = { canApprove: "authz.can_approve({tool}, {tenant})" };',
+      "const webhooks = createWebhooks({ transform });",
+      "gatewayOptions(context, { user: id });",
+      'expect(body.type).toBe("https://bettersupabase.com/problems/forbidden");',
+      "const ok = 1;",
+    ].join("\n");
+    const result = applyCodemod(v09, source);
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([2, 3, 4, 5, 6]);
+  });
+});

@@ -38,8 +38,21 @@ export interface AuthorizationFunctions {
   /**
    * Whether the caller may decide the tool call `{tool}` (text) waits on in
    * `{tenant}`. Without it only the chat's owner and the service role decide.
+   *
+   * @deprecated Use `isApprover`, which every module that waits for an
+   * approval reads. `canApprove` is read for tool calls only when
+   * `isApprover` is unset.
    */
   readonly canApprove?: string;
+  /**
+   * Whether the caller may approve the request `{subject}` (text) of kind
+   * `{kind}` (a text literal: `'ai-tool'` with the tool name as `{subject}`,
+   * `'support-session'` with the request id, or the app's own kind) in
+   * `{tenant}`. It replaces each module's own eligibility check; the
+   * requester is refused before it runs. Without it a module falls back to
+   * its default approver (the chat's owner, a platform permission).
+   */
+  readonly isApprover?: string;
   /**
    * The user ids that hold `{permission}` on `{tenant}`, as a set: it is
    * used as `select u from <template> as t(u)`. A notification's `permission`
@@ -51,6 +64,12 @@ export interface AuthorizationFunctions {
    * and write policies call it instead of the built-in act check.
    */
   readonly actorMayWrite?: string;
+  /**
+   * Whether the caller holds `{permission}` on the instance `{id}` (text) of
+   * `{resource}` in `{tenant}`, at `{scope}`. A realtime topic that declares
+   * a `permission` calls it for the instance in its topic name.
+   */
+  readonly permitted?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */
@@ -83,6 +102,23 @@ export interface AuthorizationPermission {
   readonly sqlComplete?: boolean;
   /** The scopes it can be granted at. */
   readonly scopes?: readonly string[];
+}
+
+/**
+ * One named operation: what workflow builder nodes, MCP tools, AI tools and
+ * inbox commands with that name need. The provider supplies the table;
+ * `sql.modules.<module>.permissions` still renames a module's own keys.
+ */
+export interface AuthorizationOperation {
+  /** The permission key the operation needs. */
+  readonly permission: string;
+  readonly meta?: {
+    /** `low`, `medium` or `high`; a `high` operation can ask for approval. */
+    readonly risk?: "low" | "medium" | "high";
+    /** What it changes: `read`, `write`, `delete`, `external`. */
+    readonly effects?: readonly ("read" | "write" | "delete" | "external")[];
+    readonly title?: string;
+  };
 }
 
 /** A table of memberships the provider reads. */
@@ -156,6 +192,12 @@ export interface AuthorizationProvider {
   readonly functions: AuthorizationFunctions;
   readonly requires?: readonly AuthorizationRequirement[];
   readonly permissions?: readonly AuthorizationPermission[];
+  /**
+   * Operations by name (`workflow.node.http`, `mcp.tool.search_posts`,
+   * `ai.tool.send_email`, `inbox.command.assign`). A module looks an
+   * operation up here first and uses its own default permission otherwise.
+   */
+  readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {
