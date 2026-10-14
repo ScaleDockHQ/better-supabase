@@ -3,7 +3,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
 import { driveFilesSql } from "./drive-files.ts";
-import { FILE_EVENTS, NAMES, driveKit, driveSubjectType } from "./drive-kit.ts";
+import { FILE_EVENTS, NAMES, driveKit } from "./drive-kit.ts";
 
 function contract(): readonly ModuleContractFunction[] {
   return [
@@ -111,5 +111,3 @@ export const DRIVE_FILES: ModuleDefinition = {
     return drive.mode === "custom" ? "" : driveFilesSql(driveKit(drive, ctx));
   },
 };
-
-export { driveSubjectType };

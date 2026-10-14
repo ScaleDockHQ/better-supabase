@@ -187,7 +187,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
 export const ORDER: readonly string[] = Object.keys(SQL_MODULES);
 
 /** Where a module renders: its own position, or just ahead of `before`. */
-export function renderPosition(module: SqlModule): number {
+function renderPosition(module: SqlModule): number {
   return module.before === undefined
     ? ORDER.indexOf(module.name)
     : ORDER.indexOf(module.before) - 0.5;

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { adoptedTables } from "../../../src/sql/adopted-columns.ts";
 import { modulePath } from "../../../src/sql/paths.ts";
 import {
   ORDER,
   SQL_MODULES,
   resolveModules,
 } from "../../../src/sql/registry.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderModules } from "../../../src/sql/render.ts";
 
 type Layout = Parameters<typeof renderModules>[1];
 
@@ -182,5 +183,52 @@ describe("drive module", () => {
         file.module.startsWith("drive"),
       ),
     ).toBe(false);
+  });
+
+  it("lists the functions a custom drive provides", () => {
+    const core = customContracts(["drive"], {
+      modules: { drive: { mode: "custom" } },
+    });
+    expect(core.map((entry) => entry.module)).toEqual(["drive"]);
+    expect(core[0]?.functions.map((fn) => fn.name)).toContain("drive_share");
+    const files = customContracts(["drive"], {
+      modules: { "drive-files": { mode: "custom" } },
+    });
+    expect(
+      files
+        .find((entry) => entry.module === "drive-files")
+        ?.functions.map((fn) => fn.name),
+    ).toEqual(["drive_create_file", "drive_commit"]);
+    const noAttachment = customContracts(["drive"], {
+      modules: {
+        drive: { mode: "adopt", columns: { nodes: { attachment: null } } },
+        "drive-files": { mode: "custom" },
+      },
+    });
+    expect(noAttachment.map((entry) => entry.functions)).toEqual([[]]);
+  });
+
+  it("checks only the grant columns an adopted table uses", () => {
+    const user = adoptedTables(ADOPTED.modules ?? {}).find(
+      (table) => table.logical === "grants",
+    );
+    expect(user?.columns).toMatchObject({ user: "user_id", team: "team_id" });
+    const typed = adoptedTables({
+      drive: { mode: "adopt", columns: { grants: { user: null, team: null } } },
+    }).find((table) => table.logical === "grants");
+    expect(typed?.columns).toHaveProperty("principalType");
+    expect(typed?.columns).not.toHaveProperty("user");
+  });
+
+  it("copies extra columns from the parent folder", () => {
+    const core = sqlOf(
+      ["drive"],
+      "drive",
+      withOptions({ extraColumns: { project_id: "uuid" } }),
+    );
+    expect(core).toContain(`'fields'`);
+    expect(core).toContain(
+      `coalesce(v_fields."project_id", v_parent."project_id")`,
+    );
   });
 });
