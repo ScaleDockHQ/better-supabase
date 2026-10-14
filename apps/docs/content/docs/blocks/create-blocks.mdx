@@ -39,7 +39,7 @@ Each value in the second argument is a factory that gets the shared options
 (a `BlockContext`) and returns a block. A block creator whose options are the
 shared ones, such as `createOrganizations`, works as it is; wrap the ones that
 need more, such as the notification `types`. The result has one key per
-factory, typed from what the factory returns, plus `close()`.
+factory, typed from what the factory returns, plus `sinks` and `close()`.
 
 ## Options
 
@@ -55,6 +55,7 @@ factory, typed from what the factory returns, plus `close()`.
 | `audit`                | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
 | `aiTaskNotification`   | The notification type ai-tasks sends through the `notifications` block for each finished run         |
 | `reminderNotification` | The notification type a delivered reminder sends through the `notifications` block                   |
+| `metricEvents`         | Event type to the metrics it adds rows to, for `sinks.metrics`; needs a `metrics` factory            |
 
 ## Transports
 
@@ -124,6 +125,44 @@ const { aiTasks } = createBlocks(
       createNotifications({ ...options, types, render }),
   },
 );
+```
+
+Some pairs wire in SQL instead, when both modules are installed: approvals
+move the state machine, the bulk block gets a `trash.trash` action, and the
+search block drops soft-deleted rows. `createBlocks` has nothing to do for
+those.
+
+## Outbox sinks
+
+`sinks` holds an outbox consumer for each block that reads subject events.
+With a `search` factory, `sinks.search` is
+[`searchSink`](/docs/blocks/search) over it: a trashed or purged subject
+leaves the index and a restored one is read again. With a `metrics` factory
+and `metricEvents`, `sinks.metrics` is [`metricsSink`](/docs/blocks/metrics),
+which rolls up the listed metrics for each event. Build these blocks with
+the service transport, and relay the sinks from your cron route:
+
+```ts title="app/api/outbox/route.ts"
+import "server-only";
+
+import { createBlocks } from "better-supabase/blocks";
+import { createMetrics } from "better-supabase/blocks/metrics";
+import { createSearch } from "better-supabase/blocks/search";
+
+import { outbox } from "@/lib/outbox";
+
+const app = createBlocks(
+  {
+    transport: service,
+    metricEvents: { "order.placed": ["orders", "revenue"] },
+  },
+  { search: createSearch, metrics: createMetrics },
+);
+
+export const GET = outbox.relayRoute({
+  secret: process.env.CRON_SECRET,
+  consumers: { ...app.sinks },
+});
 ```
 
 ## Hooks

@@ -5,11 +5,15 @@ import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
 import type { AiFiles } from "./ai-files/ai-files.ts";
 import type { AiTaskOutcome } from "./ai-tasks/ai-tasks.ts";
+import type { Metrics } from "./metrics/metrics.ts";
 import type { DeliveryPayload } from "./reminders/schedule.ts";
+import type { Search } from "./search/search.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks } from "../core/block-hooks.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
+import { metricsSink, type MetricsSinkOptions } from "./metrics/sink.ts";
+import { searchSink } from "./search/sink.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
 export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
@@ -36,6 +40,22 @@ export interface CreateBlocksOptions extends BlockOptions {
    * subject's watchers. Its data is `{ reminderId, occurrenceAt }`.
    */
   readonly reminderNotification?: string;
+  /**
+   * Event type to the metrics whose rows it adds, such as
+   * `{ "order.placed": ["orders", "revenue"] }`, for `sinks.metrics`.
+   */
+  readonly metricEvents?: MetricsSinkOptions["on"];
+}
+
+/**
+ * Outbox sinks over the blocks that consume events, for
+ * `outbox.relayRoute({ consumers: { ...app.sinks } })`.
+ */
+export interface BlockSinks {
+  /** `searchSink` over the `search` block: trash events drop and restore rows. */
+  readonly search?: EventSink;
+  /** `metricsSink` over the `metrics` block, with `metricEvents`. */
+  readonly metrics?: EventSink;
 }
 
 /** What each block factory receives: the shared options and its siblings. */
@@ -67,6 +87,8 @@ export type BlocksHooks<F extends BlockFactories> = {
 };
 
 export type Blocks<F extends BlockFactories> = BuiltBlocks<F> & {
+  /** The outbox sinks of the `search` and `metrics` blocks, when built. */
+  readonly sinks: BlockSinks;
   /** Stops forwarding block events to `audit`. */
   close(): void;
 };
@@ -87,12 +109,41 @@ interface NotificationSender {
 const isNotificationSender = (value: unknown): value is NotificationSender =>
   isRecord(value) && typeof value["send"] === "function";
 
+const isSearch = (
+  value: unknown,
+): value is Pick<Search, "remove" | "refresh"> =>
+  isRecord(value) &&
+  typeof value["remove"] === "function" &&
+  typeof value["refresh"] === "function";
+
+const isMetrics = (value: unknown): value is Pick<Metrics, "rollup"> =>
+  isRecord(value) && typeof value["rollup"] === "function";
+
+function sinksOf(
+  search: unknown,
+  metrics: unknown,
+  metricEvents: MetricsSinkOptions["on"] | undefined,
+): BlockSinks {
+  if (search !== undefined && !isSearch(search))
+    throw new TypeError("The search block has no remove and refresh methods");
+  if (metrics !== undefined && !isMetrics(metrics))
+    throw new TypeError("The metrics block has no rollup method");
+  return {
+    ...(search === undefined ? {} : { search: searchSink(search) }),
+    ...(metrics === undefined || metricEvents === undefined
+      ? {}
+      : { metrics: metricsSink(metrics, { on: metricEvents }) }),
+  };
+}
+
 /**
  * Builds the blocks in `factories` with one set of options, and wires the
  * siblings they share: the `aiFiles` block into knowledge, `credentials`
  * into connectors, ai-providers and the builder, the `notifications` block
  * into ai-tasks (with `aiTaskNotification`) and reminders (with
- * `reminderNotification`), and block events into `audit`.
+ * `reminderNotification`), and block events into `audit`. `sinks` holds
+ * outbox sinks over the `search` block (trash events) and the `metrics`
+ * block (`metricEvents`), for the app's relay route.
  * Only the blocks you pass are imported, so the rest stay out of the bundle.
  * `hooks` wraps each block's methods with `withBlockHooks`, so siblings that
  * call a block (ai-tasks sending notifications) go through its hooks too.
@@ -109,11 +160,14 @@ export function createBlocks<const F extends BlockFactories>(
     audit,
     aiTaskNotification,
     reminderNotification,
+    metricEvents,
     hooks,
     ...shared
   } = options;
   if (audit !== undefined && events === undefined)
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
+  if (metricEvents !== undefined && factories["metrics"] === undefined)
+    throw new TypeError("createBlocks: `metricEvents` needs a `metrics` block");
   const built = new Map<string, unknown>();
   const building = new Set<string>();
 
@@ -210,12 +264,17 @@ export function createBlocks<const F extends BlockFactories>(
 
   const blocks: Record<string, unknown> = {};
   for (const name of Object.keys(factories)) blocks[name] = build(name);
+  blocks["sinks"] = sinksOf(
+    built.get("search"),
+    built.get("metrics"),
+    metricEvents,
+  );
   const stop =
     audit === undefined || events === undefined
       ? undefined
       : forwardBlockEvents({ events }, audit, { source: BLOCK_EVENT_SOURCE });
   blocks["close"] = () => stop?.();
   // SAFETY: `blocks` holds the result of every factory under its own key,
-  // plus `close`, which is what `Blocks<F>` describes.
+  // plus `sinks` and `close`, which is what `Blocks<F>` describes.
   return blocks as Blocks<F>;
 }

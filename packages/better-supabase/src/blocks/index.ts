@@ -4,6 +4,7 @@ export type {
   BlockFactories,
   BlockFactory,
   Blocks,
+  BlockSinks,
   BlocksHooks,
   CreateBlocksOptions,
 } from "./create-blocks.ts";
