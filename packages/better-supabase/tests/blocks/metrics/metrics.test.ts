@@ -239,7 +239,7 @@ describe("metricsSink", () => {
     ...(time === undefined ? {} : { time }),
   });
 
-  it("rolls up each metric over the window of its events", async () => {
+  it("rolls up each metric once per day its events fall on", async () => {
     const requests: unknown[] = [];
     const sink = metricsSink(
       {
@@ -262,24 +262,52 @@ describe("metricsSink", () => {
     await sink.send([
       event("dev.better-supabase.order.placed", "2026-10-02T10:00:00Z"),
       event("dev.better-supabase.order.placed", "2026-10-01T09:00:00Z"),
-      event("dev.better-supabase.order.placed", "2026-10-03T08:00:00Z"),
+      event("dev.better-supabase.order.placed", "2026-10-02T08:00:00Z"),
       event("dev.better-supabase.unrelated", "2026-10-03T08:00:00Z"),
     ]);
     expect(requests).toEqual([
       {
         metric: "orders",
+        since: "2026-10-02T08:00:00Z",
+        until: "2026-10-02T10:00:00.001Z",
+      },
+      {
+        metric: "orders",
         since: "2026-10-01T09:00:00Z",
-        until: "2026-10-03T08:00:00.001Z",
+        until: "2026-10-01T09:00:00.001Z",
+      },
+      {
+        metric: "revenue",
+        since: "2026-10-02T08:00:00Z",
+        until: "2026-10-02T10:00:00.001Z",
       },
       {
         metric: "revenue",
         since: "2026-10-01T09:00:00Z",
-        until: "2026-10-03T08:00:00.001Z",
+        until: "2026-10-01T09:00:00.001Z",
       },
     ]);
 
     requests.length = 0;
     await sink.send([event("dev.better-supabase.visit.started")]);
     expect(requests).toHaveLength(1);
+  });
+
+  it("rolls up every time an event returns, skipping the days between", async () => {
+    const requests: unknown[] = [];
+    const sink = metricsSink(
+      {
+        rollup: (request) => {
+          requests.push(request?.since?.toString());
+          return AsyncResult.ok(1);
+        },
+      },
+      {
+        on: { "entry.moved": "tracked" },
+        time: () => ["2026-09-01T10:00:00Z", "2026-10-02T10:00:00Z"],
+      },
+    );
+    await sink.send([event("dev.better-supabase.entry.moved")]);
+    expect(requests).toEqual(["2026-09-01T10:00:00Z", "2026-10-02T10:00:00Z"]);
   });
 });
