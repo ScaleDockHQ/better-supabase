@@ -21,6 +21,17 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   "number-sequences": ["before_number_assign", "after_number_assign"],
   teams: ["before_team_create", "after_team_create"],
   tags: ["before_tag_apply", "after_tag_apply"],
+  search: ["before_search_document_index", "after_search_document_index"],
+  metrics: ["before_metric_rollup", "after_metric_rollup"],
+};
+
+/** Modules that call their hooks only for configured items. */
+const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
+  metrics: {
+    metrics: [
+      { key: "orders", table: "orders", measure: "count", timeColumn: "at" },
+    ],
+  },
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;
@@ -30,7 +41,10 @@ describe.each(Object.entries(REQUIRED))(
   (module, hooks) => {
     const declared = SQL_MODULES[module]?.names?.hooks ?? [];
     const sql = moduleBody(module, {
-      modules: {},
+      modules:
+        OPTIONS[module] === undefined
+          ? {}
+          : { [module]: { options: OPTIONS[module] } },
       accessProvider: moduleProvider,
     });
 

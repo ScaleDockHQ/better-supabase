@@ -40,6 +40,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "views.*",
     "relations.*",
     "bulk.*",
+    "search.*",
+    "metrics.*",
   ],
   member: [
     "organization.read",
@@ -69,6 +71,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "views.read",
     "relations.read",
     "bulk.run",
+    "search.read",
+    "metrics.read",
   ],
   viewer: ["organization.read"],
 };
@@ -200,6 +204,8 @@ export const MODULE_PERMISSIONS = {
   "saved-views": { read: "views.read", share: "views.share" },
   relations: { read: "relations.read", manage: "relations.manage" },
   bulk: { run: "bulk.run" },
+  search: { read: "search.read" },
+  metrics: { read: "metrics.read", manage: "metrics.manage" },
 } as const;
 
 /**
@@ -308,6 +314,8 @@ export const MODULE_PERMISSION_SCOPES: {
   "saved-views": { read: "tenant", share: "tenant" },
   relations: { read: "tenant", manage: "tenant" },
   bulk: { run: "tenant" },
+  search: { read: "tenant" },
+  metrics: { read: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

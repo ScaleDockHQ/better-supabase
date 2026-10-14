@@ -54,6 +54,8 @@
     "saved-views",
     "relations",
     "bulk",
-    "undo"
+    "undo",
+    "search",
+    "metrics"
   ]
 }

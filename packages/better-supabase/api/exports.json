@@ -3570,6 +3570,80 @@
       "UseSavedViewsOptions"
     ]
   },
+  "./blocks/search": {
+    "values": [
+      "createSearch",
+      "dbTransport",
+      "rpcTransport",
+      "SEARCH_SINK_DEFAULTS",
+      "searchSink",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Embedder",
+      "PendingEmbedding",
+      "Search",
+      "SearchHit",
+      "SearchListOptions",
+      "SearchOptions",
+      "SearchQuery",
+      "SearchSinkAction",
+      "SearchSinkOptions",
+      "SearchUserItem"
+    ]
+  },
+  "./blocks/search/react": {
+    "values": [
+      "groupHits",
+      "useCommandSearch"
+    ],
+    "types": [
+      "CommandSearchGroup",
+      "CommandSearchItem",
+      "CommandSearchState",
+      "UseCommandSearchOptions"
+    ]
+  },
+  "./blocks/metrics": {
+    "values": [
+      "checkMetric",
+      "compareValues",
+      "createMetrics",
+      "dbTransport",
+      "defineMetric",
+      "METRIC_GRAINS",
+      "METRICS_ROLLUP_QUEUE",
+      "metricsOf",
+      "metricsSink",
+      "previousRange",
+      "rpcTransport",
+      "sqlTransport",
+      "toChartData"
+    ],
+    "types": [
+      "BlockTransport",
+      "Kpi",
+      "MetricChartOptions",
+      "MetricChartRow",
+      "MetricDefinition",
+      "MetricDimension",
+      "MetricGrain",
+      "MetricInfo",
+      "MetricKey",
+      "MetricMeasure",
+      "MetricPoint",
+      "MetricRange",
+      "MetricReadOptions",
+      "Metrics",
+      "MetricSeries",
+      "MetricSeriesOptions",
+      "MetricsOptions",
+      "MetricsRollupRequest",
+      "MetricsSinkOptions",
+      "MetricWhereValue"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

@@ -129,6 +129,8 @@ expose the module schema itself.
 | [Relations](/docs/blocks/relations)                         | `better-supabase/blocks/relations`                                                                                                 | `relations`                            |
 | [Bulk actions](/docs/blocks/bulk)                           | `better-supabase/blocks/bulk`                                                                                                      | `bulk`                                 |
 | [Undo](/docs/blocks/undo)                                   | `better-supabase/blocks/undo`, `better-supabase/blocks/undo/react`                                                                 |                                        |
+| [Search](/docs/blocks/search)                               | `better-supabase/blocks/search`, `better-supabase/blocks/search/react`                                                             | `search`                               |
+| [Metrics](/docs/blocks/metrics)                             | `better-supabase/blocks/metrics`                                                                                                   | `metrics`                              |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -223,6 +225,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `saved-views`        | `tenant`, `access`                        | `outbox`, `teams`                                                          |
 | `relations`          | `tenant`, `access`                        | `outbox`                                                                   |
 | `bulk`               | `tenant`, `access`                        | `jobs`, `outbox`, `tags`, `state-machine`, `relations`                     |
+| `search`             | `tenant`, `access`, `subjects`            | `share-links`, `vector-search`                                             |
+| `metrics`            | `tenant`, `access`                        | `usage`, `jobs`                                                            |
 | `ensure-rls`         | none                                      | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
