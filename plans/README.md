@@ -4,10 +4,10 @@ Improvement plans from the deep audit of 2026-10-11 (commit `1ea78cfa`; re-verif
 
 ## Status
 
-| Plan                                | Title                                                                                               | Status                                     |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| [001](001-codebase-improvements.md) | rpc JSON argument binding, and refusing database access for invalid credentials                     | DONE (uncommitted on `fix/audit-findings`) |
-| [002](002-audit-triage.md)          | Triage of the 2026-10-12 audit: fixes, SQL helper cleanup, build splits, edge functions in the spec | DONE on `fix/audit-triage`                 |
+| Plan                                  | Title                                                                                                      | Status                                          |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [001](001-codebase-improvements.md)   | rpc JSON argument binding, and refusing database access for invalid credentials                            | DONE (uncommitted on `fix/audit-findings`)      |
+| [002](002-audit-triage.md)            | Triage of the 2026-10-12 audit: fixes, SQL helper cleanup, build splits, edge functions in the spec        | DONE on `fix/audit-triage`                      |
 | [003](003-presets-registry-create.md) | Composable blocks, presets, a shadcn-compatible registry, and Components, Blocks and Create on the website | TODO (after `feat/pipelines-foundation` merges) |
 
 Update the Status column as you execute (`TODO` → `IN PROGRESS` → `DONE`/`BLOCKED`, with a note on what blocked it).

@@ -49,19 +49,19 @@ Verified against the code on 2026-10-14.
 
 Read from the shadcn-ui/ui source: `packages/shadcn/src/commands/{init,apply,preset,eject}.ts`, `packages/registry/src/preset/preset.ts`, `apps/v4/content/docs/registry/*`, and the changelog entries `2025-12-shadcn-create` and `2026-02-blocks`.
 
-| shadcn concept | What it is there | Our counterpart |
-| --- | --- | --- |
-| `/create` | Pick base library, style, colours, icons, fonts and radius; live preview; result is a preset. | `/create`: pick a framework, conventions (casing, tenancy, naming, API schema) and blocks; live preview of the generated config, migrations and wiring. |
-| Preset code | Versioned base62 bit field (`PRESET_FIELDS`, append-only, version prefix char). The URL is `/create?preset=<code>`. | The same scheme with an append-only block list, encoded as a BigInt because there are more than 53 bits (see W2). |
-| `init --preset <name\|code\|url>` | New project from a preset. | `better-supabase init --preset saas` / `--preset <code>`. |
-| `apply --preset <code> --only theme,font` | Apply a preset to an existing project, partly if wanted. | `better-supabase apply --preset <code> --only blocks,conventions`. This is the adopt path for existing projects. |
-| `preset decode` / `info` | Show what a code contains. | `better-supabase preset decode <code>` and `preset info`. |
-| "Styles" (Vega, Nova, ...) rewrite component code | More than theming: code adapts to the chosen setup. | **Conventions**: casing, id type, tenant concept name (organization, workspace or team) and scope (tenant, user or none) rewrite table and function names and TS method names. |
-| Registry items `registry:block`, `ui`, `component`, `hook`, `lib`, `page`, `file`, `item` | Universal items with `files[].target` (`~/` = project root, `@ui/`, `@lib/`, ...), plus `dependencies`, `registryDependencies`, `envVars`, `docs`, `categories` and `meta`. | Our UI, wiring, routes and pages ship as registry items. They depend on the npm package `better-supabase` and on shadcn primitives (`button`, `card`, ...). |
-| Namespaces `@acme/item` and `components.json` `registries` | Decentralized registries, with auth headers and a public index. | `@better-supabase` in the shadcn registry index; `https://bettersupabase.com/r/{name}.json`. |
-| `/blocks` | Pages with preview and code, installed by name (`add login-01`). | `/blocks`: one page per block with its config, migrations, wiring, UI and install commands. |
-| MCP server | Agents browse and install registry items. | It works for free once we are a registry; we also keep our docs MCP. |
-| "You own the code" | Components are copied into your project. | **A hybrid, and the most important design decision below.** |
+| shadcn concept                                                                            | What it is there                                                                                                                                                            | Our counterpart                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/create`                                                                                 | Pick base library, style, colours, icons, fonts and radius; live preview; result is a preset.                                                                               | `/create`: pick a framework, conventions (casing, tenancy, naming, API schema) and blocks; live preview of the generated config, migrations and wiring.                        |
+| Preset code                                                                               | Versioned base62 bit field (`PRESET_FIELDS`, append-only, version prefix char). The URL is `/create?preset=<code>`.                                                         | The same scheme with an append-only block list, encoded as a BigInt because there are more than 53 bits (see W2).                                                              |
+| `init --preset <name\|code\|url>`                                                         | New project from a preset.                                                                                                                                                  | `better-supabase init --preset saas` / `--preset <code>`.                                                                                                                      |
+| `apply --preset <code> --only theme,font`                                                 | Apply a preset to an existing project, partly if wanted.                                                                                                                    | `better-supabase apply --preset <code> --only blocks,conventions`. This is the adopt path for existing projects.                                                               |
+| `preset decode` / `info`                                                                  | Show what a code contains.                                                                                                                                                  | `better-supabase preset decode <code>` and `preset info`.                                                                                                                      |
+| "Styles" (Vega, Nova, ...) rewrite component code                                         | More than theming: code adapts to the chosen setup.                                                                                                                         | **Conventions**: casing, id type, tenant concept name (organization, workspace or team) and scope (tenant, user or none) rewrite table and function names and TS method names. |
+| Registry items `registry:block`, `ui`, `component`, `hook`, `lib`, `page`, `file`, `item` | Universal items with `files[].target` (`~/` = project root, `@ui/`, `@lib/`, ...), plus `dependencies`, `registryDependencies`, `envVars`, `docs`, `categories` and `meta`. | Our UI, wiring, routes and pages ship as registry items. They depend on the npm package `better-supabase` and on shadcn primitives (`button`, `card`, ...).                    |
+| Namespaces `@acme/item` and `components.json` `registries`                                | Decentralized registries, with auth headers and a public index.                                                                                                             | `@better-supabase` in the shadcn registry index; `https://bettersupabase.com/r/{name}.json`.                                                                                   |
+| `/blocks`                                                                                 | Pages with preview and code, installed by name (`add login-01`).                                                                                                            | `/blocks`: one page per block with its config, migrations, wiring, UI and install commands.                                                                                    |
+| MCP server                                                                                | Agents browse and install registry items.                                                                                                                                   | It works for free once we are a registry; we also keep our docs MCP.                                                                                                           |
+| "You own the code"                                                                        | Components are copied into your project.                                                                                                                                    | **A hybrid, and the most important design decision below.**                                                                                                                    |
 
 ### The hybrid: what is copied and what stays a package
 
@@ -120,6 +120,7 @@ export const comments = defineBlock({
 ### 1d. One contract for every block, enforced by a conformance test
 
 `tests/blocks/conformance.test.ts` iterates the manifests and checks:
+
 - the creator is `create<Name>(options)` and takes `BlockOptions`;
 - it accepts `hooks`;
 - every managed table has `fields` and `extraColumns`;
@@ -162,30 +163,31 @@ A new entry `src/preset/` holds:
   - The resolver never imports the SQL renderers, so it runs in the browser (bundle budget in `tests/bundle`).
 - **Named presets** (`src/preset/presets.ts`):
 
-| Preset | Blocks |
-| --- | --- |
-| `minimal` | profiles |
-| `saas` | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
-| `crm` | saas + parties, pipelines, engagements, tags, comments, custom-fields, saved-views, search |
-| `projects` | saas + tags, comments, attachments, state-machine, rank, reminders, time-tracking |
-| `commerce` | saas + catalog, inventory, orders, promotions |
-| `scheduling` | saas + calendar, bookings, reminders |
-| `ai` | saas + ai-chat, ai-files, knowledge, memory, agents, ai-tasks |
-| `everything` | all blocks whose scope matches, used for the demo and the tests |
+| Preset       | Blocks                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `minimal`    | profiles                                                                                                                         |
+| `saas`       | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
+| `crm`        | saas + parties, pipelines, engagements, tags, comments, custom-fields, saved-views, search                                       |
+| `projects`   | saas + tags, comments, attachments, state-machine, rank, reminders, time-tracking                                                |
+| `commerce`   | saas + catalog, inventory, orders, promotions                                                                                    |
+| `scheduling` | saas + calendar, bookings, reminders                                                                                             |
+| `ai`         | saas + ai-chat, ai-files, knowledge, memory, agents, ai-tasks                                                                    |
+| `everything` | all blocks whose scope matches, used for the demo and the tests                                                                  |
 
-  The recipes in `apps/docs/content/docs/recipes` become these presets, and `tests/validation-recipes` imports them instead of copying.
+The recipes in `apps/docs/content/docs/recipes` become these presets, and `tests/validation-recipes` imports them instead of copying.
+
 - **Config form.** `defineConfig({ preset: "saas", sql: { modules: { comments: {...} } } })`. The preset expands first and explicit config wins. `defineConfig({ preset: "a3Fx9..." })` also works, so a project keeps the preset it started from and `preset info` can show the drift.
 
 ### 2b. CLI
 
-| Command | What it does |
-| --- | --- |
-| `init --preset <name\|code\|url>` | Writes the config with the preset, the migrations (managed mode), `blocks.ts` wiring and env, then runs `gen`. Without `--preset` it asks interactively: framework, then a preset or picked blocks, then conventions. |
-| `apply --preset <code> [--only blocks,conventions] [--adopt]` | For an existing project. It merges the preset into the config, shows a diff and writes the migrations. With `--adopt` it introspects existing tables and proposes `mode: "adopt"` mappings (see `adopt`). |
-| `add <block...>` | The single-block form of `apply`. It edits the config, resolves dependencies, writes migrations, adds the manifest to `blocks.ts`, and offers the UI items (`--ui`, which calls the registry install). The existing `add` (framework glue) moves under `add --framework` with a deprecation notice. |
-| `adopt <module> --from <schema.table>` | Introspects the table and writes a proposed `tables`/`columns` mapping, with `null` for missing optional columns, plus a doctor report. |
-| `preset decode <code>` / `preset info` | Shows the content of a code, or the project's current preset and its drift. |
-| `blocks list` / `blocks view <name>` / `blocks search <q>` | Reads the catalog. This replaces `sql list` for block discovery; `sql list` stays. |
+| Command                                                       | What it does                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init --preset <name\|code\|url>`                             | Writes the config with the preset, the migrations (managed mode), `blocks.ts` wiring and env, then runs `gen`. Without `--preset` it asks interactively: framework, then a preset or picked blocks, then conventions.                                                                               |
+| `apply --preset <code> [--only blocks,conventions] [--adopt]` | For an existing project. It merges the preset into the config, shows a diff and writes the migrations. With `--adopt` it introspects existing tables and proposes `mode: "adopt"` mappings (see `adopt`).                                                                                           |
+| `add <block...>`                                              | The single-block form of `apply`. It edits the config, resolves dependencies, writes migrations, adds the manifest to `blocks.ts`, and offers the UI items (`--ui`, which calls the registry install). The existing `add` (framework glue) moves under `add --framework` with a deprecation notice. |
+| `adopt <module> --from <schema.table>`                        | Introspects the table and writes a proposed `tables`/`columns` mapping, with `null` for missing optional columns, plus a doctor report.                                                                                                                                                             |
+| `preset decode <code>` / `preset info`                        | Shows the content of a code, or the project's current preset and its drift.                                                                                                                                                                                                                         |
+| `blocks list` / `blocks view <name>` / `blocks search <q>`    | Reads the catalog. This replaces `sql list` for block discovery; `sql list` stays.                                                                                                                                                                                                                  |
 
 ### 2c. Tests
 
@@ -221,20 +223,20 @@ A new entry `src/preset/` holds:
 
 Build these on the existing `*/react` hooks:
 
-| Block | Components |
-| --- | --- |
-| organizations | `org-switcher`, `create-org-dialog`, `org-settings-form` |
-| invitations / teams | `members-table`, `invite-dialog`, `team-picker` |
-| notifications | `notification-bell`, `notification-list`, `notification-preferences` |
-| comments / reactions | `comment-thread`, `comment-composer`, `reaction-bar` |
+| Block                  | Components                                                            |
+| ---------------------- | --------------------------------------------------------------------- |
+| organizations          | `org-switcher`, `create-org-dialog`, `org-settings-form`              |
+| invitations / teams    | `members-table`, `invite-dialog`, `team-picker`                       |
+| notifications          | `notification-bell`, `notification-list`, `notification-preferences`  |
+| comments / reactions   | `comment-thread`, `comment-composer`, `reaction-bar`                  |
 | billing / entitlements | `plan-picker`, `billing-portal-button`, `usage-meter`, `feature-gate` |
-| api-keys | `api-keys-table`, `create-api-key-dialog` |
-| audit | `audit-log-table` |
-| onboarding | `onboarding-checklist` |
-| tags | `tag-input` |
-| search | `command-search` |
-| profiles | `profile-form`, `avatar-upload` |
-| page templates | `settings-layout`, `members-page`, `billing-page`, `api-keys-page` |
+| api-keys               | `api-keys-table`, `create-api-key-dialog`                             |
+| audit                  | `audit-log-table`                                                     |
+| onboarding             | `onboarding-checklist`                                                |
+| tags                   | `tag-input`                                                           |
+| search                 | `command-search`                                                      |
+| profiles               | `profile-form`, `avatar-upload`                                       |
+| page templates         | `settings-layout`, `members-page`, `billing-page`, `api-keys-page`    |
 
 Each component gets a demo (`items/<name>/demo.tsx`) that runs against fixture data, so the website can preview it without a database.
 
@@ -308,16 +310,16 @@ The main navigation in `apps/marketing/lib/site.ts` becomes `Docs · Components 
 
 `feat/pipelines-foundation` touches `src/sql/registry.ts`, `src/sql/modules/*`, `src/core`, `src/events` and `apps/docs/content/docs/blocks`. It does not touch `apps/marketing` or `src/cli`.
 
-| Phase | Content | Can start | Depends on |
-| --- | --- | --- | --- |
-| 0 | W1a fixes; ADR 0029 (manifests and block contract); ADR 0030 (presets and registry, including the hybrid rule) | now | none |
-| 1 | W4 skeleton: navigation and the `/blocks` overview and detail pages, built on a first catalog script that reads `SQL_MODULES` only | now | none (marketing only) |
-| 2 | W1b manifests and the generic `createBlocks`; W1d conformance test as a warning | after the pipelines merge | 0 |
-| 3 | W2a preset model and catalog; W4 `/create` (with the `sql add` fallback) | after 2 | 2 |
-| 4 | W3a/W3b registry and first components; W4 `/components`; listing in the shadcn index | parallel to 3 | 1 |
-| 5 | W2b CLI: `init --preset`, `apply`, `add`, `preset`, `blocks`; `/create` switches to the preset command | after 3 | 3, 4 |
-| 6 | W1c one config (generated block config, typed options) | after 2 | 2 |
-| 7 | W1e scope and naming conventions; the adopt command and a validation port that really adopts | last | 2, 5 |
+| Phase | Content                                                                                                                            | Can start                 | Depends on            |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------- |
+| 0     | W1a fixes; ADR 0029 (manifests and block contract); ADR 0030 (presets and registry, including the hybrid rule)                     | now                       | none                  |
+| 1     | W4 skeleton: navigation and the `/blocks` overview and detail pages, built on a first catalog script that reads `SQL_MODULES` only | now                       | none (marketing only) |
+| 2     | W1b manifests and the generic `createBlocks`; W1d conformance test as a warning                                                    | after the pipelines merge | 0                     |
+| 3     | W2a preset model and catalog; W4 `/create` (with the `sql add` fallback)                                                           | after 2                   | 2                     |
+| 4     | W3a/W3b registry and first components; W4 `/components`; listing in the shadcn index                                               | parallel to 3             | 1                     |
+| 5     | W2b CLI: `init --preset`, `apply`, `add`, `preset`, `blocks`; `/create` switches to the preset command                             | after 3                   | 3, 4                  |
+| 6     | W1c one config (generated block config, typed options)                                                                             | after 2                   | 2                     |
+| 7     | W1e scope and naming conventions; the adopt command and a validation port that really adopts                                       | last                      | 2, 5                  |
 
 Run `pnpm verify` before every push, one changeset per user-visible change, and `pnpm size` for the new `better-supabase/preset` entry. Update the exports map, `tsdown.config.ts`, the size baseline, the export snapshot and the docs per invariant 9.
 
