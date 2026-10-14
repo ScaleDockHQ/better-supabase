@@ -15,6 +15,8 @@ import { createShareLinks } from "better-supabase/blocks/share-links";
 
 Creating a link needs `share_links.create`. When the rate-limit module is installed, resolve is a place to apply it.
 
+`create(organizationId, subjectType, subjectId, { role, versionId })` takes the role (`view` by default) and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. `resolve(token)` returns the link's id, subject, role and `versionId`, or `null` when the token is unknown, revoked or expired.
+
 ## AI chat
 
 AI chat sharing uses this block. `share_ai_chat`, `revoke_ai_chat_share`, `list_ai_chat_shares` and `get_shared_ai_chat` stay callable and read or write `share_links`. Existing `ai_chat_shares` rows are copied, including `leaf_id`.

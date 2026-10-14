@@ -217,6 +217,7 @@ $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
 
+
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.
 create or replace function "better_supabase"."restore_version"(version_id uuid)
@@ -624,6 +625,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- A share link pinned to a version (create_share_link's version_id) reads
+-- that version with the token alone, for anon.
+create or replace function "better_supabase"."get_shared_version"(token text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_link jsonb;
+  v_row "better_supabase"."versions"%rowtype;
+begin
+  if get_shared_version.token is null or get_shared_version.token !~ '^[0-9a-f]{48}$' then
+    return null;
+  end if;
+  v_link := "better_supabase"."resolve_share_link"(get_shared_version.token);
+  if v_link is null or v_link ->> 'versionId' is null then
+    return null;
+  end if;
+  select * into v_row from "better_supabase"."versions"
+  where "id" = (v_link ->> 'versionId')::uuid
+    and "subject_type" = v_link ->> 'subjectType'
+    and "subject_id" = v_link ->> 'subjectId';
+  if not found then
+    return null;
+  end if;
+  return (jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") - 'createdBy') || jsonb_build_object('content', v_row."content");
+end;
+$$;
+revoke all on function "better_supabase"."get_shared_version"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_shared_version"(text) to anon, authenticated, service_role;
+
 
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.
@@ -1053,6 +1088,7 @@ $$;
 revoke execute on function "app_private"."get_version"(uuid) from public, anon;
 grant execute on function "app_private"."get_version"(uuid) to authenticated, service_role;
 
+
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.
 create or replace function "app_private"."restore_version"(version_id uuid)
@@ -1460,6 +1496,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
 
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.
@@ -1928,6 +1965,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
 
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.

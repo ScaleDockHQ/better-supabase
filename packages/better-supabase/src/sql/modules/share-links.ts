@@ -50,8 +50,9 @@ const NAMES: ModuleNames = {
         maxUses: "max_uses",
         createdBy: "created_by",
         leaf: "leaf_id",
+        versionId: "version_id",
       },
-      optional: ["leaf"],
+      optional: ["leaf", "versionId"],
     },
     views: {
       name: "subject_views",
@@ -83,6 +84,30 @@ const NAMES: ModuleNames = {
   },
 };
 
+/**
+ * A link pinned to a version names one of the subject's versions; without
+ * the versions module there is nothing to pin.
+ */
+function versionCheck(ctx: ModuleContext): string {
+  const refuse = (message: string): string =>
+    fail("SHARE_VERSION_INVALID", message, "22023");
+  if (!ctx.installed("versions") || !ctx.has("links", "versionId")) {
+    return `if create_share_link.version_id is not null then
+    ${refuse("install the versions module to share a version")}
+  end if;`;
+  }
+  return `if create_share_link.version_id is not null then
+    declare
+      v_version jsonb := ${ctx.fn("get_version")}(create_share_link.version_id);
+    begin
+      if v_version ->> 'subjectType' is distinct from create_share_link.subject_type
+        or v_version ->> 'subjectId' is distinct from create_share_link.subject_id then
+        ${refuse("the version belongs to another subject")}
+      end if;
+    end;
+  end if;`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const links = ctx.table("links");
@@ -92,6 +117,7 @@ function build(ctx: ModuleContext): string {
     "create",
     MODULE_PERMISSIONS["share-links"].create,
   );
+  const pinned = ctx.has("links", "versionId");
   const tables = ctx.manages
     ? `create table if not exists ${links} (
   ${ctx.col("links", "id")} uuid primary key default gen_random_uuid(),
@@ -107,7 +133,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("links", "createdBy")} uuid${ctx.has("links", "leaf") ? `,` : ""}
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
 );
-${lockTable(links, { read: true })}
+${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${lockTable(links, { read: true })}
 ${
   ctx.hasTable("views")
     ? `create table if not exists ${views} (
@@ -221,7 +247,8 @@ $$;
     : "";
   return `${schemaPreamble(ctx)}
 ${tables}
-create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text)
+drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text);
+create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -234,8 +261,9 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, ${create}), false)) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
   end if;
-  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")})
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), auth.uid())
+  ${versionCheck(ctx)}
+  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), auth.uid()${pinned ? ", create_share_link.version_id" : ""})
   returning ${ctx.col("links", "id")} into v_id;
   ${ctx.record({
     type: "share_link.created",
@@ -247,7 +275,7 @@ begin
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text)`)}
+${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid)`)}
 
 create or replace function ${ctx.fn("revoke_share_link")}(id uuid)
 returns boolean
@@ -284,7 +312,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ${ctx.col("links", "id")}, 'subjectType', ${ctx.col("links", "subjectType")}, 'subjectId', ${ctx.col("links", "subjectId")}, 'role', ${ctx.col("links", "role")})
+  select jsonb_build_object('id', ${ctx.col("links", "id")}, 'subjectType', ${ctx.col("links", "subjectType")}, 'subjectId', ${ctx.col("links", "subjectId")}, 'role', ${ctx.col("links", "role")}, 'versionId', ${pinned ? ctx.col("links", "versionId") : "null"})
   from ${links}
   where ${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(resolve_share_link.token, 'utf8')")}
     and ${ctx.col("links", "revokedAt")} is null
@@ -361,7 +389,7 @@ function contract(): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_share_link",
-      args: ["{id}", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", "uuid"],
       returns: "jsonb",
     },
     { name: "revoke_share_link", args: ["uuid"], returns: "boolean" },
@@ -381,7 +409,7 @@ export const SHARE_LINKS: ModuleDefinition = {
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.",
   requires: ["tenant", "access"],
-  integrates: ["ai-chat", "outbox"],
+  integrates: ["ai-chat", "outbox", "versions"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

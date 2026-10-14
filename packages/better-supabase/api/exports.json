@@ -3536,6 +3536,8 @@
     ],
     "types": [
       "CreatedShareLink",
+      "CreateShareLinkOptions",
+      "ResolvedShareLink",
       "ShareLinks",
       "ShareLinksOptions"
     ]

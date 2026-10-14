@@ -171,7 +171,13 @@ describe("saas block clients", () => {
       options({
         create_share_link: { id: "s1", token: "once" },
         revoke_share_link: true,
-        resolve_share_link: { subject: "file" },
+        resolve_share_link: {
+          id: "s1",
+          subjectType: "files",
+          subjectId: "f1",
+          role: "edit",
+          versionId: "v1",
+        },
         record_view: true,
         list_share_links: [],
         set_user_state: true,
@@ -181,7 +187,20 @@ describe("saas block clients", () => {
       (await links.create("org", "files", "f1", "edit").orThrow()).token,
     ).toBe("once");
     expect(await links.revoke("s1").orThrow()).toBe(true);
-    expect(await links.resolve("once").orThrow()).toEqual({ subject: "file" });
+    expect(await links.resolve("once").orThrow()).toEqual({
+      id: "s1",
+      subjectType: "files",
+      subjectId: "f1",
+      role: "edit",
+      versionId: "v1",
+    });
+    expect(
+      (
+        await links
+          .create("org", "files", "f1", { versionId: "v1" })
+          .orThrow()
+      ).id,
+    ).toBe("s1");
     expect(
       await links.recordView("org", "files", "f1", "user", "u1").orThrow(),
     ).toBe(true);
