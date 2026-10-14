@@ -217,6 +217,9 @@ export function resolveConfig(
     vectorSearch: vectorSearchOf(config.vectorSearch),
     subjects: config.subjects ?? {},
     sql: {
+      ...(config.sql?.workflow === undefined
+        ? {}
+        : { workflow: config.sql.workflow }),
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,

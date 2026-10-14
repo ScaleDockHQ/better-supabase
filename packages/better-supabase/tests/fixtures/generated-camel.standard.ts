@@ -81,12 +81,12 @@ export const customersRow: TableSchema<RowOf<'customers'>> = tableSchema({
     status: { kind: "enum", values: ["lead","active","archived"] },
     primaryContactId: { kind: "uuid", nullable: true },
     metadata: { kind: "custom" },
-    createdBy: { kind: "uuid", nullable: true, readOnly: true },
     updatedBy: { kind: "uuid", nullable: true, readOnly: true },
     archivedAt: { kind: "datetime", nullable: true, readOnly: true },
     createdAt: { kind: "datetime", readOnly: true },
     updatedAt: { kind: "datetime", readOnly: true },
     logoPath: { kind: "string", nullable: true },
+    createdBy: { kind: "uuid", nullable: true, readOnly: true },
   },
 });
 
@@ -101,12 +101,12 @@ export const customersInsert: TableSchema<InsertOf<'customers'>> = tableSchema({
     status: { kind: "enum", values: ["lead","active","archived"], optional: true },
     primaryContactId: { kind: "uuid", nullable: true, optional: true },
     metadata: { kind: "custom", optional: true },
-    createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
     updatedBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
     archivedAt: { kind: "datetime", nullable: true, optional: true, readOnly: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
+    createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
   },
 });
 
@@ -121,12 +121,12 @@ export const customersUpdate: TableSchema<UpdateOf<'customers'>> = tableSchema({
     status: { kind: "enum", values: ["lead","active","archived"], optional: true },
     primaryContactId: { kind: "uuid", nullable: true, optional: true },
     metadata: { kind: "custom", optional: true },
-    createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
     updatedBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
     archivedAt: { kind: "datetime", nullable: true, optional: true, readOnly: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
+    createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
   },
 });
 
@@ -211,12 +211,12 @@ export const notesRow: TableSchema<RowOf<'notes'>> = tableSchema({
     id: { kind: "integer" },
     organizationId: { kind: "uuid" },
     customerId: { kind: "uuid" },
-    kind: { kind: "enum", values: ["call","meeting","email"] },
     body: { kind: "string" },
     attachments: { kind: "json", nullable: true },
     createdAt: { kind: "datetime", readOnly: true },
     updatedAt: { kind: "datetime", readOnly: true },
     embedding: { kind: "string", nullable: true },
+    kind: { kind: "enum", values: ["call","meeting","email"] },
   },
 });
 
@@ -225,12 +225,12 @@ export const notesInsert: TableSchema<InsertOf<'notes'>> = tableSchema({
   fields: {
     organizationId: { kind: "uuid" },
     customerId: { kind: "uuid" },
-    kind: { kind: "enum", values: ["call","meeting","email"], optional: true },
     body: { kind: "string" },
     attachments: { kind: "json", nullable: true, optional: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     embedding: { kind: "string", nullable: true, optional: true },
+    kind: { kind: "enum", values: ["call","meeting","email"], optional: true },
   },
 });
 
@@ -239,12 +239,12 @@ export const notesUpdate: TableSchema<UpdateOf<'notes'>> = tableSchema({
   fields: {
     organizationId: { kind: "uuid", optional: true },
     customerId: { kind: "uuid", optional: true },
-    kind: { kind: "enum", values: ["call","meeting","email"], optional: true },
     body: { kind: "string", optional: true },
     attachments: { kind: "json", nullable: true, optional: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     embedding: { kind: "string", nullable: true, optional: true },
+    kind: { kind: "enum", values: ["call","meeting","email"], optional: true },
   },
 });
 

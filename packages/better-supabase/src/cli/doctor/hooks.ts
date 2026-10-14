@@ -1,4 +1,7 @@
-import type { AuthorizationTokenHook } from "../../config/index.ts";
+import type {
+  AuthorizationTokenHook,
+  SqlWorkflow,
+} from "../../config/index.ts";
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
 import type {
   DoctorContext,
@@ -11,14 +14,12 @@ import type {
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../errors.ts";
 import {
-  type DiffEngine,
-  diffEngine,
   httpHooks,
   type PgFunctionHook,
   pgFunctionHooks,
 } from "../supabase-toml.ts";
 import { ident, literal, type LiveDatabase } from "./live.ts";
-import { lineOf } from "./shared.ts";
+import { lineOf, workflowOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
 const HOOK_CLAIMS_LIMIT = 2048;
@@ -239,14 +240,15 @@ const MIGRATIONS = /(?:^|\/)supabase\/migrations\//;
 
 /**
  * The file that grants `fn` to `supabase_auth_admin`: a migration with the
- * provider's grants marker, or under pg-delta, which carries grants, the declarative
- * schema file that defines `fn`. `supabase db diff` drops grants, so the
- * legacy engine only counts the migration.
+ * provider's grants marker; under pg-delta, which carries grants, the
+ * declarative schema file that defines `fn`; and without declarative schemas,
+ * the migration that defines it. `supabase db diff` drops grants, so migra
+ * only counts the marked migration.
  */
 function grantsSourceFor(
   context: DoctorContext,
   fn: ExtrasHookFunction,
-  engine: DiffEngine,
+  workflow: SqlWorkflow,
 ): string | undefined {
   const grants = new RegExp(
     `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\([^)]*\\)\\s*to\\s+[^;]*\\bsupabase_auth_admin\\b`,
@@ -258,20 +260,23 @@ function grantsSourceFor(
     (file) =>
       grants.test(file.text) &&
       ((marker !== undefined && file.text.includes(marker)) ||
-        (engine === "pg-delta" &&
+        (workflow === "pg-delta" &&
           !MIGRATIONS.test(file.path) &&
+          creates.test(file.text)) ||
+        (workflow === "migrations" &&
+          MIGRATIONS.test(file.path) &&
           creates.test(file.text))),
   )?.path;
 }
 
 /** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
 export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
-  const engine = diffEngine(context.configToml);
+  const workflow = workflowOf(context);
   return configuredHooks(context).flatMap(({ config, extras }) =>
     (extras?.functions ?? []).flatMap((fn): HookGrantProblem[] => {
       const { problems, fix } = grantProblems(fn);
       if (problems.length === 0) return [];
-      const file = grantsSourceFor(context, fn, engine);
+      const file = grantsSourceFor(context, fn, workflow);
       const provider = context.config.authorization;
       const command = provider?.tokenHook?.grantsCommand;
       return [
@@ -295,18 +300,16 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
 }
 
 /** The sentence that tells the reader how to apply `fix`. */
-function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
+function grantFixText(fix: HookGrantFix, workflow: SqlWorkflow): string {
   switch (fix.kind) {
     case "sql":
-      return engine === "pg-delta"
-        ? `Add to the schema file that defines the function, then run \`supabase db schema declarative sync\` (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`
-        : `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
+      return `${grantFixPlace(workflow)} (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
     case "provider":
       return fix.command
         ? `It is the hook of ${fix.name}, so let the provider write the grants: \`${fix.command}\`.`
         : `It is the hook of ${fix.name}, so let the provider write the grants.`;
     case "migration":
-      return engine === "pg-delta"
+      return workflow === "pg-delta"
         ? `${fix.file} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`
         : `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
     default: {
@@ -316,18 +319,34 @@ function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
   }
 }
 
+/** Where the grants go under `workflow`. */
+function grantFixPlace(workflow: SqlWorkflow): string {
+  switch (workflow) {
+    case "pg-delta":
+      return "Add to the schema file that defines the function, then run `supabase db schema declarative sync`";
+    case "migra":
+      return "Append to the migration `supabase db diff` wrote";
+    case "migrations":
+      return "Add to a new migration (`supabase migration new auth_hook_grants`), then apply it (`supabase migration up`)";
+    default: {
+      const unreachable: never = workflow;
+      return unreachable;
+    }
+  }
+}
+
 /** `doctor --fix-grants`: the SQL block for every BS404 problem, as one migration snippet. */
 export function hookGrantBlock(
   problems: readonly HookGrantProblem[],
-  engine: DiffEngine = "pg-delta",
+  workflow: SqlWorkflow = "pg-delta",
 ): string {
   if (problems.length === 0)
     return "-- Every configured Auth hook function has its grants.";
   const lines = [
     "-- Auth hook grants (better-supabase doctor --fix-grants).",
-    engine === "pg-delta"
-      ? "-- Add this to the schema file that defines the function, then run `supabase db schema declarative sync`."
-      : "-- `supabase db diff` does not carry function grants; append this to its migration.",
+    workflow === "migra"
+      ? "-- `supabase db diff` does not carry function grants; append this to its migration."
+      : `-- ${grantFixPlace(workflow)}.`,
   ];
   for (const { fn, hook, fix } of problems) {
     const name = `${signatureOf(fn)} ([auth.hook.${hook}])`;
@@ -344,7 +363,7 @@ export function hookGrantBlock(
       case "migration":
         lines.push(
           "",
-          engine === "pg-delta"
+          workflow === "pg-delta"
             ? `-- ${name}: ${fix.file} grants it; run \`supabase db schema declarative sync\`, then \`supabase migration up\`.`
             : `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
         );
@@ -540,7 +559,7 @@ export const HOOK_RULES: readonly Rule[] = [
       ),
       ...hookGrantProblems(context).map(
         ({ hook, fn, problems, fix }): FindingInput => ({
-          message: `${signatureOf(fn)} ([auth.hook.${hook}]): ${problems.join("; ")}. ${grantFixText(fix, diffEngine(context.configToml))}`,
+          message: `${signatureOf(fn)} ([auth.hook.${hook}]): ${problems.join("; ")}. ${grantFixText(fix, workflowOf(context))}`,
           target: signatureOf(fn),
           object: { kind: "function", schema: fn.schema, name: fn.name },
         }),

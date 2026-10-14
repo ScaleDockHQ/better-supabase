@@ -24,6 +24,19 @@ diffs your schema files with pg-delta, the engine `supabase init` uses for new
 projects. A table that sets `enabled = false` stays as it is, and `init` prints
 the steps to switch (see [BS316](/docs/cli/doctor#bs316)).
 
+`--workflow` picks how the SQL modules reach the database (see
+[Workflows](/docs/blocks/sql#workflows)):
+
+```bash
+pnpm better-supabase init --workflow migrations
+```
+
+| `--workflow`         | What `init` does                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `pg-delta` (default) | Turns pg-delta on in `supabase/config.toml` and writes no `sql.workflow`                        |
+| `migra`              | Writes `sql: { workflow: 'migra' }` and leaves `config.toml` alone, for declarative schemas 1.0 |
+| `migrations`         | Writes `sql: { workflow: 'migrations' }`: the `sql` commands write the modules into a migration |
+
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the

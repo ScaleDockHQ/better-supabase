@@ -7,6 +7,7 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
+  type ModuleLayout,
   moduleTopics,
   renderModules,
   sameModuleFile,
@@ -14,8 +15,16 @@ import {
 import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { display, sameText } from "../io.ts";
+import { migrationsDir } from "../sql-layout.ts";
 import { type Paint } from "../style.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
+import {
+  latestMigration,
+  MODULES_SUFFIX,
+  renderModuleMigration,
+  sameModuleMigration,
+  writesMigrations,
+} from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
 import { staleModuleTests, write } from "./write.ts";
 
@@ -36,6 +45,19 @@ export async function syncModules(
   );
   if (config.sql.moduleNames.length === 0 && topics === undefined) {
     return { code: 0, output: "sql.modules is empty; nothing to sync." };
+  }
+  if (await writesMigrations(config)) {
+    const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
+    if (args.check === true)
+      return checkModuleMigration(config, sqlLayout, paint, topics?.contents);
+    const lines = await write(
+      config,
+      args,
+      config.sql.moduleNames,
+      sqlLayout,
+      now,
+    );
+    return { code: 0, output: lines.join("\n") };
   }
   if (args.check !== true) {
     const lines =
@@ -103,5 +125,50 @@ export async function syncModules(
         code: 1,
         output: diffs.join("\n\n"),
         error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
+      };
+}
+
+/** `sql sync --check` under the migrations workflow: the newest module migration against what `sql sync` would write. */
+async function checkModuleMigration(
+  config: ResolvedConfig,
+  sqlLayout: ModuleLayout,
+  paint: Paint,
+  topics: string | undefined,
+): Promise<CommandResult> {
+  const files = renderModules(config.sql.moduleNames, sqlLayout);
+  const expected = renderModuleMigration({
+    files,
+    ...(topics === undefined ? {} : { topics }),
+  });
+  const latest = await latestMigration(config, MODULES_SUFFIX);
+  const stale: string[] = (
+    await staleModuleTests(config, config.sql.moduleNames, sqlLayout, files)
+  ).map((path) => display(config.root, path));
+  const diffs: string[] = stale.map(
+    (path) => `${path} is no longer written; \`sql sync\` removes it.`,
+  );
+  for (const file of files.filter((entry) => entry.kind === "test")) {
+    const current = await readFile(
+      resolve(config.root, file.path),
+      "utf8",
+    ).catch(() => undefined);
+    if (!sameModuleFile(current, file.contents)) {
+      const shown = display(config.root, file.path);
+      stale.push(shown);
+      diffs.push(fileDiff(shown, current, file.contents, paint));
+    }
+  }
+  if (!sameModuleMigration(latest?.text, expected)) {
+    const shown =
+      latest?.path ?? `${migrationsDir(config)}/<stamp>${MODULES_SUFFIX}`;
+    stale.push(shown);
+    diffs.push(fileDiff(shown, latest?.text, expected, paint));
+  }
+  return stale.length === 0
+    ? { code: 0, output: "SQL module migration is up to date." }
+    : {
+        code: 1,
+        output: diffs.join("\n\n"),
+        error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
       };
 }

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { glob, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 
 import { byCodePoint } from "../compare.ts";
 import { type TextFile } from "../doctor/rules.ts";
@@ -32,13 +32,14 @@ export async function readText(
 export async function sqlFiles(
   root: string,
   toml: SupabaseToml | undefined,
+  workflow?: SqlWorkflow,
 ): Promise<TextFile[]> {
   const read = async (path: string): Promise<TextFile> => ({
     path,
     text: await readFile(resolve(root, path), "utf8"),
   });
   const schemas = await Promise.all(
-    (await schemaPaths(root, toml)).files.map(read),
+    (await schemaPaths(root, toml, workflow)).files.map(read),
   );
   const migrationsPath = `${toml?.dir ?? "supabase"}/migrations`;
   const migrationsDir = resolve(root, migrationsPath);

@@ -34,7 +34,7 @@ const roleOrMember = (value: string | null): Role =>
 
 /**
  * The caller's organizations, most recently used first, from
- * `public.my_organizations()` (supabase/schemas/950_app_reads.sql).
+ * `public.my_organizations()` (supabase/schemas/public/functions/my_organizations.sql).
  */
 export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]

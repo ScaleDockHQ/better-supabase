@@ -54,24 +54,70 @@ the schema migration lacks them, and
 [doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
 the database, or every migration, lacks.
 
-The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
-orders the schema files by dependency and carries grants, comments and
-`security_invoker` on views into the migration. It needs
-`[experimental.pgdelta] enabled = true` in `supabase/config.toml`: projects
-created by `supabase init` have it, and `better-supabase init` adds it to an
-existing `config.toml`.
+## Workflows
 
-### Legacy migra engine
+`sql.workflow` says how the modules reach a migration. There are three:
 
-Without that table, the Supabase CLI diffs with migra, and
-[doctor](/docs/cli/doctor#bs316) reports BS316. `sql add` and doctor still
-name the migra command: `supabase db diff -f better_supabase_block`, run while
-the stack is stopped. When `supabase/config.toml` lists
-`[db.migrations] schema_paths`, migra reads only the files those entries
-match, so `sql add` names any module file no entry matches and prints the
-lines to add before the schemas that call their functions. Supabase's
+| Workflow     | What the `sql` commands write                        | How the migration is made                                |
+| ------------ | ---------------------------------------------------- | -------------------------------------------------------- |
+| `pg-delta`   | Module files in `supabase/schemas` (the default)     | `supabase db schema declarative sync -f <name>`          |
+| `migra`      | Module files in `supabase/schemas`                   | `supabase db diff -f <name>`, with the stack stopped     |
+| `migrations` | One migration, `<stamp>_better_supabase_modules.sql` | The CLI writes it; apply it with `supabase migration up` |
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    workflow: "migrations",
+    modules: ["audit", "jobs"],
+  },
+});
+```
+
+When `sql.workflow` is unset, the CLI reads `supabase/config.toml`: pg-delta
+when `[experimental.pgdelta] enabled = true`, migra when that key is `false`,
+when `[db.migrations] schema_paths` is set or when `supabase/schemas` already
+holds files without pg-delta, and pg-delta otherwise. `migrations` is never
+detected, so an app picks it in the config.
+`better-supabase init --workflow <name>` writes the key.
+
+### pg-delta (Declarative Schemas 2.0)
+
+pg-delta is the Supabase CLI's diff engine (2.119 or later) and the default
+for projects that `supabase init` creates. It orders the schema files by
+dependency and carries grants, comments and `security_invoker` on views into
+the migration. It needs `[experimental.pgdelta] enabled = true` in
+`supabase/config.toml`; `better-supabase init`, `sql add` and `sql sync` add
+it to an existing `config.toml` under this workflow.
+
+### migra (Declarative Schemas 1.0)
+
+The legacy engine reads `supabase/schemas` while the stack is stopped. The
+`sql` commands and doctor name its command, `supabase db diff -f better_supabase_block`.
+When `supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads
+only the files those entries match, so `sql add` names any module file no
+entry matches and prints the lines to add before the schemas that call their
+functions. Without `workflow: "migra"` in the config,
+[doctor](/docs/cli/doctor#bs316) reports BS316. Supabase's
 [switch guide](https://supabase.com/docs/guides/local-development/declarative-database-schemas#switching-to-pg-delta)
 lists the steps to move to pg-delta.
+
+### Migrations only
+
+This workflow is for an app without declarative schemas. The `sql` commands
+write nothing to `sql.dir`. `sql add`, `sql sync` and `sql upgrade` write one migration that
+holds, in order, the extensions, the upgrade steps, each module's schema with
+its `@bs-module` line, the realtime topic policies and the data statements.
+Every statement can run again, so each new migration carries all the modules,
+not only the changes. A command writes a new one only when the statements
+differ from the newest `*_better_supabase_modules.sql`.
+
+- `sql sync --check` and [doctor BS304](/docs/cli/doctor#bs304) compare
+  against that newest migration.
+- `sql list`, `sql upgrade` and doctor read the installed versions from its
+  `@bs-module` lines.
+- `sql data` writes nothing, because the rows are already in the migration.
+- `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
+- The pgTAP files still go to `sql.testsDir`.
 
 ## Modules
 
@@ -1107,12 +1153,13 @@ export default defineConfig({
 `sql add`, `sql sync` and `sql data` take `--dry-run` to show what they would write, and
 `--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
 
-| Option         | Default               |
-| -------------- | --------------------- |
-| `sql.dir`      | `supabase/schemas`    |
-| `sql.prefix`   | `900_better_supabase` |
-| `sql.testsDir` | `supabase/tests`      |
-| `sql.modules`  | `[]`                  |
+| Option         | Default                                                        |
+| -------------- | -------------------------------------------------------------- |
+| `sql.workflow` | detected from `supabase/config.toml` ([Workflows](#workflows)) |
+| `sql.dir`      | `supabase/schemas`                                             |
+| `sql.prefix`   | `900_better_supabase`                                          |
+| `sql.testsDir` | `supabase/tests`                                               |
+| `sql.modules`  | `[]`                                                           |
 
 ## Upgrading modules
 

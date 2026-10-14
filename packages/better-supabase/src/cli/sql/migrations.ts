@@ -13,6 +13,7 @@ import {
 } from "../../sql/index.ts";
 import { writeIfChanged } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
+import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { layoutFor } from "./providers.ts";
 
 /** The clock the migration stamps read, injected so tests pin it. */
@@ -120,6 +121,15 @@ export async function dataMigration(
 ): Promise<CommandResult> {
   if (config.sql.moduleNames.length === 0) {
     return { code: 0, output: "sql.modules is empty; nothing to write." };
+  }
+  if (
+    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
+  ) {
+    return {
+      code: 0,
+      output:
+        "sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
+    };
   }
   const rendered = renderModules(
     config.sql.moduleNames,

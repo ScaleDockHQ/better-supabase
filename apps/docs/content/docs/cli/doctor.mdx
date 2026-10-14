@@ -580,7 +580,9 @@ the version this release ships. Doctor renders the files with the same layout
 as `sql sync` (grants from policies, session policies, audited tables and the
 vector schema), so the two agree on what is out of date. Run `better-supabase sql sync`, then
 `supabase db schema declarative sync` (`supabase db diff` on migra) to create
-a migration.
+a migration. Under `sql.workflow: 'migrations'`, doctor compares against the
+newest `*_better_supabase_modules.sql` migration instead, and `sql sync`
+writes the new one; apply it with `supabase migration up`.
 
 For the `read-sets` module, doctor imports the modules in `readSets` and
 compares the functions they compile to. If a module can't be imported,
@@ -724,6 +726,11 @@ create migrations with `supabase db schema declarative sync` instead of
 [experimental.pgdelta]
 enabled = true
 ```
+
+BS316 fires when `sql.workflow` is unset and the CLI detects migra (see
+[Workflows](/docs/blocks/sql#workflows)), or when the workflow is pg-delta and
+`config.toml` doesn't turn it on yet. To stay on migra, set
+`sql: { workflow: 'migra' }`; that and `workflow: 'migrations'` silence it.
 
 ### BS317
 
@@ -975,6 +982,15 @@ function grants, so append the block to the migration it wrote:
 ```bash
 supabase db diff -f auth_hook
 better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
+```
+
+Under `sql.workflow: 'migrations'` there is no schema file, so the finding
+says to put the block in a new migration and apply it:
+
+```bash
+supabase migration new auth_hook_grants
+better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook_grants.sql
+supabase migration up
 ```
 
 When the function is the authorization provider's hook

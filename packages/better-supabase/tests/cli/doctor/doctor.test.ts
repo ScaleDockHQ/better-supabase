@@ -1305,7 +1305,14 @@ uri = "https://example.com/hook"
           .split("\n")
           .at(1),
       ).toBe(
-        "-- Add this to the schema file that defines the function, then run `supabase db schema declarative sync`.",
+        "-- Add to the schema file that defines the function, then run `supabase db schema declarative sync`.",
+      );
+      expect(
+        hookGrantBlock(hookGrantProblems(hookContext(ungranted)), "migrations")
+          .split("\n")
+          .at(1),
+      ).toBe(
+        "-- Add to a new migration (`supabase migration new auth_hook_grants`), then apply it (`supabase migration up`).",
       );
     });
 

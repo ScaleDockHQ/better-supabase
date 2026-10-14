@@ -288,6 +288,7 @@
       "SoftDeleteConfig",
       "SourceConfig",
       "SqlConfig",
+      "SqlWorkflow",
       "StandardSchemaGeneratorOptions",
       "SubjectConfig",
       "SubjectsConfig",

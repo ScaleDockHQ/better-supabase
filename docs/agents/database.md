@@ -5,10 +5,26 @@ suite and codegen all run against it. `supabase/schemas` is the source of
 truth, and `supabase/migrations` holds reviewed migrations generated from it
 by pg-delta (`docs/decisions/0006-pgdelta-and-native-stack.md`).
 
+The history starts at one pg-delta baseline (ADR 0027). After pulling a
+change that resets it, run `pnpm supabase:reset`; a stack migrated with the
+old history lists the old migrations as remote-only.
+
+## Layout
+
+`supabase/schemas` uses the layout `supabase db schema declarative generate`
+writes: one file per object at `<schema>/<kind>/<object>.sql`, for example
+`public/tables/customers.sql` or `rbac/functions/authorize.sql`. A table's
+file holds its grants, comments, policies and triggers, and a function's
+file holds its revokes and grants. Extensions are in `_cluster/extensions/`,
+types in `<schema>/types/`, and the `storage.objects` policies in
+`storage/tables/objects.sql`. The SQL module files are in
+`_better_supabase/` (see below).
+
 ## Changing the schema
 
-1. Edit or add a file in `supabase/schemas`. pg-delta orders the files by
-   dependency, so the numbers in the names are for reading only.
+1. Edit the object's file, or add one at `<schema>/<kind>/<object>.sql`.
+   pg-delta orders the files by dependency, so a file never has to sort
+   before the objects it uses.
 2. Run `pnpm supabase:sync <name>` and review the new migration. The stack can
    keep running: the sync diffs the files against the migration history in a
    shadow database, not against the live one.
@@ -49,9 +65,10 @@ turns them into a migration stamped after the newest one.
 module through the sync on a second stack (ports 56420 to 56422) when the
 Supabase CLI and Docker are available.
 
-The `900_better_supabase_*` files in `supabase/schemas` and
+The `900_better_supabase_*` files in `supabase/schemas/_better_supabase` and
 `supabase/better-supabase-data` are SQL modules that `better-supabase sql sync`
-writes from `apps/examples/nextjs` (its `sql.dir` points at the fixture). Never
+writes from `apps/examples/nextjs` (its `sql.dir` points at
+`supabase/schemas/_better_supabase`). Never
 edit them by hand. When a change touches one of those modules, run
 `pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
 then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
@@ -64,8 +81,14 @@ needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
 accepts it in `mode: "adopt"` only and doctor warns about it (BS314).
 
 Read every generated grant. pg-delta writes the full privilege state, so a new
-table can come with grants to `anon` you didn't intend; `090_grants.sql` is
-where the fixture's grants live.
+table can come with grants to `anon` you didn't intend. Each fixture table
+grants to the roles it needs in its own file; there is no bulk
+`grant ... on all tables in schema`.
+
+The fixture's own rows and role settings (RBAC role permissions, the
+`customer-logos` and `avatars` buckets, the PostgREST aggregates setting)
+are in the `_fixture_data.sql` migration. A new one goes in a new
+hand-written migration.
 
 When `pnpm supabase:sync` writes the same migration after every reset, look
 for an expression Postgres rewrites. `x between a and b` inside an `and`
@@ -73,7 +96,8 @@ chain comes back from the catalog as `x >= a and x <= b`, so the diff never
 converges; write the comparisons out (`usernameCheck` in
 `src/sql/modules/profiles.ts`).
 
-The access contract in `045_access_contract.sql` must answer `can_user` for
+The access contract (`better_supabase/functions/can_user.sql` and the other
+`better_supabase/functions/` files it calls) must answer `can_user` for
 the configured `sql.modules.access.options.scope` (`organization` by
 default) as well as `tenant`. The invitations module rechecks the inviter
 with that scope, and a contract that answers only `tenant` rejects every

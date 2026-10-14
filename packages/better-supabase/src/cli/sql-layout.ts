@@ -24,7 +24,14 @@ import {
   declarativeSchemasDir,
   readSupabaseToml,
   schemaPaths,
+  sqlWorkflow,
 } from "./supabase-toml.ts";
+
+/** The folder the module data files sit next to, for the project's workflow. */
+export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
+  const toml = await readSupabaseToml(config.root);
+  return declarativeSchemasDir(toml, sqlWorkflow(config, toml));
+}
 
 /** The declarative schema files, then the migrations oldest first. */
 async function schemaTexts(
@@ -33,7 +40,7 @@ async function schemaTexts(
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
   const paths = [
-    ...(await schemaPaths(config.root, toml)).files,
+    ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
     ...(existsSync(migrations)
       ? (await readdir(migrations))
           .filter((name) => name.endsWith(".sql"))
@@ -51,9 +58,11 @@ async function schemaTexts(
 async function declarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly text: string }[]> {
+  const toml = await readSupabaseToml(config.root);
   const { files } = await schemaPaths(
     config.root,
-    await readSupabaseToml(config.root),
+    toml,
+    sqlWorkflow(config, toml),
   );
   if (files.length === 0) return schemaTexts(config);
   return Promise.all(
@@ -117,7 +126,7 @@ export async function moduleLayoutFor(
       input.accessProvider,
       input.permissionCatalog,
     ),
-    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+    schemasDir: await schemasDirOf(config),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
       : {}),

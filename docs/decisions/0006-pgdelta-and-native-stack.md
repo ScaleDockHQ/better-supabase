@@ -53,7 +53,11 @@ rejects.
 
 ## File layout (2026-10-04)
 
-`supabase/schemas` keeps its numbered layout (`010_extensions.sql`,
+Superseded by [0027](0027-fixture-pgdelta-baseline.md): the fixture now uses
+the per-schema layout, and the module files live in
+`supabase/schemas/_better_supabase`.
+
+`supabase/schemas` kept its numbered layout (`010_extensions.sql`,
 `030_crm/020_contacts.sql`, ...) instead of the per-schema layout that
 `supabase db schema declarative generate` writes (`schemas/public/tables/...`).
 pg-delta orders files by dependency, so the numbers only group related files

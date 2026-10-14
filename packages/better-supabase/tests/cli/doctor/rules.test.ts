@@ -44,6 +44,7 @@ function snapshot(
 }
 
 const table = (tables: Mutable<CatalogTable>[], name: string) =>
+  tables.find((entry) => entry.schema === "public" && entry.name === name) ??
   tables.find((entry) => entry.name === name)!;
 
 const toml = (text: string): DoctorContext["configToml"] => ({
@@ -568,14 +569,22 @@ describe("generated and module files (BS303, BS304)", () => {
       files.map((file) => file.path),
     );
     expect(missing[0]!.message).toMatch(/\(updated-at\) is missing\./);
-    expect(missing[0]!.message).toContain("then `supabase db diff`.");
-    const pgdelta = await run("BS304", {
-      ...ctx,
-      configToml: toml("[experimental.pgdelta]\nenabled = true\n"),
-    });
-    expect(pgdelta[0]!.message).toContain(
+    expect(missing[0]!.message).toContain(
       "then `supabase db schema declarative sync`.",
     );
+    const migra = await run("BS304", {
+      ...ctx,
+      configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
+    });
+    expect(migra[0]!.message).toContain("then `supabase db diff`.");
+    const migrations = await run("BS304", {
+      ...ctx,
+      config: {
+        ...ctx.config,
+        sql: { ...ctx.config.sql, workflow: "migrations" },
+      },
+    });
+    expect(migrations[0]!.message).toContain("then `supabase migration up`.");
 
     const data = files.find((file) => file.kind === "data")!;
     expect(
@@ -597,6 +606,56 @@ describe("generated and module files (BS303, BS304)", () => {
         location: { file: audit!.path, line: 1 },
       }),
     ]);
+  });
+
+  it("checks the newest module migration under the migrations workflow", async () => {
+    const ctx = rooted({
+      sql: { workflow: "migrations", modules: ["tenant", "mfa"] },
+    });
+    const missing = await run("BS304", ctx);
+    expect(missing.map((finding) => finding.message)).toEqual(
+      ["updated-at", "tenant", "mfa"].map(
+        (module) =>
+          `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+      ),
+    );
+    const files = renderModules(["tenant", "mfa"], moduleLayout(ctx.config));
+    const name =
+      "supabase/migrations/20200101000000_better_supabase_modules.sql";
+    await write(
+      name,
+      files
+        .filter((file) => file.kind !== "test")
+        .map((file) => file.contents)
+        .join("\n")
+        .replace(/^-- @bs-module tenant@2/m, "-- @bs-module tenant@1"),
+    );
+    expect(await run("BS304", ctx)).toEqual([]);
+    expect(await run("BS311", ctx)).toEqual([
+      expect.objectContaining({
+        target: name,
+        message: expect.stringContaining("has tenant version 1"),
+      }),
+    ]);
+  });
+
+  it("still checks the pgTAP files under the migrations workflow", async () => {
+    const ctx = rooted({ sql: { workflow: "migrations", modules: ["pgtap"] } });
+    const files = renderModules(["pgtap"], moduleLayout(ctx.config));
+    const test = files.find((file) => file.kind === "test");
+    expect(test).toBeDefined();
+    await write(
+      "supabase/migrations/20200101000000_better_supabase_modules.sql",
+      files
+        .filter((file) => file.kind !== "test")
+        .map((file) => file.contents)
+        .join("\n"),
+    );
+    expect((await run("BS304", ctx)).map((finding) => finding.target)).toEqual([
+      test!.path,
+    ]);
+    await write(test!.path, test!.contents);
+    expect(await run("BS304", ctx)).toEqual([]);
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
@@ -1338,6 +1397,19 @@ describe("legacy migra engine (BS316)", () => {
         ),
       ),
     ).toHaveLength(1);
+  });
+
+  it("stays quiet when sql.workflow chooses migra or migrations", async () => {
+    const legacy = { configToml: toml("[db]\n"), sqlFiles: [schema] };
+    const [unset] = await run("BS316", context(base, legacy));
+    expect(unset!.message).toContain(
+      'To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.',
+    );
+    for (const workflow of ["migra", "migrations"] as const) {
+      expect(
+        await run("BS316", context(base, legacy, { sql: { workflow } })),
+      ).toEqual([]);
+    }
   });
 
   it("passes pg-delta projects and projects without declarative schemas", async () => {

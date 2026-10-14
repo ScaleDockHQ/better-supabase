@@ -3,15 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { SqlWorkflow } from "../../src/config/index.ts";
+
 import { readSupabasePort } from "../../src/cli/config.ts";
 import {
   declarativeSchemasDir,
+  detectWorkflow,
   diffEngine,
   findSupabaseRoot,
   migrationCommand,
   parseToml,
   readSupabaseToml,
   schemaPaths,
+  sqlWorkflow,
   supabaseDir,
   type SupabaseToml,
   tomlGet,
@@ -267,20 +271,99 @@ describe("migrationCommand", () => {
     parser: "smol-toml",
   });
 
-  it("names the command of the configured diff engine", () => {
+  it("names the command of each workflow", () => {
     expect(diffEngine(undefined)).toBe("migra");
-    expect(migrationCommand(undefined, "add_tags")).toBe(
+    expect(diffEngine(tomlWith("[experimental.pgdelta]\nenabled = true"))).toBe(
+      "pg-delta",
+    );
+    expect(migrationCommand("migra", "add_tags")).toBe(
       "supabase db diff -f add_tags",
     );
+    expect(migrationCommand("migra")).toBe("supabase db diff");
+    expect(migrationCommand("pg-delta", "add_tags")).toBe(
+      "supabase db schema declarative sync -f add_tags",
+    );
+    expect(migrationCommand("pg-delta")).toBe(
+      "supabase db schema declarative sync",
+    );
+    expect(migrationCommand("migrations", "add_tags")).toBe(
+      "supabase migration up",
+    );
+  });
+});
+
+describe("sqlWorkflow", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-workflow-"));
+    await mkdir(join(dir, "supabase"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const tomlWith = (text: string): SupabaseToml => ({
+    path: "supabase/config.toml",
+    dir: "supabase",
+    text,
+    document: parseToml(text),
+    parser: "smol-toml",
+  });
+  const config = (workflow?: SqlWorkflow) => ({
+    root: dir,
+    sql: workflow === undefined ? {} : { workflow },
+  });
+
+  it("uses sql.workflow when it is set", () => {
+    const pgdelta = tomlWith("[experimental.pgdelta]\nenabled = true");
+    expect(sqlWorkflow(config("migrations"), pgdelta)).toBe("migrations");
+    expect(sqlWorkflow(config("migra"), pgdelta)).toBe("migra");
+    expect(sqlWorkflow(config("pg-delta"), tomlWith(""))).toBe("pg-delta");
+  });
+
+  it("defaults to pg-delta without a config.toml or anything that says otherwise", () => {
+    expect(sqlWorkflow(config(), undefined)).toBe("pg-delta");
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("pg-delta");
     expect(
-      migrationCommand(tomlWith("[experimental.pgdelta]\nenabled = false")),
-    ).toBe("supabase db diff");
+      detectWorkflow(dir, tomlWith("[experimental.pgdelta]\nenabled = true")),
+    ).toBe("pg-delta");
+  });
+
+  it("detects migra from config.toml or existing schema files", async () => {
     expect(
-      migrationCommand(
-        tomlWith("[experimental.pgdelta]\nenabled = true"),
-        "add_tags",
+      detectWorkflow(dir, tomlWith("[experimental.pgdelta]\nenabled = false")),
+    ).toBe("migra");
+    expect(
+      detectWorkflow(
+        dir,
+        tomlWith('[db.migrations]\nschema_paths = ["./schemas/*.sql"]'),
       ),
-    ).toBe("supabase db schema declarative sync -f add_tags");
+    ).toBe("migra");
+    await mkdir(join(dir, "supabase/schemas/app"), { recursive: true });
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("pg-delta");
+    await writeFile(join(dir, "supabase/schemas/app/tables.sql"), "");
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("migra");
+  });
+
+  it("never detects the migrations workflow", async () => {
+    await mkdir(join(dir, "supabase/migrations"));
+    await writeFile(
+      join(dir, "supabase/migrations/20260101000000_init.sql"),
+      "",
+    );
+    expect(sqlWorkflow(config(), tomlWith(""))).toBe("pg-delta");
+  });
+
+  it("reads no declarative schemas under the migrations workflow", async () => {
+    await mkdir(join(dir, "supabase/schemas"));
+    await writeFile(join(dir, "supabase/schemas/app.sql"), "");
+    expect(await schemaPaths(dir, tomlWith(""), "migrations")).toEqual({
+      configured: false,
+      files: [],
+      unlisted: [],
+    });
   });
 });
 

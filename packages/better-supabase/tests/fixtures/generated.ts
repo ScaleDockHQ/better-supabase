@@ -125,12 +125,12 @@ export type Models = {
       status: "lead" | "active" | "archived";
       primary_contact_id: string | null;
       metadata: { source?: string; tier?: 'free' | 'pro' };
-      created_by: string | null;
       updated_by: string | null;
       archived_at: string | null;
       created_at: string;
       updated_at: string;
       logo_path: StoragePath<"customer-logos"> | null;
+      created_by: string | null;
     };
     Insert: {
       id?: string;
@@ -140,12 +140,12 @@ export type Models = {
       status?: "lead" | "active" | "archived";
       primary_contact_id?: string | null;
       metadata?: { source?: string; tier?: 'free' | 'pro' };
-      created_by?: string | null;
       updated_by?: string | null;
       archived_at?: string | null;
       created_at?: string;
       updated_at?: string;
       logo_path?: StoragePath<"customer-logos"> | null;
+      created_by?: string | null;
     };
     Update: {
       id?: string;
@@ -155,12 +155,12 @@ export type Models = {
       status?: "lead" | "active" | "archived";
       primary_contact_id?: string | null;
       metadata?: { source?: string; tier?: 'free' | 'pro' };
-      created_by?: string | null;
       updated_by?: string | null;
       archived_at?: string | null;
       created_at?: string;
       updated_at?: string;
       logo_path?: StoragePath<"customer-logos"> | null;
+      created_by?: string | null;
     };
     Relations: {
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
@@ -266,34 +266,34 @@ export type Models = {
       id: number;
       organization_id: string;
       customer_id: string;
-      kind: "call" | "meeting" | "email";
       body: string;
       attachments: Json | null;
       created_at: string;
       updated_at: string;
       embedding: string | null;
+      kind: "call" | "meeting" | "email";
     };
     Insert: {
       id?: never;
       organization_id: string;
       customer_id: string;
-      kind?: "call" | "meeting" | "email";
       body: string;
       attachments?: Json | null;
       created_at?: string;
       updated_at?: string;
       embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Update: {
       id?: never;
       organization_id?: string;
       customer_id?: string;
-      kind?: "call" | "meeting" | "email";
       body?: string;
       attachments?: Json | null;
       created_at?: string;
       updated_at?: string;
       embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };

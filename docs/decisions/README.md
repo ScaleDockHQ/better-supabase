@@ -32,3 +32,4 @@ add one, and link it from the code or config it explains.
 | [0024](0024-money-and-commerce-providers.md)    | Money is bigint minor units; payments and tax are versioned providers with Stripe adapters               |
 | [0025](0025-drive-on-attachments.md)            | The drive is two modules on attachments; `before` renders a module ahead of the subject checks           |
 | [0026](0026-delegation-cap-and-operations.md)   | Delegated tokens are narrowed inside the access functions; every checked action is a row in `OPERATIONS` |
+| [0027](0027-fixture-pgdelta-baseline.md)        | The fixture's migrations are one pg-delta baseline, and its schema uses the per-schema layout            |

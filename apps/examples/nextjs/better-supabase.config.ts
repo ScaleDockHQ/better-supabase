@@ -27,7 +27,7 @@ export default defineConfig({
     subscriptions: ["select"],
   },
   // Plan features come from the fixture's plan catalog
-  // (supabase/schemas/030_crm/090_plans.sql), not from Stripe.
+  // (supabase/schemas/public/tables/plans.sql), not from Stripe.
   entitlements: {
     source: {
       plans: {
@@ -90,7 +90,7 @@ export default defineConfig({
   vectorSearch: { notes: "embedding" },
   // The block files live in the repo's fixture, so the stack runs them.
   sql: {
-    dir: "../../../supabase/schemas",
+    dir: "../../../supabase/schemas/_better_supabase",
     modules: {
       "updated-at": {},
       "read-sets": {},
@@ -98,13 +98,14 @@ export default defineConfig({
       "rate-limit": {},
       "vector-search": {},
       // The fixture writes the memberships table and the access contract
-      // itself (supabase/schemas/045_access_contract.sql), so tokens that
+      // itself (supabase/schemas/better_supabase/functions), so tokens that
       // carry only a tenant claim keep working for the integration suite.
       tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
       // switch_organization writes app_metadata.tenant_id; the token hook
       // copies it into the access token. In custom mode only the role names
       // count: they are the roles invitations and member updates accept.
-      // Their permissions live in supabase/schemas/045_access_contract.sql.
+      // Their permissions live in
+      // supabase/schemas/better_supabase/functions/role_permissions.sql.
       access: {
         mode: "custom",
         activeTenant: "claim",

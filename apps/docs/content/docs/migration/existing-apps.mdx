@@ -37,6 +37,23 @@ exists pgcrypto;`), including those the local stack already ships, and remove
 `supabase db schema declarative sync` should then report no changes, since
 the files and the migration history describe the same database.
 
+### Keep migrations only
+
+An app that writes every migration by hand can skip declarative schemas.
+Set the workflow in the config, or run `better-supabase init --workflow migrations`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { workflow: "migrations", modules: ["tenant", "audit"] },
+});
+```
+
+`sql add`, `sql sync` and `sql upgrade` then write the modules into
+`supabase/migrations/<stamp>_better_supabase_modules.sql`, and you apply it
+with `supabase migration up`. An app still on declarative schemas 1.0 sets
+`workflow: "migra"` to keep `supabase db diff`. See
+[Workflows](/docs/blocks/sql#workflows).
+
 ## Pick a mode per module
 
 Every SQL module has a contract: the functions your policies, other
@@ -210,7 +227,8 @@ explains the order.
 
 ## A suggested order
 
-1. Move the schema into `supabase/schemas` on pg-delta, add
+1. Move the schema into `supabase/schemas` on pg-delta (or set
+   `sql.workflow: "migrations"` to keep migrations only), add
    `better-supabase.config.ts` with `access` in the model your app uses, and
    run `better-supabase doctor` to see what it finds.
 2. Adopt `tenant` and swap one policy helper for `tenant_ids_with`.

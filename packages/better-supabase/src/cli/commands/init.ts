@@ -1,13 +1,14 @@
 import { existsSync } from "node:fs";
 import { join, posix, resolve } from "node:path";
 
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { Prompter } from "../prompts.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -16,24 +17,15 @@ import {
   packagesFor,
   parseIntegrations,
   templateContextFor,
-  type WriteFlags,
   writeFiles,
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
-import { display, writeIfChanged } from "../io.ts";
 import {
   detectProject,
   installCommand,
   type InstallTarget,
   type Project,
 } from "../project.ts";
-import {
-  diffEngine,
-  findSupabaseRoot,
-  PGDELTA_TABLE,
-  readSupabaseToml,
-  tomlGet,
-} from "../supabase-toml.ts";
 import {
   baseFiles,
   needsLib,
@@ -44,6 +36,15 @@ import {
 import { detectWorkspace, suggestedPackage } from "../workspace.ts";
 
 export type InitArgs = CliArgs<typeof INIT_ARGS>;
+
+const SQL_WORKFLOWS: readonly SqlWorkflow[] = [
+  "pg-delta",
+  "migra",
+  "migrations",
+];
+
+const isSqlWorkflow = (value: string): value is SqlWorkflow =>
+  SQL_WORKFLOWS.some((workflow) => workflow === value);
 
 const INIT_ARGS = {
   casing: {
@@ -63,6 +64,12 @@ const INIT_ARGS = {
     description: "Workspace package to write to, relative to --cwd",
     valueHint: "dir",
   },
+  workflow: {
+    type: "string",
+    description:
+      "How the SQL modules reach the database: pg-delta (the default), migra or migrations",
+    valueHint: "pg-delta|migra|migrations",
+  },
   lite: {
     type: "boolean",
     description:
@@ -71,41 +78,6 @@ const INIT_ARGS = {
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
-
-/**
- * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml`
- * when it has no such table, so `supabase db schema declarative sync`
- * runs on pg-delta. A table set to `enabled = false` is left alone.
- */
-async function enablePgDelta(
-  root: string,
-  args: WriteFlags,
-  base: string,
-): Promise<string[]> {
-  const supabaseRoot = findSupabaseRoot(root);
-  const toml = await readSupabaseToml(root);
-  if (supabaseRoot === undefined || toml === undefined) return [];
-  const path = join(supabaseRoot, "supabase/config.toml");
-  const shown = display(base, path);
-  if (diffEngine(toml) === "pg-delta") return [];
-  if (
-    tomlGet(toml.document, ["experimental", "pgdelta"]) !== undefined ||
-    toml.text.includes("pgdelta")
-  ) {
-    return [
-      `Kept    ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
-    ];
-  }
-  if (args["dry-run"] === true) return [`Would enable pg-delta in ${shown}`];
-  const separator =
-    toml.text === "" || toml.text.endsWith("\n\n")
-      ? ""
-      : toml.text.endsWith("\n")
-        ? "\n"
-        : "\n\n";
-  await writeIfChanged(path, `${toml.text}${separator}${PGDELTA_TABLE}`);
-  return [`Enabled pg-delta in ${shown}`];
-}
 
 /** The minor of `@supabase/lite` the `backend: 'lite'` option targets. */
 const LITE_VERSION = "0.11";
@@ -192,6 +164,13 @@ export async function runInit(
   if (casing !== "camel" && casing !== "snake") {
     return { code: 2, error: '--casing must be "camel" or "snake"' };
   }
+  const workflow = args.workflow ?? "pg-delta";
+  if (!isSqlWorkflow(workflow)) {
+    return {
+      code: 2,
+      error: '--workflow must be "pg-delta", "migra" or "migrations"',
+    };
+  }
   const target = await initTarget(config.root, args, prompts);
   if ("code" in target) return target;
   const root = resolve(config.root, target.dir);
@@ -228,7 +207,13 @@ export async function runInit(
   const templateContext = templateContextFor(project, generated);
 
   const files = [
-    ...baseFiles(templateContext, casing, needsLib(integrations), integrations),
+    ...baseFiles(
+      templateContext,
+      casing,
+      needsLib(integrations),
+      integrations,
+      workflow,
+    ),
     ...integrationFiles(integrations, templateContext),
   ];
   const force = await overwrite(root, files, args, prompts, config.root);
@@ -240,7 +225,9 @@ export async function runInit(
       : `No framework found${where}.`,
     "",
     ...(await writeFiles(root, files, args, force, config.root)),
-    ...(await enablePgDelta(root, args, config.root)),
+    ...(workflow === "pg-delta"
+      ? await enablePgDelta(root, args["dry-run"] === true, config.root)
+      : []),
   ];
   const packages = packagesFor(project, integrations);
   const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";

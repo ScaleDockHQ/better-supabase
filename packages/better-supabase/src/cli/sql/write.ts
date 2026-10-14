@@ -8,13 +8,26 @@ import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   type ModuleFile,
   type ModuleLayout,
+  moduleTopics,
   renderModules,
   resolveModules,
 } from "../../sql/index.ts";
+import { enablePgDelta } from "../enable-pgdelta.ts";
 import { writeLine } from "../files.ts";
 import { display } from "../io.ts";
-import { readSupabaseToml, schemaPaths } from "../supabase-toml.ts";
+import {
+  migrationCommand,
+  readSupabaseToml,
+  schemaPaths,
+  sqlWorkflow,
+} from "../supabase-toml.ts";
+import { topicPolicyFile } from "../topic-policies.ts";
 import { DATA_NEXT, type Now, writeExtensionsMigration } from "./migrations.ts";
+import {
+  MODULES_SUFFIX,
+  renderModuleMigration,
+  writeLatestMigration,
+} from "./module-migration.ts";
 
 const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 
@@ -57,11 +70,15 @@ export async function write(
   sqlLayout: ModuleLayout,
   now: Now,
   only?: readonly string[],
+  upgrade: readonly string[] = [],
 ): Promise<string[]> {
+  const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
+  const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
   let data = false;
-  const files = renderModules(names, sqlLayout).filter(
+  const rendered = renderModules(names, sqlLayout);
+  const files = rendered.filter(
     (file) => only === undefined || only.includes(file.module),
   );
   for (const path of await staleModuleTests(
@@ -79,6 +96,7 @@ export async function write(
     lines.push(`Removed ${shown}`);
   }
   for (const file of files) {
+    if (migrations && file.kind !== "test") continue;
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
     if (dryRun) {
@@ -94,9 +112,37 @@ export async function write(
     if (wrote && file.kind === "data") data = true;
     lines.push(line);
   }
+  if (migrations) {
+    const topics = await topicPolicyFile(
+      config,
+      moduleTopics(names, sqlLayout),
+    );
+    const written = await writeLatestMigration(
+      config,
+      MODULES_SUFFIX,
+      renderModuleMigration({
+        files: rendered,
+        upgrade,
+        ...(topics === undefined ? {} : { topics: topics.contents }),
+      }),
+      { now: now(), dryRun, force: upgrade.length > 0 },
+    );
+    lines.push(written.line);
+    return lines;
+  }
   lines.push(...(await writeExtensionsMigration(config, files, dryRun, now)));
   if (data) lines.push("", DATA_NEXT);
+  if (workflow === "pg-delta")
+    lines.push(...(await enablePgDelta(config.root, dryRun)));
   return lines;
+}
+
+/** The line that tells the reader how the written modules reach the database. */
+export async function nextStep(config: ResolvedConfig): Promise<string> {
+  const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
+  return workflow === "migrations"
+    ? `Then apply it: ${migrationCommand(workflow)}`
+    : `Then create a migration: ${migrationCommand(workflow, "better_supabase_module")}`;
 }
 
 /** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */
@@ -106,7 +152,9 @@ export async function unlistedModuleFiles(
   sqlLayout: ModuleLayout,
 ): Promise<string[]> {
   const toml = await readSupabaseToml(config.root);
-  const order = await schemaPaths(config.root, toml);
+  const workflow = sqlWorkflow(config, toml);
+  if (workflow !== "migra") return [];
+  const order = await schemaPaths(config.root, toml, workflow);
   if (!order.configured) return [];
   const supabase = `${toml?.dir ?? "supabase"}/`;
   const unlisted = new Set(order.unlisted);

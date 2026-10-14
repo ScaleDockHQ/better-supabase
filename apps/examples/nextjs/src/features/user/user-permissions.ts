@@ -44,7 +44,7 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
- * Mirrors `better_supabase.role_permissions` (supabase/schemas/045_access_contract.sql),
+ * Mirrors `better_supabase.role_permissions` (supabase/schemas/better_supabase/functions/role_permissions.sql),
  * which RLS and the SQL modules check. Owners hold everything.
  */
 const grants = {

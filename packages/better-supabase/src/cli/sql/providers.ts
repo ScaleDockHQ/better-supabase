@@ -15,8 +15,7 @@ import {
   moduleKeyProblems,
 } from "../authorization.ts";
 import { compiledReadSets } from "../read-sets.ts";
-import { moduleLayoutFor } from "../sql-layout.ts";
-import { declarativeSchemasDir, readSupabaseToml } from "../supabase-toml.ts";
+import { moduleLayoutFor, schemasDirOf } from "../sql-layout.ts";
 
 /** Modules that fill the `memberships` claim, which a provider's hook may own. */
 export const MEMBERSHIP_CLAIM_MODULES: ReadonlySet<string> = new Set([
@@ -119,7 +118,7 @@ export async function layout(
       accessProviderFor(config, names),
       permissionKeysFor(config),
     ),
-    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+    schemasDir: await schemasDirOf(config),
   };
 }
 

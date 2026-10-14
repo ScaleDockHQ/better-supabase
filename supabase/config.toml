@@ -7,7 +7,7 @@ port = 55421
 schemas = ["public", "graphql_public", "api"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
-# New tables get no Data API grants until 090_grants.sql gives them.
+# New tables get no Data API grants until their schema file grants them.
 auto_expose_new_tables = false
 
 [db]
@@ -79,7 +79,7 @@ enable_confirmations = false
 enroll_enabled = true
 verify_enabled = true
 
-# Adds the `user_role`, `memberships` and `features` claims (supabase/schemas/040_rbac.sql).
+# Adds the `user_role`, `memberships` and `features` claims (supabase/schemas/rbac/functions/custom_access_token_hook.sql).
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/rbac/custom_access_token_hook"

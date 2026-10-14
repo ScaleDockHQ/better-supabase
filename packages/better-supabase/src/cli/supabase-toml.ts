@@ -1,7 +1,9 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { dirname, join, posix, relative } from "node:path";
 import { parse } from "smol-toml";
+
+import type { SqlWorkflow } from "../config/index.ts";
 
 export type TomlValue =
   | string
@@ -292,7 +294,10 @@ export function httpHooks(document: TomlTable): HttpHook[] {
 /** The Supabase CLI engine that turns `supabase/schemas` into migrations. */
 export type DiffEngine = "pg-delta" | "migra";
 
-/** pg-delta when `[experimental.pgdelta] enabled = true`, otherwise the legacy migra engine. */
+/**
+ * The engine the Supabase CLI runs: pg-delta when `[experimental.pgdelta]
+ * enabled = true`, otherwise the legacy migra engine.
+ */
 export function diffEngine(toml?: SupabaseToml): DiffEngine {
   const enabled = tomlGet(toml?.document ?? {}, [
     "experimental",
@@ -302,19 +307,78 @@ export function diffEngine(toml?: SupabaseToml): DiffEngine {
   return enabled === true || enabled === "true" ? "pg-delta" : "migra";
 }
 
+/** Whether `dir` (or a folder below it) holds a `.sql` file. */
+function hasSqlFiles(dir: string): boolean {
+  if (!existsSync(dir)) return false;
+  try {
+    return readdirSync(dir, { recursive: true }).some((name) =>
+      String(name).endsWith(".sql"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The workflow a project without `sql.workflow` follows: pg-delta when
+ * `config.toml` enables it, migra when it turns pg-delta off (`enabled =
+ * false`), lists `[db.migrations] schema_paths` or already keeps files in
+ * `supabase/schemas` without pg-delta, and pg-delta otherwise. `schemaFiles`
+ * says whether that folder holds SQL files when the caller already read it.
+ */
+export function detectWorkflow(
+  root: string,
+  toml?: SupabaseToml,
+  schemaFiles?: boolean,
+): Exclude<SqlWorkflow, "migrations"> {
+  if (diffEngine(toml) === "pg-delta" || toml === undefined) return "pg-delta";
+  if (
+    tomlGet(toml.document, ["experimental", "pgdelta", "enabled"]) !== undefined
+  )
+    return "migra";
+  const paths = tomlGet(toml.document, ["db", "migrations", "schema_paths"]);
+  if (Array.isArray(paths) && paths.length > 0) return "migra";
+  return (schemaFiles ?? hasSqlFiles(join(root, toml.dir, "schemas")))
+    ? "migra"
+    : "pg-delta";
+}
+
+/** `sql.workflow`, or the one `detectWorkflow` reads from `config.toml`. */
+export function sqlWorkflow(
+  config: {
+    readonly root: string;
+    readonly sql: { readonly workflow?: SqlWorkflow | undefined };
+  },
+  toml?: SupabaseToml,
+): SqlWorkflow {
+  return config.sql.workflow ?? detectWorkflow(config.root, toml);
+}
+
 /** The `config.toml` table that turns pg-delta on. */
 export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
 
-/** The command that writes a migration (named `name`, when given) from `supabase/schemas`. */
-export function migrationCommand(
-  toml: SupabaseToml | undefined,
-  name?: string,
-): string {
-  const command =
-    diffEngine(toml) === "pg-delta"
-      ? "supabase db schema declarative sync"
-      : "supabase db diff";
-  return name === undefined ? command : `${command} -f ${name}`;
+/**
+ * The command that turns the files into a migration (named `name`, when
+ * given). Under the migrations workflow the `sql` commands already wrote
+ * it, so the command applies it.
+ */
+export function migrationCommand(workflow: SqlWorkflow, name?: string): string {
+  switch (workflow) {
+    case "pg-delta":
+      return name === undefined
+        ? "supabase db schema declarative sync"
+        : `supabase db schema declarative sync -f ${name}`;
+    case "migra":
+      return name === undefined
+        ? "supabase db diff"
+        : `supabase db diff -f ${name}`;
+    case "migrations":
+      return "supabase migration up";
+    default: {
+      const unreachable: never = workflow;
+      return unreachable;
+    }
+  }
 }
 
 /** The declarative schema files, in the order the diff engine reads them. */
@@ -342,9 +406,16 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
   );
 }
 
-/** The folder the diff engine loads declarative schema files from, relative to the root. */
-export function declarativeSchemasDir(toml?: SupabaseToml): string {
-  return diffEngine(toml) === "pg-delta"
+/**
+ * The folder the diff engine loads declarative schema files from, relative
+ * to the root: `declarative_schema_path` under pg-delta, `supabase/schemas`
+ * otherwise. `workflow` defaults to what `config.toml` turns on.
+ */
+export function declarativeSchemasDir(
+  toml?: SupabaseToml,
+  workflow: SqlWorkflow = diffEngine(toml),
+): string {
+  return workflow === "pg-delta"
     ? pgDeltaSchemasDir(toml)
     : posix.join(toml?.dir ?? "supabase", "schemas");
 }
@@ -362,13 +433,18 @@ async function expand(cwd: string, pattern: string): Promise<string[]> {
  * the `supabase/schemas` files no entry matches. Without `schema_paths`, the
  * `supabase/schemas` files in name order, as the Supabase CLI reads them.
  * pg-delta ignores `schema_paths` and orders by dependency, so under it every
- * file in its schema directory counts, in name order.
+ * file in its schema directory counts, in name order. The migrations
+ * workflow has no declarative schemas. `workflow` defaults to
+ * `detectWorkflow`.
  */
 export async function schemaPaths(
   root: string,
   toml?: SupabaseToml,
+  workflow: SqlWorkflow = detectWorkflow(root, toml),
 ): Promise<SchemaPaths> {
-  if (diffEngine(toml) === "pg-delta") {
+  if (workflow === "migrations")
+    return { files: [], unlisted: [], configured: false };
+  if (workflow === "pg-delta") {
     const dir = pgDeltaSchemasDir(toml);
     const files = existsSync(join(root, dir))
       ? await expand(root, `${dir}/**/*.sql`)

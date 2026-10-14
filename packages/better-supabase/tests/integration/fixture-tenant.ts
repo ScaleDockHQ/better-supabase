@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 // Suites that commit module SQL run this in the same transaction, so suites
 // running in parallel never see the module's version.
 export const FIXTURE_TENANT_SQL: string = readFileSync(
-  new URL("../../../../supabase/schemas/015_shared.sql", import.meta.url),
+  new URL(
+    "../../../../supabase/schemas/better_supabase/functions/current_tenant_id.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
