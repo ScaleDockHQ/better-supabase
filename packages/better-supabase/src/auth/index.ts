@@ -24,7 +24,13 @@ export type {
 export type { SessionLookup } from "./revocation.ts";
 export { impersonatorOf } from "./impersonation.ts";
 export type { ImpersonationOptions, Impersonator } from "./impersonation.ts";
-export type { ActClaim, SessionActor, SessionDelegation } from "./actor.ts";
+export { agentClaims } from "./actor.ts";
+export type {
+  ActClaim,
+  AgentActOptions,
+  SessionActor,
+  SessionDelegation,
+} from "./actor.ts";
 export {
   type EntitlementClaimOptions,
   hasEntitlement,

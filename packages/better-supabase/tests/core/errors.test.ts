@@ -682,6 +682,21 @@ describe("mapDbError", () => {
       });
       expect(mapped.hint).toBe(hint);
     });
+
+    it("reads the permission keys a refusal names in its detail", () => {
+      const raw = {
+        code: "42501",
+        message: "You may not publish a workflow whose steps need crm.read",
+        hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
+      };
+      expect(
+        mapDbError({ ...raw, details: '{"permissions":["crm.read"]}' }),
+      ).toMatchObject({ kind: "forbidden", permissions: ["crm.read"] });
+      for (const details of ["{oops", '{"permissions":[1]}', "null", "text"])
+        expect(mapDbError({ ...raw, details })).not.toHaveProperty(
+          "permissions",
+        );
+    });
   });
 
   describe("custom mappers", () => {

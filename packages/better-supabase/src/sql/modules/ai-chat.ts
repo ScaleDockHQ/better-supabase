@@ -14,7 +14,7 @@ import {
   tenantIn,
   lockTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
 import {
@@ -434,7 +434,7 @@ function sandboxIdleAfter(ctx: ModuleContext): number {
 }
 
 function namesOf(ctx: ModuleContext): AiChatNames {
-  const permissions = MODULE_PERMISSIONS["ai-chat"];
+  const permissions = moduleOperations("ai-chat");
   const topic = topicOption(ctx, "topic", "ai-chat");
   const listTopic = topicOption(ctx, "listTopic", "ai-chats");
   if (topic === listTopic) {
@@ -991,7 +991,7 @@ export const AI_CHAT: ModuleDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["tenant", "access", "streams"],
-  integrates: ["entitlements", "ai-providers"],
+  integrates: ["entitlements", "ai-providers", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

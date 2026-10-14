@@ -344,7 +344,11 @@ const result = await inbox
 The policy is `options.policy`, then the topic's `subscribers` option, then
 the server's `authorization.delivery.subscribers`
 ([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)).
-Without any, every subscriber gets the event. The policy receives `source`
+Without any, every subscriber gets the event, except under a server with
+hooks: there an event with a `subject` goes to no one and returns a
+`forbidden` error with the hint `REALTIME_SUBSCRIBER_POLICY_REQUIRED`. Pass
+`policy: subjectReaders(sqlTransport(postgres.admin))` to send it to the
+members who may read the subject. The policy receives `source`
 and the subscribers, and can narrow the list but never widen it: a
 subscriber it returns that wasn't passed in is ignored. Subscribers it leaves
 out come back in `skipped`. A policy that throws sends to no one and returns

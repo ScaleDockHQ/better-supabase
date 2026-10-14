@@ -12,8 +12,12 @@ export const SUPPORT_SESSION_APPROVAL = "support-session";
 
 /** A request whose approver the provider decides, as SQL expressions. */
 export interface ApprovalRequestSql {
-  /** A text literal such as `AI_TOOL_APPROVAL`, quoted by `approverCheck`. */
-  readonly kind: string;
+  /**
+   * A text literal such as `AI_TOOL_APPROVAL`, quoted by `approverCheck`, or
+   * `{ sql }` for a text expression (the approvals block's
+   * `<subject type>.<action>`).
+   */
+  readonly kind: string | { readonly sql: string };
   /** A text expression. */
   readonly subject: string;
   /** An expression of the tenant id type, or `null`. */
@@ -50,7 +54,10 @@ export function approverCheck(
   if (isApprover !== undefined) {
     return {
       sql: fillTemplate("authorization.functions.isApprover", isApprover, {
-        kind: sqlString(request.kind),
+        kind:
+          typeof request.kind === "string"
+            ? sqlString(request.kind)
+            : request.kind.sql,
         subject: request.subject,
         tenant: request.tenant,
         scope: provider.scope,

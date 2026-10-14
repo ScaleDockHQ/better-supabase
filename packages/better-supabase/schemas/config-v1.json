@@ -935,6 +935,20 @@
             }
           }
         },
+        "delegation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scopes": {
+              "type": "object",
+              "description": "OAuth scope to the permission keys it grants a delegated token.",
+              "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
         "approvals": {
           "type": "object",
           "additionalProperties": false,
@@ -1692,6 +1706,14 @@
         "platformClaim": {
           "type": "string",
           "default": "platform_permissions"
+        },
+        "scopes": {
+          "type": "object",
+          "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
         },
         "disabled": {
           "type": "object",

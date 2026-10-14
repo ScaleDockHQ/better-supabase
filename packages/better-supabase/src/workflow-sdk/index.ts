@@ -1,5 +1,9 @@
 export {
+  APPROVAL_OUTCOME_EVENTS,
   approvalWaiter,
+  wakeOnApproval,
+  type ApprovalOutcome,
+  type ApprovalOutcomeEvent,
   type ApprovalWaiter,
   type ApprovalWaitOptions,
   type ApprovalWaitResult,
@@ -21,4 +25,7 @@ export {
   type StartOnEventOptions,
   type WorkflowContextOptions,
   type WorkflowFn,
+  type WorkflowRunAs,
+  type WorkflowRunAsFor,
+  type WorkflowStarterOptions,
 } from "./workflow-sdk.ts";

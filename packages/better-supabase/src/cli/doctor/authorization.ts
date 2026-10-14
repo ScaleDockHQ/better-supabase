@@ -614,6 +614,49 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     },
   },
   {
+    code: "BS334",
+    severity: "info",
+    title: "A policy checks a role name instead of a permission",
+    description:
+      "`member_organization_ids()`, `has_organization_role()` and `organization_member_role()` answer by role name. Under an authorization provider they take membership from its `memberIds`, but a role list in the policy still names roles the provider may not have. `better_supabase.tenant_ids_with('<permission>')` and `member_can()` check a permission, so they follow renames, the provider and the delegation cap. Doctor reports each app policy and each function in `schemas` that calls a role helper.",
+    check: (context) => {
+      if (!context.config.sql.moduleNames.includes("tenant")) return [];
+      const findings: FindingInput[] = [];
+      const advice =
+        "check a permission with better_supabase.tenant_ids_with('<permission>') or member_can() instead, so it follows the provider and the delegation cap.";
+      for (const table of catalogOf(context).tables) {
+        if (table.schema === "better_supabase") continue;
+        for (const policy of table.policies) {
+          if (policy.name.startsWith("bs_")) continue;
+          const calls = roleHelperCalls(
+            `${policy.using ?? ""} ${policy.check ?? ""}`,
+          );
+          if (calls.length === 0) continue;
+          findings.push({
+            message: `Policy "${policy.name}" on ${qualified(table)} calls ${calls.join(" and ")}; ${advice}`,
+            target: `${qualified(table)}.${policy.name}`,
+            object: policyObject(table, policy),
+          });
+        }
+      }
+      for (const fn of context.snapshot.generator.functions) {
+        if (
+          fn.schema === "better_supabase" ||
+          !context.config.schemas.includes(fn.schema) ||
+          !fn.definition
+        )
+          continue;
+        const calls = roleHelperCalls(fn.definition);
+        if (calls.length === 0) continue;
+        findings.push({
+          message: `${fn.schema}.${fn.name} calls ${calls.join(" and ")}; ${advice}`,
+          target: `${fn.schema}.${fn.name}`,
+        });
+      }
+      return findings;
+    },
+  },
+  {
     code: "BS415",
     severity: "warning",
     title: "The provider sets the deprecated canApprove template",
@@ -635,6 +678,17 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
 const CONTRACT_CALL =
   /\bbetter_supabase"?\s*\.\s*"?(can|tenant_ids_with)"?\s*\(/gi;
+
+const ROLE_HELPER_CALL =
+  /\bbetter_supabase"?\s*\.\s*"?(member_organization_ids|has_organization_role|organization_member_role)"?\s*\(/gi;
+
+/** The tenant role helpers `text` calls, outside string literals. */
+function roleHelperCalls(text: string): string[] {
+  const names = new Set<string>();
+  for (const match of withoutStrings(text).matchAll(ROLE_HELPER_CALL))
+    names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
+  return [...names].sort();
+}
 
 /** The access contract functions `text` calls, outside string literals. */
 function contractCalls(text: string): string[] {

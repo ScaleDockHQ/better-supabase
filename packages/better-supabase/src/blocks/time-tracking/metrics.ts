@@ -53,12 +53,20 @@ export const TIME_TRACKING_METRIC_EVENTS: {
 
 /**
  * The entry's `startedAt`, the time its seconds are bucketed by, for
- * `metricsSink({ time })` or `createBlocks({ metricTime })`. Undefined for
- * other events, so they keep their own time.
+ * `metricsSink({ time })` or `createBlocks({ metricTime })`. An update that
+ * moves the entry to another day also returns its `previousStartedAt`, so
+ * the old day's total drops. Undefined for other events, so they keep
+ * their own time.
  */
-export function timeEntryMetricTime(event: CloudEvent): string | undefined {
+export function timeEntryMetricTime(
+  event: CloudEvent,
+): string | readonly string[] | undefined {
   if (!event.type.includes("time_entry.") || !isRecord(event.data))
     return undefined;
   const startedAt = event.data["startedAt"];
-  return typeof startedAt === "string" ? startedAt : undefined;
+  if (typeof startedAt !== "string") return undefined;
+  const previous = event.data["previousStartedAt"];
+  return typeof previous === "string" && previous !== startedAt
+    ? [startedAt, previous]
+    : startedAt;
 }

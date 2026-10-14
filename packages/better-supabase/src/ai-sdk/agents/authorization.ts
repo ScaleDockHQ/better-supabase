@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
 
+import type { AgentActOptions } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
 import type { AuthorizationOperation } from "../../config/authorization.ts";
 
@@ -34,17 +35,25 @@ export type AgentRunContext = {
   readonly userId: string | undefined;
   readonly organizationId: string | undefined;
   readonly actor: AgentActor;
+  /**
+   * The `act` level a tool's database calls carry, with the run's tools:
+   * pass `agentClaims(claims, run.act)` to `asUser` or `forContext`, so a tool
+   * writes as the user, with the agent recorded as the actor.
+   */
+  readonly act: AgentActOptions;
 };
 
-/** The run context for an agent row and its caller, frozen. */
+/** The run context for an agent row, its caller and the tools it may call, frozen. */
 export function agentRunContext(
   agent: Pick<Agent, "id" | "organizationId">,
   caller?: AgentCaller,
+  tools: readonly string[] = [],
 ): AgentRunContext {
   return Object.freeze({
     userId: caller?.userId,
     organizationId: caller?.organizationId ?? agent.organizationId,
     actor: Object.freeze({ kind: "agent", id: agent.id }),
+    act: Object.freeze({ agent: agent.id, tools: Object.freeze([...tools]) }),
   });
 }
 
@@ -53,6 +62,9 @@ export function agentRunContext(
  * a permission key, or `false` for a tool that is public by design.
  */
 export type AgentToolPermissions = Readonly<Record<string, string | false>>;
+
+/** The provider operation each tool checks, in place of `ai.tool.<name>`. */
+export type AgentToolOperations = Readonly<Record<string, string>>;
 
 /** The operation an AI tool is, with what the provider says about it. */
 export interface AgentToolOperation {
@@ -66,15 +78,19 @@ export interface AgentToolOperation {
 }
 
 /**
- * The operation of the tool `name`: the provider's `ai.tool.<name>` entry
- * first, then the tool's own permission from `permissions`.
+ * The operation of the tool `name`: the provider's entry for the tool's
+ * operation (from `toolOperations`, default `ai.tool.<name>`) first, then
+ * the tool's own permission from `permissions`.
  */
 export function agentToolOperation(
   name: string,
   operations?: OperationTable,
   permissions: AgentToolPermissions = {},
+  toolOperations: AgentToolOperations = {},
 ): AgentToolOperation {
-  const operation = `${OPERATION_PREFIXES.aiTool}${name}`;
+  const operation =
+    (Object.hasOwn(toolOperations, name) ? toolOperations[name] : undefined) ??
+    `${OPERATION_PREFIXES.aiTool}${name}`;
   const own = Object.hasOwn(permissions, name) ? permissions[name] : undefined;
   const permission =
     operationPermission(

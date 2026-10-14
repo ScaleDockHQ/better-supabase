@@ -189,7 +189,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.9": {
     name: "0.9",
     description:
-      "Changes from 0.8 to 0.9 change behaviour, not names: lists support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers and generic problem types (about:blank), for review",
+      "Changes from 0.8 to 0.9 change behaviour, not names: lists support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects, for review",
     review: [
       {
         pattern: /\bsupportSessions\s*\(/,
@@ -221,6 +221,52 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
         pattern: /\bpublish_webhook_event\s*\(/,
         message:
           "`publish_webhook_event` takes `subject` and `read_permission` and delivers only to endpoints whose owner may read the event",
+      },
+      {
+        pattern: /\btoken_scope_allows\s*\(|["']oauth-client["']/,
+        message:
+          "Delegated tokens are narrowed inside `member_can`, `platform_can` and `tenant_ids_with`: a permission passes only when one of the token's scopes maps to it. Map scopes in `sql.modules.access.scopes` or `authorization.delegation.scopes`; a `token_scope_allows` check in a write policy is now covered by the cap",
+      },
+      {
+        pattern:
+          /\b(has_organization_role|member_organization_ids|organization_member_role)\s*\(/,
+        message:
+          "Under the provider model the role helpers take membership from the provider's `memberIds`, and a role name check skips the delegation cap (doctor BS334): check a permission with `tenant_ids_with('<permission>')` or `member_can()`",
+      },
+      {
+        pattern: /\b(workflowStarter|startOnEvent)\s*\(/,
+        message:
+          "Event and schedule starts need `runAs: { publisher, permissions }` (or a function returning it): a schedule start without it throws, and the run's context is the publisher's, capped to `permissions`",
+      },
+      {
+        pattern: /\bcreateBuilder\s*\(/,
+        message:
+          "Published versions run as their publisher (`versions.runAs`), and versions published before 0.9 fail with `WORKFLOW_PUBLISHER_REVOKED` until republished. A version the organization owns runs as its default service principal: create one with `default: true` or set `automation.runAs`",
+      },
+      {
+        pattern: /\b(createNotifications|createReminders)\s*\(|\.fanOut\s*\(/,
+        message:
+          "Under an authorization provider without `delivery.subscribers` or `delivery.audience`, an event about a registered subject reaches only users who may read it (`subjectReaders`), and realtime `fanOut` refuses it (`REALTIME_SUBSCRIBER_POLICY_REQUIRED`) until you pass a `policy`",
+      },
+      {
+        pattern: /\bkind\s*:\s*["']agent["']/,
+        message:
+          'An `act` level `{ kind: "agent", sub, tools }` is now valid (build it with `agentClaims`) and writes with the user\'s rights unless it sets `read_only: true`; `tools` must be a list of names',
+      },
+      {
+        pattern: /\bcreate_share_link\b/,
+        message:
+          "`create_share_link` takes a fifth argument, `version_id`; grants and revokes on the four-argument signature must name `(uuid, text, text, text, uuid)`",
+      },
+      {
+        pattern: /\bbefore_promotion_activate\b/,
+        message:
+          "`promotions` now calls `before_promotion_activate(promotion uuid)` after every write that leaves a promotion active; a function of that name runs on each such save",
+      },
+      {
+        pattern: /\bcomments\s*:\s*\{/,
+        message:
+          "With `config.subjects` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
       },
     ],
   },

@@ -216,6 +216,8 @@ describe.skipIf(!live)("search", () => {
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "vector-search", "search"], layout(3));
+      // The fixture seed indexes its customers into the same table.
+      await s.client.query("delete from better_supabase.search_documents");
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       await s.service();

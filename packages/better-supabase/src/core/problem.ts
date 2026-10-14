@@ -28,6 +28,8 @@ export interface ProblemDetails {
   readonly scopes?: readonly string[];
   /** The permission key an authorizer denied. */
   readonly permission?: string;
+  /** The permission keys a `forbidden` caller lacks. */
+  readonly permissions?: readonly string[];
   /** The pending approval of an `APPROVAL_REQUIRED` answer. */
   readonly approval?: { readonly id: string };
   /** Seconds until a `rate_limited` or `quota_exceeded` caller may retry. */
@@ -165,6 +167,7 @@ export function toProblem(
   if ("required" in error) problem["required"] = error.required;
   if ("scopes" in error) problem["scopes"] = error.scopes;
   if ("permission" in error) problem["permission"] = error.permission;
+  if ("permissions" in error) problem["permissions"] = error.permissions;
   if ("approval" in error) problem["approval"] = error.approval;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
   if ("meter" in error) problem["meter"] = error.meter;
@@ -240,6 +243,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "required",
     "scopes",
     "permission",
+    "permissions",
     "approval",
     "retryAfter",
     "meter",

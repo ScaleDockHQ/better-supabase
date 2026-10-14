@@ -1,8 +1,9 @@
 import type { ActiveTenantSource } from "../../config/modules.ts";
 import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   activeMembership,
@@ -272,7 +273,40 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
   for each row execute function better_supabase.clear_tenant_claim();`;
 }
 
-function tenantSql(ctx: ModuleContext): string {
+/**
+ * The provider's `memberIds` and `memberIdsFor` templates under the provider
+ * access model: the role helpers then answer membership from the provider,
+ * and the memberships table only names roles.
+ */
+function providerMembers(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): { readonly ids?: string; readonly idsFor?: (user: string) => string } {
+  const provider =
+    accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
+  if (provider === undefined) return {};
+  const { memberIds, memberIdsFor } = provider.functions;
+  return {
+    ...(memberIds === undefined
+      ? {}
+      : {
+          ids: fillTemplate("authorization.functions.memberIds", memberIds, {
+            scope: provider.scope,
+          }),
+        }),
+    ...(memberIdsFor === undefined
+      ? {}
+      : {
+          idsFor: (user: string) =>
+            fillTemplate("authorization.functions.memberIdsFor", memberIdsFor, {
+              scope: provider.scope,
+              user,
+            }),
+        }),
+  };
+}
+
+function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -283,6 +317,50 @@ function tenantSql(ctx: ModuleContext): string {
   const model = accessModel(ctx);
   const active = activeMembership(ctx, "m");
   const disabledAt = membershipDisabledAt(ctx);
+  const members = providerMembers(ctx, layout);
+  const inProvider = (column: string): string =>
+    members.ids === undefined
+      ? ""
+      : `\n    and ${column} in (select p.id from ${members.ids} as p(id))`;
+  const memberIdsBody =
+    members.ids === undefined
+      ? `  select m.${tenant}
+  from ${m} m
+  where m.${user} = (select auth.uid())
+    and (member_organization_ids.roles is null or ${role} = any (member_organization_ids.roles))
+    and not better_supabase.user_disabled(m.${user})
+    and not better_supabase.tenant_disabled(m.${tenant})${active}`
+      : `  select p.id
+  from ${members.ids} as p(id)
+  where member_organization_ids.roles is null
+    and not better_supabase.user_disabled((select auth.uid()))
+    and not better_supabase.tenant_disabled(p.id)
+  union
+  select m.${tenant}
+  from ${m} m
+  where member_organization_ids.roles is not null
+    and m.${user} = (select auth.uid())
+    and ${role} = any (member_organization_ids.roles)
+    and not better_supabase.user_disabled(m.${user})
+    and not better_supabase.tenant_disabled(m.${tenant})${active}${inProvider(`m.${tenant}`)}`;
+  const hasRoleBody =
+    members.ids === undefined
+      ? `  select exists (
+    select 1
+    from ${m} m
+    where m.${tenant} = has_organization_role.organization
+      and m.${user} = auth.uid()
+      and (has_organization_role.roles is null or ${role} = any (has_organization_role.roles))
+      and not better_supabase.user_disabled(m.${user})
+      and not better_supabase.tenant_disabled(m.${tenant})${active}
+  )`
+      : `  select has_organization_role.organization in (
+    select better_supabase.member_organization_ids(has_organization_role.roles)
+  )`;
+  const memberRoleFilter =
+    members.idsFor === undefined
+      ? ""
+      : ` and m.${tenant} in (select p.id from ${members.idsFor("organization_member_role.member")} as p(id))`;
   const claimJson =
     ctx.text("claimFormat", "array") === "map"
       ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${role}), '{}'::jsonb)`
@@ -340,7 +418,13 @@ ${currentTenant(ctx)}
 --   using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')))
 -- has_organization_role(organization) answers for one organization, in functions and checks.
 -- Prefer the access contract (better_supabase.can, tenant_ids_with) for
--- permission checks; these answer by role name.
+-- permission checks; these answer by role name.${
+    members.ids === undefined
+      ? ""
+      : `
+-- Under the authorization provider, membership comes from its memberIds;
+-- the memberships table only names roles.`
+  }
 create or replace function better_supabase.member_organization_ids(roles text[] default null)
 returns setof ${id}
 language sql
@@ -349,12 +433,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select m.${tenant}
-  from ${m} m
-  where m.${user} = (select auth.uid())
-    and (member_organization_ids.roles is null or ${role} = any (member_organization_ids.roles))
-    and not better_supabase.user_disabled(m.${user})
-    and not better_supabase.tenant_disabled(m.${tenant})${active}
+${memberIdsBody}
 $$;
 
 create or replace function better_supabase.has_organization_role(organization ${id}, roles text[] default null)
@@ -364,15 +443,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from ${m} m
-    where m.${tenant} = has_organization_role.organization
-      and m.${user} = auth.uid()
-      and (has_organization_role.roles is null or ${role} = any (has_organization_role.roles))
-      and not better_supabase.user_disabled(m.${user})
-      and not better_supabase.tenant_disabled(m.${tenant})${active}
-  )
+${hasRoleBody}
 $$;
 
 -- The role of a user in a tenant, or null when they aren't a member.
@@ -383,7 +454,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member
+  select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member${memberRoleFilter}
 $$;
 ${policy}
 revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;

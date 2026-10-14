@@ -18,7 +18,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
+import { moduleOperations, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
 const EVENTS: ModuleEvents = {
@@ -188,7 +188,7 @@ function build(ctx: ModuleContext): string {
   const tenant = ctx.of("tenant");
   const memberships = tenant.table("memberships");
   const mc = (logical: string): string => tenant.col("memberships", logical);
-  const permissions = MODULE_PERMISSIONS.billing;
+  const permissions = moduleOperations("billing");
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", scope, ctx.permission(action, permissions[action]))})`;
   const viewAll = `coalesce(better_supabase.is_platform(${modulePermission(ctx, "viewAll", permissions.viewAll)}), false)`;

@@ -27,6 +27,17 @@ export interface GraphStepCall {
   readonly version?: string;
 }
 
+/** What an approval node passes to `GraphRuntime.requestApproval`: plain data, so it serializes. */
+export interface GraphApprovalCall {
+  readonly node: string;
+  /** The node's config, e.g. the approvals `action` to file the request under. */
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly input: unknown;
+  readonly results: Readonly<Record<string, unknown>>;
+  readonly runKey: string;
+  readonly version?: string;
+}
+
 /** What the engine does for each kind of node. */
 export interface GraphRuntime {
   readonly runKey: string;
@@ -34,11 +45,19 @@ export interface GraphRuntime {
   readonly version?: string;
   step(call: GraphStepCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
+  /**
+   * Files the approval request for an approval node and returns its id,
+   * which becomes the hook token. Run it as a step that calls the approvals
+   * block's `request`; `wakeOnApproval` resumes the run once an eligible
+   * approver decides. Without it the token is `<runKey>:<node>`, which
+   * anyone who knows the run key can guess.
+   */
+  requestApproval?(call: GraphApprovalCall): PromiseLike<string>;
   /** Waits for the approval hook with `token` and returns its payload. */
   approval(token: string, node: string): PromiseLike<unknown>;
 }
 
-/** The hook token of an approval node. */
+/** The hook token of an approval node without `requestApproval`. */
 export const approvalToken = (runKey: string, node: string): string =>
   `${runKey}:${node}`;
 
@@ -113,10 +132,20 @@ async function runNode(
       return { output: null, outcome: true };
     }
     case "approval": {
-      const payload = await runtime.approval(
-        approvalToken(runtime.runKey, node.id),
-        node.id,
-      );
+      const token =
+        runtime.requestApproval === undefined
+          ? approvalToken(runtime.runKey, node.id)
+          : await runtime.requestApproval({
+              node: node.id,
+              config: node.config ?? {},
+              input,
+              results: { ...results },
+              runKey: runtime.runKey,
+              ...(runtime.version === undefined
+                ? {}
+                : { version: runtime.version }),
+            });
+      const payload = await runtime.approval(token, node.id);
       return { output: payload ?? null, outcome: approved(payload) };
     }
     case "condition": {

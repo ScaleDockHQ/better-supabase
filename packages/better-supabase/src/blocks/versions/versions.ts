@@ -96,6 +96,12 @@ export interface Versions {
     options?: VersionListOptions,
   ): AsyncResult<readonly Version[]>;
   get(id: string): AsyncResult<Version>;
+  /**
+   * The version a share link is pinned to, with its content, read with the
+   * token alone (anon). `null` for an unknown, revoked or expired token, or
+   * a link without a version. Needs the share-links module.
+   */
+  getShared(token: string): AsyncResult<Version | null>;
   /** Writes the version back to its subject and records that as a new version. */
   restore(id: string): AsyncResult<RestoreResult>;
   /** Names a version, which keeps it; `null` removes the name. */
@@ -148,6 +154,12 @@ export function createVersions(options: VersionsOptions): Versions {
       versionOf(value, "get_version"),
     );
   const client: Versions = {
+    getShared: (token) =>
+      call("get_shared_version", { token }, (value) =>
+        value === null || value === undefined
+          ? null
+          : versionOf(value, "get_shared_version"),
+      ),
     snapshot: (input) =>
       call(
         "snapshot_version",

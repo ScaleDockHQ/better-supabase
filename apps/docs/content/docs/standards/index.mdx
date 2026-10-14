@@ -72,6 +72,7 @@ validates the output against a vendored copy of it.
 | [RFC 4180 CSV](https://www.rfc-editor.org/rfc/rfc4180)                                                                                                                                                   | Adopted (pinned) | `parseCsv()` and `toCsv()`                                                                                                                      | `rfc4180.test.ts`                                          |
 | [ISO 4217 currency codes](https://www.iso.org/iso-4217-currency-codes.html)                                                                                                                              | Adopted (pinned) | `money()` and `minorUnits()` in the [commerce block](/docs/blocks/commerce)                                                                     | `iso4217.test.ts`                                          |
 | [RFC 6902 JSON Patch](https://www.rfc-editor.org/rfc/rfc6902)                                                                                                                                            | Adopted (pinned) | `createPatch()` and `applyPatch()` in the [versions block](/docs/blocks/versions)                                                               | `rfc6902.test.ts`                                          |
+| [RFC 9396 Rich Authorization Requests](https://www.rfc-editor.org/rfc/rfc9396)                                                                                                                           | Adopted (pinned) | `authorization_details` on delegated tokens, kept by `forContext` and job envelopes                                                             | `rfc9396.test.ts`                                          |
 
 ## Pins
 
@@ -113,4 +114,5 @@ SPEC_PINS.rfc5545; // RFC 5545 recurrence rules and iCalendar files (reminders, 
 SPEC_PINS.rfc4180; // RFC 4180 CSV that parseCsv reads and toCsv writes
 SPEC_PINS.iso4217; // ISO 4217 List One publication the commerce block's minor units follow
 SPEC_PINS.rfc6902; // RFC 6902 JSON Patch that the versions block writes and applies
+SPEC_PINS.rfc9396; // RFC 9396 authorization_details that delegated tokens and job envelopes carry
 ```

@@ -8,11 +8,10 @@ import {
 import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import { SERVICE_CALLER, serviceGrant, tenantIn, fail } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
-export type BuilderAction =
-  keyof (typeof MODULE_PERMISSIONS)["workflow-builder"];
+export type BuilderAction = keyof ModuleOperations<"workflow-builder">;
 
 /** The names and SQL fragments the workflow-builder module's functions share. */
 export interface BuilderSql {
@@ -44,6 +43,11 @@ export interface BuilderSql {
    * `workflow.node.<step>` operations.
    */
   readonly nodeOperations: string;
+  /**
+   * `{ "<operation>": "<permission>" }` as a jsonb literal: the provider's
+   * operations, for a library step's `operation`.
+   */
+  readonly operationKeys: string;
   readonly can: (tenant: string, action: BuilderAction) => string;
   /** Whether the caller holds `permission` (a SQL expression) in `tenant`. */
   readonly holds: (tenant: string, permission: string) => string;
@@ -53,6 +57,11 @@ export interface BuilderSql {
     tenant: string,
     permission: string,
   ) => string;
+  /**
+   * The tenant's default service principal (a uuid expression), when the
+   * service-principals module is installed.
+   */
+  readonly principal?: (tenant: string) => string;
   readonly allowed: (tenant: string, action: BuilderAction) => string;
   readonly forbidden: (value: string) => string;
   readonly serviceOnly: (value: string) => string;
@@ -86,6 +95,20 @@ function nodeOperationsOf(
   return steps;
 }
 
+/** The permission of each operation the provider names outside the tool and node prefixes. */
+function operationKeysOf(
+  operations: OperationTable | undefined,
+): Readonly<Record<string, string>> {
+  const prefixes = Object.values(OPERATION_PREFIXES);
+  const keys: Record<string, string> = {};
+  for (const name of Object.keys(operations ?? {})) {
+    if (prefixes.some((prefix) => name.startsWith(prefix))) continue;
+    const permission = operationPermission(operations, name);
+    if (permission !== undefined) keys[name] = permission;
+  }
+  return keys;
+}
+
 export function builderSql(
   ctx: ModuleContext,
   operations?: OperationTable,
@@ -113,10 +136,11 @@ export function builderSql(
   const workflows = ctx.of("workflows");
   const r = workflows.table("runs");
   const cr = (column: string): string => workflows.col("runs", column);
-  const permissions = MODULE_PERMISSIONS["workflow-builder"];
+  const permissions = moduleOperations("workflow-builder");
   const permission = (action: BuilderAction): string =>
     ctx.permission(action, permissions[action]);
   const nodeOperations = `${sqlString(JSON.stringify(nodeOperationsOf(operations)))}::jsonb`;
+  const operationKeys = `${sqlString(JSON.stringify(operationKeysOf(operations)))}::jsonb`;
   const can = (tenant: string, action: BuilderAction): string =>
     ctx.can("tenant", tenant, permission(action));
   const holds = (tenant: string, key: string): string =>
@@ -192,6 +216,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'inputSchema', ${alias}.${cl("inputSchema")},
     'outputSchema', ${alias}.${cl("outputSchema")},
     'credentialKind', ${alias}.${cl("credentialKind")},
+    'operation', ${alias}.${cl("operation")},
     'updatedAt', ${alias}.${cl("updatedAt")}
   )`;
   const nodeRunJson = (alias: string): string => `jsonb_build_object(
@@ -252,9 +277,16 @@ grant execute on function ${signature} to authenticated, service_role;`;
     cr,
     permission,
     nodeOperations,
+    operationKeys,
     can,
     holds,
     userHolds,
+    ...(ctx.installed("service-principals")
+      ? {
+          principal: (tenant: string) =>
+            `${ctx.of("service-principals").fn("default_service_principal")}(${tenant})`,
+        }
+      : {}),
     allowed,
     forbidden,
     serviceOnly: serviceGrant,
@@ -537,7 +569,8 @@ $$;
 ${callable(`${fn("remove_workflow_credential")}(uuid)`)}
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
--- description, inputSchema, outputSchema, credentialKind } }); returns how
+-- description, inputSchema, outputSchema, credentialKind, operation } });
+-- returns how
 -- many there are.
 create or replace function ${fn("sync_workflow_steps")}(steps jsonb)
 returns integer
@@ -547,9 +580,10 @@ as $$
 declare
   v_count integer;
 begin
-  insert into ${l} (${cl("name")}, ${cl("title")}, ${cl("description")}, ${cl("inputSchema")}, ${cl("outputSchema")}, ${cl("credentialKind")})
+  insert into ${l} (${cl("name")}, ${cl("title")}, ${cl("description")}, ${cl("inputSchema")}, ${cl("outputSchema")}, ${cl("credentialKind")}, ${cl("operation")})
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
-    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind'
+    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
+    nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict (${cl("name")}) do update set
     ${cl("title")} = excluded.${cl("title")},
@@ -557,6 +591,7 @@ begin
     ${cl("inputSchema")} = excluded.${cl("inputSchema")},
     ${cl("outputSchema")} = excluded.${cl("outputSchema")},
     ${cl("credentialKind")} = excluded.${cl("credentialKind")},
+    ${cl("operation")} = excluded.${cl("operation")},
     ${cl("updatedAt")} = now();
   delete from ${l} x
   where not exists (

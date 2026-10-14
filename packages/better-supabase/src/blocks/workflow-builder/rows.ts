@@ -132,6 +132,7 @@ export function stepOf(row: Record<string, unknown>): WorkflowStepInfo {
     inputSchema: recordOrEmpty(row["inputSchema"]),
     outputSchema: recordOrEmpty(row["outputSchema"]),
     credentialKind: optionalText(row["credentialKind"]),
+    operation: optionalText(row["operation"]),
   };
 }
 

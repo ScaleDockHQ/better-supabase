@@ -603,6 +603,8 @@ export interface TimeEntryEventData {
   readonly subjectId: string | null;
   /** When the entry starts, the time metrics bucket its seconds by. */
   readonly startedAt: string;
+  /** For `time_entry.updated`: when the entry started before the update. */
+  readonly previousStartedAt?: string;
   /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
   readonly seconds?: number | null;
   readonly billable?: boolean;
@@ -840,6 +842,9 @@ export interface BlockEventMap {
   "timesheet.submitted": TimesheetEventData;
   "timesheet.approved": TimesheetEventData;
   "timesheet.reopened": TimesheetEventData;
+  "service_principal.created": SaasEventData;
+  "service_principal.role_changed": SaasEventData;
+  "service_principal.disabled": SaasEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

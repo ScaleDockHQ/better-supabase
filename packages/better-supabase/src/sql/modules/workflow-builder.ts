@@ -115,6 +115,7 @@ const NAMES: ModuleNames = {
         inputSchema: "input_schema",
         outputSchema: "output_schema",
         credentialKind: "credential_kind",
+        operation: "operation",
         updatedAt: "updated_at",
       },
     },
@@ -337,6 +338,8 @@ create table if not exists ${l} (
   ${cl("credentialKind")} text,
   ${cl("updatedAt")} timestamptz not null default now()
 );
+alter table ${l} add column if not exists ${cl("operation")} text
+  check (length(${cl("operation")}) between 1 and 200);
 alter table ${l} enable row level security;
 ${revokeTable(l)}
 grant select on ${l} to authenticated;
@@ -587,7 +590,7 @@ declare
   v_tenant ${id};
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := ${SERVICE_CALLER};
 begin
   select * into v_row from ${v} x where x.${cv("id")} = version for update;
@@ -616,12 +619,13 @@ begin
   end if;
   v_permissions := ${fn("workflow_graph_permissions")}(v_row.${cv("graph")});
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not ${holds("v_tenant", "p")};
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update ${v} x set ${cv("status")} = 'archived'
@@ -776,6 +780,7 @@ export const WORKFLOW_BUILDER: ModuleDefinition = {
   description:
     "Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.",
   requires: ["workflows", "tenant", "access"],
+  integrates: ["service-principals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

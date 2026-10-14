@@ -202,15 +202,29 @@ A job an OAuth or MCP client queues stays limited to what the user granted
 that client. The envelope records the token's `client_id`, `scope`,
 `authorization_details` (RFC 9396) and the full RFC 8693 `act` chain, and
 `forContext` puts them back into the claims the job runs with.
-`ServerOptions.claimsFor` can't set or replace them. In SQL,
-`better_supabase.token_scope_allows(scope)` from the `actor` module checks
-the scope: it is true for a token no client acts with, and for a delegated
-token only when its `scope` claim holds the scope.
+`ServerOptions.claimsFor` can't set or replace them. The access functions
+(`can`, `member_can`, `tenant_ids_with` and `is_platform`) narrow a delegated
+token on their own: a key counts only when one of the token's scopes maps to
+it (see [Delegated tokens](/docs/blocks/access#delegated-tokens)), so a
+policy that asks them needs nothing else.
 
 ```sql
-create policy "posts: delegated writes" on public.posts
+create policy "posts: writers" on public.posts
   for update to authenticated
-  using (author_id = auth.uid() and better_supabase.token_scope_allows('posts:write'));
+  using (organization_id in (select better_supabase.tenant_ids_with('posts.write')));
+```
+
+For a policy that checks the literal OAuth scope instead of a permission,
+`better_supabase.token_scope_allows(scope)` from the `actor` module is true
+for a token no client acts with, and for a delegated token only when its
+`scope` claim holds the scope.
+
+`forContext(context, { permissions })` caps the work further. The cap is the
+`bs_permission_cap` claim, a job queued under it keeps it, and a later
+`permissions` only narrows it:
+
+```ts
+await sb.forContext(job.context, { permissions: ["posts.write"] });
 ```
 
 A context whose `act` chain or delegation claims are malformed is refused:

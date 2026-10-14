@@ -57,6 +57,9 @@ export interface GraphRunMeta {
 
 const EXPORT_NAME = "workflow";
 
+/** The `steps` key the compiled source calls to file an approval request; never a step alias. */
+const APPROVAL_ALIAS = "bs_approval";
+
 const literal = (value: unknown): string => JSON.stringify(value ?? null);
 
 const aliasOf = (node: WorkflowGraphNode, index: number): string =>
@@ -114,7 +117,8 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
     ran[${id}] = true;`;
     }
     case "approval": {
-      return `const payload = await createHook({ token: runKey + ":" + ${id} });
+      return `const token = steps.${APPROVAL_ALIAS} === undefined ? runKey + ":" + ${id} : await steps.${APPROVAL_ALIAS}({ node: ${id}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId });
+    const payload = await createHook({ token });
     results[${id}] = payload === undefined ? null : payload;
     ran[${id}] = !(payload !== null && typeof payload === "object" && !Array.isArray(payload) && payload.approved === false);`;
     }
@@ -143,7 +147,8 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
 /**
  * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that
  * calls each step node through its own alias, sleeps with `sleep` and waits
- * on approvals with `createHook({ token: "<runKey>:<node>" })`. It runs the
+ * on approvals with `createHook`: the token is the id `steps.bs_approval`
+ * returns (graphStarter's `approval`), else `<runKey>:<node>`. It runs the
  * same way `executeGraph` does. Throws when the graph is invalid or the
  * source is over 128 KiB. Pass it as `compile` to `createBuilder`.
  */
@@ -235,6 +240,15 @@ export interface GraphStarterOptions {
   readonly dynamic?: boolean;
   /** The World to look idempotency keys up in. Defaults to the configured one. */
   readonly world?: World;
+  /**
+   * A `"use step"` function that files the approval request for an
+   * approval node (a `GraphApprovalCall`) and returns its id, the hook
+   * token. Resume runs with `wakeOnApproval` from your outbox consumer.
+   * Without it the token is `<runKey>:<node>`, which anyone who knows the
+   * run key can guess. The static executor passes it as
+   * `runtime.requestApproval` itself.
+   */
+  readonly approval?: GraphStep;
 }
 
 const dynamicEnabled = (): boolean => {
@@ -295,6 +309,9 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
           );
         }
         steps[alias] = step;
+      }
+      if (options.approval !== undefined) {
+        steps[APPROVAL_ALIAS] = options.approval;
       }
       const run = await start(compiled.source, [call.input, meta], {
         ...startOptions,

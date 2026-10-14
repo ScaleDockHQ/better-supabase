@@ -391,9 +391,12 @@ describe("createBuilder", () => {
       "WORKFLOW_PUBLISHER_FORBIDDEN",
     );
     answer = () => false;
-    expect(await hint(builder.versions.publish("v1", { claims }))).toBe(
-      "WORKFLOW_PUBLISHER_FORBIDDEN",
-    );
+    const refused = await builder.versions.publish("v1", { claims });
+    expect(!refused.ok && refused.error).toMatchObject({
+      kind: "forbidden",
+      hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
+      permissions: ["crm.read", "workflow.run"],
+    });
     answer = () => {
       throw new Error("provider down");
     };
@@ -503,6 +506,18 @@ describe("createBuilder", () => {
     expect(!missing.ok && missing.error.hint).toBe(
       "WORKFLOW_PUBLISHER_REVOKED",
     );
+    principal = {
+      publisher: "sp1",
+      tenant: "t1",
+      owner: "organization",
+      permissions: ["crm.read"],
+    };
+    expect(await unhooked.versions.runAs("v1").orThrow()).toEqual({
+      role: "authenticated",
+      sub: "sp1",
+      tenant_id: "t1",
+      bs_permission_cap: ["crm.read"],
+    });
   });
 
   it("reports missing versions on publish and diff, and diffs two versions", async () => {
@@ -698,6 +713,7 @@ describe("createBuilder", () => {
     const fallback = vi.fn(async () => "other");
     const starter = builder.triggers.starter(fallback);
     const scheduled = {
+      source: "schedule" as const,
       workflow: "builder:d1",
       input: { a: 1 },
       idempotencyKey: "k",

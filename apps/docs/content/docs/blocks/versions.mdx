@@ -76,7 +76,16 @@ A frozen version can't be relabeled or deleted, so a quote keeps what was sent. 
 
 ## Share a version
 
-A [share link](/docs/blocks/share-links) to a subject can point at one version: keep the version id in the link's metadata and read it with `get(id)`, which returns the content.
+Install [share links](/docs/blocks/share-links) next to versions to send one version of a subject, such as the quote a customer approved. Pass `versionId` when you create the link; the version must belong to the link's subject, and the caller must be able to read it. `getShared(token)` reads that version and its content without a session, through `get_shared_version`, which is granted to `anon`. It returns `null` for an unknown, revoked or expired token and for a link without a version, and it leaves out `createdBy`.
+
+```ts
+const link = await shareLinks
+  .create(organizationId, "quote", quoteId, { versionId: sent.id })
+  .orThrow();
+
+// On the public page, with the anon key:
+const version = await versions.getShared(token).orThrow();
+```
 
 ## Events and hooks
 

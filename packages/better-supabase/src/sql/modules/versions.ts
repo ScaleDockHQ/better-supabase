@@ -26,7 +26,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -286,13 +286,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const versions = ctx.table("versions");
   const c = (column: string): string => ctx.col("versions", column);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.versions.read);
-  const create = ctx.permission("create", MODULE_PERMISSIONS.versions.create);
-  const restore = ctx.permission(
-    "restore",
-    MODULE_PERMISSIONS.versions.restore,
-  );
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.versions.manage);
+  const read = ctx.permission("read", OPERATIONS["versions.read"]);
+  const create = ctx.permission("create", OPERATIONS["versions.create"]);
+  const restore = ctx.permission("restore", OPERATIONS["versions.restore"]);
+  const manage = ctx.permission("manage", OPERATIONS["versions.manage"]);
   const list = versioned(ctx);
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const keep = ctx.number("keep", 50);
@@ -500,6 +497,44 @@ begin
 end;
 $$;
 ${userGrant(`${fn("get_version")}(uuid)`)}
+${
+  ctx.installed("share-links")
+    ? `
+-- A share link pinned to a version (create_share_link's version_id) reads
+-- that version with the token alone, for anon.
+create or replace function ${fn("get_shared_version")}(token text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_link jsonb;
+  v_row ${versions}%rowtype;
+begin
+  if get_shared_version.token is null or get_shared_version.token !~ '^[0-9a-f]{48}$' then
+    return null;
+  end if;
+  v_link := ${fn("resolve_share_link")}(get_shared_version.token);
+  if v_link is null or v_link ->> 'versionId' is null then
+    return null;
+  end if;
+  select * into v_row from ${versions}
+  where ${c("id")} = (v_link ->> 'versionId')::uuid
+    and ${c("subjectType")} = v_link ->> 'subjectType'
+    and ${c("subjectId")} = v_link ->> 'subjectId';
+  if not found then
+    return null;
+  end if;
+  return (${summary("v_row")} - 'createdBy') || jsonb_build_object('content', v_row.${c("content")});
+end;
+$$;
+revoke all on function ${fn("get_shared_version")}(text) from public, anon, authenticated;
+grant execute on function ${fn("get_shared_version")}(text) to anon, authenticated, service_role;
+`
+    : ""
+}
 
 -- Writes a version's content back to its subject, through the subject's apply
 -- function or its columns, then records the result as a new version.
@@ -703,7 +738,7 @@ export const VERSIONS: ModuleDefinition = {
   description:
     "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "share-links"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

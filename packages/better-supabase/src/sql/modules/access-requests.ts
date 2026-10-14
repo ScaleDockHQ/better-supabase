@@ -17,7 +17,7 @@ import {
   tenantIn,
   userGrant,
 } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
 import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
 import { roleValue } from "./organizations.ts";
@@ -139,18 +139,9 @@ function build(ctx: ModuleContext): string {
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
-  const read = ctx.permission(
-    "read",
-    MODULE_PERMISSIONS["access-requests"].read,
-  );
-  const create = ctx.permission(
-    "create",
-    MODULE_PERMISSIONS["access-requests"].create,
-  );
-  const manage = ctx.permission(
-    "manage",
-    MODULE_PERMISSIONS["access-requests"].manage,
-  );
+  const read = ctx.permission("read", OPERATIONS["access-requests.read"]);
+  const create = ctx.permission("create", OPERATIONS["access-requests.create"]);
+  const manage = ctx.permission("manage", OPERATIONS["access-requests.manage"]);
   const roles = requestableRoles(ctx);
   const policy = accessPolicy(ctx);
   const max = maxDuration(ctx);

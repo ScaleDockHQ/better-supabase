@@ -21,7 +21,7 @@ import {
   urlExpression,
 } from "../subject-registry.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
   hooks: ["before_search_document_index", "after_search_document_index"],
@@ -439,7 +439,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const vector = ctx.has("documents", "embedding")
     ? vectorOf(ctx, layout)
     : undefined;
-  const read = ctx.permission("read", MODULE_PERMISSIONS.search.read);
+  const read = ctx.permission("read", OPERATIONS["search.read"]);
   const subjects = searchedSubjects(ctx);
   const names: SearchNames = { docs, c, config, vector };
   const fn = (name: string): string => ctx.fn(name);

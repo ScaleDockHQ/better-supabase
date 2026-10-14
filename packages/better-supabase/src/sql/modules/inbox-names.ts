@@ -7,7 +7,7 @@ import {
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, tenantIn } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "inbox_conversation.reopened": {
@@ -294,7 +294,7 @@ export const INBOX_NAMES: ModuleNames = {
   },
 };
 
-type Action = keyof typeof MODULE_PERMISSIONS.inbox;
+type Action = keyof ModuleOperations<"inbox">;
 
 const NAME = /^[a-z][a-z0-9_-]{0,30}$/;
 const QUEUE = /^[a-z][a-z0-9_]{0,40}$/;
@@ -337,7 +337,7 @@ export function inboxSql(
   ctx: ModuleContext,
   operations?: OperationTable,
 ): InboxSql {
-  const permissions = MODULE_PERMISSIONS.inbox;
+  const permissions = moduleOperations("inbox");
   const key = (action: Action): string =>
     ctx.permission(action, permissions[action]);
   const commandKey = (name: InboxCommand, action: Action): string => {

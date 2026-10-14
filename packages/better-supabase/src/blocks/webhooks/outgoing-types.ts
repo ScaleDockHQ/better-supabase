@@ -32,6 +32,11 @@ export interface WebhookDelivery {
   readonly subject: string | null;
   /** The user who owns the endpoint, or `null` for a service principal's endpoint. */
   readonly owner: string | null;
+  /**
+   * The tenant's default service principal, which an endpoint without an
+   * owner runs as, when the service-principals module is installed.
+   */
+  readonly principal: string | null;
   /** The permissions a service principal's endpoint declares. */
   readonly permissions: readonly string[] | null;
   /** The endpoint takes CloudEvents batches. */
@@ -55,7 +60,10 @@ export interface RetryPolicy {
 
 /** The subscription a `subscribers` policy sees for one claimed delivery. */
 export interface WebhookSubscriber {
-  /** The endpoint owner's user id, or the endpoint id for a service principal's endpoint. */
+  /**
+   * The endpoint owner's user id; for an endpoint without an owner, the
+   * tenant's default service principal, or the endpoint id without one.
+   */
   readonly principal: string;
   readonly kind: "user" | "service";
   readonly delivery: WebhookDelivery;
@@ -106,7 +114,11 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   /**
    * Narrows each event's claimed deliveries to the endpoints whose owner
    * may read it. A delivery it leaves out is canceled; a throw retries every
-   * delivery of the event. Defaults to `authorization.delivery.subscribers`.
+   * delivery of the event. Each delivery is checked against its own stored
+   * `subject`. Defaults to `authorization.delivery.subscribers`; with
+   * `authorization` but no such policy, to `subjectReaders(transport)`, so
+   * an event about a `config.subjects` record only reaches endpoints whose
+   * owner (or service principal) may read that record.
    */
   readonly subscribers?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.subscribers` policy. */

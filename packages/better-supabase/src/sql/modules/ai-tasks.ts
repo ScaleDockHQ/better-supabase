@@ -12,7 +12,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const RUN_STATES = "'queued', 'running', 'completed', 'failed'";
@@ -74,7 +74,7 @@ function build(ctx: ModuleContext): string {
   const r = columnsOf(ctx, "runs", RUNS);
   const tasks = ctx.table("tasks");
   const runs = ctx.table("runs");
-  const permissions = MODULE_PERMISSIONS["ai-tasks"];
+  const permissions = moduleOperations("ai-tasks");
   const create = ctx.permission("create", permissions.create);
   const manage = ctx.permission("manage", permissions.manage);
   const maxPrompt = ctx.number("maxPrompt", 20000);

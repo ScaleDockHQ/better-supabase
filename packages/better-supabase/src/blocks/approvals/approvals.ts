@@ -1,10 +1,16 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  Approver,
+  AuthorizationHooks,
+} from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { dbError } from "../../core/errors.ts";
+import { err } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -25,6 +31,14 @@ export interface ApprovalsOptions extends BlockTemporalOptions {
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The authorization hooks. `approverOf` sees every approve, reject and
+   * delegate with kind `<subject type>.<action>` and the subject id, after
+   * the SQL eligibility check, and can only refuse. Needs `approver`.
+   */
+  readonly authorization?: Pick<AuthorizationHooks, "approverOf">;
+  /** The signed-in user the transport runs as, for `approverOf`. */
+  readonly approver?: Approver;
 }
 
 export type ApprovalStatus =
@@ -238,11 +252,58 @@ function decisionOf(
 export function createApprovals(options: ApprovalsOptions): Approvals {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const approverOf = options.authorization?.approverOf;
+  if (approverOf !== undefined && options.approver === undefined) {
+    throw new TypeError(
+      "createApprovals: authorization.approverOf needs the approver the transport runs as",
+    );
+  }
+  const refused = dbError("forbidden", "not an approver for this step", {
+    hint: "APPROVAL_FORBIDDEN",
+  });
+  /** Runs `then` once `approverOf` allows the caller on request `id`; the SQL check runs as well. */
+  const asApprover = <T>(
+    id: string,
+    then: () => AsyncResult<T>,
+  ): AsyncResult<T> => {
+    const approver = options.approver;
+    if (approverOf === undefined || approver === undefined) return then();
+    return getRequest(id).andThen(async (request) => {
+      if (!request.canDecide) return err(refused);
+      let allowed = false;
+      try {
+        allowed = await approverOf(approver, {
+          kind: `${request.subjectType}.${request.action}`,
+          subject: request.subjectId,
+          tenant: request.organizationId,
+          ...(request.requestedBy === undefined
+            ? {}
+            : { requester: request.requestedBy }),
+        });
+      } catch {
+        allowed = false;
+      }
+      return allowed ? then() : err(refused);
+    });
+  };
+  const getRequest = (id: string): AsyncResult<ApprovalRequestDetail> =>
+    call("get_approval", { request_id: id }, (value) => {
+      const row = recordOf(value, "get_approval");
+      return {
+        ...requestOf(row, "get_approval"),
+        canDecide: row["canDecide"] === true,
+        decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
+          decisionOf,
+        ),
+      };
+    });
   const decide = (id: string, decision: string, comment?: string) =>
-    call(
-      "decide_approval",
-      { request_id: id, decision, comment: comment ?? null },
-      (value) => requestOf(value, "decide_approval"),
+    asApprover(id, () =>
+      call(
+        "decide_approval",
+        { request_id: id, decision, comment: comment ?? null },
+        (value) => requestOf(value, "decide_approval"),
+      ),
     );
   const client: Approvals = {
     request: (input) =>
@@ -261,26 +322,18 @@ export function createApprovals(options: ApprovalsOptions): Approvals {
     approve: (id, comment) => decide(id, "approved", comment),
     reject: (id, comment) => decide(id, "rejected", comment),
     delegate: (id, userId, comment) =>
-      call(
-        "delegate_approval",
-        { request_id: id, to_user: userId, comment: comment ?? null },
-        (value) => requestOf(value, "delegate_approval"),
+      asApprover(id, () =>
+        call(
+          "delegate_approval",
+          { request_id: id, to_user: userId, comment: comment ?? null },
+          (value) => requestOf(value, "delegate_approval"),
+        ),
       ),
     cancel: (id) =>
       call("cancel_approval", { request_id: id }, (value) =>
         requestOf(value, "cancel_approval"),
       ),
-    get: (id) =>
-      call("get_approval", { request_id: id }, (value) => {
-        const row = recordOf(value, "get_approval");
-        return {
-          ...requestOf(row, "get_approval"),
-          canDecide: row["canDecide"] === true,
-          decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
-            decisionOf,
-          ),
-        };
-      }),
+    get: getRequest,
     list: (organizationId, list = {}) =>
       call(
         "list_approvals",

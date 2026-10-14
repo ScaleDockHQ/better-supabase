@@ -1,4 +1,7 @@
-import type { AuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
+import type {
+  AuthorizationHooks,
+  SupportAuthorizeInput,
+} from "../core/contracts/authorization-hooks.ts";
 
 import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
@@ -6,8 +9,10 @@ import { type ConformanceReport, conform, expect } from "./conformance.ts";
  * Proves `AuthorizationHooks` target API v1 and fail closed for strangers:
  * fan-out returns only subscribers it was given, an identity nobody linked
  * and a forged ticket resolve to `null`, a requester never approves their
- * own request, an unknown publisher and an unlinked chat author get
- * nothing, and an admin with no claims cannot start a support session.
+ * own request, an unknown publisher can neither publish nor run, an
+ * unlinked chat author gets nothing, an admin with no claims cannot start
+ * a support session and never approves their own, and a delegated token
+ * with no scopes maps to no permissions.
  */
 export function testAuthorizationHooks(
   hooks: AuthorizationHooks,
@@ -40,7 +45,43 @@ export function testAuthorizationHooks(
       `${where} returned subscribers from an empty list`,
     );
   };
-  const { delivery, identities, approverOf, tickets, automation, chat } = hooks;
+  const supportStart = (
+    extra: Readonly<Record<string, unknown>>,
+  ): SupportAuthorizeInput => {
+    const now = Math.floor(Date.now() / 1000);
+    const claims = {
+      sub: stranger,
+      role: "authenticated",
+      aud: "authenticated",
+      iss: "conformance",
+      exp: now + 60,
+      iat: now,
+      ...extra,
+    };
+    return {
+      admin: {
+        kind: "user",
+        token: "",
+        claims,
+        user: { id: stranger, role: "authenticated" },
+        source: "conformance",
+        expiresAt: claims.exp,
+      },
+      targetUserId: crypto.randomUUID(),
+      reason: "conformance",
+      readOnly: true,
+      metadata: {},
+    };
+  };
+  const {
+    delivery,
+    identities,
+    approverOf,
+    tickets,
+    automation,
+    chat,
+    delegation,
+  } = hooks;
   return conform(`AuthorizationHooks "${hooks.name}"`, [
     [
       "targets API v1 and has a name",
@@ -93,6 +134,18 @@ export function testAuthorizationHooks(
         expect(context === null, "a forged ticket resolved to a context");
       },
     ],
+    automation?.mayPublish && [
+      "an unknown publisher may not publish",
+      async () => {
+        const allowed = await automation.mayPublish!({
+          publisher: stranger,
+          tenant: event.tenant,
+          permissions: ["conformance.write"],
+          claims: { sub: stranger, role: "authenticated" },
+        });
+        expect(!allowed, "mayPublish allowed a publisher nobody knows");
+      },
+    ],
     automation?.runAs && [
       "an unknown publisher runs as no one",
       async () => {
@@ -126,31 +179,37 @@ export function testAuthorizationHooks(
     hooks.support && [
       "an admin with no claims cannot start a support session",
       async () => {
-        const claims = {
-          sub: stranger,
-          role: "authenticated",
-          aud: "authenticated",
-          iss: "conformance",
-          exp: Math.floor(Date.now() / 1000) + 60,
-          iat: Math.floor(Date.now() / 1000),
-        };
-        const decision = await hooks.support!.authorize({
-          admin: {
-            kind: "user",
-            token: "",
-            claims,
-            user: { id: stranger, role: "authenticated" },
-            source: "conformance",
-            expiresAt: claims.exp,
-          },
-          targetUserId: crypto.randomUUID(),
-          reason: "conformance",
-          readOnly: true,
-          metadata: {},
-        });
+        const decision = await hooks.support!.authorize(supportStart({}));
         expect(
           decision === false,
           "support.authorize allowed an admin with no claims",
+        );
+      },
+    ],
+    hooks.support && [
+      "an admin never approves their own support session",
+      async () => {
+        const decision = await hooks.support!.authorize(
+          supportStart({ user_role: "admin", app_role: "admin" }),
+        );
+        expect(
+          typeof decision !== "object" || decision.approvedBy !== stranger,
+          "support.authorize named the admin as their own approver",
+        );
+      },
+    ],
+    delegation && [
+      "a delegation with no scopes grants no permissions",
+      async () => {
+        const keys = await delegation.permissions({
+          userId: stranger,
+          tenant: event.tenant,
+          clientId: "conformance",
+          scopes: [],
+        });
+        expect(
+          keys.length === 0,
+          "delegation.permissions granted keys to a token with no scopes",
         );
       },
     ],

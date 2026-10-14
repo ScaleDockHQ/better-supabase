@@ -16,6 +16,7 @@ import {
   membershipSuspended,
   schemaPreamble,
 } from "../shared.ts";
+import { capFor, delegationSql } from "./access-delegation.ts";
 import {
   accessModel,
   hasPlatformRoles,
@@ -23,6 +24,7 @@ import {
   rolesOf,
   tenantScope,
 } from "./access-model.ts";
+import { operationsSql } from "./access-operations.ts";
 import { roleNameOf } from "./tenant.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
@@ -342,6 +344,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)${disabled}
+    and ${capFor("member", `${name}.permission`)}
     and exists (
       select 1 from ${n.m} m
       where m.${n.tenant} = ${name}.tenant and m.${n.user} = ${name}.member${active}
@@ -372,6 +375,7 @@ as $$
   select member is not null
     and ${NOT_ACTING}
     and not better_supabase.user_disabled(member)
+    and ${capFor("member", "platform_can.permission")}
     and (${platform})
 $$;
 
@@ -388,6 +392,7 @@ as $$
   where m.${n.user} = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m.${n.tenant})${active}
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and ${grants(ctx, n, "tenant_ids_with.permission")}
 $$;
 
@@ -696,6 +701,7 @@ begin
     ${other}
   end if;
   return not better_supabase.user_disabled(member)${disabled ? "\n    and not better_supabase.tenant_disabled(tenant)" : ""}${notSuspended(ctx, "tenant", "member")}
+    and better_supabase.cap_allows(permission)
     and tenant::text in (select t.id::text from ${idsWith("permission")} as t(id));
 end;
 $$;`;
@@ -717,7 +723,7 @@ security definer
 set search_path = ''
 as $$
   select case
-    when member = auth.uid() then ${NOT_ACTING} and not better_supabase.user_disabled(member) and coalesce((${providerSql(provider, "isPlatform", { permission: "permission" })}), false)
+    when member = auth.uid() then ${NOT_ACTING} and not better_supabase.user_disabled(member) and better_supabase.cap_allows(permission) and coalesce((${providerSql(provider, "isPlatform", { permission: "permission" })}), false)
     ${platformOther}
     else false
   end
@@ -732,7 +738,8 @@ security definer
 set search_path = ''
 as $$
   select t.id::${id} from ${idsWith("tenant_ids_with.permission")} as t(id)
-  where not better_supabase.user_disabled(auth.uid())
+  where better_supabase.cap_allows(tenant_ids_with.permission)
+    and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(t.id::${id})${notSuspended(ctx, `t.id::${id}`, "auth.uid()")}
 $$;
 
@@ -779,6 +786,7 @@ as $$
   select case
     when member is distinct from auth.uid() then ${functions.canUser ? `${membershipSuspended(ctx, "tenant", "member") === undefined ? "" : `not ${membershipSuspended(ctx, "tenant", "member")} and `}coalesce((${fill(functions.canUser, { user: "member", scope: sqlString(tenantScope(ctx)), id: "tenant", permission: "permission" })}), false)` : "null::boolean"}
     else not better_supabase.user_disabled(member)${disabled ? "\n      and not better_supabase.tenant_disabled(tenant)" : ""}${notSuspended(ctx, "tenant", "member")}
+      and better_supabase.cap_allows(permission)
       and coalesce((${can("member", "tenant", "permission")}), false)
   end
 $$;`;
@@ -804,6 +812,7 @@ security definer
 set search_path = ''
 as $$
   select member = auth.uid() and ${NOT_ACTING} and not better_supabase.user_disabled(member)
+    and better_supabase.cap_allows(permission)
     and coalesce((${fill(functions.isPlatform!, { permission: "permission", user: "member" })}), false)
 $$;
 
@@ -816,7 +825,8 @@ security definer
 set search_path = ''
 as $$
   select t.id::${id} from ${fill(functions.tenantIdsWith!, { permission: "tenant_ids_with.permission" })} as t(id)
-  where not better_supabase.user_disabled(auth.uid())
+  where better_supabase.cap_allows(tenant_ids_with.permission)
+    and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(t.id::${id})${notSuspended(ctx, `t.id::${id}`, "auth.uid()")}
 $$;
 
@@ -881,6 +891,8 @@ as $$
   select granted = '*' or granted = wanted
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
+${delegationSql(ctx, layout)}
+${operationsSql(ctx, layout)}
 ${body}
 
 -- The access contract. Policies and SQL modules call these, never a model's
@@ -944,6 +956,9 @@ $$;
 
 ${[
   "permission_matches(text, text)",
+  "scope_permissions(text)",
+  "cap_allows(text)",
+  "operation_permission(text)",
   `can(text, ${id}, text)`,
   "tenant_ids_with(text)",
   "is_platform(text)",

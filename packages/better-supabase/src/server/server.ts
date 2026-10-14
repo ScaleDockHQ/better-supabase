@@ -13,7 +13,11 @@ import type { StorageApi } from "../storage/storage-api.ts";
 import type { ActiveSupport } from "./support.ts";
 
 import { authContext } from "../auth/context.ts";
-import { contextClaims } from "../auth/delegation.ts";
+import {
+  contextClaims,
+  delegatedClaims,
+  narrowCap,
+} from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
 import {
   prefetchJwks,
@@ -23,6 +27,7 @@ import {
 } from "../auth/resolve.ts";
 import { sessionCookieName, type SessionEncoding } from "../auth/session.ts";
 import {
+  type DelegationPermissions,
   hooksApiProblem,
   type TicketSubject,
 } from "../core/contracts/authorization-hooks.ts";
@@ -777,11 +782,20 @@ export function createServer<
         }
         const userId = checked.claims.sub;
         const extra = (await options.claimsFor?.(userId, target)) ?? {};
+        const permissions = narrowCap(
+          await delegationCap(
+            target,
+            userId,
+            options.authorization?.delegation?.permissions,
+          ),
+          forOptions.permissions,
+        );
         const built = contextClaims(target, {
           extra,
           ...(forOptions.reason === undefined
             ? {}
             : { reason: forOptions.reason }),
+          ...(permissions === undefined ? {} : { permissions }),
         });
         if (!built.ok) return err(dbError("forbidden", built.message));
         const { claims, impersonator, readOnly } = built;
@@ -832,6 +846,40 @@ export function createServer<
     },
   );
   return server;
+}
+
+/**
+ * The permission keys the provider's `delegation.permissions` hook grants a
+ * delegated context, `undefined` for a context that is not delegated or
+ * without the hook. A throw or an answer that is not a list of strings
+ * grants nothing.
+ */
+async function delegationCap(
+  context: RequestContext,
+  userId: string,
+  permissions: DelegationPermissions | undefined,
+): Promise<readonly string[] | undefined> {
+  if (permissions === undefined) return undefined;
+  const delegated = delegatedClaims(context.claims ?? {});
+  if (!delegated.ok || delegated.delegation === undefined) return undefined;
+  const { client_id, scope, authorization_details } = delegated.delegation;
+  try {
+    const keys: unknown = await permissions({
+      userId,
+      ...(context.tenant === undefined ? {} : { tenant: context.tenant }),
+      ...(client_id === undefined ? {} : { clientId: client_id }),
+      scopes: scope === undefined ? [] : scope.split(" "),
+      ...(authorization_details === undefined
+        ? {}
+        : { authorizationDetails: authorization_details }),
+    });
+    return Array.isArray(keys) &&
+      keys.every((key): key is string => typeof key === "string")
+      ? keys
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

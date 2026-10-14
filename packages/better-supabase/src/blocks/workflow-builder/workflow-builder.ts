@@ -515,6 +515,7 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
                   inputSchema: step.inputSchema ?? {},
                   outputSchema: step.outputSchema ?? {},
                   credentialKind: step.credentialKind,
+                  operation: step.operation,
                 },
               ]),
             ),

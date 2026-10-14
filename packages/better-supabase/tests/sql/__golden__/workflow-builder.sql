@@ -15,6 +15,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -158,6 +160,8 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
+  check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -446,17 +450,23 @@ revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) 
 grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
--- provider's workflow.node.<step> operation, else workflow.run. Trigger,
--- sleep, approval and condition nodes need none.
+-- provider's workflow.node.<step> operation, else the operation the library
+-- step names (the provider's key for it, else the name itself), else
+-- workflow.run. Trigger, sleep, approval and condition nodes need none.
 create or replace function "better_supabase"."workflow_graph_permissions"(graph jsonb)
 returns text[]
 language sql
-immutable
+stable
 set search_path = ''
 as $$
   select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
   from (
-    select coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run') as p
+    select coalesce(
+      '{}'::jsonb ->> (n.value ->> 'step'),
+      (select coalesce('{}'::jsonb ->> s."operation", s."operation")
+        from "better_supabase"."workflow_step_library" s where s."name" = n.value ->> 'step'),
+      'workflow.run'
+    ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
         then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end
@@ -483,6 +493,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -511,7 +522,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -539,7 +550,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -584,12 +595,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
@@ -1046,7 +1058,8 @@ revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
--- description, inputSchema, outputSchema, credentialKind } }); returns how
+-- description, inputSchema, outputSchema, credentialKind, operation } });
+-- returns how
 -- many there are.
 create or replace function "better_supabase"."sync_workflow_steps"(steps jsonb)
 returns integer
@@ -1056,9 +1069,10 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind")
+  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
-    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind'
+    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
+    nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict ("name") do update set
     "title" = excluded."title",
@@ -1066,6 +1080,7 @@ begin
     "input_schema" = excluded."input_schema",
     "output_schema" = excluded."output_schema",
     "credential_kind" = excluded."credential_kind",
+    "operation" = excluded."operation",
     "updated_at" = now();
   delete from "better_supabase"."workflow_step_library" x
   where not exists (
@@ -1091,6 +1106,7 @@ as $$
     'inputSchema', x."input_schema",
     'outputSchema', x."output_schema",
     'credentialKind', x."credential_kind",
+    'operation', x."operation",
     'updatedAt', x."updated_at"
   ) order by x."name"), '[]'::jsonb) from "better_supabase"."workflow_step_library" x;
 $$;
@@ -1379,6 +1395,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -1522,6 +1540,8 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
+  check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -1810,17 +1830,23 @@ revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) 
 grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
--- provider's workflow.node.<step> operation, else workflow.run. Trigger,
--- sleep, approval and condition nodes need none.
+-- provider's workflow.node.<step> operation, else the operation the library
+-- step names (the provider's key for it, else the name itself), else
+-- workflow.run. Trigger, sleep, approval and condition nodes need none.
 create or replace function "better_supabase"."workflow_graph_permissions"(graph jsonb)
 returns text[]
 language sql
-immutable
+stable
 set search_path = ''
 as $$
   select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
   from (
-    select coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run') as p
+    select coalesce(
+      '{}'::jsonb ->> (n.value ->> 'step'),
+      (select coalesce('{}'::jsonb ->> s."operation", s."operation")
+        from "better_supabase"."workflow_step_library" s where s."name" = n.value ->> 'step'),
+      'workflow.run'
+    ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
         then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end
@@ -1835,8 +1861,9 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- call it for every step). A user-owned version needs its publisher to
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
--- organization-owned version returns publisher null, for the app's service
--- principal. The trigger that started the run never changes the answer.
+-- organization-owned version runs as the tenant's default service
+-- principal, which needs every stored permission through its role; without
+-- one it raises WORKFLOW_PUBLISHER_REVOKED. The trigger that started the run never changes the answer.
 create or replace function "better_supabase"."workflow_run_principal"(version uuid)
 returns jsonb
 language plpgsql
@@ -1847,6 +1874,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -1874,8 +1902,22 @@ begin
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
     end if;
   end if;
+  if v_row."owner_kind" <> 'user' then
+    v_publisher := "better_supabase"."default_service_principal"(v_tenant);
+    if v_publisher is null then
+      raise exception 'This organization has no default service principal'
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(v_row."permissions") p
+    where not coalesce(better_supabase.can_user(v_publisher, 'tenant', v_tenant, p), false);
+    if v_missing is not null then
+      raise exception 'The service principal no longer holds %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+  end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -1903,7 +1945,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1948,12 +1990,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
@@ -2419,7 +2462,8 @@ revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
--- description, inputSchema, outputSchema, credentialKind } }); returns how
+-- description, inputSchema, outputSchema, credentialKind, operation } });
+-- returns how
 -- many there are.
 create or replace function "better_supabase"."sync_workflow_steps"(steps jsonb)
 returns integer
@@ -2429,9 +2473,10 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind")
+  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
-    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind'
+    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
+    nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict ("name") do update set
     "title" = excluded."title",
@@ -2439,6 +2484,7 @@ begin
     "input_schema" = excluded."input_schema",
     "output_schema" = excluded."output_schema",
     "credential_kind" = excluded."credential_kind",
+    "operation" = excluded."operation",
     "updated_at" = now();
   delete from "better_supabase"."workflow_step_library" x
   where not exists (
@@ -2464,6 +2510,7 @@ as $$
     'inputSchema', x."input_schema",
     'outputSchema', x."output_schema",
     'credentialKind', x."credential_kind",
+    'operation', x."operation",
     'updatedAt', x."updated_at"
   ) order by x."name"), '[]'::jsonb) from "better_supabase"."workflow_step_library" x;
 $$;
@@ -2754,6 +2801,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -2899,6 +2948,8 @@ create table if not exists "app_private"."workflow_step_library" (
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
+alter table "app_private"."workflow_step_library" add column if not exists "operation" text
+  check (length("operation") between 1 and 200);
 alter table "app_private"."workflow_step_library" enable row level security;
 revoke all on "app_private"."workflow_step_library" from anon, authenticated;
 grant select on "app_private"."workflow_step_library" to authenticated;
@@ -3187,17 +3238,23 @@ revoke execute on function "app_private"."save_workflow_draft"(uuid, jsonb) from
 grant execute on function "app_private"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
--- provider's workflow.node.<step> operation, else workflow.run. Trigger,
--- sleep, approval and condition nodes need none.
+-- provider's workflow.node.<step> operation, else the operation the library
+-- step names (the provider's key for it, else the name itself), else
+-- workflow.run. Trigger, sleep, approval and condition nodes need none.
 create or replace function "app_private"."workflow_graph_permissions"(graph jsonb)
 returns text[]
 language sql
-immutable
+stable
 set search_path = ''
 as $$
   select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
   from (
-    select coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run') as p
+    select coalesce(
+      '{}'::jsonb ->> (n.value ->> 'step'),
+      (select coalesce('{}'::jsonb ->> s."operation", s."operation")
+        from "app_private"."workflow_step_library" s where s."name" = n.value ->> 'step'),
+      'workflow.run'
+    ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
         then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end
@@ -3224,6 +3281,7 @@ as $$
 declare
   v_row "app_private"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "app_private"."workflow_versions" x where x."id" = version;
@@ -3252,7 +3310,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -3280,7 +3338,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3325,12 +3383,13 @@ begin
   end if;
   v_permissions := "app_private"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "app_private"."workflow_versions" x set "status" = 'archived'
@@ -3787,7 +3846,8 @@ revoke execute on function "app_private"."remove_workflow_credential"(uuid) from
 grant execute on function "app_private"."remove_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
--- description, inputSchema, outputSchema, credentialKind } }); returns how
+-- description, inputSchema, outputSchema, credentialKind, operation } });
+-- returns how
 -- many there are.
 create or replace function "app_private"."sync_workflow_steps"(steps jsonb)
 returns integer
@@ -3797,9 +3857,10 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "app_private"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind")
+  insert into "app_private"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
-    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind'
+    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
+    nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict ("name") do update set
     "title" = excluded."title",
@@ -3807,6 +3868,7 @@ begin
     "input_schema" = excluded."input_schema",
     "output_schema" = excluded."output_schema",
     "credential_kind" = excluded."credential_kind",
+    "operation" = excluded."operation",
     "updated_at" = now();
   delete from "app_private"."workflow_step_library" x
   where not exists (
@@ -3832,6 +3894,7 @@ as $$
     'inputSchema', x."input_schema",
     'outputSchema', x."output_schema",
     'credentialKind', x."credential_kind",
+    'operation', x."operation",
     'updatedAt', x."updated_at"
   ) order by x."name"), '[]'::jsonb) from "app_private"."workflow_step_library" x;
 $$;
@@ -4120,6 +4183,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -4263,6 +4328,8 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
+  check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -4551,17 +4618,23 @@ revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) 
 grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
--- provider's workflow.node.<step> operation, else workflow.run. Trigger,
--- sleep, approval and condition nodes need none.
+-- provider's workflow.node.<step> operation, else the operation the library
+-- step names (the provider's key for it, else the name itself), else
+-- workflow.run. Trigger, sleep, approval and condition nodes need none.
 create or replace function "better_supabase"."workflow_graph_permissions"(graph jsonb)
 returns text[]
 language sql
-immutable
+stable
 set search_path = ''
 as $$
   select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
   from (
-    select coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run') as p
+    select coalesce(
+      '{}'::jsonb ->> (n.value ->> 'step'),
+      (select coalesce('{}'::jsonb ->> s."operation", s."operation")
+        from "better_supabase"."workflow_step_library" s where s."name" = n.value ->> 'step'),
+      'workflow.run'
+    ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
         then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end
@@ -4588,6 +4661,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -4616,7 +4690,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -4644,7 +4718,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4689,12 +4763,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
@@ -5151,7 +5226,8 @@ revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
--- description, inputSchema, outputSchema, credentialKind } }); returns how
+-- description, inputSchema, outputSchema, credentialKind, operation } });
+-- returns how
 -- many there are.
 create or replace function "better_supabase"."sync_workflow_steps"(steps jsonb)
 returns integer
@@ -5161,9 +5237,10 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind")
+  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
-    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind'
+    coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
+    nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict ("name") do update set
     "title" = excluded."title",
@@ -5171,6 +5248,7 @@ begin
     "input_schema" = excluded."input_schema",
     "output_schema" = excluded."output_schema",
     "credential_kind" = excluded."credential_kind",
+    "operation" = excluded."operation",
     "updated_at" = now();
   delete from "better_supabase"."workflow_step_library" x
   where not exists (
@@ -5196,6 +5274,7 @@ as $$
     'inputSchema', x."input_schema",
     'outputSchema', x."output_schema",
     'credentialKind', x."credential_kind",
+    'operation', x."operation",
     'updatedAt', x."updated_at"
   ) order by x."name"), '[]'::jsonb) from "better_supabase"."workflow_step_library" x;
 $$;

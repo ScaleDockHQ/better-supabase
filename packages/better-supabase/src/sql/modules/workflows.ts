@@ -18,7 +18,7 @@ import {
   lockTable,
   fail,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "workflow_run.completed": {
@@ -158,7 +158,7 @@ function build(ctx: ModuleContext): string {
   const cs = (column: string): string => ctx.col("schedules", column);
   const cm = (column: string): string => ctx.col("semaphores", column);
   const cq = (column: string): string => ctx.col("startRequests", column);
-  const permissions = MODULE_PERMISSIONS.workflows;
+  const permissions = moduleOperations("workflows");
   const can = (tenant: string, action: "read" | "run" | "admin"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const callable = (signature: string): string =>

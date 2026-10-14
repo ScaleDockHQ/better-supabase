@@ -23,6 +23,10 @@ const closed = defineAuthorizationHooks({
   automation: { runAs: () => null, mayPublish: () => false },
   chat: { onAction: (_action, author) => ({ allowed: author !== null }) },
   support: { authorize: () => false },
+  delegation: {
+    permissions: ({ scopes }) =>
+      scopes.includes("posts") ? ["posts.read"] : [],
+  },
 });
 
 async function failures(hooks: AuthorizationHooks): Promise<string[]> {
@@ -41,7 +45,7 @@ describe("testAuthorizationHooks", () => {
     const report = await testAuthorizationHooks(closed);
     expect(report.subject).toBe('AuthorizationHooks "closed"');
     expect(report.checks.every((check) => check.ok)).toBe(true);
-    expect(report.checks).toHaveLength(9);
+    expect(report.checks).toHaveLength(12);
     expect(Object.isFrozen(closed)).toBe(true);
   });
 
@@ -70,18 +74,27 @@ describe("testAuthorizationHooks", () => {
       },
       approverOf: () => true,
       tickets: { subject: () => ({}) },
-      automation: { runAs: () => ({ role: "authenticated" }) },
+      automation: {
+        runAs: () => ({ role: "authenticated" }),
+        mayPublish: () => true,
+      },
       chat: { onAction: () => ({ allowed: true }) },
-      support: { authorize: () => ({ approvedBy: "someone" }) },
+      support: {
+        authorize: ({ admin }) => ({ approvedBy: admin.user.id }),
+      },
+      delegation: { permissions: () => ["*"] },
     };
     expect(await failures(leaky)).toEqual([
       "subscribers returns a subset",
       "an unlinked identity is null",
       "a requester never approves their own request",
       "a forged ticket is null",
+      "an unknown publisher may not publish",
       "an unknown publisher runs as no one",
       "an unlinked chat author is refused",
       "an admin with no claims cannot start a support session",
+      "an admin never approves their own support session",
+      "a delegation with no scopes grants no permissions",
     ]);
     expect(
       await failures({

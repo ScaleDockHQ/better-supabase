@@ -534,6 +534,7 @@
   "./server": {
     "values": [
       "aalOf",
+      "agentClaims",
       "amrOf",
       "AUTH_CACHE_HEADERS",
       "authContext",
@@ -586,6 +587,7 @@
       "shouldCheckSession",
       "shouldRefresh",
       "sqlSupportStore",
+      "subjectReaders",
       "SUPPORT_COOKIE",
       "supportClaims",
       "supportCookie",
@@ -619,6 +621,7 @@
       "ActClaim",
       "ActionResult",
       "ActiveSupport",
+      "AgentActOptions",
       "AmrEntry",
       "AnyAuthorizer",
       "ApprovalRequestRef",
@@ -655,6 +658,8 @@
       "CookieWrite",
       "CsvOptions",
       "CsvResponseOptions",
+      "DelegationPermissions",
+      "DelegationRef",
       "DeleteAccountOptions",
       "DeleteAccountResult",
       "EndSessionsResult",
@@ -701,6 +706,7 @@
       "Settled",
       "SqlSupportStoreOptions",
       "StoredSession",
+      "SubjectReadersOptions",
       "Subscriber",
       "SubscriberEvent",
       "SubscriberPolicy",
@@ -1903,7 +1909,8 @@
       "liveCount",
       "liveQuery",
       "liveTopic",
-      "rowChange"
+      "rowChange",
+      "subjectReaders"
     ],
     "types": [
       "AccessPolicySql",
@@ -1924,6 +1931,7 @@
       "PresenceSubscription",
       "RealtimeClient",
       "RowChange",
+      "SubjectReadersOptions",
       "SubscribeOptions",
       "Subscription",
       "SubscriptionStatus",
@@ -2507,6 +2515,7 @@
       "BuilderStarter",
       "CredentialInput",
       "DefinitionInput",
+      "GraphApprovalCall",
       "GraphCompiler",
       "GraphRuntime",
       "GraphStepCall",
@@ -2550,6 +2559,7 @@
   },
   "./workflow-sdk": {
     "values": [
+      "APPROVAL_OUTCOME_EVENTS",
       "approvalWaiter",
       "authorizeHook",
       "contextAttributes",
@@ -2558,11 +2568,14 @@
       "protectWebHandler",
       "startFor",
       "startOnEvent",
+      "wakeOnApproval",
       "WORKFLOW_ATTRIBUTES",
       "workflowContext",
       "workflowStarter"
     ],
     "types": [
+      "ApprovalOutcome",
+      "ApprovalOutcomeEvent",
       "ApprovalWaiter",
       "ApprovalWaitOptions",
       "ApprovalWaitResult",
@@ -2571,7 +2584,10 @@
       "StartForOptions",
       "StartOnEventOptions",
       "WorkflowContextOptions",
-      "WorkflowFn"
+      "WorkflowFn",
+      "WorkflowRunAs",
+      "WorkflowRunAsFor",
+      "WorkflowStarterOptions"
     ]
   },
   "./workflow-sdk/world": {
@@ -2652,6 +2668,7 @@
     ],
     "types": [
       "CompiledGraph",
+      "GraphApprovalCall",
       "GraphRunMeta",
       "GraphRuntime",
       "GraphStarterOptions",
@@ -2841,6 +2858,7 @@
       "DELIVERY_PARSERS",
       "inboundHandler",
       "inboxAdapter",
+      "inboxIdentityOf",
       "maintain",
       "messengerDeliveries",
       "resolveChatAuthor",
@@ -3327,6 +3345,7 @@
   },
   "./ai-sdk/agents": {
     "values": [
+      "agentClaims",
       "agentRunContext",
       "agentScopes",
       "agentToolApproval",
@@ -3338,6 +3357,7 @@
     ],
     "types": [
       "Agent",
+      "AgentActOptions",
       "AgentActor",
       "AgentCaller",
       "AgentModelAuthorizer",
@@ -3348,6 +3368,7 @@
       "AgentToolAuthorizer",
       "AgentToolCallContext",
       "AgentToolOperation",
+      "AgentToolOperations",
       "AgentToolPermissions",
       "ModerationMiddlewareOptions",
       "ModerationVerdict"
@@ -3536,6 +3557,8 @@
     ],
     "types": [
       "CreatedShareLink",
+      "CreateShareLinkOptions",
+      "ResolvedShareLink",
       "ShareLinks",
       "ShareLinksOptions"
     ]
@@ -3561,6 +3584,25 @@
       "LinkedIdentity",
       "PrincipalByIdentity",
       "RedeemedLink"
+    ]
+  },
+  "./blocks/service-principals": {
+    "values": [
+      "createServicePrincipals",
+      "dbTransport",
+      "rpcTransport",
+      "SERVICE_PRINCIPAL_CLAIM",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "CreatedServicePrincipal",
+      "CreateServicePrincipalOptions",
+      "ServicePrincipal",
+      "ServicePrincipalActor",
+      "ServicePrincipalAuthAdmin",
+      "ServicePrincipals",
+      "ServicePrincipalsOptions"
     ]
   },
   "./blocks/reminders": {

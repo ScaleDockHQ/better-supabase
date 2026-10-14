@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { SERVICE_CALLER, fail, userGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { hasColumn } from "./audit-columns.ts";
 
 const MAX_ENTRIES = 1000;
@@ -33,9 +33,9 @@ export function revert(ctx: ModuleContext, restricted: boolean): string {
     ? `to_jsonb(l.${c("changed")})`
     : "null::jsonb";
   const correlated = hasColumn(ctx, "log", "correlationId");
-  const key = ctx.permission("revert", MODULE_PERMISSIONS.audit.revert);
+  const key = ctx.permission("revert", OPERATIONS["audit.revert"]);
   const mayRead = restricted
-    ? ` and coalesce(better_supabase.member_can(auth.uid(), l.${c("tenant")}, ${ctx.permission("reveal", ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view))}), false)`
+    ? ` and coalesce(better_supabase.member_can(auth.uid(), l.${c("tenant")}, ${ctx.permission("reveal", ctx.permissionKey("view", OPERATIONS["audit.view"]))}), false)`
     : "";
   const target = `to_regclass(quote_ident(split_part(l.${c("table")}, '.', 1)) || '.' || quote_ident(split_part(l.${c("table")}, '.', 2)))`;
   const written = correlated

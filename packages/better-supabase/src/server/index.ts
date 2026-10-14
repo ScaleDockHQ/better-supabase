@@ -51,6 +51,8 @@ export type {
   AutomationRef,
   ChatAction,
   ChatActionHook,
+  DelegationPermissions,
+  DelegationRef,
   IdentityRef,
   IdentityTarget,
   PrincipalByIdentity,
@@ -61,6 +63,8 @@ export type {
   SupportDecision,
   TicketSubject,
 } from "../core/contracts/authorization-hooks.ts";
+export { subjectReaders } from "../core/subject-readers.ts";
+export type { SubjectReadersOptions } from "../core/subject-readers.ts";
 export { supportStorage } from "./support-storage.ts";
 export type { SupportStorageOptions } from "./support-storage.ts";
 export {
@@ -116,6 +120,7 @@ export { serverCore } from "./entries/core.ts";
 export type { ServerCore } from "./entries/core.ts";
 export {
   aalOf,
+  agentClaims,
   amrOf,
   AUTH_CACHE_HEADERS,
   authContext,
@@ -135,6 +140,7 @@ export {
 export type {
   Aal,
   ActClaim,
+  AgentActOptions,
   AmrEntry,
   AuthResolution,
   AuthResolver,

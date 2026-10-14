@@ -43,6 +43,7 @@ export {
 export {
   approvalToken,
   executeGraph,
+  type GraphApprovalCall,
   type GraphRuntime,
   type GraphStepCall,
 } from "./executor.ts";

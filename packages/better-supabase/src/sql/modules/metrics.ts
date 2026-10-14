@@ -22,7 +22,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
   hooks: ["before_metric_rollup", "after_metric_rollup"],
@@ -219,8 +219,7 @@ function sourceGrainCase(
 
 function readChecks(ctx: ModuleContext, metric: MetricDefinition): string {
   const permission = sqlString(
-    metric.permission ??
-      ctx.permissionKey("read", MODULE_PERMISSIONS.metrics.read),
+    metric.permission ?? ctx.permissionKey("read", OPERATIONS["metrics.read"]),
   );
   const dims = textArray(metric.dimensions ?? []);
   return `      if not (${SERVICE_CALLER} or ${ctx.can("tenant", "p_tenant", permission)}) then

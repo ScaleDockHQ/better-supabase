@@ -17,7 +17,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { TIMESHEET_SUBJECT } from "./approvals.ts";
 
@@ -37,6 +37,7 @@ const RECORDED_PAYLOAD = [
   "billable",
   "rate",
 ] as const;
+const UPDATED_PAYLOAD = [...RECORDED_PAYLOAD, "previousStartedAt"] as const;
 const TIMESHEET_PAYLOAD = [
   "organizationId",
   "id",
@@ -53,7 +54,7 @@ const EVENTS: ModuleEvents = {
   },
   "time_entry.updated": {
     subject: "time-entries",
-    payload: RECORDED_PAYLOAD,
+    payload: UPDATED_PAYLOAD,
   },
   "time_entry.deleted": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
@@ -130,7 +131,7 @@ function timesheetPolicy(ctx: ModuleContext): string {
         approvers: {
           permission: ctx.permissionKey(
             "approve",
-            MODULE_PERMISSIONS["time-tracking"].approve,
+            OPERATIONS["time-tracking.approve"],
           ),
         },
       },
@@ -160,7 +161,7 @@ function build(ctx: ModuleContext): string {
   const ar = approvals.table("requests");
   const a = (column: string): string => approvals.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS["time-tracking"];
+  const permissions = moduleOperations("time-tracking");
   const read = ctx.permission("read", permissions.read);
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);
@@ -190,10 +191,15 @@ function build(ctx: ModuleContext): string {
     `case when ${row}.${t("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} = 'rejected' then 'rejected' else 'open' end`;
   const timesheetJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'userId', ${row}.${t("user")}, 'week', ${row}.${t("week")}, 'status', ${status(row, approval)}, 'approvalId', ${row}.${t("approval")}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")})`;
-  const entryRecord = (type: string, row: string, recorded: boolean): string =>
+  const entryRecord = (
+    type: string,
+    row: string,
+    recorded: boolean,
+    previousStartedAt?: string,
+  ): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}, 'startedAt', ${row}.${e("startedAt")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}` : ""})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}, 'startedAt', ${row}.${e("startedAt")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}` : ""}${previousStartedAt === undefined ? "" : `, 'previousStartedAt', ${previousStartedAt}`})`,
       subject: `'time-entries/' || ${row}.${e("id")}::text`,
       tenant: `${row}.${e("tenant")}`,
       audit: false,
@@ -502,11 +508,13 @@ as $$
 declare
   v_row ${entries}%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   select * into v_row from ${entries} x where x.${e("id")} = update_time_entry.entry_id for update;
   if not found then
     ${entryNotFound}
   end if;
+  v_previous_started_at := v_row.${e("startedAt")};
   if not (${SERVICE_CALLER} or (v_row.${e("user")} = auth.uid() and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
     ${forbidden("not allowed to change this entry")}
   end if;
@@ -549,7 +557,7 @@ begin
       ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
   returning * into v_row;
-  ${entryRecord("time_entry.updated", "v_row", true)}
+  ${entryRecord("time_entry.updated", "v_row", true, "v_previous_started_at")}
   ${saved("v_row")}
   return ${entryJson("v_row")};
 end;

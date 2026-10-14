@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  schemaPreamble,
+  serviceGrant,
+  userGrant,
+} from "../shared.ts";
 import {
   type RegisteredSubject,
   registeredIdMatches,
@@ -38,6 +43,34 @@ function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
         `          when ${sqlString(action)} then ${held(key)}`,
     )
     .join("\n")}\n          else true\n        end)`;
+}
+
+/**
+ * `user` holds the key for `action` on row `s`, through `can_user`. An
+ * action without a key is false: nothing but the row's policies would
+ * decide it, and they answer for the caller only.
+ */
+function actionCheckFor(subject: RegisteredSubject, user: string): string {
+  const permissions = Object.entries(subject.config.permissions ?? {});
+  if (permissions.length === 0) return "false";
+  const scope = subject.config.scope;
+  const held = (key: string): string => {
+    const userCan = (scopeName: string, id: string): string =>
+      `coalesce(better_supabase.can_user(${user}, ${sqlString(scopeName)}, ${id}, ${sqlString(key)}), false)`;
+    const parts = [
+      ...(subject.tenant === undefined
+        ? []
+        : [userCan("tenant", `s.${subject.tenant}`)]),
+      ...(scope === undefined ? [] : [userCan(scope, `s.${subject.id}::text`)]),
+    ];
+    return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+  };
+  return `case can_subject_for.action\n${permissions
+    .map(
+      ([action, key]) =>
+        `          when ${sqlString(action)} then ${held(key)}`,
+    )
+    .join("\n")}\n          else false\n        end`;
 }
 
 /** The row `s` is `id` and, with `deletedAt`, not soft-deleted. */
@@ -150,6 +183,40 @@ ${cases(
 end;
 $$;
 ${userGrant(`${fn("can_subject")}(text, text, text)`)}
+
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function ${fn("can_subject_for")}(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+${cases(
+  subjects,
+  (subject) =>
+    `return exists (
+        select 1 from ${subject.qualified} s
+        where ${rowMatches(subject, "can_subject_for.subject_id")}
+          and ${actionCheckFor(subject, "can_subject_for.member")}
+      );`,
+)}
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
 `;
 }
 
@@ -163,6 +230,11 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["text", "text", "text"],
       returns: "boolean",
     },
+    {
+      name: "can_subject_for",
+      args: ["uuid", "text", "text", "text"],
+      returns: "boolean",
+    },
   ];
 }
 
@@ -170,7 +242,7 @@ export const SUBJECTS: ModuleDefinition = {
   name: "subjects",
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.",
   requires: ["access"],
   target: "schema",
   modes: ["managed", "custom"],

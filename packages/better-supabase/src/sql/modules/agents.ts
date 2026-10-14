@@ -10,7 +10,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const AGENTS = {
@@ -117,7 +117,7 @@ function build(ctx: ModuleContext): string {
   const installs = ctx.table("installs");
   const ratings = ctx.table("ratings");
   const skills = ctx.table("skills");
-  const permissions = MODULE_PERMISSIONS.agents;
+  const permissions = moduleOperations("agents");
   const read = ctx.permission("read", permissions.read);
   const create = ctx.permission("create", permissions.create);
   const publish = ctx.permission("publish", permissions.publish);

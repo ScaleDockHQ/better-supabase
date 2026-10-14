@@ -333,7 +333,8 @@ const bs = createMcp(betterSupabase, {
 
 Pass the provider's operations table as `operations` and an entry
 `mcp.tool.<name>` replaces that tool's `permission`, or gates a tool that
-declares none.
+declares none. A tool's `operation` (such as `invoices.void`) names the
+entry to look up in place of `mcp.tool.<name>`.
 
 `permission` is typed from the authorizer you pass. `authorize` and
 `visible` still run, after the permission check, for anything an

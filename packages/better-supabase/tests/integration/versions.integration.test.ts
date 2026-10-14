@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
+import { createShareLinks } from "../../src/blocks/share-links/index.ts";
 import {
   createVersions,
   sqlTransport,
@@ -49,6 +50,67 @@ create table versions_it.notes (
 describe.skipIf(!live)("versions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
+
+  it("shares one version through a link that anon reads with the token", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.client.query(TABLES);
+      await s.install(["organizations", "versions", "share-links"], layout);
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      const transport = sqlTransport(s.sql);
+      const versions = createVersions({ transport });
+      const links = createShareLinks({ transport });
+      const [doc, other] = await s.rows<{ id: string }>(
+        `insert into versions_it.docs (organization_id, title) values ($1, 'Quote'), ($1, 'Other') returning id`,
+        [tenant],
+      );
+      await s.as(owner);
+      const sent = await versions
+        .snapshot({
+          organizationId: tenant,
+          subjectType: "doc",
+          subjectId: doc!.id,
+          content: { total: 100 },
+        })
+        .orThrow();
+      await versions
+        .snapshot({
+          organizationId: tenant,
+          subjectType: "doc",
+          subjectId: doc!.id,
+          content: { total: 120 },
+        })
+        .orThrow();
+      const link = await links
+        .create(tenant, "doc", doc!.id, { versionId: sent.id })
+        .orThrow();
+      const plain = await links.create(tenant, "doc", doc!.id).orThrow();
+      const wrong = await links.create(tenant, "doc", other!.id, {
+        versionId: sent.id,
+      });
+      expect(wrong.ok).toBe(false);
+
+      await s.asRole("anon");
+      expect(await links.resolve(link.token).orThrow()).toMatchObject({
+        subjectType: "doc",
+        subjectId: doc!.id,
+        versionId: sent.id,
+      });
+      const shared = await versions.getShared(link.token).orThrow();
+      expect(shared).toMatchObject({ id: sent.id, content: { total: 100 } });
+      expect(shared).not.toHaveProperty("createdBy");
+      expect(await versions.getShared(plain.token).orThrow()).toBeNull();
+      expect(await versions.getShared("0".repeat(48)).orThrow()).toBeNull();
+
+      await s.as(owner);
+      await links.revoke(link.id).orThrow();
+      await s.asRole("anon");
+      expect(await versions.getShared(link.token).orThrow()).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
 
   it("snapshots, diffs, restores, freezes and prunes a subject's versions", async () => {
     const s = await BlockSession.open(pool);

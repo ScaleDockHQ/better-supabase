@@ -140,6 +140,8 @@ export interface McpTool<
   readonly meta?: unknown;
   /** Checked by the authorizer on every call; callers it denies don't see the tool. */
   readonly permission?: unknown;
+  /** The provider operation the tool checks, in place of `mcp.tool.<name>`. */
+  readonly operation?: string;
   run(args: never, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
@@ -194,6 +196,11 @@ export interface ToolDefinition<
    * callers it denies.
    */
   readonly permission?: Ref;
+  /**
+   * The provider operation whose permission the tool checks, in place of
+   * `mcp.tool.<name>` (`invoices.void`).
+   */
+  readonly operation?: string;
   run(args: I, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
@@ -416,6 +423,9 @@ export function defineTool<
     ...(definition.permission === undefined
       ? {}
       : { permission: definition.permission }),
+    ...(definition.operation === undefined
+      ? {}
+      : { operation: definition.operation }),
     run: (args: never, ctx) => definition.run(args, ctx),
   };
 }
@@ -734,6 +744,7 @@ export function createMcp<
       options.operations,
       declared.info.name,
       declared.permission,
+      declared.operation,
     );
     const tool = { ...declared, permission };
     const ref: ToolRef = { info: tool.info, meta: tool.meta };

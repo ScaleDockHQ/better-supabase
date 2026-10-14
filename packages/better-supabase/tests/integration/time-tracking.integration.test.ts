@@ -290,7 +290,7 @@ describe.skipIf(!live)("time-tracking", () => {
           billable: true,
         })
         .orThrow();
-      await time
+      const moved = await time
         .log(tenant, {
           startedAt: at("2026-10-07T09:00:00Z"),
           endedAt: at("2026-10-07T09:30:00Z"),
@@ -303,27 +303,33 @@ describe.skipIf(!live)("time-tracking", () => {
         transport: sqlTransport(s.sql),
         metrics: timeTrackingMetrics(),
       });
-      const events = await s.rows<{
-        type: string;
-        payload: unknown;
-        created_at: Date;
-      }>(
-        "select type, payload, created_at from better_supabase.outbox_events where organization_id = $1 and type like 'time_entry.%' order by position",
-        [tenant],
-      );
-      await metricsSink(metrics, {
-        on: TIME_TRACKING_METRIC_EVENTS,
-        time: timeEntryMetricTime,
-      }).send(
-        events.map((row, n) => ({
-          specversion: "1.0",
-          id: `e${n}`,
-          source: "/test",
-          type: `dev.better-supabase.${row.type}`,
-          time: row.created_at.toISOString(),
-          data: row.payload,
-        })),
-      );
+      let relayed = 0;
+      const relay = async () => {
+        await s.service();
+        const events = await s.rows<{
+          type: string;
+          payload: unknown;
+          created_at: Date;
+        }>(
+          "select type, payload, created_at from better_supabase.outbox_events where organization_id = $1 and type like 'time_entry.%' order by position offset $2",
+          [tenant, relayed],
+        );
+        relayed += events.length;
+        await metricsSink(metrics, {
+          on: TIME_TRACKING_METRIC_EVENTS,
+          time: timeEntryMetricTime,
+        }).send(
+          events.map((row, n) => ({
+            specversion: "1.0",
+            id: `e${relayed}-${n}`,
+            source: "/test",
+            type: `dev.better-supabase.${row.type}`,
+            time: row.created_at.toISOString(),
+            data: row.payload,
+          })),
+        );
+      };
+      await relay();
 
       await s.as(owner);
       const week = {
@@ -344,6 +350,22 @@ describe.skipIf(!live)("time-tracking", () => {
           })
           .orThrow(),
       ).toMatchObject({ value: 5400, count: 1 });
+
+      await s.as(ada);
+      await time
+        .update(moved.id, {
+          startedAt: at("2026-10-09T09:00:00Z"),
+          endedAt: at("2026-10-09T09:30:00Z"),
+        })
+        .orThrow();
+      await relay();
+      await s.as(owner);
+      const after = await metrics
+        .series("time_tracked", week, { organizationId: tenant, grain: "day" })
+        .orThrow();
+      expect(after.points.slice(1, 5).map((p) => p.value)).toEqual([
+        5400, 0, 0, 1800,
+      ]);
     } finally {
       await s.close();
     }

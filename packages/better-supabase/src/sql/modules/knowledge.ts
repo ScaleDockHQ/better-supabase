@@ -13,7 +13,7 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const DOCUMENTS = {
   id: "id",
@@ -135,7 +135,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const c = columnsOf(ctx, "chunks", CHUNKS);
   const documents = ctx.table("documents");
   const chunks = ctx.table("chunks");
-  const permissions = MODULE_PERMISSIONS.knowledge;
+  const permissions = moduleOperations("knowledge");
   const read = ctx.permission("read", permissions.read);
   const write = ctx.permission("write", permissions.write);
   const manage = ctx.permission("manage", permissions.manage);

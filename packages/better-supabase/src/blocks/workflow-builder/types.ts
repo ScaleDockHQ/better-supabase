@@ -109,6 +109,13 @@ export interface WorkflowStepInfo {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   /** The credential kind the step resolves, when it needs one. */
   readonly credentialKind?: string | undefined;
+  /**
+   * The operation a node of this step checks at publish, in place of
+   * `workflow.run`: the provider's entry for it, else the name itself as
+   * the permission key. The provider's `workflow.node.<step>` entry still
+   * takes precedence.
+   */
+  readonly operation?: string | undefined;
 }
 
 export interface WorkflowNodeRun {
@@ -186,8 +193,10 @@ export interface BuilderOptions extends BlockTemporalOptions {
   /**
    * The provider's runtime hooks, usually `server.authorization`.
    * `automation.mayPublish` can refuse a publish, and `automation.runAs`
-   * gives the claims `versions.runAs` returns; without `runAs`, steps of a
-   * published version can't resolve whom they run as and fail.
+   * gives the claims `versions.runAs` returns. Without `runAs`, a step runs
+   * as the checked publisher (a user, or the tenant's default service
+   * principal for an organization-owned version) capped to the stored
+   * permissions.
    */
   readonly authorization?: Pick<AuthorizationHooks, "automation">;
 }
@@ -291,11 +300,14 @@ export interface WorkflowBuilder {
     diff(from: string, to: string): AsyncResult<WorkflowGraphDiff>;
     /**
      * The claims a step of `version` runs with (through `service`): the
-     * publisher's, narrowed to the stored permissions, from
-     * `authorization.automation.runAs`. A publisher who is gone or no
-     * longer holds a stored permission, a `runAs` that returns `null` and
-     * a missing `runAs` are a `forbidden` error (`WORKFLOW_PUBLISHER_REVOKED`);
-     * there is no fallback to the service role. Call it inside every step.
+     * publisher's (a user, or the tenant's default service principal),
+     * narrowed to the stored permissions, from
+     * `authorization.automation.runAs` or capped by `bs_permission_cap`
+     * without it. A publisher who is gone or no longer holds a stored
+     * permission, a `runAs` that returns `null`, and an organization-owned
+     * version with no service principal and no `runAs` are a `forbidden`
+     * error (`WORKFLOW_PUBLISHER_REVOKED`); there is no fallback to the
+     * service role. Call it inside every step.
      */
     runAs(
       version: string | undefined,

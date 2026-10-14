@@ -87,6 +87,10 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
         "WORKFLOW_PUBLISHER_FORBIDDEN",
       );
       expect(!refused.ok && refused.error.message).toContain("crm.read");
+      expect(!refused.ok && refused.error).toMatchObject({
+        kind: "forbidden",
+        permissions: ["crm.read"],
+      });
       expect(await builder.versions.get(draft.id).orThrow()).toMatchObject({
         status: "draft",
         publishedBy: undefined,

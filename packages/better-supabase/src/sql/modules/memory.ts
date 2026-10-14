@@ -14,7 +14,7 @@ import {
   revokeTable,
   lockTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 
 const MEMORIES = {
@@ -108,7 +108,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const memories = ctx.table("memories");
   const messageEmbeddings = ctx.table("messageEmbeddings");
   const documents = ctx.table("documents");
-  const permissions = MODULE_PERMISSIONS.memory;
+  const permissions = moduleOperations("memory");
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
   const embedding = embeddingColumn(ctx, layout);

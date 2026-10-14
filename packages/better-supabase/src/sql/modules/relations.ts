@@ -21,7 +21,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 /** How a kind of link behaves. */
 export interface RelationKind {
@@ -210,8 +210,8 @@ function build(ctx: ModuleContext): string {
   ];
   const createdBy = c("createdBy");
   const createdAt = c("createdAt");
-  const read = ctx.permission("read", MODULE_PERMISSIONS.relations.read);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.relations.manage);
+  const read = ctx.permission("read", OPERATIONS["relations.read"]);
+  const manage = ctx.permission("manage", OPERATIONS["relations.manage"]);
   const kinds = relationKinds(ctx);
   const list = subjectsOption(ctx);
   const kindsOf = kindTable(kinds);

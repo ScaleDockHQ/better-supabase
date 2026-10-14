@@ -19,7 +19,7 @@ import {
 } from "../shared.ts";
 import {
   accessModel,
-  MODULE_PERMISSIONS,
+  moduleOperations,
   modulePermission,
   roleNames,
 } from "./access-model.ts";
@@ -133,7 +133,7 @@ function build(ctx: ModuleContext): string {
   const ce = (c: string): string => ctx.col("entries", c);
   const ck = (c: string): string => ctx.col("codes", c);
   const cr = (c: string): string => ctx.col("redemptions", c);
-  const permissions = MODULE_PERMISSIONS.waitlist;
+  const permissions = moduleOperations("waitlist");
   const manage = ctx.permission("manage", permissions.manage);
   const staff = ctx.staff(manage);
   const inviter = (tenant: string): string =>

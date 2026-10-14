@@ -9,4 +9,8 @@ export const WORKFLOW_ATTRIBUTES = {
   version: "bs.version",
   /** The opaque ticket `bs.forContext` resolves into the context a step runs as. */
   ticket: "bs.ticket",
+  /** The user an event or schedule start runs as (`runAs`). */
+  publisher: "bs.publisher",
+  /** The event actor or schedule creator behind a `runAs` start, for audit only. */
+  trigger: "bs.trigger",
 } as const;

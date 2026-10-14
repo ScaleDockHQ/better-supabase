@@ -15,7 +15,7 @@ import {
   tenantIn,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS, moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "organization_setting.reset": {
@@ -122,7 +122,7 @@ function platformKeys(ctx: ModuleContext): {
   const fallback = {
     permission:
       permissionOf(option["permission"], `${where}.platform`) ??
-      ctx.permissionKey("platform", MODULE_PERMISSIONS.settings.platform),
+      ctx.permissionKey("platform", OPERATIONS["settings.platform"]),
     read: readOf(option["read"], `${where}.platform`) ?? "authenticated",
   };
   const raw = ctx.option("schemas");
@@ -236,7 +236,7 @@ function build(ctx: ModuleContext): string {
   const uc = (logical: string): string => ctx.col("user", logical);
   const oc = (logical: string): string => ctx.col("organization", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS.settings;
+  const permissions = moduleOperations("settings");
   const can = (tenant: string, action: "read" | "update"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const member = (tenant: string, action: "read" | "update"): string =>

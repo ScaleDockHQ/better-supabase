@@ -70,6 +70,7 @@ const entries = [
   "blocks/custom-fields/index",
   "blocks/share-links/index",
   "blocks/identities/index",
+  "blocks/service-principals/index",
   "blocks/reminders/index",
   "blocks/imports/index",
   "blocks/rank/index",

@@ -7,8 +7,10 @@ import { createApiKeys } from "better-supabase/blocks/api-keys";
 import { createAuditLog } from "better-supabase/blocks/audit";
 import { createComments } from "better-supabase/blocks/comments";
 import { createInbox } from "better-supabase/blocks/inbox";
+import { createMetrics } from "better-supabase/blocks/metrics";
 import { createNotifications } from "better-supabase/blocks/notifications";
 import { createOrganizations } from "better-supabase/blocks/organizations";
+import { createSearch } from "better-supabase/blocks/search";
 import { createUsage } from "better-supabase/blocks/usage";
 import { createWorkflows } from "better-supabase/blocks/workflows";
 
@@ -18,6 +20,7 @@ import {
 } from "@/features/notifications/notification-types";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
+import { metrics } from "@/metrics";
 
 /** `sql.modules.<module>.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
@@ -42,6 +45,8 @@ export function blocks(supabase: RpcClient) {
           render: renderNotification,
         }),
       inbox: createInbox,
+      search: createSearch,
+      metrics: (options) => createMetrics({ ...options, metrics }),
       usage: createUsage,
       workflows: createWorkflows,
       onboarding: (options) => gettingStarted.connect(options),

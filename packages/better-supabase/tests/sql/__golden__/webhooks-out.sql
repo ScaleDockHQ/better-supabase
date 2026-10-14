@@ -15,6 +15,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -154,8 +156,10 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
@@ -574,6 +578,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -726,8 +732,10 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
@@ -760,7 +768,7 @@ begin
   where d."enabled"
     and d."organization_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
-    and (case when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false) else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end)
+    and (case when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false) else (case when "better_supabase"."default_service_principal"(d."organization_id") is not null then coalesce(better_supabase.can_user("better_supabase"."default_service_principal"(d."organization_id"), 'tenant', d."organization_id", v_permission), false) else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
@@ -877,7 +885,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'principal', case when d."created_by" is null then "better_supabase"."default_service_principal"(d."organization_id") end, 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -1163,6 +1171,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -1304,8 +1314,10 @@ drop function if exists "app_private"."publish_webhook_event"(text, jsonb, uuid,
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function "app_private"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
@@ -1724,6 +1736,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -1863,8 +1877,10 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
@@ -2380,6 +2396,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -2446,8 +2464,10 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql

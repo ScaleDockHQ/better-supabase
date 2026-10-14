@@ -1,6 +1,7 @@
 import { defineConfig } from "better-supabase/config";
 
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
+import { metrics } from "./src/metrics.ts";
 
 const crud = ["select", "insert", "update", "delete"] as const;
 
@@ -73,6 +74,18 @@ export default defineConfig({
   // Rows store the object path; URLs are built when rendering.
   storagePaths: { "customers.logo_path": "customerLogos" },
   readSets: ["src/lib/read-sets.ts"],
+  // Rows the search index, comments and other subject-aware modules point at.
+  subjects: {
+    customer: {
+      table: "public.customers",
+      idType: "uuid",
+      title: "name",
+      url: "/customers/{id}",
+      deletedAt: "archived_at",
+      permissions: { read: "customers.read" },
+      search: {},
+    },
+  },
   // `search_notes(query, k)` for `db.$search('notes', …)`.
   vectorSearch: { notes: "embedding" },
   // The block files live in the repo's fixture, so the stack runs them.
@@ -126,6 +139,9 @@ export default defineConfig({
       onboarding: { api: "api", options: { checklists: [gettingStarted] } },
       entitlements: { api: "api" },
       usage: { api: "api" },
+      // Cmd+K over customers, and the customers card on the dashboard.
+      search: { api: "api" },
+      metrics: { api: "api", options: { metrics } },
       // In-app notifications behind the unread badge and /notifications,
       // on the recipient's private topic `notifications:<user id>`.
       notifications: { api: "api" },

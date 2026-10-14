@@ -1,7 +1,12 @@
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { JobContext } from "./types.ts";
 
-import { DELEGATION_CLAIMS, delegatedClaims } from "../../auth/delegation.ts";
+import {
+  DELEGATION_CLAIMS,
+  PERMISSION_CAP_CLAIM,
+  delegatedClaims,
+  permissionCapOf,
+} from "../../auth/delegation.ts";
 import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError } from "../../core/errors.ts";
@@ -56,6 +61,12 @@ function recordContext(
       ),
     );
   }
+  const cap = permissionCapOf(claims);
+  if (cap === false) {
+    return err(
+      dbError("forbidden", "The job context has an invalid permission cap"),
+    );
+  }
   const tenant = tenantFrom(context, tenantPathsFor(undefined));
   const impersonator = impersonatorOf(claims);
   const recorded: JobContext = {
@@ -63,6 +74,7 @@ function recordContext(
     ...(tenant === undefined ? {} : { tenant }),
     ...(ticket.data === undefined ? {} : { ticket: ticket.data }),
     ...delegated.delegation,
+    ...(cap === undefined ? {} : { [PERMISSION_CAP_CLAIM]: cap }),
     ...(impersonator ? { act: impersonatorClaim(impersonator) } : {}),
   };
   if (

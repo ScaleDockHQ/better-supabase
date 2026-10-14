@@ -13,10 +13,13 @@ import {
 } from "../shared.ts";
 import {
   hasPlatformRoles,
-  MODULE_PERMISSIONS,
+  OPERATIONS,
   providerPlatformRoles,
 } from "./access-model.ts";
+import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
+import { READ_ONLY_GUARD } from "./drive-kit.ts";
+import { supportApprovalFunctions } from "./support-approvals.ts";
 
 const EVENTS: ModuleEvents = {
   "support.started": {
@@ -162,7 +165,7 @@ grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
 create policy bs_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)})));
+  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -233,7 +236,7 @@ grant select on ${requests} to service_role;
 drop policy if exists bs_support_requests_read on ${requests};
 create policy bs_support_requests_read on ${requests} for select to authenticated
   using (${c("admin")} = (select auth.uid())
-    or (select ${isPlatform}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)})));
+    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${requests} to authenticated;
 `;
 }
@@ -257,7 +260,7 @@ function approverOf(
   });
   if (check) return `coalesce((${check.sql}), false)`;
   const isPlatform = ctx.of("access").fn("is_platform");
-  return `${isPlatform}(${ctx.permission("approve", MODULE_PERMISSIONS["support-sessions"].start)})`;
+  return `${isPlatform}(${ctx.permission("approve", OPERATIONS["support-sessions.start"])})`;
 }
 
 /**
@@ -297,10 +300,14 @@ function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const isPlatform = ctx.of("access").fn("is_platform");
   const startPermission = ctx.permission(
     "start",
-    MODULE_PERMISSIONS["support-sessions"].start,
+    OPERATIONS["support-sessions.start"],
   );
   const approvalTtl = sqlString(ctx.text("approvalTtl", "1 hour"));
   const requireReason = ctx.flag("requireReason", true);
+  const approvals =
+    ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
+      ? ctx.of("approvals")
+      : undefined;
   return `-- Asks for a support session. Another admin approves it with
 -- approve_support_request before start_support_session accepts it. The
 -- service role passes admin_id, and approved_by for an approval the server's
@@ -366,7 +373,17 @@ begin
   insert into ${requests} (${c("admin")}, ${c("target")}, ${c("reason")}, ${c("tenant")}, ${c("readOnly")}, ${c("metadata")}, ${c("expiresAt")}, ${c("approvedBy")}, ${c("approvedAt")})
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + ${approvalTtl}::interval, approved_by, case when approved_by is null then null else now() end)
-  returning ${c("id")} into new_id;
+  returning ${c("id")} into new_id;${
+    approvals === undefined
+      ? ""
+      : `
+  if tenant is not null and approved_by is null then
+    perform ${approvals.fn("open_approval")}(
+      tenant, ${sqlString(SUPPORT_REQUEST_SUBJECT)}, new_id::text, 'start', ${linkedPolicy(approvalTtl)}, coalesce(btrim(reason), ''),
+      jsonb_build_object('adminId', admin, 'targetUserId', target, 'readOnly', coalesce(read_only, true))
+    );
+  end if;`
+  }
   select ${requestJson(ctx, "x")} into requested from ${requests} x where x.${c("id")} = new_id;
   return requested;
 end;
@@ -393,6 +410,7 @@ declare
   approver uuid;
   v_row ${requests};
 begin
+  ${READ_ONLY_GUARD}
   if service then
     approver := approver_id;
     if approver is null then
@@ -414,6 +432,31 @@ begin
   if not service and not ${approverOf(ctx, layout, "v_row")} then
     ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve this support session")}
   end if;
+  return ${ctx.fn("apply_support_approval")}(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; ${approvals === undefined ? "approve_support_request calls it after its own checks" : "approve_support_request and the approvals module call it after their own checks"}.
+create or replace function ${ctx.fn("apply_support_approval")}(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${requests};
+begin
+  select * into v_row from ${requests} x where x.${c("id")} = request_id for update;
+  if not found then
+    ${raise("No support request %", "P0002", "SUPPORT_REQUEST_MISSING", "request_id")}
+  end if;
+  if approver is null then
+    ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve a support session")}
+  end if;
+  if v_row.${c("admin")} = approver then
+    ${fail("SUPPORT_SELF_APPROVAL", "An admin cannot approve their own support session")}
+  end if;
   if v_row.${c("approvedBy")} is not null then
     if v_row.${c("approvedBy")} = approver then
       return ${requestJson(ctx, "v_row")};
@@ -425,10 +468,20 @@ begin
   end if;
   update ${requests} x set ${c("approvedBy")} = approver, ${c("approvedAt")} = now()
   where x.${c("id")} = request_id
-  returning * into v_row;
+  returning * into v_row;${
+    approvals === undefined
+      ? ""
+      : `
+  perform ${approvals.fn("approval_settle")}(${sqlString(SUPPORT_REQUEST_SUBJECT)}, request_id::text, 'start', 'approved', approver);`
+  }
   return ${requestJson(ctx, "v_row")};
 end;
 $$;
+revoke execute on function ${ctx.fn("apply_support_approval")}(uuid, uuid) from public, anon, authenticated;${
+    approvals === undefined
+      ? ""
+      : supportApprovalFunctions(ctx, approverOf(ctx, layout, "v_row"))
+  }
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -588,7 +641,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", MODULE_PERMISSIONS["support-sessions"].start)}) then
+      or not ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])}) then
       ${fail("SUPPORT_FORBIDDEN", "Not allowed to start a support session")}
     end if;
   end if;
@@ -700,7 +753,7 @@ begin
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", MODULE_PERMISSIONS["support-sessions"].revoke)}))
+      or ${isPlatform}(${ctx.permission("revoke", OPERATIONS["support-sessions.revoke"])}))
   returning ${sessionJson(ctx, "s")} into ended;
   if not service then
     ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
@@ -794,7 +847,7 @@ as $$
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
     and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
-      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", MODULE_PERMISSIONS["support-sessions"].start)})
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])})
     end
 $$;
 
@@ -814,7 +867,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)}))
+      or ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null
@@ -942,7 +995,7 @@ export const SUPPORT_SESSIONS: ModuleDefinition = {
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
   requires: ["access", "audit"],
-  integrates: ["invitations"],
+  integrates: ["invitations", "approvals"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 2,

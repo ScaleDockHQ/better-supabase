@@ -15,6 +15,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -373,6 +375,7 @@ as $$
 declare
   v_row "better_supabase"."time_entries"%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -381,6 +384,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
+  v_previous_started_at := v_row."started_at";
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
@@ -778,6 +782,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -1136,6 +1142,7 @@ as $$
 declare
   v_row "better_supabase"."time_entries"%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1144,6 +1151,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
+  v_previous_started_at := v_row."started_at";
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
@@ -1204,7 +1212,7 @@ begin
       "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('time_entry.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'previousStartedAt', v_previous_started_at), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -1568,6 +1576,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -1928,6 +1938,7 @@ as $$
 declare
   v_row "app_private"."time_entries"%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1936,6 +1947,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
+  v_previous_started_at := v_row."started_at";
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
@@ -2333,6 +2345,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -2691,6 +2705,7 @@ as $$
 declare
   v_row "better_supabase"."time_entries"%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2699,6 +2714,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
+  v_previous_started_at := v_row."started_at";
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
@@ -3226,6 +3242,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -3526,6 +3544,7 @@ as $$
 declare
   v_row "better_supabase"."time_entries"%rowtype;
   v_patch jsonb := coalesce(update_time_entry.patch, '{}'::jsonb);
+  v_previous_started_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3534,6 +3553,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
+  v_previous_started_at := v_row."started_at";
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;

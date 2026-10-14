@@ -1,11 +1,16 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  AuthorizationHooks,
+  SubscriberPolicy,
+} from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
-import { isDbError } from "../../core/errors.ts";
-import { err, ok } from "../../core/result.ts";
+import { dbError, isDbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
+import { subjectReaders } from "../../core/subject-readers.ts";
+import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
   blockCall,
   isRecord,
@@ -27,6 +32,16 @@ export interface RemindersOptions {
    * `reminderNotification` type.
    */
   readonly notifyDelivery?: (delivery: DeliveryPayload) => unknown;
+  /**
+   * Checks the reminder's user before `notifyDelivery` runs; a user it
+   * leaves out gets nothing, and a throw fails the delivery so the job
+   * retries. Defaults to `authorization.delivery.audience`; with
+   * `authorization` but no such policy, to `subjectReaders(transport)`, so
+   * a user who lost access to the subject stops getting its reminders.
+   */
+  readonly audience?: SubscriberPolicy;
+  /** `server.authorization`, for its `delivery.audience` policy. */
+  readonly authorization?: Pick<AuthorizationHooks, "delivery">;
 }
 
 export interface Reminders {
@@ -41,7 +56,10 @@ export interface Reminders {
    * Resolves to `false` when the occurrence was already delivered.
    */
   markSent(reminderId: string, occurrenceAt: string): AsyncResult<boolean>;
-  /** `markSent`, then `notifyDelivery` when this run recorded the occurrence. */
+  /**
+   * Checks `audience`, then `markSent`, then `notifyDelivery` when this run
+   * recorded the occurrence and the audience kept the user.
+   */
   deliver(delivery: DeliveryPayload): AsyncResult<boolean>;
   /** The handler for the `reminders.deliver` queue. */
   readonly job: JobHandler<unknown>;
@@ -66,6 +84,46 @@ function deliveryOf(value: unknown): DeliveryPayload {
 
 export function createReminders(options: RemindersOptions): Reminders {
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const audience =
+    options.audience ??
+    options.authorization?.delivery?.audience ??
+    (options.authorization === undefined
+      ? undefined
+      : subjectReaders(
+          options.transport,
+          options.schema === undefined ? {} : { schema: options.schema },
+        ));
+  /** Whether `audience` lets the reminder's user have it, or the policy's failure. */
+  const permitted = (delivery: DeliveryPayload): AsyncResult<boolean> =>
+    AsyncResult.from(async () => {
+      if (audience === undefined || delivery.userId === undefined)
+        return ok(true);
+      const subscriber = { principal: delivery.userId, kind: "user" as const };
+      const checked = await allowedSubscribers(
+        audience,
+        {
+          type: "reminder.due",
+          tenant: delivery.organizationId,
+          actorId: null,
+          payload: delivery,
+          subject:
+            delivery.subjectType === undefined ||
+            delivery.subjectId === undefined
+              ? null
+              : `subjects/${delivery.subjectType}/${delivery.subjectId}`,
+        },
+        [subscriber],
+      );
+      return checked.ok
+        ? ok(checked.allowed.length > 0)
+        : err(
+            dbError(
+              "unexpected",
+              `The reminder audience check failed: ${checked.cause instanceof Error ? checked.cause.message : String(checked.cause)}`,
+              { hint: "REMINDER_AUDIENCE_FAILED" },
+            ),
+          );
+    });
   const markSent: Reminders["markSent"] = (reminderId, occurrenceAt) =>
     call(
       "mark_reminder_sent",
@@ -73,20 +131,25 @@ export function createReminders(options: RemindersOptions): Reminders {
       (value) => value === true,
     );
   const deliver: Reminders["deliver"] = (delivery) =>
-    markSent(delivery.reminderId, delivery.occurrenceAt).andThen(
-      async (sent) => {
-        if (sent && options.notifyDelivery !== undefined) {
-          const outcome: unknown = await options.notifyDelivery(delivery);
-          if (
-            isRecord(outcome) &&
-            outcome["ok"] === false &&
-            isDbError(outcome["error"])
-          ) {
-            return err(outcome["error"]);
+    (options.notifyDelivery === undefined
+      ? AsyncResult.ok(false)
+      : permitted(delivery)
+    ).andThen((allowed) =>
+      markSent(delivery.reminderId, delivery.occurrenceAt).andThen(
+        async (sent) => {
+          if (sent && allowed && options.notifyDelivery !== undefined) {
+            const outcome: unknown = await options.notifyDelivery(delivery);
+            if (
+              isRecord(outcome) &&
+              outcome["ok"] === false &&
+              isDbError(outcome["error"])
+            ) {
+              return err(outcome["error"]);
+            }
           }
-        }
-        return ok(sent);
-      },
+          return ok(sent);
+        },
+      ),
     );
   return {
     save: (organizationId, subjectType, subjectId, offsetMinutes) =>

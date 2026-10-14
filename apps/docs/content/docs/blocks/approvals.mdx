@@ -81,6 +81,67 @@ With `run: { transition }`, the final approval calls `transition()` for the subj
 
 With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subjectType, subjectId, action)` or handle `approval.approved`. [Access requests](/docs/blocks/access-requests) file their requests here with their own policy, and the final approval grants the role. [Time tracking](/docs/blocks/time-tracking) files submitted timesheets the same way, and the final approval locks the week.
 
+## Tool calls and support sessions
+
+When the [AI chat](/docs/blocks/ai-chat) or support-sessions module is
+installed next to approvals, its waiting requests become approval requests
+too, so one approvals inbox lists them:
+
+| Module           | `subjectType`      | `subjectId`                 | `action` | Who decides                                                                                      |
+| ---------------- | ------------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| ai-chat          | `ai_tool_approval` | the tool call's approval id | `run`    | the chat's owner, or the users the provider's `isApprover` allows for kind `ai-tool`             |
+| support-sessions | `support_request`  | the support request id      | `start`  | platform staff with the approve permission, or the provider's `isApprover` for `support-session` |
+
+The module that filed the request keeps deciding who approves it, so the
+policy's approvers, roles and delegation don't apply (`delegate` refuses with
+`APPROVAL_DELEGATE_INVALID`). A decision syncs both ways: approving or
+rejecting the request with `approve` or `reject` decides the tool call or the
+support request, and `decide_ai_tool_approval` or `approve_support_request`
+closes the request. A rejected support request can no longer start a
+session. Only the requester, the eligible approvers and the service role read
+these requests; `approvals.read` alone doesn't show them. A support request
+without a tenant stays in `support_requests` only, because every approval
+request belongs to an organization.
+
+## Approvers from your authorization provider
+
+Under the `provider` access model, a provider that sets
+`authorization.functions.isApprover` can name approvers the policy doesn't:
+`approval_eligible` also allows a user the template accepts for kind
+`<subject type>.<action>` (for example `refund.approve`), the subject id
+and the request's tenant. The requester never counts, even with
+`selfApproval`. The policy's own approvers still decide as well. See
+[Authorization providers](/docs/extending/authorization-providers).
+
+Server code can ask the same question through the hooks' `approverOf`. Pass
+it with the user the transport runs as, and `approve`, `reject` and
+`delegate` refuse with `APPROVAL_FORBIDDEN` unless both the SQL check and
+the hook allow the caller:
+
+```ts
+const approvals = createApprovals({
+  transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+  authorization: { approverOf: hooks.approverOf },
+  approver: { userId: ctx.auth.claims.sub, claims: ctx.auth.claims },
+});
+```
+
+## Resume a workflow when a request is decided
+
+A request's id is a random uuid, so it works as the token a paused workflow
+waits on: only `decide_approval`, after its approver check, can end the
+wait. Call `wakeOnApproval` from your outbox consumer, and it resumes the
+run waiting on the request with `{ approved, status, requestId }` for
+`approval.approved`, `approval.rejected`, `approval.expired` and
+`approval.cancelled`. See
+[Workflow SDK](/docs/blocks/workflow-sdk#approvals-that-expire).
+
+```ts title="app/api/outbox/route.ts"
+import { wakeOnApproval } from "better-supabase/workflow-sdk";
+
+for (const event of events) await wakeOnApproval(event);
+```
+
 ## Expiry and reminders
 
 Schedule both functions with pg_cron or the [jobs](/docs/blocks/jobs) drain. `remind_approvals(after)` asks the current step's approvers again for requests pending longer than `after` (default one day), once per `after`.

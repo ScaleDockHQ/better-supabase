@@ -39,6 +39,7 @@ import {
   type AgentToolAuthorizer,
   agentToolOperation,
   type AgentToolOperation,
+  type AgentToolOperations,
   type AgentToolPermissions,
   assertModelAllowed,
   toolPermitted,
@@ -205,6 +206,8 @@ export interface AgentRuntimeOptions {
   readonly operations?: OperationTable;
   /** Each tool's own permission; `false` marks a tool that needs none. */
   readonly permissions?: AgentToolPermissions;
+  /** The provider operation each tool checks, in place of `ai.tool.<name>`. */
+  readonly toolOperations?: AgentToolOperations;
   /**
    * Checks the caller's permission for each tool call. With it, a tool
    * without a permission (from `operations` or `permissions`) is denied,
@@ -230,9 +233,14 @@ export function createAgentRuntime(
   options: AgentRuntimeOptions,
 ): ToolLoopAgent<never, ToolSet> {
   const { agent } = options;
-  const run = agentRunContext(agent, options.caller);
   const tools = agentTools(agent, options.tools ?? {}, options.policies);
-  if (options.knowledge !== undefined && agent.knowledgeScopes.length > 0) {
+  const searchesKnowledge =
+    options.knowledge !== undefined && agent.knowledgeScopes.length > 0;
+  const run = agentRunContext(agent, options.caller, [
+    ...Object.keys(tools),
+    ...(searchesKnowledge ? ["search_knowledge"] : []),
+  ]);
+  if (searchesKnowledge) {
     const {
       knowledge,
       organizationId,
@@ -251,7 +259,12 @@ export function createAgentRuntime(
     });
   }
   const operation = (name: string): AgentToolOperation =>
-    agentToolOperation(name, options.operations, options.permissions);
+    agentToolOperation(
+      name,
+      options.operations,
+      options.permissions,
+      options.toolOperations,
+    );
   const ask: Record<string, "user-approval"> = {
     ...agentToolApproval(tools, options.policies),
   };

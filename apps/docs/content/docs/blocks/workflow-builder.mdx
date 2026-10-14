@@ -83,7 +83,7 @@ const graph: WorkflowGraph = {
 | `trigger`   | Passes the run's input on                                                                                                                |
 | `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                        |
 | `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                        |
-| `approval`  | Waits for its hook to be resumed; the payload `{ approved: false }` takes the `false` branch                                             |
+| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch     |
 | `condition` | Tests `config.path` (under `input` or `results`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
 
 An edge without a `branch` runs its target when its source ran. From a
@@ -166,11 +166,14 @@ A published version runs with its publisher's rights, never more.
 
 Each `step` node needs a permission. The provider's operations table answers
 first: an entry `workflow.node.<step>` (such as `workflow.node.crm.lookup`)
-names the permission. Without one, the step needs the module's `run` key,
+names the permission. Next comes the step's own `operation`, set on the
+step in `steps` (such as `invoices.void`): the provider's entry for it, or
+the operation name itself as the key. Without either, the step needs the module's `run` key,
 after the rename in `sql.modules.workflow-builder.permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
-one of them in the tenant can't publish the version
-(`WORKFLOW_PUBLISHER_FORBIDDEN`). The operations table reaches SQL only under
+one of them in the tenant can't publish the version: the `forbidden` error
+has `hint: "WORKFLOW_PUBLISHER_FORBIDDEN"` and lists the keys they lack in
+`permissions`. The operations table reaches SQL only under
 the provider access model; see
 [authorization providers](/docs/extending/authorization-providers).
 
@@ -214,7 +217,10 @@ export async function crmLookup(call: GraphStepCall) {
 The step fails with `WORKFLOW_PUBLISHER_REVOKED` when:
 
 - the publisher was demoted, lost their membership or was deleted;
-- `runAs` returns `null`, throws, or isn't configured;
+- `runAs` returns `null` or throws;
+- the version is organization-owned and the organization has no default
+  [service principal](/docs/blocks/service-principals), or its role no
+  longer holds every stored permission;
 - the version was published before publishers were recorded (`owner_kind`
   is `null`). Publish it again.
 
@@ -224,9 +230,14 @@ for audit only and never changes whom a step runs as. Nothing falls back to
 the service role or `admin()`; [doctor](/docs/cli/doctor#bs333) reports
 `admin()` in a file that runs builder steps (BS333).
 
-An organization-owned version has no publisher. `runAs` receives
-`publisher: null` and returns the app's service principal for the tenant;
-without one, every step fails.
+Without a `runAs` hook, `versions.runAs` returns the publisher's claims
+capped to the stored permissions: `{ role: "authenticated", sub, tenant_id,
+bs_permission_cap }`. An organization-owned version runs as the
+organization's default [service principal](/docs/blocks/service-principals)
+when that module is installed: the SQL check resolves the principal and
+returns it as the publisher. Without the module, `runAs` receives
+`publisher: null` and must return claims for the tenant, or every step
+fails. A hook always overrides the default.
 
 ## Triggers
 

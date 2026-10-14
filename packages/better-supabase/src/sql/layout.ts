@@ -21,6 +21,9 @@ export function moduleLayout(
     ...(entitlementsProvider ? { entitlementsProvider } : {}),
     ...(accessProvider ? { accessProvider } : {}),
     ...(permissionCatalog ? { permissionCatalog } : {}),
+    ...(config.authorization?.delegation?.scopes
+      ? { delegationScopes: config.authorization.delegation.scopes }
+      : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,

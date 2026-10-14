@@ -195,6 +195,7 @@ describe("createWorkflows", () => {
       failed: [{ id: "s2", error: "down" }],
     });
     expect(start.mock.calls[0]?.[0]).toEqual({
+      source: "schedule",
       workflow: "digest",
       input: ["weekly"],
       tenant: "t1",
@@ -268,6 +269,7 @@ describe("createWorkflows", () => {
       failed: [],
     });
     expect(start).toHaveBeenCalledWith({
+      source: "admission",
       workflow: "w",
       input: [1],
       tenant: "t1",

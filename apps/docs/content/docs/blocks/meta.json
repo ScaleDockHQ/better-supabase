@@ -73,6 +73,7 @@
     "promotions",
     "forms",
     "time-tracking",
-    "identities"
+    "identities",
+    "service-principals"
   ]
 }

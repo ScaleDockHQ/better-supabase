@@ -67,6 +67,18 @@ describe.skipIf(!live)("workflow-builder module", () => {
         },
       });
       expect(await service.steps.sync().orThrow()).toBe(2);
+      const permissionsOf = async (): Promise<unknown> =>
+        (
+          await s.sql.queryRaw<{ p: unknown }>(
+            `select better_supabase.workflow_graph_permissions('{"nodes":[{"id":"a","kind":"step","step":"email.send"},{"id":"b","kind":"step","step":"crm.lookup"}]}'::jsonb) as p`,
+          )
+        )[0]?.p;
+      expect(await permissionsOf()).toEqual(["workflow.run"]);
+      await service.steps
+        .sync([STEPS[0]!, { ...STEPS[1]!, operation: "invoices.void" }])
+        .orThrow();
+      expect(await permissionsOf()).toEqual(["invoices.void", "workflow.run"]);
+      await service.steps.sync().orThrow();
 
       await s.asRole(member);
       const asMember = createBuilder({ transport: sqlTransport(s.sql) });

@@ -8,7 +8,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "team.created": {
@@ -103,8 +103,8 @@ function build(ctx: ModuleContext): string {
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
   const memberCreated = ctx.col("members", "createdAt");
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.teams.manage);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.teams.read);
+  const manage = ctx.permission("manage", OPERATIONS["teams.manage"]);
+  const read = ctx.permission("read", OPERATIONS["teams.read"]);
   const idDefault =
     idType === "uuid"
       ? " default gen_random_uuid()"

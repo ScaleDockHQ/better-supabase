@@ -241,6 +241,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | The splinter pin                     | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                                                                                                                           |
 | A rule in `plugins/rules` or `lint`  | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                                                                                                                            |
 | A SQL module                         | `src/sql/registry.ts` registry (module code in `src/sql/modules`, the `SqlModule` type in `src/sql/module-types.ts`), `sql-modules.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`) |
+| A permission a module checks         | its row in `OPERATIONS` (`src/sql/modules/access-model.ts`), keyed `<module>.<action>`, and the module's permissions table in its docs page                                                                                                                |
 | A block's methods, hooks or fields   | its `BlockHooks` typing and `withBlockHooks` wrap, its SQL `before_`/`after_` hooks (`tests/sql/block-hooks.test.ts`), `extending/blocks.mdx` and the block's page                                                                                         |
 | A block                              | its code in `src/blocks/<name>` and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx`                                                                                           |
 | An SDK adapter subpath               | no SQL and no tables (ADR 0010); its converters tested against `schemas/ai-message-v1.json`; the SDK as an optional peer loaded lazily or typed structurally (invariant 12); see A subpath                                                                 |
@@ -321,6 +322,7 @@ standard or sets how the repo works.
 - 0023: the bookings block installs `btree_gist` for the exclusion constraint that refuses double bookings.
 - 0024: money is `bigint` minor units from ISO 4217; payments and tax plug in through the versioned `PaymentProvider` and `TaxProvider`, with Stripe adapters.
 - 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
+- 0026: delegated tokens are narrowed inside the access functions (`cap_allows`), and every checked action is a row in one operations table (`OPERATIONS`).
 
 ## Pre-release pins
 

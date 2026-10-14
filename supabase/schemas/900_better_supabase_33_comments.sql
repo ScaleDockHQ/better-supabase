@@ -14,6 +14,8 @@ as $$
   select case
     when auth.jwt() is null then true
     when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
     when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
@@ -76,17 +78,20 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select true
+  select case subject_type
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'customers.read'), false)
+    else false
+  end
 $$;
 
 drop policy if exists "comments_read" on "better_supabase"."comments";
 create policy "comments_read" on "better_supabase"."comments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
   with check ((
     "author_id" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false)
+    and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
@@ -165,6 +170,7 @@ begin
     select x from unnest(new."mentions") x
     where (tg_op = 'INSERT' or not x = any(old."mentions"))
       and coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'comments.read'), false)
+      and case new."subject_type" when 'customer' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'customers.read'), false) else true end
   );
   if tg_op = 'INSERT' then
     null;

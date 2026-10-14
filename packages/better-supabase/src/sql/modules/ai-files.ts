@@ -17,7 +17,7 @@ import {
   revokeTable,
   lockTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const FILES = {
   id: "id",
@@ -171,7 +171,7 @@ function build(ctx: ModuleContext): string {
   const documents = ctx.table("documents");
   const versions = ctx.table("versions");
   const suggestions = ctx.table("suggestions");
-  const permissions = MODULE_PERMISSIONS["ai-files"];
+  const permissions = moduleOperations("ai-files");
   const upload = ctx.permission("upload", permissions.upload);
   const manage = ctx.permission("manage", permissions.manage);
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);

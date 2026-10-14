@@ -607,8 +607,18 @@ describe("createWebhooks: subscribers", () => {
     const { webhooks, sent, outcomes } = setup(
       [
         row({ owner: "alice", subject: "invoices/7" }),
-        row({ id: "del-2", endpoint_id: "dest-2", owner: "bob" }),
-        row({ id: "del-3", endpoint_id: "dest-3", owner: null }),
+        row({
+          id: "del-2",
+          endpoint_id: "dest-2",
+          owner: "bob",
+          subject: "invoices/7",
+        }),
+        row({
+          id: "del-3",
+          endpoint_id: "dest-3",
+          owner: null,
+          subject: "invoices/7",
+        }),
       ],
       ok,
       { subscribers: policy },
@@ -642,6 +652,85 @@ describe("createWebhooks: subscribers", () => {
       attempt: 1,
       error: "Refused by the subscriber policy",
     });
+  });
+
+  it("checks each delivery against its own stored subject", async () => {
+    const subjects: (string | null | undefined)[] = [];
+    const { webhooks } = setup(
+      [
+        row({ owner: "alice", subject: "subjects/invoice/7" }),
+        row({
+          id: "del-2",
+          endpoint_id: "dest-2",
+          owner: null,
+          principal: "sp-1",
+          subject: "subjects/invoice/8",
+        }),
+      ],
+      ok,
+      {
+        subscribers: (event, subscribers) => {
+          subjects.push(event.subject);
+          return subscribers.filter(
+            (subscriber) => subscriber.principal === "sp-1",
+          );
+        },
+      },
+    );
+    expect(await webhooks.deliver()).toMatchObject({
+      succeeded: 1,
+      canceled: 1,
+    });
+    expect(
+      subjects.toSorted((a, b) => String(a).localeCompare(String(b))),
+    ).toEqual(["subjects/invoice/7", "subjects/invoice/8"]);
+  });
+
+  it("defaults to subjectReaders under authorization without a delivery policy", async () => {
+    const alice = "00000000-0000-4000-8000-00000000000a";
+    const bob = "00000000-0000-4000-8000-00000000000b";
+    const asked: unknown[] = [];
+    const { webhooks, sent } = setup(
+      [
+        row({ owner: alice, subject: "subjects/invoice/7" }),
+        row({
+          id: "del-2",
+          endpoint_id: "dest-2",
+          owner: bob,
+          subject: "subjects/invoice/7",
+        }),
+        row({
+          id: "del-3",
+          endpoint_id: "dest-3",
+          owner: bob,
+          event_id: "e-2",
+        }),
+      ],
+      ok,
+      { authorization: {} },
+      {
+        subject_types: () => ["invoice"],
+        can_subject_for: (args) => {
+          asked.push(args);
+          return args["member"] === alice;
+        },
+      },
+    );
+    expect(await webhooks.deliver()).toMatchObject({
+      succeeded: 2,
+      canceled: 1,
+    });
+    expect(asked).toContainEqual({
+      member: bob,
+      subject_type: "invoice",
+      subject_id: "7",
+      action: "read",
+    });
+    expect(
+      sent
+        .map((request) => request.headers["webhook-id"] ?? "")
+        .toSorted((a, b) => a.localeCompare(b)),
+    ).toEqual(["del-1", "del-3"]);
   });
 
   it("reads the policy from authorization.delivery and passes the payload actor", async () => {

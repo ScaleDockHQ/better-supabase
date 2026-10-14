@@ -169,6 +169,14 @@ export interface ForContextOptions {
    * Defaults to `ServerOptions.authorization.tickets.subject`.
    */
   readonly ticket?: TicketSubject;
+  /**
+   * The permission keys the work may use (`*` and `prefix.*` match as in
+   * grants). Set as the `bs_permission_cap` claim, which the access
+   * functions check through `better_supabase.cap_allows`, so a key outside
+   * the cap is refused even when the user holds it. A cap the context
+   * already carries is narrowed, never widened.
+   */
+  readonly permissions?: readonly string[];
 }
 
 /** The header `current_tenant_id()` reads over the Data API. */

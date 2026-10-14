@@ -106,6 +106,65 @@ describe("forContext delegation", () => {
     expect(claimsFor).not.toHaveBeenCalled();
     expect(claims).toEqual([]);
   });
+
+  it("caps a delegated context to the keys the delegation hook maps its scopes to", async () => {
+    const { postgres, claims } = fakePostgres();
+    const permissions = vi.fn(({ scopes }: { scopes: readonly string[] }) =>
+      scopes.includes("posts:read") ? ["posts.read", "posts.list"] : [],
+    );
+    const server = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      authorization: defineAuthorizationHooks({
+        apiVersion: 1,
+        name: "scopes",
+        delegation: { permissions },
+      }),
+    });
+    const context = {
+      actor: user,
+      tenant: OTHER,
+      claims: { client_id: "c", scope: "posts:read" },
+    };
+    await server.forContext(context).orThrow();
+    await server
+      .forContext(context, { permissions: ["posts.read", "posts.delete"] })
+      .orThrow();
+    await server.forContext({ actor: user }).orThrow();
+    expect(permissions).toHaveBeenCalledTimes(2);
+    expect(permissions).toHaveBeenCalledWith({
+      userId: USER,
+      tenant: OTHER,
+      clientId: "c",
+      scopes: ["posts:read"],
+    });
+    expect(claims.map((entry) => entry["bs_permission_cap"])).toEqual([
+      ["posts.read", "posts.list"],
+      ["posts.read"],
+      undefined,
+    ]);
+  });
+
+  it("grants a delegated context nothing when the delegation hook throws", async () => {
+    const { postgres, claims } = fakePostgres();
+    const server = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      authorization: defineAuthorizationHooks({
+        apiVersion: 1,
+        name: "broken",
+        delegation: {
+          permissions: () => {
+            throw new Error("down");
+          },
+        },
+      }),
+    });
+    await server
+      .forContext({ actor: user, claims: { client_id: "c" } })
+      .orThrow();
+    expect(claims[0]?.["bs_permission_cap"]).toEqual([]);
+  });
 });
 
 describe("forContext tickets", () => {

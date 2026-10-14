@@ -379,6 +379,49 @@ describe("createNotifications({ email }).deliver", () => {
     expect(sent.map((entry) => entry.message.to)).toEqual(["u1@acme.test"]);
   });
 
+  it("defaults to the subject's readers when the server has hooks but no audience", async () => {
+    const reader = "00000000-0000-4000-8000-00000000000a";
+    const outsider = "00000000-0000-4000-8000-00000000000b";
+    const { transport: mail, sent } = recordingTransport();
+    const { transport, calls } = fakeTransport({
+      claim_notification_deliveries: claimOnce([
+        delivery("d1", reader),
+        delivery("d2", outsider),
+      ]),
+      subject_types: () => ["task"],
+      can_subject_for: (args) => args["member"] === reader,
+    });
+    const notifications = createNotifications({
+      transport,
+      types,
+      render: (item) => ({ title: item.summary ?? "" }),
+      email: { transport: mail, from: "hi@acme.test" },
+      server: {
+        authorization: defineAuthorizationHooks({
+          apiVersion: 1,
+          name: "test",
+        }),
+      },
+    });
+    expect(await notifications.deliver()).toEqual({
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(sent.map((entry) => entry.message.to)).toEqual([
+      `${reader}@acme.test`,
+    ]);
+    expect(calls).toContainEqual({
+      fn: "can_subject_for",
+      args: {
+        member: outsider,
+        subject_type: "task",
+        subject_id: "42",
+        action: "read",
+      },
+    });
+  });
+
   it("sends to no one when audience throws, and retries the deliveries", async () => {
     const { transport: mail, sent } = recordingTransport();
     const { transport, completions } = fakeTransport({

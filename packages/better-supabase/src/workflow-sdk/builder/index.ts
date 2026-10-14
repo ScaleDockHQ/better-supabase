@@ -14,6 +14,7 @@ export {
 export {
   approvalToken,
   executeGraph,
+  type GraphApprovalCall,
   type GraphRuntime,
   type GraphStepCall,
 } from "../../blocks/workflow-builder/executor.ts";

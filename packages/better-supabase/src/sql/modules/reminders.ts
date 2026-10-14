@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "reminder.sent": {
@@ -84,7 +84,7 @@ function build(ctx: ModuleContext): string {
   const rules = ctx.table("rules");
   const reminders = ctx.table("reminders");
   const deliveries = ctx.table("deliveries");
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.reminders.manage);
+  const manage = ctx.permission("manage", OPERATIONS["reminders.manage"]);
   const ruleColumns =
     format === "columns"
       ? `${ctx.has("rules", "frequency") ? `${ctx.col("rules", "frequency")} text,` : ""}

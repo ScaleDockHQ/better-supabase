@@ -59,6 +59,7 @@ export function impersonatorOf(
   if (actor === undefined) return undefined;
   switch (actor.kind) {
     case "oauth-client":
+    case "agent":
       return undefined;
     case "support":
     case "impersonation":

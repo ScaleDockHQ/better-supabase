@@ -1,4 +1,6 @@
 import "server-only";
+import { Temporal } from "temporal-polyfill";
+
 import { blocks } from "@/lib/blocks";
 import { workspaceSummary } from "@/lib/read-sets";
 import { bs } from "@/lib/supabase/server";
@@ -68,4 +70,51 @@ export async function getUsage(
     unlimited: status.unlimited,
     resetsAt: status.resetsAt.toString(),
   }));
+}
+
+export interface CustomerCounts {
+  readonly total: number;
+  readonly previous: number;
+  readonly lead: number;
+  readonly active: number;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * New customers over the last 30 days against the 30 before, and how many of
+ * them are leads or active (the metrics SQL module, read live with
+ * `rollup: false`).
+ */
+export async function getCustomerCounts(
+  organizationId: string,
+): Promise<CustomerCounts> {
+  "use cache: private";
+  const { supabase } = await bs.cached();
+  const until = Temporal.Now.instant();
+  const range = {
+    from: until.subtract({ milliseconds: 30 * DAY_MS }),
+    until,
+  };
+  const { metrics } = blocks(supabase);
+  const [total, lead, active] = await Promise.all([
+    metrics
+      .kpi("customers", range, { organizationId, compare: "previous" })
+      .orThrow(),
+    metrics
+      .kpi("customers", range, { organizationId, filter: { status: "lead" } })
+      .orThrow(),
+    metrics
+      .kpi("customers", range, {
+        organizationId,
+        filter: { status: "active" },
+      })
+      .orThrow(),
+  ]);
+  return {
+    total: total.value ?? 0,
+    previous: total.previous ?? 0,
+    lead: lead.value ?? 0,
+    active: active.value ?? 0,
+  };
 }

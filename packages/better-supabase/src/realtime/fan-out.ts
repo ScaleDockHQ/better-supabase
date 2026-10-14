@@ -24,7 +24,12 @@ export interface TopicFanOutOptions<
   readonly payload: TopicPayload<E, K>;
   /** What the subscriber policy reads about the event. */
   readonly source: SubscriberEvent;
-  /** Defaults to the topic's `subscribers`, then `server.authorization.delivery.subscribers`. */
+  /**
+   * Defaults to the topic's `subscribers`, then
+   * `server.authorization.delivery.subscribers`. With `server.authorization`
+   * and none of them, an event with a `subject` goes to no one
+   * (`REALTIME_SUBSCRIBER_POLICY_REQUIRED`); pass `subjectReaders(transport)`.
+   */
   readonly policy?: SubscriberPolicy;
   readonly server?: {
     readonly authorization?: AuthorizationHooks | undefined;
@@ -60,6 +65,19 @@ export function fanOutTopic<S extends Subscriber>(
       options.policy ??
       fallback ??
       options.server?.authorization?.delivery?.subscribers;
+    if (
+      policy === undefined &&
+      options.server?.authorization !== undefined &&
+      typeof options.source.subject === "string"
+    ) {
+      return err(
+        dbError(
+          "forbidden",
+          "An event with a subject needs a subscriber policy under an authorization provider, such as subjectReaders(transport)",
+          { hint: "REALTIME_SUBSCRIBER_POLICY_REQUIRED" },
+        ),
+      );
+    }
     const checked = await allowedSubscribers(
       policy,
       options.source,

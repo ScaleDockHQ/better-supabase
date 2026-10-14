@@ -5,14 +5,39 @@ import type {
 } from "../../core/contracts/authorization-hooks.ts";
 import type { WorkflowVersion } from "./types.ts";
 
+import { PERMISSION_CAP_CLAIM } from "../../auth/delegation.ts";
 import { type DbError, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { isRecord, optionalText, recordOf, stringsOf } from "../shared.ts";
 import { graphOf } from "./graph.ts";
 import { definitionOf } from "./rows.ts";
 
-const forbidden = (message: string, hint: string): DbError =>
-  dbError("forbidden", message, { hint });
+const forbidden = (
+  message: string,
+  hint: string,
+  permissions?: readonly string[],
+): DbError =>
+  dbError("forbidden", message, {
+    hint,
+    ...(permissions === undefined ? {} : { permissions }),
+  });
+
+/**
+ * The claims a step runs with when the app passes no `automation.runAs`:
+ * the checked publisher (a user or the tenant's service principal), capped
+ * to the version's stored permissions.
+ */
+function defaultClaims(
+  automation: AutomationRef,
+  publisher: string,
+): Readonly<Record<string, unknown>> {
+  return {
+    role: "authenticated",
+    sub: publisher,
+    ...(automation.tenant === null ? {} : { tenant_id: automation.tenant }),
+    [PERMISSION_CAP_CLAIM]: automation.permissions,
+  };
+}
 
 /** A hook's answer, with a throw or a rejection as `undefined`. */
 async function settled<T>(run: () => T | Promise<T>): Promise<T | undefined> {
@@ -69,6 +94,7 @@ export function mayPublishRefusal(
         : forbidden(
             "The authorization provider refused to publish this workflow",
             "WORKFLOW_PUBLISHER_FORBIDDEN",
+            permissions.data,
           ),
     );
   });
@@ -107,12 +133,15 @@ export function runAsPublisher(
     },
   ).andThen(async (automation) => {
     if (runAs === undefined) {
-      return err(
-        forbidden(
-          "Pass authorization hooks with automation.runAs to createBuilder: a published workflow's steps run as its publisher",
-          "WORKFLOW_PUBLISHER_REVOKED",
-        ),
-      );
+      if (automation.publisher === null) {
+        return err(
+          forbidden(
+            "Install the service-principals module or pass automation.runAs to createBuilder: an organization's workflow runs as its service principal",
+            "WORKFLOW_PUBLISHER_REVOKED",
+          ),
+        );
+      }
+      return ok(defaultClaims(automation, automation.publisher));
     }
     const claims = await settled(() => runAs(automation));
     if (claims === undefined || claims === null || !isRecord(claims)) {

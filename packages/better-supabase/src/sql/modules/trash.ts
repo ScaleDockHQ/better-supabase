@@ -25,7 +25,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const PAYLOAD = [
   "organizationId",
@@ -271,10 +271,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const items = ctx.table("items");
   const c = (column: string): string => ctx.col("items", column);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.trash.read);
-  const create = ctx.permission("create", MODULE_PERMISSIONS.trash.create);
-  const restore = ctx.permission("restore", MODULE_PERMISSIONS.trash.restore);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.trash.manage);
+  const read = ctx.permission("read", OPERATIONS["trash.read"]);
+  const create = ctx.permission("create", OPERATIONS["trash.create"]);
+  const restore = ctx.permission("restore", OPERATIONS["trash.restore"]);
+  const manage = ctx.permission("manage", OPERATIONS["trash.manage"]);
   const list = trashable(ctx);
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const retention = ctx.number("retentionDays", 30);

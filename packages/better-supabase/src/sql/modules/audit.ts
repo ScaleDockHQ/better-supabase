@@ -15,7 +15,7 @@ import {
   SERVICE_CALLER,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
+import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import {
@@ -821,12 +821,8 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       : "";
   }
   const c = (logical: string) => ctx.col("log", logical);
-  const view = ctx.permission("view", MODULE_PERMISSIONS.audit.view);
-  const viewAll = modulePermission(
-    ctx,
-    "viewAll",
-    MODULE_PERMISSIONS.audit.viewAll,
-  );
+  const view = ctx.permission("view", OPERATIONS["audit.view"]);
+  const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
@@ -840,7 +836,7 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       .map(c),
     ...metadataColumns(ctx).map(([column]) => sqlIdent(column)),
   ];
-  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view)} permission;
+  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", OPERATIONS["audit.view"])} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
 create or replace function ${ctx.fn("audit_read_tenants")}()

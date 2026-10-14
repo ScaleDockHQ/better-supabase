@@ -40,6 +40,18 @@ export const GET = jobs.drainRoute({
 });
 ```
 
+Before it records the occurrence, `deliver` checks the reminder's user with
+`audience`, a `SubscriberPolicy`. A user it leaves out still has the
+occurrence recorded but gets no notification, and a throw fails the call
+with the hint `REMINDER_AUDIENCE_FAILED` so the job retries. Without the
+option it uses `authorization.delivery.audience`; with `authorization` and
+no such policy, it uses `subjectReaders`, so a user who lost read access to
+the subject stops getting its reminders:
+
+```ts
+createReminders({ ...context, authorization: bs.authorization });
+```
+
 `reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`
 and `userId`, so a [watcher sink](/docs/blocks/notifications#watchers) can
 route it like any other subject event.

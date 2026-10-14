@@ -27,7 +27,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "comment.deleted": {
@@ -186,7 +186,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const c = (logical: string): string => ctx.col("comments", logical);
   const a = (logical: string): string => ctx.col("activity", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS.comments;
+  const permissions = moduleOperations("comments");
   const permission = (action: keyof typeof permissions): string =>
     ctx.permission(action, permissions[action]);
   const maxBody = ctx.number("maxBodyLength", 10_000);

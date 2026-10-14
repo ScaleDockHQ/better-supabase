@@ -15,7 +15,7 @@ import {
   tenantIn,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import {
   allowed,
   calendarMirror,
@@ -830,7 +830,7 @@ ${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uui
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
-  const perms = MODULE_PERMISSIONS.bookings;
+  const perms = moduleOperations("bookings");
   const p: Parts = {
     ctx,
     r: (column) => ctx.col("resources", column),

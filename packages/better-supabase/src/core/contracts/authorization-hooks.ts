@@ -133,6 +133,31 @@ export type TicketSubject = (
   ticket: string,
 ) => RequestContext | null | Promise<RequestContext | null>;
 
+/** A delegated token, as `forContext` sees it: an OAuth client or agent acting for a user. */
+export interface DelegationRef {
+  readonly userId: string;
+  readonly tenant?: string;
+  /** The OAuth client, when the token has a `client_id`. */
+  readonly clientId?: string;
+  /** The scopes the user granted, split on spaces. */
+  readonly scopes: readonly string[];
+  /** RFC 9396 `authorization_details`, when the token has them. */
+  readonly authorizationDetails?: readonly {
+    readonly type: string;
+    readonly [field: string]: unknown;
+  }[];
+}
+
+/**
+ * The permission keys a delegated token may use, for scopes the provider
+ * maps at runtime (`authorization.delegation.scopes` is the static form in
+ * SQL). `forContext` caps the work to them, narrowed by its own
+ * `permissions`; a throw grants nothing.
+ */
+export type DelegationPermissions = (
+  delegation: DelegationRef,
+) => readonly string[] | Promise<readonly string[]>;
+
 /** A button a chat user pressed on a message the app sent. */
 export interface ChatAction {
   /** The action id the card declared, such as `approve`. */
@@ -185,8 +210,8 @@ export type SupportAuthorize = (
  * The runtime half of an authorization provider (`apiVersion: 1`). The
  * `authorization` config key is plain data for SQL; these hooks decide the
  * same things in server code, so one provider can own automations,
- * support sessions, delivery, identity links, chat actions and approvals
- * end to end. Every hook is optional, and a slot passed to a block directly
+ * support sessions, delivery, identity links, chat actions, approvals and
+ * delegated tokens end to end. Every hook is optional, and a slot passed to a block directly
  * wins over the hook.
  */
 export interface AuthorizationHooks {
@@ -207,6 +232,7 @@ export interface AuthorizationHooks {
   readonly chat?: { readonly onAction?: ChatActionHook };
   readonly approverOf?: ApproverOf;
   readonly tickets?: { readonly subject: TicketSubject };
+  readonly delegation?: { readonly permissions: DelegationPermissions };
 }
 
 /** Types `hooks` and freezes it; better-supabase never mutates a provider. */

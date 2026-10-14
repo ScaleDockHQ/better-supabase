@@ -4,7 +4,7 @@ import type { ModuleLayout } from "../module-types.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, serviceGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 export interface HookNames {
   readonly table: (table: string) => string;
@@ -39,6 +39,11 @@ export interface HookNames {
   ) => string;
   /** The module's view permission, as a SQL literal. */
   readonly viewPermission: string;
+  /**
+   * The tenant's default service principal (a uuid expression), when the
+   * service-principals module is installed.
+   */
+  readonly principal?: (tenant: string) => string;
 }
 
 export const WEBHOOK_STATUSES = [
@@ -157,7 +162,7 @@ export function hookNames(
     );
   }
   const access = ctx.installed("access");
-  const permissions = MODULE_PERMISSIONS["webhooks-out"];
+  const permissions = moduleOperations("webhooks-out");
   const values = statusValues(ctx);
   return {
     table: (table) => ctx.table(table),
@@ -184,6 +189,12 @@ export function hookNames(
         : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
     userMay: userMay(ctx, layout),
     viewPermission: ctx.permission("view", permissions.view),
+    ...(ctx.installed("service-principals")
+      ? {
+          principal: (tenant: string) =>
+            `${ctx.of("service-principals").fn("default_service_principal")}(${tenant})`,
+        }
+      : {}),
   };
 }
 
@@ -262,8 +273,10 @@ drop function if exists ${fn}(text, jsonb, ${id}, text);
 -- index on the subscriptions. The same event id never queues twice for one
 -- endpoint. An endpoint only gets events its owner may read: a user's
 -- endpoint needs read_permission (the module's view permission when unset)
--- in the tenant; one without a user owner is a service principal's and
--- needs read_permission among its declared permissions.
+-- in the tenant; one without a user owner is a service principal's: the
+-- tenant's default principal needs read_permission through its role when
+-- the service-principals module is installed and the tenant has one, else
+-- the endpoint needs read_permission among its declared permissions.
 create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
 language plpgsql
@@ -315,9 +328,17 @@ function readable(n: HookNames): string {
     n.has("endpoints", "tenant") && n.has("endpoints", "createdBy")
       ? n.userMay(`d.${d("createdBy")}`, `d.${d("tenant")}`, "v_permission")
       : declared;
-  const service = n.has("endpoints", "permissions")
+  const declaredService = n.has("endpoints", "permissions")
     ? `(${declared} or coalesce(d.${d("permissions")} && v_held, false))`
     : declared;
+  const principal =
+    n.principal && n.has("endpoints", "tenant")
+      ? n.principal(`d.${d("tenant")}`)
+      : undefined;
+  const service =
+    principal === undefined
+      ? declaredService
+      : `(case when ${principal} is not null then ${n.userMay(principal, `d.${d("tenant")}`, "v_permission")} else ${declaredService} end)`;
   return n.has("endpoints", "createdBy")
     ? `(case when d.${d("createdBy")} is not null then ${user} else ${service} end)`
     : service;
@@ -405,6 +426,10 @@ function claim(ctx: ModuleContext, n: HookNames): string {
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
   const endpointField = (logical: string, key: string) =>
     n.has("endpoints", logical) ? `, '${key}', d.${d(logical)}` : "";
+  const principalField =
+    n.principal && n.has("endpoints", "tenant")
+      ? `, 'principal', ${n.has("endpoints", "createdBy") ? `case when d.${d("createdBy")} is null then ${n.principal(`d.${d("tenant")}`)} end` : n.principal(`d.${d("tenant")}`)}`
+      : "";
   const stamp = [
     n.has("deliveries", "lastError")
       ? `, ${v("lastError")} = 'The lease ran out on the last attempt'`
@@ -472,7 +497,7 @@ begin
     'payload', c.${v("payload")},
     'attempt', c.${v("attempt")},
     'url', d.${d("url")},
-    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
+    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${principalField}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
   ) order by c.${v("availableAt")}), '[]')
   into result
   from claimed c

@@ -32,6 +32,7 @@ export {
   inboxAdapter,
   type InboxAdapterOptions,
   type InboxBotJob,
+  inboxIdentityOf,
 } from "./inbox-adapter.ts";
 export {
   approvalLink,

@@ -7,7 +7,7 @@ export type AccessModel = NonNullable<AccessModuleConfig["model"]>;
 
 /**
  * The `roles` model's defaults. Module actions name these keys (see
- * `MODULE_PERMISSIONS`); `*` grants everything and `prefix.*` a prefix.
+ * `OPERATIONS`); `*` grants everything and `prefix.*` a prefix.
  */
 export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
   owner: ["*"],
@@ -54,6 +54,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "forms.*",
     "signatures.*",
     "time_tracking.*",
+    "service_principals.*",
   ],
   member: [
     "organization.read",
@@ -114,208 +115,207 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * The permission key each module action checks by default, overridable per
- * module in `sql.modules.<name>.permissions`. Keys are `<area>.<verb>`, with `read`
- * for viewing; platform-wide actions use the `platform` area or a key that
- * `is_platform()` checks. The AI blocks other than ai-chat check `ai.*` keys.
+ * The permission key each operation checks by default, keyed
+ * `<module>.<action>`. `sql.modules.<name>.permissions` renames a key per
+ * module, `authorization.operations` overrides it for a provider, and the
+ * access module's `operation_permission(op)` answers the result in SQL.
+ * Keys are `<area>.<verb>`, with `read` for viewing; platform-wide actions
+ * use the `platform` area or a key that `is_platform()` checks. The AI
+ * blocks other than ai-chat check `ai.*` keys.
  */
-export const MODULE_PERMISSIONS = {
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    view: "members.invite",
-    invitePlatform: "platform.invite",
-  },
-  audit: { view: "audit.read", viewAll: "audit.read", revert: "audit.revert" },
-  "support-sessions": {
-    start: "support.start",
-    view: "support.read",
-    revoke: "support.revoke",
-  },
-  notifications: { send: "notifications.send", read: "notifications.read" },
-  "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
-  "webhooks-in": {
-    create: "webhooks.manage",
-    update: "webhooks.manage",
-    delete: "webhooks.manage",
-    view: "webhooks.read",
-  },
-  "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  usage: { read: "usage.read", record: "usage.record" },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    viewAll: "billing.read",
-  },
-  comments: {
-    read: "comments.read",
-    create: "comments.create",
-    moderate: "comments.moderate",
-    activity: "activity.read",
-  },
-  "data-lifecycle": {
-    export: "organization.export",
-    delete: "organization.delete",
-    cancelDelete: "organization.delete",
-  },
-  attachments: {
-    read: "attachments.read",
-    upload: "attachments.upload",
-    manage: "attachments.manage",
-  },
-  sso: { manage: "sso.manage" },
-  onboarding: { read: "onboarding.read", complete: "onboarding.complete" },
-  announcements: { manage: "announcements.manage" },
-  waitlist: { manage: "waitlist.manage", invite: "members.invite" },
-  flags: { manage: "flags.manage" },
-  workflows: {
-    read: "workflow.read",
-    run: "workflow.run",
-    admin: "workflow.admin",
-  },
-  "workflow-builder": {
-    read: "workflow.read",
-    run: "workflow.run",
-    edit: "workflow.edit",
-    publish: "workflow.publish",
-    admin: "workflow.admin",
-  },
-  inbox: {
-    read: "inbox.read",
-    reply: "inbox.reply",
-    assign: "inbox.assign",
-    manage: "inbox.manage",
-  },
-  "ai-chat": {
-    read: "ai_chat.read",
-    create: "ai_chat.create",
-    share: "ai_chat.share",
-    moderate: "ai_chat.moderate",
-    admin: "ai_chat.admin",
-  },
-  "ai-files": { upload: "ai.create", manage: "ai.admin" },
-  knowledge: {
-    read: "ai.read",
-    write: "ai.create",
-    manage: "ai.admin",
-  },
-  memory: { read: "ai.read", manage: "ai.admin" },
-  agents: {
-    read: "ai.read",
-    create: "ai.create",
-    publish: "ai.share",
-    moderate: "ai.moderate",
-  },
-  connectors: {
-    read: "ai.read",
-    use: "ai.create",
-    manage: "ai.admin",
-  },
-  "ai-tasks": { create: "ai.create", manage: "ai.admin" },
-  "ai-providers": { use: "ai.create", manage: "ai.admin" },
-  "number-sequences": { assign: "number_sequences.assign" },
-  teams: { manage: "teams.manage", read: "teams.read" },
-  tags: { manage: "tags.manage", read: "tags.read" },
-  catalog: { manage: "catalog.manage", read: "catalog.read" },
-  inventory: {
-    manage: "inventory.manage",
-    read: "inventory.read",
-    reserve: "inventory.reserve",
-    purchase: "inventory.purchase",
-  },
-  orders: { manage: "orders.manage", read: "orders.read" },
-  promotions: { manage: "promotions.manage", read: "promotions.read" },
-  "custom-fields": {
-    manage: "custom_fields.manage",
-    read: "custom_fields.read",
-    sensitive: "custom_fields.sensitive.read",
-  },
-  "share-links": { create: "share_links.create", read: "share_links.read" },
-  reminders: { manage: "reminders.manage", read: "reminders.read" },
-  imports: { manage: "imports.manage" },
-  "saved-views": { read: "views.read", share: "views.share" },
-  relations: { read: "relations.read", manage: "relations.manage" },
-  bulk: { run: "bulk.run" },
-  search: { read: "search.read" },
-  metrics: { read: "metrics.read", manage: "metrics.manage" },
-  calendar: {
-    manage: "calendar.manage",
-    write: "calendar.write",
-    read: "calendar.read",
-  },
-  bookings: {
-    manage: "bookings.manage",
-    create: "bookings.create",
-    read: "bookings.read",
-  },
-  versions: {
-    read: "versions.read",
-    create: "versions.create",
-    restore: "versions.restore",
-    manage: "versions.manage",
-  },
-  trash: {
-    read: "trash.read",
-    create: "trash.create",
-    restore: "trash.restore",
-    manage: "trash.manage",
-  },
-  reactions: {
-    read: "reactions.read",
-    create: "reactions.create",
-    manage: "reactions.manage",
-  },
-  approvals: {
-    read: "approvals.read",
-    request: "approvals.request",
-    manage: "approvals.manage",
-  },
-  "access-requests": {
-    read: "access_requests.read",
-    create: "access_requests.create",
-    manage: "access_requests.manage",
-  },
-  documents: {
-    read: "documents.read",
-    write: "documents.write",
-    manage: "documents.manage",
-  },
-  drive: {
-    read: "drive.read",
-    create: "drive.create",
-    manage: "drive.manage",
-  },
-  forms: {
-    read: "forms.read",
-    manage: "forms.manage",
-    submit: "forms.submit",
-    review: "forms.review",
-  },
-  signatures: {
-    read: "signatures.read",
-    request: "signatures.request",
-    manage: "signatures.manage",
-  },
-  "time-tracking": {
-    read: "time_tracking.read",
-    track: "time_tracking.track",
-    approve: "time_tracking.approve",
-    manage: "time_tracking.manage",
-  },
+export const OPERATIONS = {
+  "organizations.update": "organization.update",
+  "organizations.delete": "organization.delete",
+  "organizations.removeMember": "members.remove",
+  "organizations.suspendMember": "members.remove",
+  "organizations.updateRole": "members.update_role",
+  "organizations.transferOwnership": "organization.transfer_ownership",
+  "invitations.invite": "members.invite",
+  "invitations.revoke": "members.invite",
+  "invitations.view": "members.invite",
+  "invitations.invitePlatform": "platform.invite",
+  "audit.view": "audit.read",
+  "audit.viewAll": "audit.read",
+  "audit.revert": "audit.revert",
+  "support-sessions.start": "support.start",
+  "support-sessions.view": "support.read",
+  "support-sessions.revoke": "support.revoke",
+  "notifications.send": "notifications.send",
+  "notifications.read": "notifications.read",
+  "webhooks-out.manage": "webhooks.manage",
+  "webhooks-out.view": "webhooks.read",
+  "webhooks-in.create": "webhooks.manage",
+  "webhooks-in.update": "webhooks.manage",
+  "webhooks-in.delete": "webhooks.manage",
+  "webhooks-in.view": "webhooks.read",
+  "api-keys.manage": "api_keys.manage",
+  "api-keys.own": "api_keys.own",
+  "settings.read": "settings.read",
+  "settings.update": "settings.update",
+  "settings.platform": "settings.manage",
+  "usage.read": "usage.read",
+  "usage.record": "usage.record",
+  "billing.read": "billing.read",
+  "billing.manage": "billing.manage",
+  "billing.viewAll": "billing.read",
+  "comments.read": "comments.read",
+  "comments.create": "comments.create",
+  "comments.moderate": "comments.moderate",
+  "comments.activity": "activity.read",
+  "data-lifecycle.export": "organization.export",
+  "data-lifecycle.delete": "organization.delete",
+  "data-lifecycle.cancelDelete": "organization.delete",
+  "attachments.read": "attachments.read",
+  "attachments.upload": "attachments.upload",
+  "attachments.manage": "attachments.manage",
+  "sso.manage": "sso.manage",
+  "onboarding.read": "onboarding.read",
+  "onboarding.complete": "onboarding.complete",
+  "announcements.manage": "announcements.manage",
+  "waitlist.manage": "waitlist.manage",
+  "waitlist.invite": "members.invite",
+  "flags.manage": "flags.manage",
+  "workflows.read": "workflow.read",
+  "workflows.run": "workflow.run",
+  "workflows.admin": "workflow.admin",
+  "workflow-builder.read": "workflow.read",
+  "workflow-builder.run": "workflow.run",
+  "workflow-builder.edit": "workflow.edit",
+  "workflow-builder.publish": "workflow.publish",
+  "workflow-builder.admin": "workflow.admin",
+  "inbox.read": "inbox.read",
+  "inbox.reply": "inbox.reply",
+  "inbox.assign": "inbox.assign",
+  "inbox.manage": "inbox.manage",
+  "ai-chat.read": "ai_chat.read",
+  "ai-chat.create": "ai_chat.create",
+  "ai-chat.share": "ai_chat.share",
+  "ai-chat.moderate": "ai_chat.moderate",
+  "ai-chat.admin": "ai_chat.admin",
+  "ai-files.upload": "ai.create",
+  "ai-files.manage": "ai.admin",
+  "knowledge.read": "ai.read",
+  "knowledge.write": "ai.create",
+  "knowledge.manage": "ai.admin",
+  "memory.read": "ai.read",
+  "memory.manage": "ai.admin",
+  "agents.read": "ai.read",
+  "agents.create": "ai.create",
+  "agents.publish": "ai.share",
+  "agents.moderate": "ai.moderate",
+  "connectors.read": "ai.read",
+  "connectors.use": "ai.create",
+  "connectors.manage": "ai.admin",
+  "ai-tasks.create": "ai.create",
+  "ai-tasks.manage": "ai.admin",
+  "ai-providers.use": "ai.create",
+  "ai-providers.manage": "ai.admin",
+  "number-sequences.assign": "number_sequences.assign",
+  "teams.manage": "teams.manage",
+  "teams.read": "teams.read",
+  "tags.manage": "tags.manage",
+  "tags.read": "tags.read",
+  "catalog.manage": "catalog.manage",
+  "catalog.read": "catalog.read",
+  "inventory.manage": "inventory.manage",
+  "inventory.read": "inventory.read",
+  "inventory.reserve": "inventory.reserve",
+  "inventory.purchase": "inventory.purchase",
+  "orders.manage": "orders.manage",
+  "orders.read": "orders.read",
+  "promotions.manage": "promotions.manage",
+  "promotions.read": "promotions.read",
+  "custom-fields.manage": "custom_fields.manage",
+  "custom-fields.read": "custom_fields.read",
+  "custom-fields.sensitive": "custom_fields.sensitive.read",
+  "share-links.create": "share_links.create",
+  "share-links.read": "share_links.read",
+  "reminders.manage": "reminders.manage",
+  "reminders.read": "reminders.read",
+  "imports.manage": "imports.manage",
+  "saved-views.read": "views.read",
+  "saved-views.share": "views.share",
+  "relations.read": "relations.read",
+  "relations.manage": "relations.manage",
+  "bulk.run": "bulk.run",
+  "search.read": "search.read",
+  "metrics.read": "metrics.read",
+  "metrics.manage": "metrics.manage",
+  "calendar.manage": "calendar.manage",
+  "calendar.write": "calendar.write",
+  "calendar.read": "calendar.read",
+  "bookings.manage": "bookings.manage",
+  "bookings.create": "bookings.create",
+  "bookings.read": "bookings.read",
+  "versions.read": "versions.read",
+  "versions.create": "versions.create",
+  "versions.restore": "versions.restore",
+  "versions.manage": "versions.manage",
+  "trash.read": "trash.read",
+  "trash.create": "trash.create",
+  "trash.restore": "trash.restore",
+  "trash.manage": "trash.manage",
+  "reactions.read": "reactions.read",
+  "reactions.create": "reactions.create",
+  "reactions.manage": "reactions.manage",
+  "approvals.read": "approvals.read",
+  "approvals.request": "approvals.request",
+  "approvals.manage": "approvals.manage",
+  "access-requests.read": "access_requests.read",
+  "access-requests.create": "access_requests.create",
+  "access-requests.manage": "access_requests.manage",
+  "documents.read": "documents.read",
+  "documents.write": "documents.write",
+  "documents.manage": "documents.manage",
+  "drive.read": "drive.read",
+  "drive.create": "drive.create",
+  "drive.manage": "drive.manage",
+  "forms.read": "forms.read",
+  "forms.manage": "forms.manage",
+  "forms.submit": "forms.submit",
+  "forms.review": "forms.review",
+  "signatures.read": "signatures.read",
+  "signatures.request": "signatures.request",
+  "signatures.manage": "signatures.manage",
+  "time-tracking.read": "time_tracking.read",
+  "time-tracking.track": "time_tracking.track",
+  "time-tracking.approve": "time_tracking.approve",
+  "time-tracking.manage": "time_tracking.manage",
+  "service-principals.read": "service_principals.read",
+  "service-principals.manage": "service_principals.manage",
 } as const;
+
+/** An operation name, `<module>.<action>`. */
+export type Operation = keyof typeof OPERATIONS;
+
+/** The modules with operations. */
+export type OperationModule = Operation extends `${infer M}.${string}`
+  ? M
+  : never;
+
+/** One module's operations by action, as `moduleOperations` returns them. */
+export type ModuleOperations<M extends OperationModule> = {
+  readonly [
+    O in Operation as O extends `${M}.${infer A}` ? A : never
+  ]: (typeof OPERATIONS)[O];
+};
+
+const operationsByModule = new Map<string, Record<string, string>>();
+for (const [name, key] of Object.entries(OPERATIONS)) {
+  const dot = name.indexOf(".");
+  const module = name.slice(0, dot);
+  const actions = operationsByModule.get(module) ?? {};
+  actions[name.slice(dot + 1)] = key;
+  operationsByModule.set(module, actions);
+}
+
+/** `module`'s default keys by action, from `OPERATIONS`. */
+export function moduleOperations<M extends OperationModule>(
+  module: M,
+): ModuleOperations<M> {
+  // SAFETY: built from OPERATIONS above, which holds every action of M.
+  return (operationsByModule.get(module) ?? {}) as ModuleOperations<M>;
+}
 
 /**
  * Where each module action checks its key: `tenant` through `member_can`,
@@ -323,8 +323,8 @@ export const MODULE_PERMISSIONS = {
  * through `is_platform` or `platform_can` (a provider's `isPlatform`).
  */
 export const MODULE_PERMISSION_SCOPES: {
-  readonly [M in keyof typeof MODULE_PERMISSIONS]: {
-    readonly [A in keyof (typeof MODULE_PERMISSIONS)[M]]: "tenant" | "platform";
+  readonly [M in OperationModule]: {
+    readonly [A in keyof ModuleOperations<M>]: "tenant" | "platform";
   };
 } = {
   organizations: {
@@ -466,6 +466,7 @@ export const MODULE_PERMISSION_SCOPES: {
     approve: "tenant",
     manage: "tenant",
   },
+  "service-principals": { read: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

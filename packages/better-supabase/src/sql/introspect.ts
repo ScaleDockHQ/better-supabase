@@ -8,8 +8,9 @@ import { moduleContext } from "./module-context.ts";
 import {
   hasPlatformRoles,
   MODULE_PERMISSION_SCOPES,
-  MODULE_PERMISSIONS,
+  moduleOperations,
   modulePermissionKey,
+  type OperationModule,
 } from "./modules/access-model.ts";
 import { SQL_MODULES, checkModules, resolveModules } from "./registry.ts";
 
@@ -41,10 +42,8 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   "data-lifecycle": { deletePlatform: "platform" },
 };
 
-const isPermissionModule = (
-  name: string,
-): name is keyof typeof MODULE_PERMISSIONS =>
-  Object.hasOwn(MODULE_PERMISSIONS, name);
+const isPermissionModule = (name: string): name is OperationModule =>
+  Object.hasOwn(MODULE_PERMISSION_SCOPES, name);
 
 /**
  * Every permission key the modules `names` install (with what they pull
@@ -74,7 +73,7 @@ export function modulePermissionKeys(
       return key === "" ? [] : [{ module: name, action, key, scope }];
     });
     return [
-      ...Object.entries(MODULE_PERMISSIONS[name]).flatMap(
+      ...Object.entries(moduleOperations(name)).flatMap(
         ([action, fallback]): ModulePermissionKey[] =>
           action === "invitePlatform" && !hasPlatformRoles(ctx)
             ? []

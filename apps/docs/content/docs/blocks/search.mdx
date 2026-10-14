@@ -234,3 +234,12 @@ when the dialog lets you pass it, since the server already ranked them.
 `before_search_document_index` and `after_search_document_index` run around
 each document write with the subject type and id. `createSearch` takes
 `hooks` around its methods, as every block does.
+
+## Example
+
+The Next.js example declares `customer` in `config.subjects` (`deletedAt:
+"archived_at"`, so archived customers leave the index) and installs `search`
+with `api: "api"`. The header has a Search button that also opens on Cmd+K:
+`useCommandSearch({ schema: "api" })` drives a dialog that lists favorites and
+recents for an empty query and customer matches as the user types. See
+`apps/examples/nextjs/src/features/search`.

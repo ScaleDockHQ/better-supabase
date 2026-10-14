@@ -14,7 +14,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "announcement.saved": {
@@ -86,10 +86,7 @@ function build(ctx: ModuleContext): string {
   const ca = (c: string): string => ctx.col("announcements", c);
   const cd = (c: string): string => ctx.col("dismissals", c);
   const raw = (c: string): string => sqlString(ca(c).replaceAll('"', ""));
-  const manage = ctx.permission(
-    "manage",
-    MODULE_PERMISSIONS.announcements.manage,
-  );
+  const manage = ctx.permission("manage", OPERATIONS["announcements.manage"]);
   const staff = ctx.staff(manage);
   const announcementEvent = (type: string, id: string): string =>
     ctx.record({

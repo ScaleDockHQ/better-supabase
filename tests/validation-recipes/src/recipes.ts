@@ -245,6 +245,9 @@ export const commerceMetrics = [
 /** Refunds above this many cents need an approved `refund` request on the order. */
 export const REFUND_APPROVAL_ABOVE = 5000;
 
+/** Percentage promotions above this need an approved `activate` request on the promotion. */
+export const PROMOTION_APPROVAL_ABOVE = 30;
+
 export const commerce: Recipe = {
   name: "commerce",
   schema: "recipe_commerce",
@@ -276,7 +279,25 @@ begin
   end if;
 end;
 $$;
-revoke execute on function public.after_refund_create(uuid) from public, anon, authenticated;`,
+revoke execute on function public.after_refund_create(uuid) from public, anon, authenticated;
+
+create function public.before_promotion_activate(promotion uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from better_supabase.promotions p
+    where p.id = promotion and p.kind = 'percentage'
+      and p.percent > ${String(PROMOTION_APPROVAL_ABOVE)}
+  ) and not better_supabase.is_approved('promotion', promotion::text, 'activate') then
+    raise exception 'a discount above ${String(PROMOTION_APPROVAL_ABOVE)} percent needs an approved activate request'
+      using errcode = '42501', hint = 'PROMOTION_APPROVAL_REQUIRED';
+  end if;
+end;
+$$;
+revoke execute on function public.before_promotion_activate(uuid) from public, anon, authenticated;`,
   config: defineConfig({
     subjects: {
       order: {
@@ -284,6 +305,20 @@ revoke execute on function public.after_refund_create(uuid) from public, anon, a
         idType: "uuid",
         tenant: "tenant_id",
         title: "number",
+      },
+      promotion: {
+        table: "better_supabase.promotions",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "name",
+      },
+      product: {
+        table: "better_supabase.products",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "title",
+        url: "/admin/products/{id}",
+        search: { body: ["description"] },
       },
     },
     sql: {
@@ -304,12 +339,17 @@ revoke execute on function public.after_refund_create(uuid) from public, anon, a
         },
         orders: {},
         promotions: {},
+        search: {},
+        "saved-views": {},
         metrics: { options: { metrics: commerceMetrics } },
         approvals: {
           options: {
             policies: {
               order: {
                 refund: { steps: [{ approvers: { role: "admin" } }] },
+              },
+              promotion: {
+                activate: { steps: [{ approvers: { role: "admin" } }] },
               },
             },
           },

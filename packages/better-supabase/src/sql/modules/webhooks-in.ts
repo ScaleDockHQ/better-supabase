@@ -18,7 +18,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS, modulePermissionKey } from "./access-model.ts";
+import { moduleOperations, modulePermissionKey } from "./access-model.ts";
 
 /** How a delivery to an endpoint proves it came from the sender. */
 const INCOMING_VERIFY = [
@@ -112,7 +112,7 @@ function webhooksInSql(ctx: ModuleContext): string {
     pairs
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`);
-  const p = MODULE_PERMISSIONS["webhooks-in"];
+  const p = moduleOperations("webhooks-in");
   const key = (action: "create" | "update" | "delete") =>
     sqlString(modulePermissionKey(ctx, action, p[action]));
   const view = ctx.permission("view", p.view);

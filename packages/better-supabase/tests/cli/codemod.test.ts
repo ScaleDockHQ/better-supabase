@@ -200,4 +200,26 @@ describe("codemod 0.9", () => {
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([2, 3, 4, 5, 6]);
   });
+
+  it("lists the access, workflow and delivery changes for review", () => {
+    const source = [
+      "const policy = sql`using (better_supabase.token_scope_allows('posts:write'))`;",
+      "const ids = sql`select public.member_organization_ids()`;",
+      "const start = workflowStarter({ digest }, { runAs });",
+      "const builder = createBuilder({ transport });",
+      "const notifications = createNotifications({ transport });",
+      "await inbox.fanOut(admin, options);",
+      'const act = { kind: "agent", sub, tools };',
+      "const link = sql`select better_supabase.create_share_link($1, $2, $3, $4)`;",
+      "const hook = sql`create function public.before_promotion_activate(promotion uuid)`;",
+      "const modules = { comments: { options: {} } };",
+      "const ok = 1;",
+    ].join("\n");
+    const result = applyCodemod(v09, source);
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+    expect(result.review[2]?.message).toContain("runAs");
+  });
 });

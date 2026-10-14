@@ -15,7 +15,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
 import { autoTablesOf, autoTablesSql } from "./data-lifecycle-auto-tables.ts";
 import {
@@ -83,7 +83,7 @@ function build(ctx: ModuleContext): string {
   const ce = (logical: string): string => ctx.col("exports", logical);
   const cd = (logical: string): string => ctx.col("deletions", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS["data-lifecycle"];
+  const permissions = moduleOperations("data-lifecycle");
   const can = (tenant: string, action: keyof typeof permissions): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const bucket = sqlString(bucketOf(ctx));

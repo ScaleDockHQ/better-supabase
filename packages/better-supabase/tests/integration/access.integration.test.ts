@@ -118,6 +118,56 @@ describe.skipIf(!live)("access contract against the local database", () => {
     expect(row["claims"]).toContain("members.*");
   });
 
+  it("narrows a delegated token to its mapped scopes and a permission cap", async () => {
+    const rows = await inTransaction(
+      pool,
+      "",
+      ["access"],
+      { modules: { access: { scopes: { "members:write": ["members.*"] } } } },
+      async (client) => {
+        await client.query(
+          "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
+          [ORG],
+        );
+        await client.query(
+          "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
+          [ORG, USER],
+        );
+        const answers = async (claims: Record<string, unknown>) => {
+          await asUser(client, claims);
+          const { rows } = await client.query<Record<string, unknown>>(
+            `select better_supabase.can('organization', $1, 'members.invite') as invite,
+            better_supabase.can('organization', $1, 'audit.read') as audit,
+            array(select better_supabase.tenant_ids_with('audit.read')) as ids,
+            better_supabase.member_can($2, $1, 'audit.read') as member`,
+            [ORG, USER],
+          );
+          return rows[0]!;
+        };
+        return {
+          own: await answers({}),
+          delegated: await answers({
+            client_id: "c",
+            scope: "members:write",
+          }),
+          unmapped: await answers({ client_id: "c", scope: "audit.read" }),
+          capped: await answers({ bs_permission_cap: ["members.invite"] }),
+          support: await answers({ act: { kind: "support", sub: "a" } }),
+        };
+      },
+    );
+    expect(rows.own).toMatchObject({ invite: true, audit: true, ids: [ORG] });
+    expect(rows.delegated).toMatchObject({
+      invite: true,
+      audit: false,
+      ids: [],
+      member: false,
+    });
+    expect(rows.unmapped).toMatchObject({ invite: false, audit: true });
+    expect(rows.capped).toMatchObject({ invite: true, audit: false, ids: [] });
+    expect(rows.support).toMatchObject({ invite: true, audit: true });
+  });
+
   it("adopts a CentraKit-shaped catalog: deny overrides, platform roles, disabled tenants and a resolved tenant", async () => {
     const setup = `
       create table public.bs_access_organizations (id uuid primary key, disabled_at timestamptz);

@@ -112,8 +112,8 @@ export const GET = jobs.drainRoute({
 ```
 
 To keep charts current between runs, relay the events that add rows to
-`metricsSink`. It re-aggregates the window the batch's events fall in, per
-metric:
+`metricsSink`. It re-aggregates the buckets of each day the batch's events
+fall on, per metric:
 
 ```ts
 outbox.relay(
@@ -127,7 +127,9 @@ outbox.relay(
 The sink reads each event's `time`. When rows sit at another time than the
 event, such as time logged for a past day, pass `time`, a function that
 returns the timestamp to bucket by, or undefined to keep the event's own.
-[Time tracking](/docs/blocks/time-tracking#metrics) exports
+It may return several timestamps, for an event that moves a row from one
+day to another; the sink rolls up each of their days and skips the days
+between. [Time tracking](/docs/blocks/time-tracking#metrics) exports
 `timeEntryMetricTime` for its entries, and
 [orders](/docs/blocks/orders#metrics) exports `orderMetrics` with the events
 that feed it.
@@ -238,3 +240,13 @@ the badge.
 `before_metric_rollup` and `after_metric_rollup` run around each metric's
 rollup with its key and window. `createMetrics` takes `hooks` around its
 methods, as every block does.
+
+## Example
+
+The Next.js example defines one metric in `src/metrics.ts`, customers counted
+by `created_at` with a `status` dimension and `rollup: false`, and passes the
+same array to `sql.modules.metrics.options.metrics` and to `createMetrics`.
+The dashboard's New customers card reads three KPIs in one
+`"use cache: private"` function with `bs.cached()`: the last 30 days against
+the 30 before, and the leads and active customers among them. See
+`getCustomerCounts` in `apps/examples/nextjs/src/features/dashboard`.

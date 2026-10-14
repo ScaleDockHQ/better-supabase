@@ -47,6 +47,22 @@ describe("timeTrackingMetrics", () => {
       ),
     ).toBe("2026-09-28T09:00:00Z");
     expect(
+      timeEntryMetricTime(
+        event("time_entry.updated", {
+          startedAt: "2026-09-28T09:00:00Z",
+          previousStartedAt: "2026-09-20T09:00:00Z",
+        }),
+      ),
+    ).toEqual(["2026-09-28T09:00:00Z", "2026-09-20T09:00:00Z"]);
+    expect(
+      timeEntryMetricTime(
+        event("time_entry.updated", {
+          startedAt: "2026-09-28T09:00:00Z",
+          previousStartedAt: "2026-09-28T09:00:00Z",
+        }),
+      ),
+    ).toBe("2026-09-28T09:00:00Z");
+    expect(
       timeEntryMetricTime(event("time_entry.recorded", { startedAt: 3 })),
     ).toBeUndefined();
     expect(timeEntryMetricTime(event("time_entry.recorded"))).toBeUndefined();
@@ -75,7 +91,10 @@ describe("timeTrackingMetrics", () => {
     await sink.send([
       event(
         "time_entry.updated",
-        { startedAt: "2026-09-28T09:00:00Z" },
+        {
+          startedAt: "2026-09-28T09:00:00Z",
+          previousStartedAt: "2026-09-20T09:00:00Z",
+        },
         "2026-10-02T10:00:00Z",
       ),
       event(
@@ -86,6 +105,7 @@ describe("timeTrackingMetrics", () => {
     ]);
     expect(requests).toEqual([
       { metric: "time_tracked", since: "2026-09-28T09:00:00Z" },
+      { metric: "time_tracked", since: "2026-09-20T09:00:00Z" },
       { metric: "revenue", since: "2026-10-02T11:00:00Z" },
     ]);
   });

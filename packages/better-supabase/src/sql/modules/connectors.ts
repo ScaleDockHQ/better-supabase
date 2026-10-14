@@ -11,7 +11,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
@@ -130,7 +130,7 @@ function build(ctx: ModuleContext): string {
   const grants = ctx.table("grants");
   const sessions = ctx.table("sessions");
   const fingerprints = ctx.table("fingerprints");
-  const permissions = MODULE_PERMISSIONS.connectors;
+  const permissions = moduleOperations("connectors");
   const read = ctx.permission("read", permissions.read);
   const use = ctx.permission("use", permissions.use);
   const manage = ctx.permission("manage", permissions.manage);

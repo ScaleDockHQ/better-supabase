@@ -8,7 +8,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import {
   type Names,
   SLUG,
@@ -481,7 +481,7 @@ using (${condition});`;
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
-  const { catalog: keys } = MODULE_PERMISSIONS;
+  const keys = moduleOperations("catalog");
   const names: Names = {
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", keys.manage),
@@ -631,6 +631,7 @@ export const CATALOG: ModuleDefinition = {
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.",
   requires: ["tenant", "access"],
+  before: "search",
   integrates: ["outbox", "state-machine", "inventory"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

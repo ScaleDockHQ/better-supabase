@@ -39,6 +39,19 @@ describe("subjects module", () => {
     expect(sql).toContain("security invoker");
   });
 
+  it("writes can_subject_for through can_user, false for an action without a key", () => {
+    const sql = sqlOf(["subjects"]);
+    expect(sql).toContain(
+      `when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'tasks.read'), false)`,
+    );
+    expect(sql).toMatch(
+      /when 'note' then\s+return exists \(\s+select 1 from "public"."notes" s\s+where s."id"::text = can_subject_for.subject_id\s+and false/,
+    );
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;`,
+    );
+  });
+
   it("treats soft-deleted rows as gone", () => {
     const sql = renderModules(["subjects"], {
       subjects: {

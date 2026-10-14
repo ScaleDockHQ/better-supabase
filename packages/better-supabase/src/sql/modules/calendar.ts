@@ -14,7 +14,7 @@ import {
   tenantIn,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "calendar.created": {
@@ -276,7 +276,7 @@ function build(ctx: ModuleContext): string {
   const k = (column: string) => ctx.col("calendars", column);
   const e = (column: string) => ctx.col("events", column);
   const a = (column: string) => ctx.col("attendees", column);
-  const perms = MODULE_PERMISSIONS.calendar;
+  const perms = moduleOperations("calendar");
   const manage = ctx.permission("manage", perms.manage);
   const write = ctx.permission("write", perms.write);
   const read = ctx.permission("read", perms.read);

@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { schemaPreamble, lockTable, fail } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "flag.saved": {
@@ -67,7 +67,7 @@ function build(ctx: ModuleContext): string {
   const o = (logical: string): string => ctx.col("overrides", logical);
   const fn = (name: string): string => ctx.fn(name);
   const manage = ctx.staff(
-    ctx.permission("manage", MODULE_PERMISSIONS.flags.manage),
+    ctx.permission("manage", OPERATIONS["flags.manage"]),
   );
   const denied = `if not ${manage} then
     ${fail("FLAGS_FORBIDDEN", "Not allowed to manage feature flags")}

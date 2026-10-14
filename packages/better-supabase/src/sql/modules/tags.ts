@@ -15,7 +15,7 @@ import {
   subjectTableBindings,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "tag.created": {
@@ -154,7 +154,7 @@ function build(ctx: ModuleContext): string {
   const rank = ranked ? ctx.col("tags", "rank") : "";
   const createdAt = ctx.col("tags", "createdAt");
   const updatedAt = ctx.col("tags", "updatedAt");
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.tags.manage);
+  const manage = ctx.permission("manage", OPERATIONS["tags.manage"]);
   const bound = links(ctx);
   const list = subjects(ctx);
   const tables = ctx.manages

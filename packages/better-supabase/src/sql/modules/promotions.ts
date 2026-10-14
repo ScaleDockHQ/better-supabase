@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { columns } from "./orders-shared.ts";
 import {
   type PromotionsNames,
@@ -35,7 +35,11 @@ const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  hooks: ["before_promotion_save", "after_promotion_save"],
+  hooks: [
+    "before_promotion_save",
+    "after_promotion_save",
+    "before_promotion_activate",
+  ],
   tables: {
     promotions: {
       name: "promotions",
@@ -212,8 +216,8 @@ ${policy("redemptions", `${tenantRead("redemptions")} or ${r("customer")} = (sel
 function namesOf(ctx: ModuleContext): PromotionsNames {
   return {
     fn: (name) => ctx.fn(name),
-    manage: ctx.permission("manage", MODULE_PERMISSIONS.promotions.manage),
-    read: ctx.permission("read", MODULE_PERMISSIONS.promotions.read),
+    manage: ctx.permission("manage", OPERATIONS["promotions.manage"]),
+    read: ctx.permission("read", OPERATIONS["promotions.read"]),
   };
 }
 
