@@ -77,7 +77,9 @@ supportSessions({
 ```
 
 `authorize: "store"` keeps the 0.8 behaviour, where the store's SQL policy
-alone decides. See [Support sessions](/docs/auth/impersonation).
+alone decides. To start sessions without a second admin, set both
+`policy.approval: "none"` and the module's
+`sql.modules.support-sessions.options.approval: "none"`. See [Support sessions](/docs/auth/impersonation).
 
 ## Webhooks and problems
 
