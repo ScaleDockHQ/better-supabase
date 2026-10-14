@@ -4,6 +4,7 @@ import { rankKeys } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { canIn, fail, userGrant } from "../shared.ts";
+import { watchSql } from "../watch-sql.ts";
 import {
   byType,
   type Names,
@@ -125,36 +126,23 @@ export function stageTrigger(
   const notifications = ctx.installed("notifications")
     ? ctx.of("notifications")
     : undefined;
+  const watch =
+    binding.owner === undefined
+      ? ""
+      : watchSql(ctx, {
+          tenant,
+          user: `new.${col(binding.owner)}`,
+          subjectType: sqlString(binding.type),
+          subjectId,
+        });
   const follow =
-    binding.owner !== undefined &&
-    notifications?.hasTable("subscriptions") === true
-      ? (() => {
-          const s = (logical: string): string =>
-            notifications.col("subscriptions", logical);
-          const tenanted = notifications.has("subscriptions", "tenant");
-          const columns = [
-            ...(tenanted ? [s("tenant")] : []),
-            s("user"),
-            s("subjectType"),
-            s("subjectId"),
-            s("level"),
-          ];
-          const values = [
-            ...(tenanted ? [tenant] : []),
-            `new.${col(binding.owner)}`,
-            sqlString(binding.type),
-            subjectId,
-            "'participating'",
-          ];
-          return `
+    binding.owner === undefined || watch === ""
+      ? ""
+      : `
   -- The owner watches the record; a level they already chose stays.
   if new.${col(binding.owner)} is not null and (tg_op = 'INSERT' or new.${col(binding.owner)} is distinct from old.${col(binding.owner)}) then
-    insert into ${notifications.table("subscriptions")} (${columns.join(", ")})
-    values (${values.join(", ")})
-    on conflict do nothing;
+    ${watch}
   end if;`;
-        })()
-      : "";
   const notify =
     notifications === undefined
       ? ""

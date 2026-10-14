@@ -577,6 +577,18 @@ export interface PipelineEventData {
   readonly outcome?: string;
 }
 
+/** Events from the parties module: a company, a person, or a link between them. */
+export interface PartyEventData {
+  readonly organizationId: string;
+  readonly companyId?: string;
+  readonly personId?: string;
+  readonly name?: string;
+  /** For `*.merged`: the record merged into this one, now archived. */
+  readonly mergedId?: string;
+  /** For `company.person_*`: the person's role at the company. */
+  readonly role?: string | null;
+}
+
 /** `pipeline.stage_changed`: the record that moved and its stages. */
 export type PipelineStageEventData = PipelineEventData & SubjectEventData;
 
@@ -875,6 +887,16 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "company.created": PartyEventData;
+  "company.updated": PartyEventData;
+  "company.archived": PartyEventData;
+  "company.merged": PartyEventData;
+  "company.person_linked": PartyEventData;
+  "company.person_unlinked": PartyEventData;
+  "person.created": PartyEventData;
+  "person.updated": PartyEventData;
+  "person.archived": PartyEventData;
+  "person.merged": PartyEventData;
   "pipeline.created": PipelineEventData;
   "pipeline.updated": PipelineEventData;
   "pipeline.archived": PipelineEventData;

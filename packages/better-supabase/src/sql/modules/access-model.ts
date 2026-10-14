@@ -57,6 +57,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "time_tracking.*",
     "service_principals.*",
     "pipelines.*",
+    "parties.*",
   ],
   member: [
     "organization.read",
@@ -115,6 +116,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "templates.apply",
     "time_tracking.track",
     "pipelines.read",
+    "parties.read",
+    "parties.write",
   ],
   viewer: ["organization.read"],
 };
@@ -293,6 +296,9 @@ export const OPERATIONS = {
   "service-principals.manage": "service_principals.manage",
   "pipelines.read": "pipelines.read",
   "pipelines.manage": "pipelines.manage",
+  "parties.read": "parties.read",
+  "parties.write": "parties.write",
+  "parties.manage": "parties.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -479,6 +485,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   "service-principals": { read: "tenant", manage: "tenant" },
   pipelines: { read: "tenant", manage: "tenant" },
+  parties: { read: "tenant", write: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

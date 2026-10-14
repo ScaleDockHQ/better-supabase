@@ -75,6 +75,7 @@
     "time-tracking",
     "templates",
     "pipelines",
+    "parties",
     "identities",
     "service-principals"
   ]

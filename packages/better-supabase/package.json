@@ -762,6 +762,11 @@
       "types": "./dist/blocks/pipelines/index.d.ts",
       "default": "./dist/blocks/pipelines/index.js"
     },
+    "./blocks/parties": {
+      "@better-supabase/source": "./src/blocks/parties/index.ts",
+      "types": "./dist/blocks/parties/index.d.ts",
+      "default": "./dist/blocks/parties/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1473,6 +1478,10 @@
       "./blocks/pipelines": {
         "types": "./dist/blocks/pipelines/index.d.ts",
         "default": "./dist/blocks/pipelines/index.js"
+      },
+      "./blocks/parties": {
+        "types": "./dist/blocks/parties/index.d.ts",
+        "default": "./dist/blocks/parties/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

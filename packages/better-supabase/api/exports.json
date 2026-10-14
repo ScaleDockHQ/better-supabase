@@ -2020,6 +2020,7 @@
       "OrganizationDeletionEventData",
       "OrganizationDomainEventData",
       "OrganizationEventData",
+      "PartyEventData",
       "PipelineEventData",
       "PipelineStageEventData",
       "PushDeviceEventData",
@@ -4344,6 +4345,34 @@
       "PipelineStats",
       "PipelineTotal",
       "PipelineTransition",
+      "RpcClient"
+    ]
+  },
+  "./blocks/parties": {
+    "values": [
+      "createParties",
+      "dbTransport",
+      "extendBlock",
+      "partiesSubjects",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Company",
+      "CompanyInput",
+      "CompanyPerson",
+      "Parties",
+      "PartiesOptions",
+      "PartyCursor",
+      "PartyListOptions",
+      "PartyPage",
+      "Person",
+      "PersonInput",
       "RpcClient"
     ]
   },

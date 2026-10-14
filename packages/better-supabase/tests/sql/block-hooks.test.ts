@@ -120,6 +120,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
+  parties: [
+    "before_company_save",
+    "after_company_save",
+    "before_person_save",
+    "after_person_save",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */
