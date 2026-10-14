@@ -10,6 +10,7 @@ type StubProvider = AuthorizationProvider & {
       | "isApprover"
       | "holdersOf"
       | "actorMayWrite"
+      | "permitted"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

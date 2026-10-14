@@ -108,21 +108,22 @@ errors.
 Each function is a SQL template. better-supabase fills the placeholders and
 puts the result into a policy or a module function:
 
-| Template         | Placeholders                                 | Returns                                                                |
-| ---------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
-| `idsWith`        | `{permission}`, `{scope}`                    | a set of the `{scope}` ids where the caller holds the key              |
-| `isPlatform`     | `{permission}`                               | `boolean`: the caller holds the key platform-wide                      |
-| `idsWithFor`     | `{user}`, `{permission}`, `{scope}`          | as `idsWith`, for another user                                         |
-| `isPlatformFor`  | `{user}`, `{permission}`                     | as `isPlatform`, for another user                                      |
-| `memberIds`      | `{scope}`                                    | the `{scope}` ids the caller is a member of                            |
-| `memberIdsFor`   | `{user}`, `{scope}`                          | as `memberIds`, for another user                                       |
-| `canAssign`      | `{role}`, `{tenant}`, `{scope}`              | `boolean`: the caller may give `{role}` in `{tenant}`                  |
-| `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`    | as `canAssign`, for another user                                       |
-| `permissionsFor` | `{user}`, `{tenant}`, `{scope}`              | `text[]`: the permission keys `{user}` holds in `{tenant}`             |
-| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}` |
-| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`              | deprecated: `isApprover` with `{kind}` `'ai-tool'`                     |
-| `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`        | a set of user ids that hold `{permission}` on `{tenant}`               |
-| `actorMayWrite`  | none                                         | `boolean`: the caller's session may write                              |
+| Template         | Placeholders                                                | Returns                                                                       |
+| ---------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `idsWith`        | `{permission}`, `{scope}`                                   | a set of the `{scope}` ids where the caller holds the key                     |
+| `isPlatform`     | `{permission}`                                              | `boolean`: the caller holds the key platform-wide                             |
+| `idsWithFor`     | `{user}`, `{permission}`, `{scope}`                         | as `idsWith`, for another user                                                |
+| `isPlatformFor`  | `{user}`, `{permission}`                                    | as `isPlatform`, for another user                                             |
+| `memberIds`      | `{scope}`                                                   | the `{scope}` ids the caller is a member of                                   |
+| `memberIdsFor`   | `{user}`, `{scope}`                                         | as `memberIds`, for another user                                              |
+| `canAssign`      | `{role}`, `{tenant}`, `{scope}`                             | `boolean`: the caller may give `{role}` in `{tenant}`                         |
+| `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`                   | as `canAssign`, for another user                                              |
+| `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                    |
+| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{scope}`                | `boolean`: the caller may approve request `{subject}` of kind `{kind}`        |
+| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                             | deprecated: `isApprover` with `{kind}` `'ai-tool'`                            |
+| `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                       | a set of user ids that hold `{permission}` on `{tenant}`                      |
+| `actorMayWrite`  | none                                                        | `boolean`: the caller's session may write                                     |
+| `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}` | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}` |
 
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for

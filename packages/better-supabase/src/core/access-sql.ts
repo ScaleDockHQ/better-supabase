@@ -25,6 +25,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   isApprover: ["kind", "subject", "tenant", "scope"],
   holdersOf: ["permission", "tenant", "scope"],
   actorMayWrite: [],
+  permitted: ["permission", "id", "tenant", "resource", "scope"],
 };
 
 /** The Postgres types a scope's ids can have. */

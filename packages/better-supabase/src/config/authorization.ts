@@ -64,6 +64,12 @@ export interface AuthorizationFunctions {
    * and write policies call it instead of the built-in act check.
    */
   readonly actorMayWrite?: string;
+  /**
+   * Whether the caller holds `{permission}` on the instance `{id}` (text) of
+   * `{resource}` in `{tenant}`, at `{scope}`. A realtime topic that declares
+   * a `permission` calls it for the instance in its topic name.
+   */
+  readonly permitted?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */

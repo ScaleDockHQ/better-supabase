@@ -144,6 +144,7 @@ const authorization = v.strictObject({
     isApprover: v.optional(v.string()),
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
+    permitted: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(
