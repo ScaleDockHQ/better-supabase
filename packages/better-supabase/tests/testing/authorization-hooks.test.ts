@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AuthorizationHooks } from "../../src/core/contracts/authorization-hooks.ts";
+import type {
+  AuthorizationHooks,
+  SubscriberPolicy,
+} from "../../src/core/contracts/authorization-hooks.ts";
 
 import { defineAuthorizationHooks } from "../../src/core/contracts/authorization-hooks.ts";
 import { testAuthorizationHooks } from "../../src/testing/authorization-hooks.ts";
@@ -57,7 +60,9 @@ describe("testAuthorizationHooks", () => {
       apiVersion: 1,
       name: "leaky",
       delivery: {
-        subscribers: () => [{ principal: "invented" }],
+        subscribers: (() => [
+          { principal: "invented" },
+        ]) as unknown as SubscriberPolicy,
         audience: (_event, subscribers) => subscribers,
       },
       identities: {
