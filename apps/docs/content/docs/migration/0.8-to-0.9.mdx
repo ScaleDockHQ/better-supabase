@@ -1,0 +1,113 @@
+---
+title: From 0.8 to 0.9
+description: What to change when upgrading to better-supabase 0.9, which routes permission checks through the authorization provider, keeps delegation in jobs, approves support sessions by a second admin and sends CloudEvents webhooks.
+---
+
+0.9 closes places where work ran with more rights than the caller had: jobs
+queued by an OAuth client, published workflows, support sessions and fan-out
+to subscribers. Most changes are behaviour, not names, so
+`better-supabase codemod 0.9` rewrites nothing and lists each call to review:
+
+```bash
+pnpm better-supabase codemod 0.9 --dry-run
+```
+
+Then run `better-supabase sql sync` and create a migration: `support-sessions`,
+`webhooks-out`, `workflow-builder`, `notifications` and `actor` changed, and
+`identities` is new.
+
+## Access model
+
+With `authorization` in the config, `sql.modules.access.model` now defaults to
+`"provider"`. `can()`, `tenant_ids_with()` and every module check answer from
+the provider's templates. To keep the built-in roles, set the model:
+
+```ts title="better-supabase.config.ts"
+sql: { modules: { access: { model: "roles" } } },
+```
+
+Doctor BS414 then reports each policy and function that calls the access
+contract, because those answer from roles the provider never sees. See
+[Access](/docs/blocks/access#provider).
+
+`authorization.functions.canApprove` is deprecated. Set `isApprover`, which
+every module that waits for an approval reads:
+
+| 0.8                        | 0.9                                                                  |
+| -------------------------- | -------------------------------------------------------------------- |
+| `canApprove` with `{tool}` | `isApprover` with `{kind}` `'ai-tool'` and `{subject}` the tool name |
+
+0.9 still reads `canApprove` when `isApprover` is unset; doctor BS415 warns
+while a provider sets it.
+
+## Jobs and workflows
+
+A job or workflow queued by an OAuth or MCP client now carries the client's
+`client_id`, `scope`, `authorization_details` and `act` chain, and
+`forContext` runs it with those claims. A job that used to run with the
+user's full rights now runs with the client's scope. Add
+`better_supabase.token_scope_allows('<scope>')` to the write policies a
+delegated client must not pass. An invalid `act` chain is refused with
+`forbidden` instead of being dropped. `claimsFor` can no longer set the four
+delegation claims. `delay` must be a whole number of seconds. See
+[Jobs](/docs/blocks/jobs).
+
+Published workflow-builder versions record who published them and the
+permissions their nodes need. A publisher must hold every one of those
+permissions, and each step runs with the publisher's current claims through
+`versions.runAs`. A demoted or removed publisher fails the step instead of
+falling back to the service role. Versions published before 0.9 have no
+publisher and fail with `WORKFLOW_PUBLISHER_REVOKED` until someone publishes
+them again. Organisation-owned versions need a service principal. See
+[Workflow builder](/docs/blocks/workflow-builder#publisher-rights).
+
+## Support sessions
+
+`supportSessions` refuses every start unless `authorize` (or the server's
+`authorization.support.authorize`) allows it. `authorize` returns `true`,
+`false` or `{ approvedBy }`. A start also needs a request approved by a
+different admin unless `policy.approval` is `"none"`:
+
+```ts
+supportSessions({
+  store,
+  authorize: ({ admin }) => admin.claims["role"] === "support",
+  policy: { approval: "distinct" },
+});
+```
+
+`authorize: "store"` keeps the 0.8 behaviour, where the store's SQL policy
+alone decides. See [Support sessions](/docs/auth/impersonation).
+
+## Webhooks and problems
+
+Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) in
+place of `{ type, timestamp, data }`, signed per Standard Webhooks. A
+`transform` returns only the event's `data`. Receivers read `data`, `type`
+and `id` from the CloudEvent. `publish_webhook_event` takes `subject` and
+`read_permission`, and delivers only to endpoints whose owner may read the
+event. See [Outgoing webhooks](/docs/blocks/webhooks-out).
+
+Generic problems use `type: "about:blank"` and the HTTP status phrase as
+`title`:
+
+| 0.8 `title`         | 0.9 `title`             |
+| ------------------- | ----------------------- |
+| `Invalid request`   | `Bad Request`           |
+| `Not found`         | `Not Found`             |
+| `Too many requests` | `Too Many Requests`     |
+| `Unexpected error`  | `Internal Server Error` |
+
+Match problems on `kind` or `code`, which did not change. See
+[Problems](/docs/auth/problems).
+
+## AI SDK and notifications
+
+`gatewayOptions` ignores a `user` in its second argument; the AI Gateway
+`user` only comes from `context.userId`. With `authorizeTool` set on
+`createAgentRuntime`, a tool without a declared permission is denied. See
+[Agents](/docs/ai-sdk/agents).
+
+`deliver()` in the notifications block counts suppressed and audience-denied
+deliveries in `skipped`. A hand-written realtime `Topic` needs a `fanOut`
+method. See [Notifications](/docs/blocks/notifications).
