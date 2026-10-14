@@ -86,6 +86,9 @@ const CALL: BuilderStartCall = {
     createdBy: undefined,
     createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
     publishedAt: undefined,
+    publishedBy: "u1",
+    owner: "user",
+    permissions: ["workflow.run"],
     graph: GRAPH,
   },
   input: { email: "a@x.test" },
@@ -134,6 +137,20 @@ describe("compileGraph", () => {
       );
       expect(actual.log).toEqual(expected.log);
     }
+    const calls: GraphStepCall[] = [];
+    const versioned = fakeRuntime("free", undefined);
+    await load(
+      compiled.source,
+      {
+        ...versioned,
+        step: async (call) => {
+          calls.push(call);
+          return versioned.step(call);
+        },
+      },
+      compiled.aliases,
+    )({}, { runKey: "run-1", versionId: "v1" });
+    expect(calls.map((call) => call.version)).toEqual(["v1", "v1"]);
     const noMeta = fakeRuntime("pro", undefined);
     await load(compiled.source, noMeta, compiled.aliases)({}, null);
     expect(noMeta.log).toContain("approval :ok ok");
@@ -245,7 +262,7 @@ describe("graphStarter", () => {
     expect(source).toBe(compileGraph(GRAPH).source);
     expect(args).toEqual([
       { email: "a@x.test" },
-      { runKey: "run:k", definition: "d1", version: 3 },
+      { runKey: "run:k", definition: "d1", version: 3, versionId: "v1" },
     ]);
     expect(options).toMatchObject({
       attributes: {
@@ -302,7 +319,7 @@ describe("graphStarter", () => {
     expect(args).toEqual([
       GRAPH,
       { email: "a@x.test" },
-      { runKey: "run:k", definition: "d1", version: 3 },
+      { runKey: "run:k", definition: "d1", version: 3, versionId: "v1" },
     ]);
     expect(options).toMatchObject({ world });
     expect(

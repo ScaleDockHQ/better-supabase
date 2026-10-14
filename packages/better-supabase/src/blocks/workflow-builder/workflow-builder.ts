@@ -32,6 +32,7 @@ import {
 } from "../shared.ts";
 import { createWorkflows } from "../workflows/workflows.ts";
 import { diffGraphs, graphOf } from "./graph.ts";
+import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
   alertOf,
   credentialOf,
@@ -53,6 +54,7 @@ export type {
   GraphCompiler,
   NodeRunRecord,
   OutboxLikeEvent,
+  PublishOptions,
   RunInput,
   TriggerInput,
   WorkflowAlert,
@@ -65,6 +67,7 @@ export type {
   WorkflowTrigger,
   WorkflowTriggerKind,
   WorkflowVersion,
+  WorkflowVersionOwner,
   WorkflowVersionStatus,
 } from "./types.ts";
 
@@ -195,10 +198,21 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
         call("save_workflow_draft", { definition, graph }, (value) =>
           versionOf(recordOf(value, "save_workflow_draft")),
         ),
-      publish: (version) =>
+      publish: (version, publishOptions = {}) =>
         getVersion(version).andThen(async (found) => {
           if (found === undefined) {
             return err(dbError("not_found", "No such workflow version"));
+          }
+          const mayPublish = options.authorization?.automation?.mayPublish;
+          if (mayPublish !== undefined && found.status !== "published") {
+            const refusal = await mayPublishRefusal(
+              call,
+              mayPublish,
+              found,
+              publishOptions.claims,
+            );
+            if (!refusal.ok) return refusal;
+            if (refusal.data !== undefined) return err(refusal.data);
           }
           let compiled: unknown = null;
           if (options.compile !== undefined && found.status !== "published") {
@@ -236,6 +250,12 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           recordsOf(value, "workflow_versions_list").map(versionOf),
         ),
       get: getVersion,
+      runAs: (version) =>
+        runAsPublisher(
+          serviceCall,
+          options.authorization?.automation?.runAs,
+          version,
+        ),
       diff: (from, to) =>
         getVersion(from).andThen(async (before) => {
           const after = await getVersion(to);

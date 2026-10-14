@@ -274,6 +274,37 @@ describe("executeGraph", () => {
     expect(rejected.log.at(-1)).toBe("step rejected slack.post {}");
   });
 
+  it("passes the runtime's version id to every step", async () => {
+    const runtime = fakeRuntime("free", undefined);
+    const versions: (string | undefined)[] = [];
+    await executeGraph(
+      GRAPH,
+      {},
+      {
+        ...runtime,
+        version: "v1",
+        step: async (call) => {
+          versions.push(call.version);
+          return runtime.step(call);
+        },
+      },
+    );
+    expect(versions).toEqual(["v1", "v1"]);
+    const unversioned: (string | undefined)[] = [];
+    await executeGraph(
+      GRAPH,
+      {},
+      {
+        ...runtime,
+        step: async (call) => {
+          unversioned.push(call.version);
+          return runtime.step(call);
+        },
+      },
+    );
+    expect(unversioned).toEqual([undefined, undefined]);
+  });
+
   it("refuses an invalid graph", async () => {
     await expect(
       executeGraph({ nodes: [], edges: [] }, {}, fakeRuntime("pro", undefined)),

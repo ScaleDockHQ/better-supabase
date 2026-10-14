@@ -1,5 +1,11 @@
+import type { OperationTable } from "../../core/operations.ts";
 import type { ModuleContext } from "../context.ts";
 
+import {
+  OPERATION_PREFIXES,
+  operationPermission,
+} from "../../core/operations.ts";
+import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import { SERVICE_CALLER, serviceGrant, tenantIn, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
@@ -33,7 +39,20 @@ export interface BuilderSql {
   readonly r: string;
   readonly cr: (value: string) => string;
   readonly permission: (action: BuilderAction) => string;
+  /**
+   * `{ "<step>": "<permission>" }` as a jsonb literal: the provider's
+   * `workflow.node.<step>` operations.
+   */
+  readonly nodeOperations: string;
   readonly can: (tenant: string, action: BuilderAction) => string;
+  /** Whether the caller holds `permission` (a SQL expression) in `tenant`. */
+  readonly holds: (tenant: string, permission: string) => string;
+  /** Whether `user` holds `permission` (a SQL expression) in `tenant`. */
+  readonly userHolds: (
+    user: string,
+    tenant: string,
+    permission: string,
+  ) => string;
   readonly allowed: (tenant: string, action: BuilderAction) => string;
   readonly forbidden: (value: string) => string;
   readonly serviceOnly: (value: string) => string;
@@ -53,7 +72,24 @@ export interface BuilderSql {
   readonly broadcast: ModuleContext["broadcast"];
 }
 
-export function builderSql(ctx: ModuleContext): BuilderSql {
+/** The steps the provider's `workflow.node.<step>` operations name, with their permission. */
+export function nodeOperationsOf(
+  operations: OperationTable | undefined,
+): Readonly<Record<string, string>> {
+  const steps: Record<string, string> = {};
+  for (const name of Object.keys(operations ?? {})) {
+    if (!name.startsWith(OPERATION_PREFIXES.workflowNode)) continue;
+    const permission = operationPermission(operations, name);
+    const step = name.slice(OPERATION_PREFIXES.workflowNode.length);
+    if (permission !== undefined && step !== "") steps[step] = permission;
+  }
+  return steps;
+}
+
+export function builderSql(
+  ctx: ModuleContext,
+  operations?: OperationTable,
+): BuilderSql {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const d = ctx.table("definitions");
@@ -80,8 +116,13 @@ export function builderSql(ctx: ModuleContext): BuilderSql {
   const permissions = MODULE_PERMISSIONS["workflow-builder"];
   const permission = (action: BuilderAction): string =>
     ctx.permission(action, permissions[action]);
+  const nodeOperations = `${sqlString(JSON.stringify(nodeOperationsOf(operations)))}::jsonb`;
   const can = (tenant: string, action: BuilderAction): string =>
     ctx.can("tenant", tenant, permission(action));
+  const holds = (tenant: string, key: string): string =>
+    ctx.can("tenant", tenant, key);
+  const userHolds = (user: string, tenant: string, key: string): string =>
+    `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${key}), false)`;
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>
@@ -114,7 +155,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'status', ${alias}.${cv("status")},
     'createdBy', ${alias}.${cv("createdBy")},
     'createdAt', ${alias}.${cv("createdAt")},
-    'publishedAt', ${alias}.${cv("publishedAt")}${
+    'publishedAt', ${alias}.${cv("publishedAt")},
+    'publishedBy', ${alias}.${cv("publishedBy")},
+    'owner', ${alias}.${cv("owner")},
+    'permissions', to_jsonb(${alias}.${cv("permissions")})${
       full
         ? `,
     'graph', ${alias}.${cv("graph")},
@@ -207,7 +251,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
     r,
     cr,
     permission,
+    nodeOperations,
     can,
+    holds,
+    userHolds,
     allowed,
     forbidden,
     serviceOnly: serviceGrant,

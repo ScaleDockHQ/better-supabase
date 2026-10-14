@@ -50,6 +50,7 @@ import {
   qualified,
   tableObject,
 } from "./shared.ts";
+import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
 export { lineOf };
 
@@ -996,6 +997,7 @@ export const RULES: readonly Rule[] = [
   ...PGDELTA_RULES,
   ...LITE_RULES,
   ...DEPENDENCY_RULES,
+  ...WORKFLOW_BUILDER_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

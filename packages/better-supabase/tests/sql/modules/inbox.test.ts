@@ -10,6 +10,7 @@ import {
   moduleTopics,
   renderModules,
 } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: ModulesConfig = {}) => moduleBody("inbox", { modules })!;
 const withJobs = (modules: ModulesConfig = {}) =>
@@ -126,6 +127,38 @@ describe("inbox module", () => {
     ] as const) {
       expect(() => body({ inbox: { options } })).toThrow(message);
     }
+  });
+
+  it("checks commands against the provider's operations, then the renamed module key", () => {
+    const guard = (sql: string, fn: string): string => {
+      const start = sql.indexOf(`"${fn}"(`);
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+    const sql = moduleBody("inbox", {
+      modules: { inbox: { permissions: { reply: "support.reply" } } },
+      accessProvider: {
+        ...moduleProvider,
+        operations: {
+          "inbox.command.assign": { permission: "tickets.assign" },
+          "inbox.command.set_bot_mode": { permission: "" },
+          "mcp.tool.assign": { permission: "tools.assign" },
+        },
+      },
+    })!;
+    const assign = guard(sql, "assign_conversation");
+    expect(assign).toContain(
+      `better_supabase.can('tenant', v_conv."tenant_id", 'tickets.assign')`,
+    );
+    expect(assign).toContain(
+      `(assignee = (select auth.uid()) and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'support.reply'), false))`,
+    );
+    for (const fn of ["set_conversation_status", "set_bot_mode"]) {
+      expect(guard(sql, fn)).toContain(
+        `better_supabase.can('tenant', v_conv."tenant_id", 'support.reply')`,
+      );
+    }
+    expect(sql).not.toContain("tools.assign");
+    expect(sql).not.toContain("'inbox.reply'");
   });
 
   it("writes nothing in custom mode", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
+import type { Result } from "../../../src/core/result.ts";
 import type { CredentialProvider } from "../../../src/credentials/provider.ts";
 
 import {
@@ -132,6 +133,26 @@ describe("row mappers", () => {
     expect(versionOf({ ...VERSION, compiled: { x: 1 } }).compiled).toEqual({
       x: 1,
     });
+    expect(versionOf(VERSION)).toMatchObject({
+      publishedBy: undefined,
+      owner: undefined,
+      permissions: [],
+    });
+    expect(
+      versionOf({
+        ...VERSION,
+        publishedBy: "u1",
+        owner: "user",
+        permissions: ["crm.read"],
+      }),
+    ).toMatchObject({
+      publishedBy: "u1",
+      owner: "user",
+      permissions: ["crm.read"],
+    });
+    expect(() => versionOf({ ...VERSION, owner: "robot" })).toThrow(
+      'unknown version owner "robot"',
+    );
     expect(() => versionOf({ ...VERSION, status: "gone" })).toThrow(
       'unknown version status "gone"',
     );
@@ -323,6 +344,165 @@ describe("createBuilder", () => {
     });
     const thrown = await plain.versions.publish("v1");
     expect(!thrown.ok && thrown.error.message).toBe("nope");
+  });
+
+  it("asks mayPublish with the publisher's claims and refuses without them", async () => {
+    let status = "draft";
+    const { transport, calls } = fake({
+      workflow_version_get: () => ({ ...VERSION, status }),
+      workflow_definition_get: () => DEFINITION,
+      workflow_graph_permissions: () => ["crm.read", "workflow.run"],
+      publish_workflow_version: () => published,
+    });
+    const seen: unknown[] = [];
+    let answer: () => boolean | Promise<boolean> = () => true;
+    const builder = createBuilder({
+      transport,
+      authorization: {
+        automation: {
+          mayPublish: (automation) => {
+            seen.push(automation);
+            return answer();
+          },
+        },
+      },
+    });
+    const claims = { sub: "u1", role: "authenticated" };
+    expect(
+      (await builder.versions.publish("v1", { claims }).orThrow()).status,
+    ).toBe("published");
+    expect(seen).toEqual([
+      {
+        publisher: "u1",
+        tenant: "t1",
+        permissions: ["crm.read", "workflow.run"],
+        claims,
+      },
+    ]);
+    expect(
+      calls.find((c) => c.fn === "workflow_graph_permissions")?.args,
+    ).toEqual({ graph: GRAPH });
+
+    const hint = async (result: PromiseLike<Result<unknown>>) => {
+      const settled = await result;
+      return settled.ok ? undefined : settled.error.hint;
+    };
+    expect(await hint(builder.versions.publish("v1"))).toBe(
+      "WORKFLOW_PUBLISHER_FORBIDDEN",
+    );
+    answer = () => false;
+    expect(await hint(builder.versions.publish("v1", { claims }))).toBe(
+      "WORKFLOW_PUBLISHER_FORBIDDEN",
+    );
+    answer = () => {
+      throw new Error("provider down");
+    };
+    expect(await hint(builder.versions.publish("v1", { claims }))).toBe(
+      "WORKFLOW_PUBLISHER_FORBIDDEN",
+    );
+    answer = async () => true;
+    await builder.versions.publish("v1", { claims: { role: "service_role" } });
+    expect(seen.at(-1)).toMatchObject({ publisher: null });
+    expect(
+      calls.filter((c) => c.fn === "publish_workflow_version"),
+    ).toHaveLength(2);
+
+    status = "published";
+    answer = () => false;
+    expect((await builder.versions.publish("v1").orThrow()).status).toBe(
+      "published",
+    );
+
+    status = "draft";
+    const failing = createBuilder({
+      transport: fake({
+        workflow_version_get: () => VERSION,
+        workflow_definition_get: () => DEFINITION,
+        workflow_graph_permissions: () => {
+          throw new Error("boom");
+        },
+      }).transport,
+      authorization: { automation: { mayPublish: () => true } },
+    });
+    const broken = await failing.versions.publish("v1", { claims });
+    expect(!broken.ok && broken.error.message).toContain("boom");
+  });
+
+  it("resolves the claims a step runs with, and never falls back", async () => {
+    let principal: unknown = {
+      publisher: "u1",
+      tenant: "t1",
+      owner: "user",
+      permissions: ["crm.read"],
+    };
+    const service = fake({ workflow_run_principal: () => principal });
+    const refs: unknown[] = [];
+    let claims: () => unknown = () => ({
+      sub: "u1",
+      permissions: ["crm.read"],
+    });
+    const builder = createBuilder({
+      transport: fake({}).transport,
+      service: service.transport,
+      authorization: {
+        automation: {
+          runAs: (automation) => {
+            refs.push(automation);
+            // SAFETY: the test returns claims or null.
+            return claims() as Readonly<Record<string, unknown>> | null;
+          },
+        },
+      },
+    });
+    expect(await builder.versions.runAs("v1").orThrow()).toEqual({
+      sub: "u1",
+      permissions: ["crm.read"],
+    });
+    expect(refs).toEqual([
+      { publisher: "u1", tenant: "t1", permissions: ["crm.read"] },
+    ]);
+    expect(service.calls).toEqual([
+      { fn: "workflow_run_principal", args: { version: "v1" } },
+    ]);
+
+    const refusal = async () => {
+      const result = await builder.versions.runAs("v1");
+      return result.ok ? undefined : [result.error.kind, result.error.message];
+    };
+    claims = () => null;
+    expect(await refusal()).toEqual([
+      "forbidden",
+      "The user who published this workflow can no longer run it",
+    ]);
+    claims = () => {
+      throw new Error("down");
+    };
+    expect((await refusal())?.[0]).toBe("forbidden");
+    principal = { publisher: null, tenant: "t1", owner: "organization" };
+    claims = () => null;
+    expect(await refusal()).toEqual([
+      "forbidden",
+      "The app has no service principal for this organization's workflow",
+    ]);
+    claims = () => ({ role: "service_principal" });
+    expect(await builder.versions.runAs("v1").orThrow()).toEqual({
+      role: "service_principal",
+    });
+    expect(refs.at(-1)).toEqual({
+      publisher: null,
+      tenant: "t1",
+      permissions: [],
+    });
+    const unversioned = await builder.versions.runAs(undefined);
+    expect(!unversioned.ok && unversioned.error.kind).toBe("invalid_request");
+
+    const unhooked = createBuilder({
+      transport: fake({ workflow_run_principal: () => principal }).transport,
+    });
+    const missing = await unhooked.versions.runAs("v1");
+    expect(!missing.ok && missing.error.hint).toBe(
+      "WORKFLOW_PUBLISHER_REVOKED",
+    );
   });
 
   it("reports missing versions on publish and diff, and diffs two versions", async () => {

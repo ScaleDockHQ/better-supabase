@@ -897,6 +897,17 @@ level security disabled. `can_subject` treats a row the caller can read as
 visible, so every signed-in user passes the visibility half of the check for
 every row. Enable RLS and add the policies that scope the table.
 
+### BS333
+
+**Warning: `admin()` inside a workflow-builder executor.** A source file that
+runs workflow-builder steps (it imports `better-supabase/blocks/workflow-builder`
+or `better-supabase/workflow-sdk/builder`, or uses `executeGraph`,
+`graphStarter`, `nodeRunReporter` or `GraphStepCall`) calls `admin()`. The steps
+then run with the service role's rights, so a workflow keeps running after its
+publisher is demoted. Call `builder.versions.runAs(call.version)` in each step
+and query with the claims it returns. See
+[publisher rights](/docs/blocks/workflow-builder#publisher-rights).
+
 ## Auth config
 
 ### BS401
@@ -1133,6 +1144,23 @@ Support sessions are installed, `sql.modules.access.model` is `provider`, and
 `authorization.functions.actorMayWrite` is not set. Writes still refuse a
 read-only `act` through the built-in check. Set `actorMayWrite` to the
 provider's read-only helper so that helper is the only check.
+
+### BS414
+
+**Warning: the access contract answers from built-in roles next to a
+provider.** The config sets `authorization`, but `sql.modules.access.model`
+names another model, so `better_supabase.can()` and
+`better_supabase.tenant_ids_with()` answer from the built-in roles. Doctor
+reports each policy and each function in `schemas` that calls them. Remove
+`model` to use the provider (the default with `authorization`), or call the
+provider's own function in that policy.
+
+### BS415
+
+**Warning: the provider sets the deprecated `canApprove` template.**
+`authorization.functions.isApprover` replaces it, with `{kind}` (`'ai-tool'`
+for tool calls) and `{subject}` (the tool name) instead of `{tool}`. 0.9 still
+reads `canApprove` when `isApprover` is unset.
 
 ## Env files
 

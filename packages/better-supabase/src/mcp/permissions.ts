@@ -1,4 +1,5 @@
 import type { AuthState } from "../auth/resolve.ts";
+import type { OperationTable } from "../core/operations.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Result } from "../core/result.ts";
 
@@ -8,6 +9,7 @@ import {
   checkPermission,
 } from "../core/authorizer.ts";
 import { type DbError, dbError } from "../core/errors.ts";
+import { OPERATION_PREFIXES, operationPermission } from "../core/operations.ts";
 import { ok } from "../core/result.ts";
 import { hasRole } from "../server/kit.ts";
 
@@ -29,6 +31,24 @@ export function missingRole(
     "forbidden",
     `This server needs the role ${roles.join(" or ")}`,
     { code: "MISSING_ROLE" },
+  );
+}
+
+/**
+ * The permission a tool needs: the provider's `mcp.tool.<name>` operation
+ * first, then the tool's own `permission`.
+ */
+export function toolPermission(
+  operations: OperationTable | undefined,
+  name: string,
+  declared: unknown,
+): unknown {
+  return (
+    operationPermission(
+      operations,
+      `${OPERATION_PREFIXES.mcpTool}${name}`,
+      typeof declared === "string" ? declared : undefined,
+    ) ?? declared
   );
 }
 

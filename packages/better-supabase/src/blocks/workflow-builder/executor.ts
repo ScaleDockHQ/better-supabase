@@ -23,11 +23,15 @@ export interface GraphStepCall {
   readonly results: Readonly<Record<string, unknown>>;
   /** The run's key; approval hooks use `<runKey>:<node>` as their token. */
   readonly runKey: string;
+  /** The published version's id; pass it to `builder.versions.runAs`. */
+  readonly version?: string;
 }
 
 /** What the engine does for each kind of node. */
 export interface GraphRuntime {
   readonly runKey: string;
+  /** The published version's id (`GraphRunMeta.versionId`), passed to each step. */
+  readonly version?: string;
   step(call: GraphStepCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
   /** Waits for the approval hook with `token` and returns its payload. */
@@ -100,6 +104,7 @@ async function runNode(
         input,
         results: { ...results },
         runKey: runtime.runKey,
+        ...(runtime.version === undefined ? {} : { version: runtime.version }),
       });
       return { output: output ?? null, outcome: true };
     }

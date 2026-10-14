@@ -9,6 +9,7 @@ export {
   type GraphCompiler,
   type NodeRunRecord,
   type OutboxLikeEvent,
+  type PublishOptions,
   type RunInput,
   type TriggerInput,
   type WorkflowAlert,
@@ -21,6 +22,7 @@ export {
   type WorkflowTrigger,
   type WorkflowTriggerKind,
   type WorkflowVersion,
+  type WorkflowVersionOwner,
   type WorkflowVersionStatus,
 } from "./workflow-builder.ts";
 export {

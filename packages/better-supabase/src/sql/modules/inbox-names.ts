@@ -1,5 +1,10 @@
+import type { OperationTable } from "../../core/operations.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 
+import {
+  OPERATION_PREFIXES,
+  operationPermission,
+} from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
@@ -306,6 +311,15 @@ export interface InboxSql {
   readonly key: (action: Action) => string;
   /** `can()` for the caller on a tenant expression. */
   readonly can: (tenant: string, action: Action) => string;
+  /**
+   * `can()` for a staff command on a conversation: the provider's
+   * `inbox.command.<name>` operation, else the key of `action`.
+   */
+  readonly command: (
+    tenant: string,
+    name: InboxCommand,
+    action: Action,
+  ) => string;
   /** The policy form: the tenant is one the caller holds the key in. */
   readonly staff: (tenant: string, action?: Action) => string;
   readonly service: string;
@@ -316,10 +330,26 @@ export interface InboxSql {
   readonly outboundQueue: string;
 }
 
-export function inboxSql(ctx: ModuleContext): InboxSql {
+/** The staff commands whose permission `inbox.command.<name>` can name. */
+export type InboxCommand = "assign" | "set_status" | "set_bot_mode" | "reply";
+
+export function inboxSql(
+  ctx: ModuleContext,
+  operations?: OperationTable,
+): InboxSql {
   const permissions = MODULE_PERMISSIONS.inbox;
   const key = (action: Action): string =>
     ctx.permission(action, permissions[action]);
+  const commandKey = (name: InboxCommand, action: Action): string => {
+    const fallback = ctx.permissionKey(action, permissions[action]);
+    return sqlString(
+      operationPermission(
+        operations,
+        `${OPERATION_PREFIXES.inboxCommand}${name}`,
+        fallback,
+      ) ?? fallback,
+    );
+  };
   const topic = ctx.text("topic", "inbox");
   if (!NAME.test(topic)) {
     throw new TypeError(
@@ -355,6 +385,8 @@ export function inboxSql(ctx: ModuleContext): InboxSql {
     cols: (table) => (column) => ctx.col(table, column),
     key,
     can: (tenant, action) => ctx.can("tenant", tenant, key(action)),
+    command: (tenant, name, action) =>
+      ctx.can("tenant", tenant, commandKey(name, action)),
     staff: (tenant, action = "read") => tenantIn(tenant, key(action)),
     service: SERVICE_CALLER,
     topic,

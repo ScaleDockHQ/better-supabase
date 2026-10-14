@@ -331,6 +331,10 @@ const bs = createMcp(betterSupabase, {
 - Without an authorizer, a tool with a `permission` is hidden and refused,
   so a forgotten setup never opens it.
 
+Pass the provider's operations table as `operations` and an entry
+`mcp.tool.<name>` replaces that tool's `permission`, or gates a tool that
+declares none.
+
 `permission` is typed from the authorizer you pass. `authorize` and
 `visible` still run, after the permission check, for anything an
 authorizer doesn't decide.
