@@ -12,8 +12,10 @@ import type { JobHandler } from "../../blocks/jobs/types.ts";
 import type {
   Memory,
   MemoryCommand,
+  MemoryHit,
   MemoryNamespace,
 } from "../../blocks/memory/memory.ts";
+import type { ResultsFilter } from "../embeddings/embeddings.ts";
 
 import { DbException } from "../../core/db-exception.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
@@ -146,6 +148,8 @@ export interface RecallToolOptions {
   readonly description?: string;
   /** Facts to return. Default 5. */
   readonly k?: number;
+  /** Drops the memories the caller may not read before the model sees them. */
+  readonly results?: ResultsFilter<MemoryHit>;
 }
 
 export interface RecallToolResult {
@@ -178,8 +182,11 @@ export function recallTool(
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
       if (!found.ok) throw new DbException(found.error);
+      const hits = options.results
+        ? await options.results(found.data, { query })
+        : found.data;
       return {
-        memories: found.data.map((hit) => ({
+        memories: hits.map((hit) => ({
           id: hit.id,
           content: hit.content,
         })),

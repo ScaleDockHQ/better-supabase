@@ -145,6 +145,28 @@ describe("searchTool", () => {
       (error) => error instanceof DbException && error.message === "nope",
     );
   });
+
+  it("drops the hits the results filter removes before rerank and onHits", async () => {
+    const { knowledge } = fakeKnowledge([hit("a", 0), hit("secret", 0)]);
+    const onHits = vi.fn();
+    const rerank = vi.fn(
+      async (_query: string, hits: readonly KnowledgeHit[]) => hits,
+    );
+    const results = vi.fn(async (hits: readonly KnowledgeHit[]) =>
+      hits.filter((item) => item.documentId !== "secret"),
+    );
+    const output = await searchTool(knowledge, "org", {
+      results,
+      rerank,
+      onHits,
+    }).execute?.({ query: "q" }, call);
+    expect(output).toEqual({
+      results: [{ id: "a#0", title: "Doc a", content: "a chunk 0" }],
+    });
+    expect(results).toHaveBeenCalledWith(expect.any(Array), { query: "q" });
+    expect(rerank.mock.calls[0]?.[1]).toHaveLength(1);
+    expect(onHits).toHaveBeenCalledWith([hit("a", 0)]);
+  });
 });
 
 describe("toSourceParts", () => {

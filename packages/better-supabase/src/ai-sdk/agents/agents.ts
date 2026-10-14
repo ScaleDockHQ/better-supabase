@@ -18,14 +18,31 @@ import type {
 } from "../../blocks/ai-chat/ai-chat.ts";
 import type {
   Knowledge,
+  KnowledgeHit,
   KnowledgeSearchOptions,
 } from "../../blocks/knowledge/knowledge.ts";
+import type { OperationTable } from "../../core/operations.ts";
 
 import { DbException } from "../../core/db-exception.ts";
 import {
+  type ResultsFilter,
   searchTool,
   type SearchToolOptions,
 } from "../embeddings/embeddings.ts";
+import { gatewayOptions, type GatewayOptions } from "../gateway.ts";
+import {
+  type AgentCaller,
+  type AgentModelAuthorizer,
+  type AgentResultsContext,
+  agentRunContext,
+  type AgentRunContext,
+  type AgentToolAuthorizer,
+  agentToolOperation,
+  type AgentToolOperation,
+  type AgentToolPermissions,
+  assertModelAllowed,
+  toolPermitted,
+} from "./authorization.ts";
 
 /**
  * The tools an agent may call: the ones it lists (every tool when it lists
@@ -81,23 +98,45 @@ const approvalType = (
       ? status
       : status.type;
 
+interface ApprovalChecks {
+  readonly approve: AgentToolApprovalFunction | undefined;
+  /** The tenant's `ask` tools and the provider's high-risk ones. */
+  readonly ask: Readonly<Record<string, "user-approval">>;
+  readonly authorizeTool: AgentToolAuthorizer | undefined;
+  readonly operation: (name: string) => AgentToolOperation;
+  readonly run: AgentRunContext;
+}
+
 /**
- * The app's `toolApproval` with the tenant's `ask` tools: the app decides
- * first, and the stricter of the two answers wins (`denied`, then
- * `user-approval`). A function that throws denies the call.
+ * The permission check, then the app's `toolApproval`, then the `ask`
+ * tools: a refused permission denies, and otherwise the stricter answer
+ * wins (`denied`, then `user-approval`). A function that throws denies the
+ * call.
  */
-function composedApproval(
-  approve: AgentToolApprovalFunction,
-  tenant: Readonly<Record<string, "user-approval">>,
-): AgentToolApprovalFunction {
+function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
   return async (options) => {
-    let status: ToolApprovalStatus;
-    try {
-      status = await approve(options);
-    } catch {
-      return { type: "denied", reason: "The tool approval check failed" };
+    const { toolName } = options.toolCall;
+    const input: unknown = options.toolCall.input;
+    if (checks.authorizeTool !== undefined) {
+      const operation = checks.operation(toolName);
+      const permitted = await toolPermitted(checks.authorizeTool, operation, {
+        ...checks.run,
+        toolName,
+        operation: operation.operation,
+        input,
+      });
+      if (!permitted)
+        return { type: "denied", reason: "The caller may not use this tool" };
     }
-    const asked = tenant[options.toolCall.toolName] !== undefined;
+    let status: ToolApprovalStatus = "not-applicable";
+    if (checks.approve !== undefined) {
+      try {
+        status = await checks.approve(options);
+      } catch {
+        return { type: "denied", reason: "The tool approval check failed" };
+      }
+    }
+    const asked = checks.ask[toolName] !== undefined;
     return asked &&
       APPROVAL_RANK[approvalType(status)] < APPROVAL_RANK["user-approval"]
       ? "user-approval"
@@ -135,11 +174,55 @@ export interface AgentRuntimeOptions {
   /** Default 20 steps. */
   readonly stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /**
-   * The app's approval check for each tool call, such as an authorization
-   * check. It runs before the tenant's `policies`, and the stricter answer
-   * wins: `denied` over `user-approval` over `approved`. A throw denies.
+   * The app's approval check for each tool call. It runs after the
+   * permission check and before the tenant's `policies`, and the stricter
+   * answer wins: `denied` over `user-approval` over `approved`. A throw
+   * denies.
    */
   readonly toolApproval?: AgentToolApprovalFunction;
+  /**
+   * The user the agent runs for, from the verified session. It is the
+   * principal of every check and the AI Gateway's `user`; the agent is only
+   * the actor. For a run nobody invoked, pass the publishing user.
+   */
+  readonly caller?: AgentCaller;
+  /**
+   * Called before every model call with the model id and the run context.
+   * `false` or a throw refuses the run with a `forbidden` error before the
+   * model is called. Every model is allowed without it.
+   */
+  readonly authorizeModel?: AgentModelAuthorizer;
+  /**
+   * Drops the knowledge hits the caller may not read, before the reranker,
+   * `onHits` and the model see them.
+   */
+  readonly results?: ResultsFilter<KnowledgeHit, AgentResultsContext>;
+  /**
+   * The provider's operations (`authorization.operations`). An
+   * `ai.tool.<name>` entry sets the tool's permission over `permissions`,
+   * and a `high` risk makes the tool wait for the user's approval.
+   */
+  readonly operations?: OperationTable;
+  /** Each tool's own permission; `false` marks a tool that needs none. */
+  readonly permissions?: AgentToolPermissions;
+  /**
+   * Checks the caller's permission for each tool call. With it, a tool
+   * without a permission (from `operations` or `permissions`) is denied,
+   * and so is a check that returns `false` or throws.
+   */
+  readonly authorizeTool?: AgentToolAuthorizer;
+  /**
+   * AI Gateway attribution for every model call: the caller's id as
+   * `user`, and the tenant, `feature` (default `agent`), `agent:<id>` and
+   * `tags` as tags. `options` adds gateway options; a `user` in it is
+   * dropped.
+   */
+  readonly gateway?: {
+    readonly feature?: string;
+    readonly chatId?: string;
+    readonly tags?: readonly string[];
+    readonly options?: GatewayOptions;
+  };
 }
 
 /** A `ToolLoopAgent` from an agent row. */
@@ -147,6 +230,7 @@ export function createAgentRuntime(
   options: AgentRuntimeOptions,
 ): ToolLoopAgent<never, ToolSet> {
   const { agent } = options;
+  const run = agentRunContext(agent, options.caller);
   const tools = agentTools(agent, options.tools ?? {}, options.policies);
   if (options.knowledge !== undefined && agent.knowledgeScopes.length > 0) {
     const {
@@ -154,27 +238,72 @@ export function createAgentRuntime(
       organizationId,
       options: search = {},
     } = options.knowledge;
+    const filter = options.results;
     tools["search_knowledge"] = searchTool(knowledge, organizationId, {
       ...search,
       scopes: agentScopes(agent),
+      ...(filter === undefined
+        ? {}
+        : {
+            results: (hits, { query }) =>
+              filter(hits, { ...run, toolName: "search_knowledge", query }),
+          }),
     });
   }
+  const operation = (name: string): AgentToolOperation =>
+    agentToolOperation(name, options.operations, options.permissions);
+  const ask: Record<string, "user-approval"> = {
+    ...agentToolApproval(tools, options.policies),
+  };
+  for (const name of Object.keys(tools))
+    if (operation(name).risk === "high") ask[name] = "user-approval";
   const instructions = [options.instructions, agent.instructions]
     .filter((text) => text !== undefined && text !== "")
     .join("\n\n");
+  const gateway =
+    options.gateway === undefined && options.caller === undefined
+      ? undefined
+      : gatewayOptions(
+          {
+            ...(run.userId === undefined ? {} : { userId: run.userId }),
+            ...(run.organizationId === undefined
+              ? {}
+              : { organizationId: run.organizationId }),
+            ...(options.gateway?.chatId === undefined
+              ? {}
+              : { chatId: options.gateway.chatId }),
+            feature: options.gateway?.feature ?? "agent",
+            tags: [`agent:${agent.id}`, ...(options.gateway?.tags ?? [])],
+          },
+          options.gateway?.options,
+        );
+  const { authorizeModel } = options;
   return new ToolLoopAgent({
     id: agent.id,
     model: options.model(agent.model),
     tools,
     toolApproval:
-      options.toolApproval === undefined
-        ? agentToolApproval(tools, options.policies)
-        : composedApproval(
-            options.toolApproval,
-            agentToolApproval(tools, options.policies),
-          ),
+      options.toolApproval === undefined && options.authorizeTool === undefined
+        ? ask
+        : composedApproval({
+            approve: options.toolApproval,
+            ask,
+            authorizeTool: options.authorizeTool,
+            operation,
+            run,
+          }),
     ...(instructions === "" ? {} : { instructions }),
     stopWhen: options.stopWhen ?? stepCountIs(20),
+    runtimeContext: run,
+    prepareCall: (call) => ({
+      ...call,
+      runtimeContext: { ...call.runtimeContext, ...run },
+    }),
+    prepareStep: async ({ model }) => {
+      if (authorizeModel !== undefined)
+        await assertModelAllowed(authorizeModel, model, run);
+      return gateway === undefined ? undefined : { providerOptions: gateway };
+    },
   });
 }
 

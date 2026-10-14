@@ -92,11 +92,23 @@ export function rerankWith(
   };
 }
 
+/**
+ * Keeps the items of a search the caller may read. A tool applies it before
+ * anything else sees the items: the reranker, `onHits` and the model. A
+ * throw fails the tool call, so no items reach the model.
+ */
+export type ResultsFilter<T, C = { readonly query: string }> = (
+  items: readonly T[],
+  context: C,
+) => readonly T[] | PromiseLike<readonly T[]>;
+
 export interface SearchToolOptions extends Omit<
   KnowledgeSearchOptions,
   "signal"
 > {
   readonly description?: string;
+  /** Drops the hits the caller may not read, such as by a permission. */
+  readonly results?: ResultsFilter<KnowledgeHit>;
   /** Reranks the hits before the model sees them. */
   readonly rerank?: Reranker;
   /** Called with the hits, to stream them as source parts. */
@@ -120,7 +132,7 @@ export function searchTool(
   organizationId: string,
   options: SearchToolOptions = {},
 ): Tool<{ query: string }, SearchToolResult> {
-  const { description, rerank: reorder, onHits, ...search } = options;
+  const { description, results, rerank: reorder, onHits, ...search } = options;
   return tool({
     description:
       description ??
@@ -139,13 +151,16 @@ export function searchTool(
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
       if (!found.ok) throw new DbException(found.error);
+      const readable = results
+        ? await results(found.data, { query })
+        : found.data;
       const hits = reorder
         ? await reorder(
             query,
-            found.data,
+            readable,
             abortSignal === undefined ? undefined : { signal: abortSignal },
           )
-        : found.data;
+        : readable;
       onHits?.(hits);
       return {
         results: hits.map((hit) => ({
