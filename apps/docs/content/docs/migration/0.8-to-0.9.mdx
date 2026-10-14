@@ -16,8 +16,10 @@ Then run `better-supabase sql sync` and create a migration. Every installed
 module file changes, because the read-only check each one carries now knows
 the agent actor. Beyond that, `access`, `tenant`, `subjects`, `support-sessions`,
 `webhooks-out`, `workflow-builder`, `notifications`, `actor`, `approvals`,
-`ai-chat`, `share-links`, `versions`, `promotions` and `time-tracking` changed,
-and `identities` and `service-principals` are new.
+`ai-chat`, `share-links`, `versions`, `promotions`, `time-tracking`,
+`state-machine`, `comments`, `workflows`, `workflow-sdk-world` and
+`saved-views` changed, and `identities`, `service-principals` and `templates`
+are new.
 
 ## Access model
 
@@ -260,3 +262,79 @@ types you comment on, or give `comments` its own `subjects`. See
 `deliver()` in the notifications block counts suppressed and audience-denied
 deliveries in `skipped`. A hand-written realtime `Topic` needs a `fanOut`
 method. See [Notifications](/docs/blocks/notifications).
+
+## Records, workflows and state
+
+These changes come with record-bound workflows. New SQL arguments all have
+defaults, so existing calls keep working, but `sql sync` drops the old
+signatures. Rewrite any grants, revokes or `comment on function` statements
+your own SQL wrote on them for the new argument lists.
+
+### State machine transitions run as the caller
+
+`better_supabase.transition()` is no longer a security definer function. The
+subject table's row level security decides who may move a record, and a
+caller who can't update the row gets `STATE_SUBJECT_NOT_FOUND` (a `not_found`
+error from `createStateMachine().transition()`) instead of `true`. In 0.8 any
+signed-in user could change the status of any record of a machine. Give
+members an update policy on each machine's table, or call `transition()`
+with the service role where a server action moves records on their behalf. A
+`bulk` row the caller can't update now fails instead of moving. See
+[Who may transition](/docs/blocks/state-machine#who-may-transition).
+
+### Comments activity per record
+
+With the `subjects` module installed, the `activity_entries` read policy and
+`list_activity` check `can_subject(subject_type, subject_id, 'read')`, so
+members no longer see entries on records they can't read. Entries without a
+subject, or on an unregistered type, keep the tenant check. `ActivityEntry`
+has a required `source` field (`"event"` or `"audit"`): code that builds
+entries by hand, such as test fixtures or a custom feed, sets it. See
+[Visibility per record](/docs/blocks/comments#visibility-per-record).
+
+### Notification delivery tracking
+
+`complete_notification_delivery` takes a seventh argument, `template_key`,
+and the six-argument signature is dropped. `resendWebhook` records every
+Resend status through `record_delivery_event`, which ships in notifications
+module version 6: run `sql sync` and apply the migration before you deploy
+the new handler, or it answers 500. See
+[Delivery tracking](/docs/blocks/notifications#delivery-tracking).
+
+### Workflow runs on records
+
+`record_workflow_run`, `workflow_runs_list` and `request_workflow_start` gain
+`subject_type` and `subject_id`, and the first two gain `mode`.
+`record_workflow_run` also takes `principal_kind`, `principal_id` and
+`trigger_node`. `workflow_runs_list` defaults to `mode => 'live'`, so test
+runs are left out unless you ask for them.
+
+Runs that `startOnEvent` and `workflowStarter` start with `runAs` now record
+the user who triggered them as `bs.actor` and `actor_id`. In 0.8 that was the
+publisher; the publisher is now in `principal_kind` and `principal_id`, and
+`runAs` takes `principalKind`. Reports or policies that read `actor_id` as
+"who the run acted as" read `principal_id` instead. `startFor` no longer
+accepts `bs.principal_kind` or `bs.principal` from caller attributes. See
+[Runs on a record](/docs/blocks/workflows#runs-on-a-record).
+
+### Workflow builder
+
+`save_workflow_definition` takes `subject_types`, `scope` and `restricted`,
+`workflow_definitions_list` takes `subject_type`, `workflow_start_target` and
+`workflow_run_principal` take a `tenant`, and `save_workflow_draft` takes
+`input_schema`. `versions.runAs(version, tenant)` needs the tenant when the
+version belongs to a system definition, because the run's organization isn't
+on the definition. `validateGraph` no longer reports a second trigger node as
+an error: a graph may have several, and a trigger picks one with
+`config.node`. An editor that relied on the error to block a second trigger
+checks the count itself. See
+[Runs on a record](/docs/blocks/workflow-builder#runs-on-a-record) and
+[System workflows](/docs/blocks/workflow-builder#system-workflows-forks-and-opt-outs).
+
+### Saved views
+
+The `save` callback passed to `useSavedViews` also receives `state`, the
+view state `savedViews.save()` stores. A callback that forwards its whole
+argument to an API that rejects unknown keys picks the fields it needs, or
+passes `state` on. See
+[Sync with the URL](/docs/blocks/saved-views#sync-with-the-url).
