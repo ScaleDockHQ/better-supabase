@@ -421,6 +421,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./yjs": {
+      "@better-supabase/source": "./src/yjs/index.ts",
+      "types": "./dist/yjs/index.d.ts",
+      "default": "./dist/yjs/index.js"
+    },
     "./better-result": {
       "@better-supabase/source": "./src/better-result/index.ts",
       "types": "./dist/better-result/index.d.ts",
@@ -576,6 +581,17 @@
       "types": "./dist/blocks/teams/index.d.ts",
       "default": "./dist/blocks/teams/index.js"
     },
+    "./blocks/undo": {
+      "@better-supabase/source": "./src/blocks/undo/index.ts",
+      "types": "./dist/blocks/undo/index.d.ts",
+      "default": "./dist/blocks/undo/index.js"
+    },
+    "./blocks/undo/react": {
+      "@better-supabase/source": "./src/blocks/undo/react/index.ts",
+      "types": "./dist/blocks/undo/react/index.d.ts",
+      "react-server": "./dist/blocks/undo/react/server.js",
+      "default": "./dist/blocks/undo/react/index.js"
+    },
     "./blocks/tags": {
       "@better-supabase/source": "./src/blocks/tags/index.ts",
       "types": "./dist/blocks/tags/index.d.ts",
@@ -615,6 +631,147 @@
       "@better-supabase/source": "./src/blocks/rank/index.ts",
       "types": "./dist/blocks/rank/index.d.ts",
       "default": "./dist/blocks/rank/index.js"
+    },
+    "./blocks/saved-views": {
+      "@better-supabase/source": "./src/blocks/saved-views/index.ts",
+      "types": "./dist/blocks/saved-views/index.d.ts",
+      "default": "./dist/blocks/saved-views/index.js"
+    },
+    "./blocks/relations": {
+      "@better-supabase/source": "./src/blocks/relations/index.ts",
+      "types": "./dist/blocks/relations/index.d.ts",
+      "default": "./dist/blocks/relations/index.js"
+    },
+    "./blocks/bulk": {
+      "@better-supabase/source": "./src/blocks/bulk/index.ts",
+      "types": "./dist/blocks/bulk/index.d.ts",
+      "default": "./dist/blocks/bulk/index.js"
+    },
+    "./blocks/saved-views/react": {
+      "@better-supabase/source": "./src/blocks/saved-views/react/index.ts",
+      "types": "./dist/blocks/saved-views/react/index.d.ts",
+      "react-server": "./dist/blocks/saved-views/react/server.js",
+      "default": "./dist/blocks/saved-views/react/index.js"
+    },
+    "./blocks/search": {
+      "@better-supabase/source": "./src/blocks/search/index.ts",
+      "types": "./dist/blocks/search/index.d.ts",
+      "default": "./dist/blocks/search/index.js"
+    },
+    "./blocks/search/react": {
+      "@better-supabase/source": "./src/blocks/search/react/index.ts",
+      "types": "./dist/blocks/search/react/index.d.ts",
+      "react-server": "./dist/blocks/search/react/server.js",
+      "default": "./dist/blocks/search/react/index.js"
+    },
+    "./blocks/metrics": {
+      "@better-supabase/source": "./src/blocks/metrics/index.ts",
+      "types": "./dist/blocks/metrics/index.d.ts",
+      "default": "./dist/blocks/metrics/index.js"
+    },
+    "./blocks/commerce": {
+      "@better-supabase/source": "./src/blocks/commerce/index.ts",
+      "types": "./dist/blocks/commerce/index.d.ts",
+      "default": "./dist/blocks/commerce/index.js"
+    },
+    "./blocks/calendar": {
+      "@better-supabase/source": "./src/blocks/calendar/index.ts",
+      "types": "./dist/blocks/calendar/index.d.ts",
+      "default": "./dist/blocks/calendar/index.js"
+    },
+    "./blocks/calendar/react": {
+      "@better-supabase/source": "./src/blocks/calendar/react/index.ts",
+      "types": "./dist/blocks/calendar/react/index.d.ts",
+      "react-server": "./dist/blocks/calendar/react/server.js",
+      "default": "./dist/blocks/calendar/react/index.js"
+    },
+    "./blocks/bookings": {
+      "@better-supabase/source": "./src/blocks/bookings/index.ts",
+      "types": "./dist/blocks/bookings/index.d.ts",
+      "default": "./dist/blocks/bookings/index.js"
+    },
+    "./blocks/bookings/react": {
+      "@better-supabase/source": "./src/blocks/bookings/react/index.ts",
+      "types": "./dist/blocks/bookings/react/index.d.ts",
+      "react-server": "./dist/blocks/bookings/react/server.js",
+      "default": "./dist/blocks/bookings/react/index.js"
+    },
+    "./blocks/versions": {
+      "@better-supabase/source": "./src/blocks/versions/index.ts",
+      "types": "./dist/blocks/versions/index.d.ts",
+      "default": "./dist/blocks/versions/index.js"
+    },
+    "./blocks/trash": {
+      "@better-supabase/source": "./src/blocks/trash/index.ts",
+      "types": "./dist/blocks/trash/index.d.ts",
+      "default": "./dist/blocks/trash/index.js"
+    },
+    "./blocks/reactions": {
+      "@better-supabase/source": "./src/blocks/reactions/index.ts",
+      "types": "./dist/blocks/reactions/index.d.ts",
+      "default": "./dist/blocks/reactions/index.js"
+    },
+    "./blocks/approvals": {
+      "@better-supabase/source": "./src/blocks/approvals/index.ts",
+      "types": "./dist/blocks/approvals/index.d.ts",
+      "default": "./dist/blocks/approvals/index.js"
+    },
+    "./blocks/access-requests": {
+      "@better-supabase/source": "./src/blocks/access-requests/index.ts",
+      "types": "./dist/blocks/access-requests/index.d.ts",
+      "default": "./dist/blocks/access-requests/index.js"
+    },
+    "./blocks/documents": {
+      "@better-supabase/source": "./src/blocks/documents/index.ts",
+      "types": "./dist/blocks/documents/index.d.ts",
+      "default": "./dist/blocks/documents/index.js"
+    },
+    "./blocks/drive": {
+      "@better-supabase/source": "./src/blocks/drive/index.ts",
+      "types": "./dist/blocks/drive/index.d.ts",
+      "default": "./dist/blocks/drive/index.js"
+    },
+    "./blocks/forms": {
+      "@better-supabase/source": "./src/blocks/forms/index.ts",
+      "types": "./dist/blocks/forms/index.d.ts",
+      "default": "./dist/blocks/forms/index.js"
+    },
+    "./blocks/forms/react": {
+      "@better-supabase/source": "./src/blocks/forms/react/index.ts",
+      "types": "./dist/blocks/forms/react/index.d.ts",
+      "react-server": "./dist/blocks/forms/react/server.js",
+      "default": "./dist/blocks/forms/react/index.js"
+    },
+    "./blocks/time-tracking": {
+      "@better-supabase/source": "./src/blocks/time-tracking/index.ts",
+      "types": "./dist/blocks/time-tracking/index.d.ts",
+      "default": "./dist/blocks/time-tracking/index.js"
+    },
+    "./blocks/reactions/react": {
+      "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
+      "types": "./dist/blocks/reactions/react/index.d.ts",
+      "react-server": "./dist/blocks/reactions/react/server.js",
+      "default": "./dist/blocks/reactions/react/index.js"
+    },
+    "./blocks/catalog": {
+      "@better-supabase/source": "./src/blocks/catalog/index.ts",
+      "types": "./dist/blocks/catalog/index.d.ts",
+      "default": "./dist/blocks/catalog/index.js"
+    },
+    "./blocks/inventory": {
+      "@better-supabase/source": "./src/blocks/inventory/index.ts",
+      "types": "./dist/blocks/inventory/index.d.ts",
+      "default": "./dist/blocks/inventory/index.js"
+    },
+    "./blocks/orders": {
+      "@better-supabase/source": "./src/blocks/orders/index.ts",
+      "types": "./dist/blocks/orders/index.d.ts",
+      "default": "./dist/blocks/orders/index.js"
+    },
+    "./blocks/promotions": {
+      "@better-supabase/source": "./src/blocks/promotions/index.ts",
+      "types": "./dist/blocks/promotions/index.d.ts",
+      "default": "./dist/blocks/promotions/index.js"
     },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
@@ -1027,6 +1184,10 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./yjs": {
+        "types": "./dist/yjs/index.d.ts",
+        "default": "./dist/yjs/index.js"
+      },
       "./better-result": {
         "types": "./dist/better-result/index.d.ts",
         "default": "./dist/better-result/index.js"
@@ -1152,6 +1313,15 @@
         "types": "./dist/blocks/teams/index.d.ts",
         "default": "./dist/blocks/teams/index.js"
       },
+      "./blocks/undo": {
+        "types": "./dist/blocks/undo/index.d.ts",
+        "default": "./dist/blocks/undo/index.js"
+      },
+      "./blocks/undo/react": {
+        "types": "./dist/blocks/undo/react/index.d.ts",
+        "react-server": "./dist/blocks/undo/react/server.js",
+        "default": "./dist/blocks/undo/react/index.js"
+      },
       "./blocks/tags": {
         "types": "./dist/blocks/tags/index.d.ts",
         "default": "./dist/blocks/tags/index.js"
@@ -1183,6 +1353,120 @@
       "./blocks/rank": {
         "types": "./dist/blocks/rank/index.d.ts",
         "default": "./dist/blocks/rank/index.js"
+      },
+      "./blocks/saved-views": {
+        "types": "./dist/blocks/saved-views/index.d.ts",
+        "default": "./dist/blocks/saved-views/index.js"
+      },
+      "./blocks/relations": {
+        "types": "./dist/blocks/relations/index.d.ts",
+        "default": "./dist/blocks/relations/index.js"
+      },
+      "./blocks/bulk": {
+        "types": "./dist/blocks/bulk/index.d.ts",
+        "default": "./dist/blocks/bulk/index.js"
+      },
+      "./blocks/saved-views/react": {
+        "types": "./dist/blocks/saved-views/react/index.d.ts",
+        "react-server": "./dist/blocks/saved-views/react/server.js",
+        "default": "./dist/blocks/saved-views/react/index.js"
+      },
+      "./blocks/search": {
+        "types": "./dist/blocks/search/index.d.ts",
+        "default": "./dist/blocks/search/index.js"
+      },
+      "./blocks/search/react": {
+        "types": "./dist/blocks/search/react/index.d.ts",
+        "react-server": "./dist/blocks/search/react/server.js",
+        "default": "./dist/blocks/search/react/index.js"
+      },
+      "./blocks/metrics": {
+        "types": "./dist/blocks/metrics/index.d.ts",
+        "default": "./dist/blocks/metrics/index.js"
+      },
+      "./blocks/commerce": {
+        "types": "./dist/blocks/commerce/index.d.ts",
+        "default": "./dist/blocks/commerce/index.js"
+      },
+      "./blocks/calendar": {
+        "types": "./dist/blocks/calendar/index.d.ts",
+        "default": "./dist/blocks/calendar/index.js"
+      },
+      "./blocks/calendar/react": {
+        "types": "./dist/blocks/calendar/react/index.d.ts",
+        "react-server": "./dist/blocks/calendar/react/server.js",
+        "default": "./dist/blocks/calendar/react/index.js"
+      },
+      "./blocks/bookings": {
+        "types": "./dist/blocks/bookings/index.d.ts",
+        "default": "./dist/blocks/bookings/index.js"
+      },
+      "./blocks/bookings/react": {
+        "types": "./dist/blocks/bookings/react/index.d.ts",
+        "react-server": "./dist/blocks/bookings/react/server.js",
+        "default": "./dist/blocks/bookings/react/index.js"
+      },
+      "./blocks/versions": {
+        "types": "./dist/blocks/versions/index.d.ts",
+        "default": "./dist/blocks/versions/index.js"
+      },
+      "./blocks/trash": {
+        "types": "./dist/blocks/trash/index.d.ts",
+        "default": "./dist/blocks/trash/index.js"
+      },
+      "./blocks/reactions": {
+        "types": "./dist/blocks/reactions/index.d.ts",
+        "default": "./dist/blocks/reactions/index.js"
+      },
+      "./blocks/approvals": {
+        "types": "./dist/blocks/approvals/index.d.ts",
+        "default": "./dist/blocks/approvals/index.js"
+      },
+      "./blocks/access-requests": {
+        "types": "./dist/blocks/access-requests/index.d.ts",
+        "default": "./dist/blocks/access-requests/index.js"
+      },
+      "./blocks/documents": {
+        "types": "./dist/blocks/documents/index.d.ts",
+        "default": "./dist/blocks/documents/index.js"
+      },
+      "./blocks/drive": {
+        "types": "./dist/blocks/drive/index.d.ts",
+        "default": "./dist/blocks/drive/index.js"
+      },
+      "./blocks/forms": {
+        "types": "./dist/blocks/forms/index.d.ts",
+        "default": "./dist/blocks/forms/index.js"
+      },
+      "./blocks/forms/react": {
+        "types": "./dist/blocks/forms/react/index.d.ts",
+        "react-server": "./dist/blocks/forms/react/server.js",
+        "default": "./dist/blocks/forms/react/index.js"
+      },
+      "./blocks/time-tracking": {
+        "types": "./dist/blocks/time-tracking/index.d.ts",
+        "default": "./dist/blocks/time-tracking/index.js"
+      },
+      "./blocks/reactions/react": {
+        "types": "./dist/blocks/reactions/react/index.d.ts",
+        "react-server": "./dist/blocks/reactions/react/server.js",
+        "default": "./dist/blocks/reactions/react/index.js"
+      },
+      "./blocks/catalog": {
+        "types": "./dist/blocks/catalog/index.d.ts",
+        "default": "./dist/blocks/catalog/index.js"
+      },
+      "./blocks/inventory": {
+        "types": "./dist/blocks/inventory/index.d.ts",
+        "default": "./dist/blocks/inventory/index.js"
+      },
+      "./blocks/orders": {
+        "types": "./dist/blocks/orders/index.d.ts",
+        "default": "./dist/blocks/orders/index.js"
+      },
+      "./blocks/promotions": {
+        "types": "./dist/blocks/promotions/index.d.ts",
+        "default": "./dist/blocks/promotions/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1364,6 +1648,7 @@
     "vue": "catalog:",
     "workflow": "catalog:",
     "yaml": "catalog:",
+    "yjs": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -1401,7 +1686,8 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "vue": "catalog:peers",
-    "workflow": "catalog:peers"
+    "workflow": "catalog:peers",
+    "yjs": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/mcp": {
@@ -1504,6 +1790,9 @@
       "optional": true
     },
     "workflow": {
+      "optional": true
+    },
+    "yjs": {
       "optional": true
     }
   },

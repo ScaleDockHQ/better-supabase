@@ -17,6 +17,22 @@ import { createStateMachine } from "better-supabase/blocks/state-machine";
 
 History goes to `status_history`, or to a table named on the machine (`history.table` and its columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage. Pause and pin state stay in the app or in workflow-builder.
 
+## Transitions that need approval
+
+`requiresApproval` lists edges, in the shape of `transitions`, that only an approved request of the [approvals](/docs/blocks/approvals) module may make. Any other caller gets `STATE_APPROVAL_REQUIRED`; the service role can still make them. Pair it with an approvals policy whose `run` is `{ transition: "<status>" }` on a subject type named after the machine.
+
+```ts title="better-supabase.config.ts"
+machines: {
+  invoice: {
+    table: "public.invoices",
+    column: "status",
+    initial: "draft",
+    transitions: { draft: ["sent", "void"] },
+    requiresApproval: { draft: ["sent"] },
+  },
+},
+```
+
 ## Adopt mode
 
 Point `history.table` at `public.quote_status_history` or `public.invoice_status_history`. Portal-only columns such as `actor_customer_id` stay on the table and are not required by the module.

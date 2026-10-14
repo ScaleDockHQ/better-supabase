@@ -40,6 +40,22 @@ grant execute on function ${signature} to authenticated, service_role;`;
     `revoke execute on function ${signature} from public, anon, authenticated;`;
 
   const ctx = q.ctx;
+  const reactionsWrite = reactionWrite(
+    q,
+    ms,
+    `  update ${T("messages")} set ${ms("reactions")} = case
+    when coalesce(present, true) then
+      ${ms("reactions")} || jsonb_build_object(emoji, (
+        select coalesce(jsonb_agg(distinct x), '[]'::jsonb)
+        from jsonb_array_elements_text(coalesce(${ms("reactions")} -> emoji, '[]'::jsonb) || to_jsonb(v_who)) x
+      ))
+    else
+      case when (select count(*) from jsonb_array_elements_text(coalesce(${ms("reactions")} -> emoji, '[]'::jsonb)) x where x <> v_who) = 0
+        then ${ms("reactions")} - emoji
+        else ${ms("reactions")} || jsonb_build_object(emoji, (select jsonb_agg(x) from jsonb_array_elements_text(${ms("reactions")} -> emoji) x where x <> v_who))
+      end
+    end`,
+  );
   const notifyOn = ctx.installed("notifications") && ctx.flag("notify", true);
   const notify = (fields: string): string =>
     notifyOn
@@ -794,18 +810,7 @@ begin
   if length(emoji) not between 1 and 64 then
     ${fail("INBOX_REACTION_INVALID", "emoji must be 1 to 64 characters", "22023")}
   end if;
-  update ${T("messages")} set ${ms("reactions")} = case
-    when coalesce(present, true) then
-      ${ms("reactions")} || jsonb_build_object(emoji, (
-        select coalesce(jsonb_agg(distinct x), '[]'::jsonb)
-        from jsonb_array_elements_text(coalesce(${ms("reactions")} -> emoji, '[]'::jsonb) || to_jsonb(v_who)) x
-      ))
-    else
-      case when (select count(*) from jsonb_array_elements_text(coalesce(${ms("reactions")} -> emoji, '[]'::jsonb)) x where x <> v_who) = 0
-        then ${ms("reactions")} - emoji
-        else ${ms("reactions")} || jsonb_build_object(emoji, (select jsonb_agg(x) from jsonb_array_elements_text(${ms("reactions")} -> emoji) x where x <> v_who))
-      end
-    end
+${reactionsWrite}
   where ${ms("id")} = v_msg.${ms("id")}
   returning * into v_msg;
   return v_msg.${ms("reactions")};
@@ -952,4 +957,39 @@ as $$
   where v.${cv("tenant")} = inbox_counts.tenant and v.${cv("status")} = 'open';
 $$;
 ${authed(`${fn("inbox_counts")}(${id})`)}`;
+}
+
+/**
+ * With the `reactions` module, `react_to_message` writes to its table and
+ * keeps the message's `reactions` column as a copy of it.
+ */
+function reactionWrite(
+  q: InboxSql,
+  ms: (column: string) => string,
+  jsonbUpdate: string,
+): string {
+  const ctx = q.ctx;
+  if (!ctx.installed("reactions")) return jsonbUpdate;
+  const reactions = ctx.of("reactions");
+  if (reactions.mode === "custom") return jsonbUpdate;
+  const table = reactions.table("reactions");
+  const r = (column: string): string => reactions.col("reactions", column);
+  return `  if coalesce(present, true) then
+    insert into ${table} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("actor")}, ${r("user")}, ${r("emoji")})
+    values (v_msg.${ms("tenant")}, 'inbox_message', v_msg.${ms("id")}::text, v_who, case when ${q.service} then null else (select auth.uid()) end, react_to_message.emoji)
+    on conflict do nothing;
+  else
+    delete from ${table} x
+    where x.${r("subjectType")} = 'inbox_message' and x.${r("subjectId")} = v_msg.${ms("id")}::text
+      and x.${r("actor")} = v_who and x.${r("emoji")} = react_to_message.emoji;
+  end if;
+  update ${q.t("messages")} set ${ms("reactions")} = (
+    select coalesce(jsonb_object_agg(g.emoji, g.actors), '{}'::jsonb)
+    from (
+      select x.${r("emoji")} as emoji, jsonb_agg(x.${r("actor")} order by x.${r("createdAt")}) as actors
+      from ${table} x
+      where x.${r("subjectType")} = 'inbox_message' and x.${r("subjectId")} = v_msg.${ms("id")}::text
+      group by x.${r("emoji")}
+    ) g
+  )`;
 }

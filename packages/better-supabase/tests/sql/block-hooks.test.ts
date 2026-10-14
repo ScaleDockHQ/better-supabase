@@ -21,6 +21,96 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   "number-sequences": ["before_number_assign", "after_number_assign"],
   teams: ["before_team_create", "after_team_create"],
   tags: ["before_tag_apply", "after_tag_apply"],
+  search: ["before_search_document_index", "after_search_document_index"],
+  metrics: ["before_metric_rollup", "after_metric_rollup"],
+  calendar: ["before_calendar_event_save", "after_calendar_event_save"],
+  bookings: [
+    "before_booking_reserve",
+    "after_booking_reserve",
+    "after_booking_confirm",
+    "after_booking_cancel",
+  ],
+  versions: [
+    "before_version_snapshot",
+    "after_version_snapshot",
+    "before_version_restore",
+    "after_version_restore",
+  ],
+  trash: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
+  reactions: ["before_react", "after_react"],
+  approvals: [
+    "before_approval_request",
+    "after_approval_request",
+    "before_approval_decide",
+    "after_approval_decide",
+  ],
+  "access-requests": [
+    "before_access_request",
+    "after_access_request",
+    "before_access_grant",
+    "after_access_grant",
+  ],
+  documents: ["before_document_create", "after_document_create"],
+  catalog: [
+    "before_product_save",
+    "after_product_save",
+    "before_variant_save",
+    "after_variant_save",
+    "before_price_set",
+    "after_price_set",
+  ],
+  inventory: [
+    "before_stock_adjust",
+    "after_stock_adjust",
+    "before_stock_reserve",
+    "after_stock_reserve",
+  ],
+  drive: [
+    "before_drive_node_create",
+    "after_drive_node_create",
+    "before_drive_node_move",
+    "after_drive_node_move",
+    "before_drive_node_rename",
+    "after_drive_node_rename",
+    "before_drive_node_share",
+    "after_drive_node_share",
+  ],
+  orders: [
+    "before_order_place",
+    "after_order_place",
+    "before_fulfillment_create",
+    "after_fulfillment_create",
+    "before_refund_create",
+    "after_refund_create",
+  ],
+  promotions: ["before_promotion_save", "after_promotion_save"],
+  forms: [
+    "before_form_publish",
+    "after_form_publish",
+    "before_form_submission",
+    "after_form_submission",
+  ],
+  signatures: [
+    "before_signature_request",
+    "after_signature_request",
+    "before_signature_sign",
+    "after_signature_sign",
+  ],
+  "time-tracking": [
+    "before_time_entry_save",
+    "after_time_entry_save",
+    "before_timesheet_submit",
+    "after_timesheet_submit",
+  ],
+};
+
+/** Modules that call their hooks only for configured items. */
+const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
+  metrics: {
+    metrics: [
+      { key: "orders", table: "orders", measure: "count", timeColumn: "at" },
+    ],
+  },
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;
@@ -30,7 +120,10 @@ describe.each(Object.entries(REQUIRED))(
   (module, hooks) => {
     const declared = SQL_MODULES[module]?.names?.hooks ?? [];
     const sql = moduleBody(module, {
-      modules: {},
+      modules:
+        OPTIONS[module] === undefined
+          ? {}
+          : { [module]: { options: OPTIONS[module] } },
       accessProvider: moduleProvider,
     });
 

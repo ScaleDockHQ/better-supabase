@@ -58,6 +58,9 @@ const ORGANIZATION_PERMISSIONS = [
   "notifications.send",
   "notifications.read",
   "audit.view",
+  "drive.read",
+  "drive.create",
+  "drive.manage",
 ];
 
 const GRANTS = {
@@ -67,7 +70,12 @@ const GRANTS = {
       key !== "organization.delete" &&
       key !== "organization.ownership.transfer",
   ),
-  member: ["notifications.send", "notifications.read"],
+  member: [
+    "notifications.send",
+    "notifications.read",
+    "drive.read",
+    "drive.create",
+  ],
   systemSupport: ["system.users.manage"],
 } satisfies Record<keyof typeof ROLES, readonly string[]>;
 
@@ -165,6 +173,10 @@ export async function withCentraKit(
   const session = new Session(client);
   try {
     await client.query("begin");
+    // validation-recipes installs blocks on the same database; concurrent installs deadlock.
+    await client.query(
+      "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
+    );
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(
         `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at, raw_user_meta_data)

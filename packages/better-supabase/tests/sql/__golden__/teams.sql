@@ -158,11 +158,11 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  update "better_supabase"."teams"
-  set "name" = coalesce(update_team.name, "name"),
-      "description" = coalesce(update_team.description, "description"),
+  update "better_supabase"."teams" as t
+  set "name" = coalesce(update_team.name, t."name"),
+      "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
-  where "id" = update_team.team;
+  where t."id" = update_team.team;
   null;
   return jsonb_build_object('id', update_team.team);
 end;
@@ -536,11 +536,11 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  update "better_supabase"."teams"
-  set "name" = coalesce(update_team.name, "name"),
-      "description" = coalesce(update_team.description, "description"),
+  update "better_supabase"."teams" as t
+  set "name" = coalesce(update_team.name, t."name"),
+      "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
-  where "id" = update_team.team;
+  where t."id" = update_team.team;
   perform "better_supabase".emit_event('team.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name), 'teams/' || (update_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team.updated',
@@ -916,11 +916,11 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  update "app_private"."teams"
-  set "name" = coalesce(update_team.name, "name"),
-      "description" = coalesce(update_team.description, "description"),
+  update "app_private"."teams" as t
+  set "name" = coalesce(update_team.name, t."name"),
+      "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
-  where "id" = update_team.team;
+  where t."id" = update_team.team;
   null;
   return jsonb_build_object('id', update_team.team);
 end;
@@ -1254,11 +1254,11 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  update "better_supabase"."teams"
-  set "name" = coalesce(update_team.name, "name"),
-      "description" = coalesce(update_team.description, "description"),
+  update "better_supabase"."teams" as t
+  set "name" = coalesce(update_team.name, t."name"),
+      "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
-  where "id" = update_team.team;
+  where t."id" = update_team.team;
   null;
   return jsonb_build_object('id', update_team.team);
 end;
@@ -1645,11 +1645,11 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  update "better_supabase"."teams"
-  set "name" = coalesce(update_team.name, "name"),
-      "description" = coalesce(update_team.description, "description"),
+  update "better_supabase"."teams" as t
+  set "name" = coalesce(update_team.name, t."name"),
+      "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
-  where "id" = update_team.team;
+  where t."id" = update_team.team;
   null;
   return jsonb_build_object('id', update_team.team);
 end;

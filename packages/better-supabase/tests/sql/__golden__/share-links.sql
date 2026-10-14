@@ -120,6 +120,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
 begin
@@ -358,6 +359,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
 begin
@@ -675,6 +677,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
 begin
@@ -913,6 +916,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
 begin
@@ -1178,6 +1182,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_tenant uuid;
 begin

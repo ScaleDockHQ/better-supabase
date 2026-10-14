@@ -66,6 +66,12 @@ export interface SqlModule {
   readonly description: string;
   /** Modules this one needs, added along with it. */
   readonly requires: readonly string[];
+  /**
+   * A module this one renders and is numbered ahead of, for a module that
+   * owns a subject table the `case` checks of `comments` or `attachments`
+   * name. The file takes the number before it, so later files keep theirs.
+   */
+  readonly before?: string;
   /** What it needs instead when an authorization provider supplies memberships. */
   readonly providerRequires?: readonly string[];
   /**

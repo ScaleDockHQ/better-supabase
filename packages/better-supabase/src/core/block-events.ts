@@ -350,12 +350,54 @@ export type SubjectEventType =
   | "field_value.set"
   | "share_link.created"
   | "subject.viewed"
-  | "reminder.sent";
+  | "reminder.sent"
+  | "subject.linked"
+  | "subject.unlinked"
+  | "version.created"
+  | "version.restored"
+  | "version.deleted"
+  | "subject.trashed"
+  | "subject.restored"
+  | "subject.purged"
+  | "reaction.added"
+  | "reaction.removed"
+  | "document.created"
+  | "approval.requested"
+  | "approval.approved"
+  | "approval.rejected"
+  | "approval.cancelled"
+  | "approval.expired"
+  | "approval.delegated"
+  | "stock.reorder_point_reached"
+  | "drive.node_created"
+  | "drive.node_renamed"
+  | "drive.node_moved"
+  | "drive.node_shared"
+  | "drive.node_unshared"
+  | "drive.node_purged"
+  | "order.placed"
+  | "order.paid"
+  | "order.cancelled"
+  | "order.fulfilled"
+  | "order.completed"
+  | "order.refunded"
+  | "fulfillment.shipped"
+  | "fulfillment.delivered"
+  | "return.requested"
+  | "return.received"
+  | "form_submission.submitted"
+  | "form_submission.reviewed"
+  | "form_submission.deleted"
+  | "signature.requested"
+  | "signature.signed"
+  | "signature.completed"
+  | "signature.declined"
+  | "signature.cancelled";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
 
-/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports). */
+/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports, saved views, relations, bulk runs). */
 export interface SaasEventData {
   readonly organizationId?: string | null;
   readonly id?: string;
@@ -374,6 +416,209 @@ export interface SaasEventData {
   readonly count?: number;
   readonly role?: string;
   readonly error?: string | null;
+  /** The other end of a relation, for `subject.linked` and `subject.unlinked`. */
+  readonly targetType?: string;
+  readonly targetId?: string;
+  /** Rows that failed in a bulk run. */
+  readonly failed?: number;
+}
+
+/** Events from the calendar and bookings blocks. */
+export interface SchedulingEventData {
+  readonly organizationId?: string | null;
+  readonly id?: string;
+  readonly name?: string;
+  readonly calendarId?: string;
+  readonly resourceId?: string;
+  readonly serviceId?: string | null;
+}
+
+/** Events from the collaboration blocks (versions, trash, reactions, approvals, access requests, documents). */
+export interface CollaborationEventData extends SubjectEventData {
+  readonly id?: string;
+  readonly number?: number;
+  readonly label?: string | null;
+  readonly source?: string;
+  readonly restoredFrom?: number;
+  /** The trash batch: a subject and the children trashed with it. */
+  readonly batchId?: string;
+  /** The emoji, or a custom emoji's `:shortcode:`. */
+  readonly emoji?: string;
+  /** Who reacted: a user id, or the name the service passed. */
+  readonly actor?: string;
+  /** The action an approval request is for, such as `publish`. */
+  readonly action?: string;
+  /** An approval request's status after the event. */
+  readonly status?: string;
+  /** The approval step the request is on, from 0. */
+  readonly step?: number;
+}
+
+/** Events from the access-requests module. */
+export interface AccessRequestEventData {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly role: string;
+  /** The access request. */
+  readonly id: string;
+  readonly approvalId?: string | null;
+  /** When the granted role ends; null for a grant without a duration. */
+  readonly expiresAt?: string | null;
+  /** For `access.ended`: `expired` or `revoked`. */
+  readonly reason?: string;
+}
+
+/** Events from the documents module. */
+export interface DocumentEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The document. */
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Events from the catalog and inventory blocks. Amounts and quantities are
+ * text: JSON numbers lose `bigint` precision.
+ */
+export interface CommerceEventData {
+  readonly organizationId: string | null;
+  readonly id?: string;
+  readonly slug?: string;
+  readonly kind?: string | null;
+  readonly from?: string;
+  readonly to?: string;
+  readonly productId?: string;
+  readonly variantId?: string;
+  readonly sku?: string;
+  readonly priceListId?: string | null;
+  readonly currency?: string;
+  readonly amount?: string;
+  readonly previousAmount?: string | null;
+  readonly locationId?: string;
+  readonly quantity?: string;
+  readonly reason?: string;
+  readonly status?: string;
+  readonly available?: string;
+  readonly reorderPoint?: string;
+  readonly supplierType?: string | null;
+  readonly supplierId?: string | null;
+  readonly orderId?: string;
+  readonly number?: string;
+  readonly customerId?: string | null;
+  readonly subtotal?: string;
+  readonly discountTotal?: string;
+  readonly shippingTotal?: string;
+  readonly taxTotal?: string;
+  readonly total?: string;
+  readonly refundedTotal?: string;
+  /** Units across the order's lines. */
+  readonly units?: string;
+  readonly invoiceNumber?: string | null;
+  readonly carrier?: string | null;
+  readonly trackingNumber?: string | null;
+  readonly promotionId?: string;
+  readonly code?: string | null;
+}
+
+/** `CommerceEventData` for an event about one subject, such as a variant. */
+export type CommerceSubjectEventData = CommerceEventData & SubjectEventData;
+
+/** Events from the drive module. `subjectId` is the node. */
+export interface DriveEventData extends SubjectEventData {
+  /** For `drive.node_created`: `folder` or `file`. */
+  readonly kind?: "folder" | "file";
+  /** For `drive.node_created` and `drive.node_renamed`. */
+  readonly name?: string;
+  /** For `drive.node_renamed`. */
+  readonly previousName?: string;
+  /** For `drive.node_created` and `drive.node_moved`; `null` at the root. */
+  readonly parentId?: string | null;
+  /** For `drive.node_moved`. */
+  readonly previousParentId?: string | null;
+  /** For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or `role`. */
+  readonly principalType?: string;
+  readonly principalId?: string;
+  /** For `drive.node_shared`. */
+  readonly role?: string;
+  /** For `drive.node_purged`: the stored objects to delete, as `{ bucket, path }`. */
+  readonly objects?: readonly {
+    readonly bucket: string;
+    readonly path: string;
+  }[];
+}
+
+/** `form.created` and `form_version.published` from the forms module. */
+export interface FormEventData {
+  readonly organizationId: string;
+  /** The form, or for `form_version.published` the version. */
+  readonly id: string;
+  readonly key?: string;
+  readonly formId?: string;
+  readonly number?: number;
+}
+
+/**
+ * Submission events from the forms module. The subject is the record the
+ * submission is linked to, or the form itself (`form`) when it has none.
+ */
+export interface FormSubmissionEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The submission. */
+  readonly id: string;
+  readonly formId: string;
+  readonly versionId?: string;
+  /** `member`, `public` or `service`. */
+  readonly source?: string;
+  /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
+  readonly status?: string;
+}
+
+/**
+ * Signature events from the signatures module. The subject is the record the
+ * request asks signers to sign.
+ */
+export interface SignatureEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The signature request. */
+  readonly id: string;
+  readonly versionId?: string;
+  /** For `signature.signed`: the signature. */
+  readonly signatureId?: string;
+  /** For `signature.signed` and `signature.declined`. */
+  readonly signer?: string;
+  /** For `signature.signed`: `drawn`, `typed` or `click`. */
+  readonly method?: string;
+}
+
+/**
+ * Time entry events from the time-tracking module. `subjectType` and
+ * `subjectId` are null for time not tracked on a record.
+ */
+export interface TimeEntryEventData {
+  readonly organizationId: string;
+  /** The time entry. */
+  readonly id: string;
+  readonly userId: string;
+  readonly subjectType: string | null;
+  readonly subjectId: string | null;
+  /** When the entry starts, the time metrics bucket its seconds by. */
+  readonly startedAt: string;
+  /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
+  readonly seconds?: number | null;
+  readonly billable?: boolean;
+  /** The hourly rate, when the entry has one. */
+  readonly rate?: number | null;
+}
+
+/** Timesheet events from the time-tracking module. */
+export interface TimesheetEventData {
+  readonly organizationId: string;
+  /** The timesheet. */
+  readonly id: string;
+  readonly userId: string;
+  /** The Monday the week starts on, as `YYYY-MM-DD`. */
+  readonly week: string;
+  readonly approvalId: string | null;
 }
 
 /** Every block event type and its data. */
@@ -509,6 +754,92 @@ export interface BlockEventMap {
   "reminder.sent": SaasSubjectEventData;
   "import.completed": SaasEventData;
   "import.failed": SaasEventData;
+  "saved_view.saved": SaasEventData;
+  "saved_view.deleted": SaasEventData;
+  "subject.linked": SaasSubjectEventData;
+  "subject.unlinked": SaasSubjectEventData;
+  "bulk_run.completed": SaasEventData;
+  "calendar.created": SchedulingEventData;
+  "calendar_event.created": SchedulingEventData;
+  "calendar_event.updated": SchedulingEventData;
+  "calendar_event.deleted": SchedulingEventData;
+  "booking.reserved": SchedulingEventData;
+  "booking.confirmed": SchedulingEventData;
+  "booking.cancelled": SchedulingEventData;
+  "booking.expired": SchedulingEventData;
+  "version.created": CollaborationEventData;
+  "version.restored": CollaborationEventData;
+  "version.deleted": CollaborationEventData;
+  "subject.trashed": CollaborationEventData;
+  "subject.restored": CollaborationEventData;
+  "subject.purged": CollaborationEventData;
+  "reaction.added": CollaborationEventData;
+  "reaction.removed": CollaborationEventData;
+  "approval.requested": CollaborationEventData;
+  "approval.approved": CollaborationEventData;
+  "approval.rejected": CollaborationEventData;
+  "approval.cancelled": CollaborationEventData;
+  "approval.expired": CollaborationEventData;
+  "approval.delegated": CollaborationEventData;
+  "access.requested": AccessRequestEventData;
+  "access.request_approved": AccessRequestEventData;
+  "access.ended": AccessRequestEventData;
+  "document.created": DocumentEventData;
+  "product.created": CommerceEventData;
+  "product.updated": CommerceEventData;
+  "product.status_changed": CommerceEventData;
+  "product.deleted": CommerceEventData;
+  "variant.created": CommerceEventData;
+  "variant.updated": CommerceEventData;
+  "variant.deleted": CommerceEventData;
+  "catalog.price_changed": CommerceEventData;
+  "storefront.published": CommerceEventData;
+  "storefront.unpublished": CommerceEventData;
+  "stock.adjusted": CommerceEventData;
+  "stock.reorder_point_reached": CommerceSubjectEventData;
+  "reservation.created": CommerceEventData;
+  "reservation.committed": CommerceEventData;
+  "reservation.released": CommerceEventData;
+  "transfer.shipped": CommerceEventData;
+  "transfer.received": CommerceEventData;
+  "transfer.cancelled": CommerceEventData;
+  "purchase_order.placed": CommerceEventData;
+  "purchase_order.received": CommerceEventData;
+  "purchase_order.cancelled": CommerceEventData;
+  "drive.node_created": DriveEventData;
+  "drive.node_renamed": DriveEventData;
+  "drive.node_moved": DriveEventData;
+  "drive.node_shared": DriveEventData;
+  "drive.node_unshared": DriveEventData;
+  "drive.node_purged": DriveEventData;
+  "order.placed": CommerceSubjectEventData;
+  "order.paid": CommerceSubjectEventData;
+  "order.cancelled": CommerceSubjectEventData;
+  "order.fulfilled": CommerceSubjectEventData;
+  "order.completed": CommerceSubjectEventData;
+  "order.refunded": CommerceSubjectEventData;
+  "fulfillment.shipped": CommerceSubjectEventData;
+  "fulfillment.delivered": CommerceSubjectEventData;
+  "return.requested": CommerceSubjectEventData;
+  "return.received": CommerceSubjectEventData;
+  "promotion.redeemed": CommerceEventData;
+  "form.created": FormEventData;
+  "form_version.published": FormEventData;
+  "form_submission.submitted": FormSubmissionEventData;
+  "form_submission.reviewed": FormSubmissionEventData;
+  "form_submission.deleted": FormSubmissionEventData;
+  "signature.requested": SignatureEventData;
+  "signature.signed": SignatureEventData;
+  "signature.completed": SignatureEventData;
+  "signature.declined": SignatureEventData;
+  "signature.cancelled": SignatureEventData;
+  "time_entry.started": TimeEntryEventData;
+  "time_entry.recorded": TimeEntryEventData;
+  "time_entry.updated": TimeEntryEventData;
+  "time_entry.deleted": TimeEntryEventData;
+  "timesheet.submitted": TimesheetEventData;
+  "timesheet.approved": TimesheetEventData;
+  "timesheet.reopened": TimesheetEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

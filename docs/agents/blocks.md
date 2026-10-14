@@ -10,7 +10,10 @@ workflow; this page is the checklist for a new block.
   with `NAMES` (logical tables, columns, options and hooks), `contract` (the
   functions the TypeScript side calls) and `build(ctx)`. Append it to
   `SQL_MODULES` in `src/sql/registry.ts`: the position is part of the file
-  name, so new modules always go at the end.
+  name, so new modules always go at the end. A module whose table the
+  subject checks of `comments` or `attachments` name sets `before:
+"comments"`: it renders ahead of them and its file takes the number before
+  theirs, so it still goes at the end (ADR 0025).
 - Functions live in `ctx.schema` (`better_supabase` by default), tables use
   `create table if not exists`, and no line of a schema file starts with
   `insert`, `select` or another data statement (`tests/sql/registry.test.ts`).

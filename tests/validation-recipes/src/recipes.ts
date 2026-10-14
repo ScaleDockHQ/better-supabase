@@ -1,3 +1,5 @@
+import { defineMetric } from "better-supabase/blocks/metrics";
+import { orderMetrics } from "better-supabase/blocks/orders";
 import { defineConfig } from "better-supabase/config";
 
 // The configs on the Recipes docs pages, with the app tables in a schema of
@@ -11,6 +13,8 @@ export interface Recipe {
   readonly config: ReturnType<typeof defineConfig>;
   /** The app's own tables, created before the module files. */
   readonly tables: string;
+  /** App SQL over module tables (views, hook functions), run after the module files. */
+  readonly after?: string;
 }
 
 const readable = (table: string): string => `
@@ -225,9 +229,100 @@ ${readable("recipe_scheduling.bookings")}`,
   }),
 };
 
+/** The commerce page's metrics: orders, revenue and order value from the orders block, units from paid lines. */
+export const commerceMetrics = [
+  ...orderMetrics({ currency: "EUR" }),
+  defineMetric({
+    key: "units_sold",
+    label: "Units sold",
+    table: "recipe_commerce.units_sold",
+    tenant: "tenant_id",
+    measure: { sum: "quantity" },
+    timeColumn: "paid_at",
+  }),
+] as const;
+
+/** Refunds above this many cents need an approved `refund` request on the order. */
+export const REFUND_APPROVAL_ABOVE = 5000;
+
+export const commerce: Recipe = {
+  name: "commerce",
+  schema: "recipe_commerce",
+  // Products, carts and orders are module tables; the app adds none.
+  tables: "",
+  // Order lines carry no time, so units sold reads them through their paid order.
+  after: `create schema recipe_commerce;
+grant usage on schema recipe_commerce to authenticated, service_role;
+create view recipe_commerce.units_sold with (security_invoker = true) as
+  select l.tenant_id, o.paid_at, l.quantity
+  from better_supabase.order_lines l
+  join better_supabase.orders o on o.id = l.order_id;
+grant select on recipe_commerce.units_sold to authenticated, service_role;
+
+create function public.after_refund_create(refund uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_refund record;
+begin
+  select r.order_id, r.amount into v_refund
+  from better_supabase.order_refunds r where r.id = refund;
+  if v_refund.amount > ${String(REFUND_APPROVAL_ABOVE)}
+    and not better_supabase.is_approved('order', v_refund.order_id::text, 'refund') then
+    raise exception 'a refund above 50.00 needs an approved refund request'
+      using errcode = '42501', hint = 'REFUND_APPROVAL_REQUIRED';
+  end if;
+end;
+$$;
+revoke execute on function public.after_refund_create(uuid) from public, anon, authenticated;`,
+  config: defineConfig({
+    subjects: {
+      order: {
+        table: "better_supabase.orders",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "number",
+      },
+    },
+    sql: {
+      modules: {
+        organizations: {},
+        outbox: {},
+        notifications: {},
+        catalog: {},
+        inventory: {},
+        imports: {},
+        "number-sequences": {
+          options: {
+            entities: {
+              order: { period: "none", format: "SO-{n:4}" },
+              invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
+            },
+          },
+        },
+        orders: {},
+        promotions: {},
+        metrics: { options: { metrics: commerceMetrics } },
+        approvals: {
+          options: {
+            policies: {
+              order: {
+                refund: { steps: [{ approvers: { role: "admin" } }] },
+              },
+            },
+          },
+        },
+      },
+    },
+  }),
+};
+
 export const RECIPES: readonly Recipe[] = [
   crm,
   projectManagement,
   drive,
   scheduling,
+  commerce,
 ];

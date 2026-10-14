@@ -120,18 +120,20 @@ export interface StripeTaxId {
  * or a function that returns a client. The function runs on every Stripe
  * call, so it can create the client lazily, pick a per-request or per-tenant
  * client (Stripe Connect), or read a rotated key; cache inside it when needed.
+ * `C` is the part of the SDK the caller uses (`StripeClient` for billing and
+ * usage).
  */
-export type StripeSource =
-  | StripeClient
+export type StripeSource<C extends object = StripeClient> =
+  | C
   | { readonly secretKey: string; readonly apiVersion?: string }
-  | (() => StripeClient | Promise<StripeClient>);
+  | (() => C | Promise<C>);
 
 interface StripeModule {
   readonly default: {
     new (
       key: string,
       options: { readonly httpClient: unknown; readonly apiVersion?: string },
-    ): StripeClient;
+    ): object;
     createFetchHttpClient(): unknown;
   };
 }
@@ -154,30 +156,34 @@ const loadStripeModule = (): Promise<unknown> => importOptionalPeer("stripe");
  * The client `source` names: itself, or one created with Stripe's fetch HTTP
  * client so it runs on every WinterTC runtime.
  */
-export async function stripeClient(
-  source: StripeSource,
+export async function stripeClient<C extends object = StripeClient>(
+  source: StripeSource<NoInfer<C>>,
   load: () => Promise<unknown> = loadStripeModule,
-): Promise<StripeClient> {
+): Promise<C> {
   if (typeof source === "function") return source();
   if (!("secretKey" in source)) return source;
   const loaded = await load();
   if (!isModule(loaded)) {
     throw new TypeError(
-      "The billing and usage blocks need the stripe package: pnpm add stripe, or pass a Stripe client as `stripe`",
+      "Stripe calls need the stripe package: pnpm add stripe, or pass a Stripe client as `stripe`",
     );
   }
   const Stripe = loaded.default;
+  // SAFETY: the Stripe SDK implements every structural subset callers name
+  // as C (tests/blocks/stripe.test.ts and the commerce tests check each one).
   return new Stripe(source.secretKey, {
     httpClient: Stripe.createFetchHttpClient(),
     ...(source.apiVersion === undefined
       ? {}
       : { apiVersion: source.apiVersion }),
-  });
+  }) as C;
 }
 
 /** Resolves the client once, on first use; a function source runs on every use. */
-export function lazyStripe(source: StripeSource): () => Promise<StripeClient> {
+export function lazyStripe<C extends object = StripeClient>(
+  source: StripeSource<NoInfer<C>>,
+): () => Promise<C> {
   if (typeof source === "function") return async () => source();
-  let client: Promise<StripeClient> | undefined;
-  return () => (client ??= stripeClient(source));
+  let client: Promise<C> | undefined;
+  return () => (client ??= stripeClient<C>(source));
 }

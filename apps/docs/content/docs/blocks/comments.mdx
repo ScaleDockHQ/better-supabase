@@ -247,6 +247,14 @@ comment's `mentions` keep the group id as written.
 its own mention notifications. The outbox still gets `comment.mentioned`,
 so that app can send from the event.
 
+## Reactions
+
+With the [reactions](/docs/blocks/reactions) module installed, a comment is
+the subject type `comment`: `reactions.react(organizationId, "comment",
+comment.id, emoji)` reacts to a comment the caller can read, and
+`reactions.summary(organizationId, "comment", ids)` counts a thread's
+reactions in one call.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as

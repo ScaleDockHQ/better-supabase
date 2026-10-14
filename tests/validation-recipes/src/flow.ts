@@ -1,8 +1,11 @@
+import type { EventSink } from "better-supabase/events";
+
 import { sqlTransport } from "better-supabase/blocks";
 import {
   createNotifications,
   watcherHandler,
 } from "better-supabase/blocks/notifications";
+import { outboxCloudEvent } from "better-supabase/blocks/outbox";
 
 import type { Session, User } from "./stack.ts";
 
@@ -30,38 +33,52 @@ export function notificationsFor(s: Session) {
  * `watching` hands the watcher handler the rows written after it was called,
  * as `consume` would.
  */
-export async function watching(s: Session) {
+export async function watching(
+  s: Session,
+  types: Readonly<Record<string, keyof typeof NOTIFICATION_TYPES>> = WATCHED,
+) {
   await s.client.query("reset role");
   const [latest] = await s.rows<{ after: string }>(
     "select coalesce(max(position), 0)::text as after from better_supabase.outbox_events",
   );
   const after = latest!.after;
+  const read = async () => {
+    await s.client.query("reset role");
+    const rows = await s.rows<OutboxRow>(
+      `select position::text, id::text, type, payload, source, subject,
+              organization_id::text as tenant, actor_id::text, created_at::text
+       from better_supabase.outbox_events
+       where position > $1::bigint order by position`,
+      [after],
+    );
+    return rows.map((row) => ({
+      position: Number(row.position),
+      id: row.id,
+      type: row.type,
+      payload: row.payload,
+      source: row.source,
+      subject: row.subject,
+      tenant: row.tenant,
+      key: null,
+      actorId: row.actor_id,
+      createdAt: Temporal.Instant.from(row.created_at),
+    }));
+  };
   return {
     /** Sends the new events through the watcher handler, as the relay route does. */
     async relay(): Promise<number> {
-      await s.client.query("reset role");
-      const rows = await s.rows<OutboxRow>(
-        `select position::text, id::text, type, payload, source, subject,
-                organization_id::text as tenant, actor_id::text, created_at::text
-         from better_supabase.outbox_events
-         where position > $1::bigint order by position`,
-        [after],
-      );
-      const events = rows.map((row) => ({
-        position: Number(row.position),
-        id: row.id,
-        type: row.type,
-        payload: row.payload,
-        source: row.source,
-        subject: row.subject,
-        tenant: row.tenant,
-        key: null,
-        actorId: row.actor_id,
-        createdAt: Temporal.Instant.from(row.created_at),
-      }));
+      const events = await read();
       await s.service();
-      await watcherHandler(notificationsFor(s), { types: WATCHED })(events);
+      await watcherHandler(notificationsFor(s), { types })(events);
       return events.length;
+    },
+    /** Sends the new events to an outbox sink as CloudEvents, as `outbox.relay` does. */
+    async send(sink: EventSink): Promise<void> {
+      const events = await read();
+      await s.service();
+      await sink.send(
+        events.map((event) => outboxCloudEvent(event, { source: "/recipes" })),
+      );
     },
   };
 }

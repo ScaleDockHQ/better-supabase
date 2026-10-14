@@ -362,6 +362,33 @@ export default defineConfig({
         mode: "adopt",
         tables: { runs: "centrakit.import_runs" },
       },
+      // CentraKit keeps no attachment rows, sort keys or soft deletes on its
+      // tree, so the drive adopts the tree and grants and leaves uploads to it.
+      drive: {
+        mode: "adopt",
+        tables: {
+          nodes: "centrakit.file_node",
+          grants: "centrakit.file_node_grant",
+        },
+        columns: {
+          nodes: {
+            tenant: "organization_id",
+            attachment: null,
+            path: null,
+            rank: null,
+            deletedAt: null,
+          },
+          grants: {
+            tenant: "organization_id",
+            node: "file_node_id",
+            principalType: null,
+            principalId: null,
+            expiresAt: null,
+            createdBy: null,
+          },
+        },
+        options: { roles: ["viewer", "commenter", "editor"] },
+      },
       "realtime-tables": {},
     },
   },

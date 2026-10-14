@@ -31,6 +31,7 @@ import {
   requestIdSql,
 } from "./audit-request.ts";
 import { retention } from "./audit-retention.ts";
+import { revert } from "./audit-revert.ts";
 import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
@@ -900,6 +901,7 @@ function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
     retention(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),
     reveal(ctx, restricted),
+    revert(ctx, restricted),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -918,7 +920,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 6,
+  version: 7,
   names: NAMES,
   contract: () => [
     {

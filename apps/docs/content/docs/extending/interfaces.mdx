@@ -26,6 +26,8 @@ has a [conformance kit](/docs/extending/conformance).
 | [`IncomingDestination`](#incomingdestination)           | `inboxDestination(sql)`, `jobsDestination(jobs, options)`   | `createIncomingWebhooks(sql, { destination })`                                     |
 | [`StreamStore`](#streamstore)                           | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`                      |
 | [`CredentialProvider`](#credentialprovider)             | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                                    |
+| [`PaymentProvider`](#paymentprovider)                   | `stripePayments(options)`                                   | the commerce blocks                                                                |
+| [`TaxProvider`](#taxprovider)                           | `fixedRates(options)`, `stripeTax(options)`                 | the commerce blocks                                                                |
 | [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                   | `authorization` in the config                                                      |
 | [`AuthorizationHooks`](#authorizationhooks)             | none (built by your authorization system)                   | `createServer(betterSupabase, { authorization })`                                  |
 | [`Authorizer`](#authorizer)                             | `staticAuthorizer()` in `/testing`                          | `createServer(betterSupabase, { authorizer })`                                     |
@@ -202,6 +204,27 @@ Turns a `credential_ref` into a token. It has `apiVersion: 1`, a `name`,
 `revoke(ref, { subject })`, and optionally `startAuthorization`,
 `completeAuthorization` and `verifyInbound`. See
 [Credentials](/docs/extending/credentials).
+
+## PaymentProvider
+
+Takes payments for orders in [commerce](/docs/blocks/commerce#payments). It
+has `apiVersion: 1`, a `name`, `createPayment`, `capture`, `refund` and
+`parseWebhook`, and optionally `cancel` and `get`. Amounts are `Money` in
+bigint minor units. Every method returns a `Result`: `invalid_input` for an
+amount the provider can't charge or a refund above what was captured,
+`not_found` for an unknown payment, `unauthorized` for a bad webhook
+signature and `raised` with the hint `PAYMENT_DECLINED` for a decline. A
+repeated `idempotencyKey` returns the first call's result.
+`testPaymentProvider` from `better-supabase/testing` is its conformance kit.
+
+## TaxProvider
+
+Computes and records sales tax in [commerce](/docs/blocks/commerce#tax). It
+has `apiVersion: 1`, a `name`, `quote(cart)`, `commit({ quote, reference })`
+and `reverse({ transaction, reference, lines })`. A quote has one line per
+cart line in cart order, then shipping, and a total that is their sum. A
+reversal has negative amounts and can't exceed the sale. `testTaxProvider`
+is its conformance kit.
 
 ## AuthorizationProvider
 

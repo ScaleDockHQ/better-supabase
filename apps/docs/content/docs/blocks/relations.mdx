@@ -1,0 +1,154 @@
+---
+title: Relations
+description: Typed links between subjects (blocks, parent, relates or your own kinds) with inverse names, cycle checks, one-target kinds, ancestors, descendants, rollups and undo tokens.
+---
+
+`relations` links two records of any subject type: a task that blocks
+another, an issue under an epic, a person who reports to a manager. Each kind
+of link is declared once, with its inverse name, whether it may form a
+cycle, and whether a record can have more than one target. Links carry a
+small `data` object, such as a Gantt dependency's type and lag.
+
+```bash
+better-supabase sql add relations
+```
+
+```ts
+import {
+  createRelations,
+  toGanttTasks,
+  toTreeItems,
+} from "better-supabase/blocks/relations";
+```
+
+## Kinds
+
+Without `kinds`, the module declares three:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    relations: {
+      options: {
+        kinds: {
+          blocks: { inverse: "blocked_by", acyclic: true },
+          parent: { inverse: "children", cardinality: "one", acyclic: true },
+          relates: { symmetric: true },
+        },
+      },
+    },
+  },
+},
+```
+
+| Option        | What it does                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `inverse`     | The kind's name from the target's side. `link` accepts it and stores the link from the other end |
+| `acyclic`     | Refuses a link whose target already reaches its source through links of the same kind            |
+| `cardinality` | `one`: a source has at most one target; a new link replaces the old one                          |
+| `symmetric`   | The link reads the same from both ends and is stored once                                        |
+
+A link reads "source kind target": `link("parent", issue, epic)` makes the
+epic the issue's parent, and `link("blocks", design, build)` means design
+blocks build. The cycle check runs a recursive query under an advisory lock
+per organization and kind, so two concurrent links can't close a cycle
+between them.
+
+The subjects come from `config.subjects`, or from `options.subjects` with the
+same shape. Both ends must exist in the organization and be readable by the
+caller, and linking needs `relations.manage`. A subject with `cascade: true`
+deletes its links when its row is deleted.
+
+## Link and unlink
+
+```ts
+const relations = createRelations({ transport });
+
+const result = await relations
+  .link({
+    organizationId,
+    kind: "blocks",
+    source: { type: "task", id: designId },
+    target: { type: "task", id: buildId },
+    data: { type: "FS", lag: 2 },
+  })
+  .orThrow();
+
+await relations.unlink({
+  organizationId,
+  kind: "blocked_by",
+  source: { type: "task", id: buildId },
+  target: { type: "task", id: designId },
+});
+```
+
+`link` resolves to the stored link, `created: false` when it already existed
+(its data is updated when you pass `data`), and `replaced` with the old
+target when a one-target kind moved. Both methods return an `undo` token
+that reverses the change, including putting a replaced parent back. See
+[Undo tokens](/docs/blocks/audit#undo-tokens).
+
+| Hint                         | When                                                     |
+| ---------------------------- | -------------------------------------------------------- |
+| `RELATION_FORBIDDEN`         | The caller lacks `relations.manage`                      |
+| `RELATION_SUBJECT_FORBIDDEN` | An end is missing, in another organization or unreadable |
+| `RELATION_KIND_UNKNOWN`      | The kind is not declared                                 |
+| `RELATION_SELF`              | Both ends are the same record                            |
+| `RELATION_CYCLE`             | The link would close a cycle of an acyclic kind          |
+| `RELATION_INVALID`           | `data` is not an object                                  |
+
+## Read links
+
+| Method                                     | Returns                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------- |
+| `of(organizationId, subject, kind?)`       | A record's links in both directions, each named from its side (`blocked_by`)     |
+| `edges(organizationId, kind)`              | Every link of a kind, up to 10,000, for a chart or a tree                        |
+| `ancestors(organizationId, kind, subject)` | The records above a subject (its parent's parents), with their depth             |
+| `descendants(...)`                         | The records below it                                                             |
+| `rollup(input)`                            | `count`, `sum`, `avg`, `min` or `max` of a column over the descendants of a type |
+
+Reads run as the caller and need `relations.read`, which the default member
+role has. `rollup` also reads the subject table as the caller, so its
+policies decide which rows count:
+
+```ts
+const points = await relations
+  .rollup({
+    organizationId,
+    kind: "parent",
+    subject: { type: "issue", id: epicId },
+    of: "issue",
+    agg: "sum",
+    column: "estimate",
+  })
+  .orThrow();
+```
+
+The SQL functions are `link`, `unlink`, `relations_of`, `relations_by_kind`,
+`ancestors`, `descendants` and `relation_rollup`. Walks stop at 100 levels.
+
+## Events
+
+`link` and `unlink` record `subject.linked` and `subject.unlinked` with the
+kind and both ends, and call the `before_relation_link` and
+`after_relation_link` hooks.
+
+## Adopt mode
+
+Adopt mode maps the `relations` table onto an existing one with the same
+columns. Tables that hold one kind each, such as a sub-issue table or a
+reporting-line table, are not adopt targets yet.
+
+## With ReUI
+
+- Gantt: `toGanttTasks(tasks, await relations.edges(org, "blocks"))` adds
+  each task's `dependencies` with the type and lag from the link's `data`.
+- Tree: `toTreeItems(items, await relations.edges(org, "parent"))` returns
+  the flat `{ [id]: { name, children } }` map a tree view takes, for
+  sub-issues or a reporting line.
+- Data Grid: a "Blocked by" column from `of(org, task, "blocked_by")`, and
+  an undo toast from the `undo` token.
+
+The free `c-gantt-*` and `c-tree-*` examples show both views. ReUI's Tempo
+and Roster templates show sub-issues and reporting trees; Pro blocks are
+licensed per user, so copy them from [reui.io](https://reui.io).

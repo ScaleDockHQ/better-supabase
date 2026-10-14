@@ -75,6 +75,10 @@ function fromRegistry(
     ...(entry.cascade === true && { cascade: true }),
     ...(entry.scope !== undefined &&
       extraKeys.includes("scope") && { scope: entry.scope }),
+    ...(entry.deletedAt !== undefined &&
+      extraKeys.includes("deletedAt") && { deletedAt: entry.deletedAt }),
+    ...(entry.title !== undefined &&
+      extraKeys.includes("title") && { title: entry.title }),
   };
 }
 

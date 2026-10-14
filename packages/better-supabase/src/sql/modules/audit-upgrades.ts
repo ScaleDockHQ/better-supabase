@@ -66,4 +66,10 @@ export const AUDIT_UPGRADES: readonly ModuleUpgrade[] = [
       "Row changes and audit_event read the request and correlation ids from the better_supabase.request_id and better_supabase.correlation_id settings, then from the requestIdHeader and correlationIdHeader headers, and keep only ids of up to 128 safe characters; managed logs index correlation_id.",
     sql: () => "",
   },
+  {
+    from: 6,
+    description:
+      "revert_audit_entries(entries) writes the old values of row changes back as the caller and returns the entries it wrote, for an undo token; members need audit.revert.",
+    sql: () => "",
+  },
 ];

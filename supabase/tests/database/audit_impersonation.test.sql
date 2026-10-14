@@ -1,6 +1,7 @@
 -- audit_event fills the impersonation columns from its arguments: always for
 -- the service role, and for other callers only when they name themselves as
--- impersonated_by from a token without an act claim.
+-- impersonated_by from a token without an act claim. A read-only session
+-- may not write at all (ADR 0019), so the act case runs with read_only false.
 begin;
 select plan(4);
 
@@ -26,7 +27,7 @@ select better_supabase.audit_event(
 
 select set_config(
   'request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","act":{"kind":"support","sub":"00000000-0000-4000-8000-0000000000a1","reason":"from the token","session_id":"00000000-0000-4000-8000-0000000005e2"}}',
+  '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","act":{"kind":"support","sub":"00000000-0000-4000-8000-0000000000a1","reason":"from the token","session_id":"00000000-0000-4000-8000-0000000005e2","read_only":false}}',
   true
 );
 select better_supabase.audit_event(

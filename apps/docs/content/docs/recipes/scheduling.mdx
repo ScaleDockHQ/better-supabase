@@ -76,8 +76,9 @@ export default defineConfig({
 A cancelled booking stays cancelled: `cancelled` has no outgoing
 transitions, so `transition` returns `STATE_TRANSITION_INVALID`.
 
-This recipe has no overlap check. Resources, availability and exclusion
-constraints come with the bookings block.
+This recipe has no overlap check. For resources, weekly hours, open slots
+and an exclusion constraint against double bookings, use the
+[bookings block](/docs/blocks/bookings).
 
 ## With ReUI
 

@@ -1,0 +1,183 @@
+---
+title: Commerce
+description: Money in bigint minor units, and versioned payment and tax providers with Stripe adapters.
+---
+
+`better-supabase/blocks/commerce` is the base the commerce blocks build on.
+It holds money as a `bigint` count of the currency's minor units, so a price
+never passes through a floating-point number. It also defines two versioned
+extension interfaces, `PaymentProvider` and `TaxProvider`, with adapters for
+Stripe PaymentIntents and Stripe Tax and a `fixedRates` tax provider. It has
+no tables and no SQL module.
+
+```ts
+import {
+  fixedRates,
+  money,
+  parseMoney,
+  stripePayments,
+} from "better-supabase/blocks/commerce";
+```
+
+## Money
+
+A `Money` is `{ amount: bigint, currency: string }`. `amount` counts minor
+units: cents for `EUR`, yen for `JPY`, fils (a thousandth) for `KWD`. The
+number of minor units per currency comes from ISO 4217 List One, pinned in
+`SPEC_PINS.iso4217`, so `money(1999n, "EUR")` is 19.99 euro. A currency that
+isn't in the list, or that has no minor unit (such as gold, `XAU`), throws a
+`RangeError`.
+
+```ts
+const price = parseMoney("19.99", "EUR"); // { amount: 1999n, currency: "EUR" }
+const total = multiplyMoney(price, 3); // 59.97 EUR
+formatMoney(total, "nl-NL"); // "€ 59,97"
+```
+
+| Function                                        | Returns                                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `money(amount, currency)`                       | A frozen `Money`; a `number` amount must be a safe integer                           |
+| `parseMoney(decimal, currency)`                 | The amount of a decimal string, refusing more decimals than the currency has         |
+| `toDecimal(value)`, `formatMoney(value, ...)`   | A decimal string, or a localized string from `Intl.NumberFormat`                     |
+| `moneyToJson(value)`, `moneyFromJson(json)`     | `{ amount: "1999", currency: "EUR" }` for JSON bodies and `jsonb` columns, and back  |
+| `addMoney`, `subtractMoney`, `sumMoney`         | Sums; a second currency throws `CurrencyMismatchError`                               |
+| `multiplyMoney(value, quantity)`, `negateMoney` | The value times a whole quantity, or negated                                         |
+| `compareMoney(a, b)`                            | `-1`, `0` or `1`                                                                     |
+| `applyRate(value, rate, { included })`          | The value times a decimal rate such as `"0.21"`, rounded half to even                |
+| `allocateMoney(value, weights)`                 | Parts that add up to the value exactly, the leftover units to the largest remainders |
+| `minorUnits(currency)`, `isCurrency(code)`      | The currency's decimals, or whether it has any                                       |
+
+`applyRate` with `included: true` takes a price that already contains the
+tax and returns the tax inside it: `value * rate / (1 + rate)`. Use
+`allocateMoney` to spread an order discount over its lines without losing or
+gaining a cent.
+
+## Payments
+
+A `PaymentProvider` takes payments for orders. It has `apiVersion: 1`, a
+`name`, and:
+
+| Method                                      | Does                                                                    |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `createPayment({ amount, reference, ... })` | Creates a payment; `capture: "manual"` holds the funds until `capture`  |
+| `capture(id, { amount })`                   | Captures an authorized payment, all of it unless `amount` is less       |
+| `refund(id, { amount, reason })`            | Refunds a captured payment, all of what is left unless `amount` is less |
+| `parseWebhook(request)`                     | Verifies a delivery and returns its events as `PaymentEvent`s           |
+| `cancel(id)`, `get(id)`                     | Optional: release an uncaptured payment, or read one                    |
+
+Every method returns a `Result`, and none of them throw. An amount the
+provider can't charge or a refund above what was captured is
+`invalid_input`, an unknown payment is `not_found`, a webhook with a bad
+signature is `unauthorized`, and a declined card is `raised` with the hint
+`PAYMENT_DECLINED`. Pass an `idempotencyKey` so a retried call returns the
+first call's result instead of charging twice.
+
+```ts title="lib/payments.ts"
+export const payments = stripePayments({
+  stripe: { secretKey: env.STRIPE_SECRET_KEY },
+  webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+});
+
+const payment = await payments
+  .createPayment(
+    { amount: order.total, reference: order.id },
+    { idempotencyKey: `order:${order.id}` },
+  )
+  .orThrow();
+// Hand payment.clientSecret to the browser to confirm with Stripe.js.
+```
+
+`stripePayments` creates a PaymentIntent with automatic payment methods
+(change it with `paymentIntent`) and keeps the `reference` in the intent's
+metadata, so webhook events carry it back. Before a capture or refund with
+an amount, it checks the amount's currency against the intent's. `stripe`
+is an optional peer loaded on the first call; pass a client instead of
+`{ secretKey }` to share one, or a function to pick one per request.
+
+`parseWebhook` turns Stripe's `payment_intent.*` and `refund.*` events into
+`PaymentEvent`s and returns none for other types. A redelivered event
+repeats its `id`, so record it in the [webhook inbox](/docs/blocks/webhooks-in)
+or the `idempotency` module and handle it once:
+
+```ts title="app/api/stripe/payments/route.ts"
+export async function POST(request: Request) {
+  const events = await payments.parseWebhook(request).orThrow();
+  for (const event of events)
+    if (event.type === "payment.succeeded") await markPaid(event.reference);
+  return new Response(null, { status: 204 });
+}
+```
+
+### Stripe amounts
+
+Stripe counts a few currencies differently from ISO 4217. `toStripeAmount`
+and `fromStripeAmount` convert: `ISK` and `UGX` are sent with two decimals,
+`MGA` with none, and `BHD`, `JOD`, `KWD`, `OMR` and `TND` must be a multiple
+of 10 minor units. An amount Stripe can't take exactly is `invalid_input`
+with the hint `STRIPE_AMOUNT_PRECISION`, never rounded.
+
+## Tax
+
+A `TaxProvider` computes and records sales tax. It has `apiVersion: 1`, a
+`name`, and three methods:
+
+| Method                                       | Does                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `quote(cart)`                                | The tax per cart line, in cart order, then shipping, and the total       |
+| `commit({ quote, reference })`               | Records the sale under the order number and returns the `TaxTransaction` |
+| `reverse({ transaction, reference, lines })` | Reverses all of a sale, or the refunded part of each line                |
+
+A cart has a currency, lines with an `amount` after discounts and an
+optional `taxCategory`, optional `shipping`, the shipping `address` and an
+optional `customer`. A line with `inclusive: true` already contains its tax.
+A customer with `exempt: true` (a reverse-charged B2B sale) pays none. A cart
+that mixes currencies is `invalid_input`, and an address without a rate is
+`not_found`.
+
+`fixedRates` keeps rates in your code, per country (`NL`) or country and
+state (`US-CA`, which wins over `US`), and per tax category. It stores
+nothing: keep the transaction `commit` returns with the order.
+
+```ts
+const tax = fixedRates({
+  rates: {
+    NL: { standard: "0.21", reduced: "0.09" },
+    DE: { standard: "0.19", reduced: "0.07" },
+  },
+});
+
+const quote = await tax
+  .quote({
+    currency: "EUR",
+    lines: [{ id: "line_1", amount: parseMoney("100.00", "EUR") }],
+    address: { country: "NL" },
+  })
+  .orThrow();
+// quote.totalTax is 21.00 EUR
+```
+
+`stripeTax` runs the same contract on Stripe Tax: `quote` creates a tax
+calculation, `commit` a tax transaction from it, and `reverse` a full or
+partial reversal. Map your categories to Stripe tax codes with `taxCodes`.
+
+```ts
+const tax = stripeTax({
+  stripe: { secretKey: env.STRIPE_SECRET_KEY },
+  taxCodes: { ebook: "txcd_10302000" },
+});
+```
+
+## Test your own provider
+
+`testPaymentProvider` and `testTaxProvider` from `better-supabase/testing`
+are the conformance kits. Run them against a test-mode account, or against
+your own adapter. The [conformance page](/docs/extending/conformance) lists
+what they check.
+
+```ts
+import { testPaymentProvider } from "better-supabase/testing";
+
+const report = await testPaymentProvider(payments, {
+  authorize: (payment) => confirmWithTestCard(payment),
+});
+```

@@ -15,6 +15,7 @@ import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
+import { AsyncResult } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 
 const transport = rpcTransport({
@@ -24,6 +25,86 @@ const transport = rpcTransport({
 });
 
 const fakeFiles = {} as AiFiles;
+
+const event = (type: string, data: unknown): CloudEvent => ({
+  specversion: "1.0",
+  id: type,
+  source: "/test",
+  type: `dev.better-supabase.${type}`,
+  time: "2026-10-14T10:00:00Z",
+  data,
+});
+
+describe("createBlocks sinks", () => {
+  it("has none without the search and metrics blocks", () => {
+    const blocks = createBlocks({ transport }, { audit: createAuditLog });
+    expect(blocks.sinks).toEqual({});
+  });
+
+  it("drops trashed subjects from the search block", async () => {
+    const remove = vi.fn(() => AsyncResult.ok(true));
+    const refresh = vi.fn(() => AsyncResult.ok(true));
+    const blocks = createBlocks(
+      { transport },
+      { search: () => ({ remove, refresh }), trash: () => ({}) },
+    );
+    await blocks.sinks.search?.send([
+      event("subject.trashed", { subjectType: "task", subjectId: "t1" }),
+      event("subject.restored", { subjectType: "task", subjectId: "t2" }),
+    ]);
+    expect(remove).toHaveBeenCalledWith("task", "t1");
+    expect(refresh).toHaveBeenCalledWith("task", "t2");
+    expect(blocks.sinks.metrics).toBeUndefined();
+  });
+
+  it("rolls metrics up for the events in metricEvents", async () => {
+    const rollup = vi.fn((_request: { readonly metric: string }) =>
+      AsyncResult.ok(1),
+    );
+    const blocks = createBlocks(
+      { transport, metricEvents: { "order.placed": ["orders", "revenue"] } },
+      { metrics: () => ({ rollup }) },
+    );
+    await blocks.sinks.metrics?.send([event("order.placed", {})]);
+    expect(rollup.mock.calls.map(([request]) => request.metric)).toEqual([
+      "orders",
+      "revenue",
+    ]);
+  });
+
+  it("buckets events by metricTime when it returns a time", async () => {
+    const rollup = vi.fn(
+      (_request: {
+        readonly metric: string;
+        readonly since?: Temporal.Instant;
+      }) => AsyncResult.ok(1),
+    );
+    const blocks = createBlocks(
+      {
+        transport,
+        metricEvents: { "time_entry.recorded": "time_tracked" },
+        metricTime: () => "2026-09-28T09:00:00Z",
+      },
+      { metrics: () => ({ rollup }) },
+    );
+    await blocks.sinks.metrics?.send([event("time_entry.recorded", {})]);
+    expect(rollup.mock.calls[0]?.[0].since?.toString()).toBe(
+      "2026-09-28T09:00:00Z",
+    );
+  });
+
+  it("refuses metricEvents without a metrics block and blocks of the wrong shape", () => {
+    expect(() =>
+      createBlocks({ transport, metricEvents: {} }, { audit: createAuditLog }),
+    ).toThrow(/needs a `metrics` block/);
+    expect(() => createBlocks({ transport }, { search: () => ({}) })).toThrow(
+      /search block has no remove/,
+    );
+    expect(() => createBlocks({ transport }, { metrics: () => 1 })).toThrow(
+      /metrics block has no rollup/,
+    );
+  });
+});
 
 describe("createBlocks hooks", () => {
   it("wraps each named block with its hooks", async () => {

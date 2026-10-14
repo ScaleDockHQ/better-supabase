@@ -28,6 +28,7 @@ the matching `SPEC_PINS` entry in one change.
 | `stripe-sync-engine-0.48.5-active-entitlements.sql` | Stripe Sync Engine v0.48.5, migration `0038_active_entitlement.sql` (later migrations up to the tag only drop the `lookup_key` unique constraint) | https://raw.githubusercontent.com/supabase/stripe-sync-engine/v0.48.5/packages/sync-engine/src/database/migrations/0038_active_entitlement.sql | `0983c0401a597cd5f4e27466c661b01ac27c6ed021386a168cadd572ebc42ad2` |
 | `rfc7643.txt` | RFC 7643, SCIM Core Schema | https://www.rfc-editor.org/rfc/rfc7643.txt | `df799c112a3fa5be3c0fe054c08b1f4eb5d07590c4c8343a014c4537bf638ae3` |
 | `rfc7644.txt` | RFC 7644, SCIM Protocol | https://www.rfc-editor.org/rfc/rfc7644.txt | `b9078e016c98b86934a23c80926b74fc8b59885ab2943729ec2493c17488a09b` |
+| `iso-4217-list-one-2026-09-17.xml` | ISO 4217 List One, published 2026-09-17 (SIX, the maintenance agency) | https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml | `33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff` |
 
 The SARIF and OpenAPI 3.0 schemas are draft-04. Draft-04 and draft-07 differ
 in those files only in the `id` keyword (draft-07 calls it `$id`) and in the

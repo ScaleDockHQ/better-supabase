@@ -54,6 +54,16 @@ export interface ExpandInput {
   };
   /** Stops after this many occurrences. COUNT still wins when it is smaller. */
   readonly limit?: number;
+  /**
+   * Returns only the occurrences that start in `[from, until)`. COUNT still
+   * counts from `dtstart`; without COUNT the expansion skips ahead to the
+   * window, so a long-running series stays cheap. `limit` then caps the
+   * occurrences in the window (default 1000).
+   */
+  readonly window?: {
+    readonly from: Temporal.Instant;
+    readonly until: Temporal.Instant;
+  };
 }
 
 const DAY_NAME = ["", "MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const;
@@ -312,9 +322,22 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
       ? part(input.rrule ?? "")
       : fromColumns(input.columns);
   const start = input.dtstart;
-  const cap = Math.min(rule.count ?? input.limit ?? 366, input.limit ?? 366);
+  const window = input.window;
+  const cap =
+    window === undefined
+      ? Math.min(rule.count ?? input.limit ?? 366, input.limit ?? 366)
+      : (input.limit ?? 1000);
+  const first =
+    window === undefined || rule.count !== undefined
+      ? 0
+      : skipTo(start, rule, window.from);
   const found: Temporal.ZonedDateTime[] = [];
-  for (let index = 0; found.length < cap && index < 4000; index += 1) {
+  let generated = 0;
+  for (
+    let index = first;
+    found.length < cap && index < first + 4000;
+    index += 1
+  ) {
     let dates = periodDates(start, rule, index);
     if (rule.bySetPos.length > 0) dates = applySetPos(dates, rule.bySetPos);
     const time = temporal();
@@ -322,17 +345,58 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
     for (const date of ordered) {
       const when = at(date, start);
       if (time.ZonedDateTime.compare(when, start) < 0) continue;
+      const instant = when.toInstant();
       if (
         rule.until !== undefined &&
-        time.Instant.compare(when.toInstant(), rule.until) > 0
+        time.Instant.compare(instant, rule.until) > 0
       ) {
         return found;
+      }
+      generated += 1;
+      if (rule.count !== undefined && generated > rule.count) return found;
+      if (window !== undefined) {
+        if (time.Instant.compare(instant, window.until) >= 0) return found;
+        if (time.Instant.compare(instant, window.from) < 0) continue;
       }
       found.push(when);
       if (found.length >= cap) return found;
     }
   }
   return found;
+}
+
+/** The first period index that can reach `from`, for a rule without COUNT. */
+function skipTo(
+  start: Temporal.ZonedDateTime,
+  rule: Rule,
+  from: Temporal.Instant,
+): number {
+  const anchor = start.toPlainDate();
+  const target = from.toZonedDateTimeISO(start.timeZoneId).toPlainDate();
+  if (temporal().PlainDate.compare(target, anchor) <= 0) return 0;
+  let periods: number;
+  switch (rule.frequency) {
+    case "DAILY":
+      periods = target.since(anchor, { largestUnit: "days" }).days;
+      break;
+    case "WEEKLY":
+      periods = Math.floor(
+        target.since(weekOf(anchor, rule.weekStart), { largestUnit: "days" })
+          .days / 7,
+      );
+      break;
+    case "MONTHLY":
+      periods = (target.year - anchor.year) * 12 + target.month - anchor.month;
+      break;
+    case "YEARLY":
+      periods = target.year - anchor.year;
+      break;
+    default: {
+      const never: never = rule.frequency;
+      throw new TypeError(`unknown frequency ${String(never)}`);
+    }
+  }
+  return Math.max(0, Math.floor(periods / rule.interval) - 1);
 }
 
 /** A weekday name for a column-format rule, 1 (Monday) through 7 (Sunday). */
