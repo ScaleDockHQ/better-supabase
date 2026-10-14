@@ -36,6 +36,7 @@ import {
   type Result,
 } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
+import { subjectReaders } from "../../core/subject-readers.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
@@ -240,7 +241,11 @@ export function createNotifications<
 
   const channelList = deliveryChannels(options);
   const audience =
-    options.audience ?? options.server?.authorization?.delivery?.audience;
+    options.audience ??
+    options.server?.authorization?.delivery?.audience ??
+    (options.server?.authorization === undefined
+      ? undefined
+      : subjectReaders(transport, { schema }));
 
   const claimedOf = (
     channel: NotificationChannel,

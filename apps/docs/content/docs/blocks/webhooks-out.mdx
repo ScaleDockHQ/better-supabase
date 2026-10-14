@@ -124,10 +124,21 @@ either, user endpoints receive nothing.
 The SQL check runs once, when the event is queued. For a check at send time,
 such as row-level rules the provider doesn't know, pass `subscribers`, a
 `SubscriberPolicy`. `deliver` calls it once per event with the candidate
-endpoints (`{ principal, kind }`, where `principal` is the owner's user id or
-the endpoint id of a service endpoint) and cancels the deliveries it leaves
-out. A throw retries every delivery of that event. Without the option the
-block uses `authorization.delivery.subscribers`.
+endpoints (`{ principal, kind }`, where `principal` is the owner's user id;
+for a service endpoint, the organization's default
+[service principal](/docs/blocks/service-principals), or the endpoint id
+without one) and cancels the deliveries it leaves out. Each delivery is
+checked against its own stored `subject`. A throw retries every delivery of
+that event. Without the option the block uses
+`authorization.delivery.subscribers`.
+
+With `authorization` but no `delivery.subscribers`, the block fails closed
+on records: it uses `subjectReaders(transport)`, so an event whose subject
+is a [registered subject](/docs/blocks/sql#subject-registry)
+(`subjects/<type>/<id>` or `<type>/<id>`) only reaches endpoints whose owner
+or service principal holds the subject's `read` key, through
+`can_subject_for`. A share link never counts. Events without a subject, or
+about a type the registry doesn't list, keep the queue-time check.
 
 To publish from the [outbox](/docs/blocks/outbox), pass `webhooks.sink()` to
 the relay. It publishes each CloudEvent with its `partitionkey` as the

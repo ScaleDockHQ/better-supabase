@@ -881,7 +881,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
+    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'principal', case when d."created_by" is null then "better_supabase"."default_service_principal"(d."organization_id") end, 'permissions', d."permissions", 'batch', d."batch"
   ) order by c."available_at"), '[]')
   into result
   from claimed c

@@ -429,7 +429,11 @@ type off through `setPreference`.
 
 `audience` is a `SubscriberPolicy` that every recipient passes before
 `deliver` sends to them. Without it, `deliver` uses the server's
-`authorization.delivery.audience` ([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)):
+`authorization.delivery.audience` ([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)).
+When the server has hooks but no `delivery.audience`, `deliver` uses
+`subjectReaders(transport)`: a notification about a
+[registered subject](/docs/blocks/sql#subject-registry) only goes to
+recipients who hold its `read` key.
 
 ```ts
 const notifications = createNotifications({

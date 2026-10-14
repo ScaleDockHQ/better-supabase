@@ -63,6 +63,8 @@ export type {
   SupportDecision,
   TicketSubject,
 } from "../core/contracts/authorization-hooks.ts";
+export { subjectReaders } from "../core/subject-readers.ts";
+export type { SubjectReadersOptions } from "../core/subject-readers.ts";
 export { supportStorage } from "./support-storage.ts";
 export type { SupportStorageOptions } from "./support-storage.ts";
 export {

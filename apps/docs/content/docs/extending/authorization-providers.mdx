@@ -332,6 +332,13 @@ Every hook is optional. A slot passed to a block directly wins over the hook.
 | `tickets.subject`                | the context an opaque run ticket stands for, for jobs and workflow steps                  | [Jobs](/docs/blocks/jobs)                         |
 | `delegation.permissions`         | the permission keys a delegated token's scopes grant, as the cap `forContext` runs with   | [Access](/docs/blocks/access#delegated-tokens)    |
 
+Without `delivery.subscribers` or `delivery.audience`, delivery still fails
+closed on records: webhooks, notifications and reminders fall back to
+`subjectReaders`, which keeps a subscriber only when
+`can_subject_for(user, type, id, 'read')` is true for an event about a
+registered subject, and realtime fan-out refuses such an event without a
+policy.
+
 Each hook fails closed. A throw or rejection refuses, `null` from `runAs`,
 `principalByIdentity` or `tickets.subject` refuses, and no hook falls back to
 the service role. better-supabase refuses a requester as their own approver

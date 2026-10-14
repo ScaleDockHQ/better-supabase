@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -79,6 +79,33 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when '' then null;
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -108,7 +135,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -187,6 +214,33 @@ $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
 
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when '' then null;
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -215,7 +269,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -296,6 +350,33 @@ $$;
 revoke execute on function "app_private"."can_subject"(text, text, text) from public, anon;
 grant execute on function "app_private"."can_subject"(text, text, text) to authenticated, service_role;
 
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "app_private"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when '' then null;
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "app_private"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."can_subject_for"(uuid, text, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -324,7 +405,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -403,6 +484,33 @@ $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
 
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when '' then null;
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
+
 -- sql.modules.subjects.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -442,6 +550,15 @@ set search_path = ''
 as $$ select "better_supabase"."can_subject"($1, $2, $3) $$;
 revoke execute on function "api"."can_subject"(text, text, text) from public, anon;
 grant execute on function "api"."can_subject"(text, text, text) to authenticated, service_role;
+
+create or replace function "api"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."can_subject_for"($1, $2, $3, $4) $$;
+revoke execute on function "api"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."can_subject_for"(uuid, text, text, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

@@ -16,6 +16,7 @@ import { cronRoute } from "../../core/cron-route.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import { subjectReaders } from "../../core/subject-readers.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { toHttp } from "../../events/index.ts";
@@ -54,6 +55,7 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
     runId: textOf(row["run_id"]),
     subject: textOf(row["subject"]),
     owner: textOf(row["owner"]),
+    principal: textOf(row["principal"]),
     permissions: textsOf(row["permissions"]),
     batch: row["batch"] === true,
     createdAt:
@@ -145,7 +147,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       ? absoluteUri("createWebhooks: dataschema", options.dataschema)
       : options.dataschema;
   const subscribers =
-    options.subscribers ?? options.authorization?.delivery?.subscribers;
+    options.subscribers ??
+    options.authorization?.delivery?.subscribers ??
+    (options.authorization === undefined
+      ? undefined
+      : subjectReaders(transport, { schema }));
   let http = options.http;
   const httpTransport = (): WebhookTransport =>
     (http ??= fetchTransport({ allowUrl: options.allowUrl ?? publicUrl() }));
@@ -332,9 +338,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   }
 
   /**
-   * Runs `subscribers` once per event over its claimed deliveries. A
-   * delivery it leaves out is canceled; a throw fails every delivery of
-   * the event, which then retries.
+   * Runs `subscribers` once per event and stored subject over its claimed
+   * deliveries. A delivery it leaves out is canceled; a throw fails every
+   * delivery of the event, which then retries.
    */
   async function screen(
     queue: readonly WebhookDelivery[],
@@ -343,7 +349,8 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     if (!subscribers) return refused;
     const byEvent = Map.groupBy(
       queue,
-      (delivery) => delivery.eventId ?? `delivery:${delivery.id}`,
+      (delivery) =>
+        `${delivery.eventId ?? `delivery:${delivery.id}`}\u0000${delivery.subject ?? ""}`,
     );
     await Promise.all(
       [...byEvent.values()].map(async (deliveries) => {
@@ -356,7 +363,8 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
           subject: first.subject,
         };
         const candidates = deliveries.map((delivery): WebhookSubscriber => ({
-          principal: delivery.owner ?? delivery.endpointId,
+          principal:
+            delivery.owner ?? delivery.principal ?? delivery.endpointId,
           kind: delivery.owner ? "user" : "service",
           delivery,
         }));

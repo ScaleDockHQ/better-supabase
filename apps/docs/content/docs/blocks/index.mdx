@@ -198,7 +198,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `profiles`           | none                                      | `tenant`                                                                                                 |
 | `outbox`             | none                                      | none                                                                                                     |
 | `notifications`      | `updated-at`                              | `access`, `profiles`, `tenant`                                                                           |
-| `webhooks-out`       | `updated-at`                              | `access`                                                                                                 |
+| `webhooks-out`       | `updated-at`                              | `access`, `service-principals`                                                                           |
 | `sessions`           | none                                      | none                                                                                                     |
 | `webhooks-in`        | `access`, `updated-at`, `webhook-inbox`   | none                                                                                                     |
 | `api-keys`           | `tenant`, `access`                        | none                                                                                                     |
@@ -217,7 +217,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `credentials`        | none                                      | none                                                                                                     |
 | `workflows`          | `tenant`, `access`                        | none                                                                                                     |
 | `workflow-sdk-world` | `workflows`, `jobs`, `access`             | none                                                                                                     |
-| `workflow-builder`   | `workflows`, `tenant`, `access`           | none                                                                                                     |
+| `workflow-builder`   | `workflows`, `tenant`, `access`           | `service-principals`                                                                                     |
 | `chat-sdk-state`     | none                                      | none                                                                                                     |
 | `inbox`              | `tenant`, `access`, `updated-at`, `teams` | `jobs`, `notifications`, `reactions`                                                                     |
 | `ai-chat`            | `tenant`, `access`, `streams`             | `entitlements`, `ai-providers`                                                                           |

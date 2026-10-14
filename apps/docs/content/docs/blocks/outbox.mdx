@@ -154,6 +154,9 @@ once per claimed event with the consumer as a service subscriber
 (`{ principal: "search", kind: "service" }`). An event it leaves out is
 acknowledged without reaching the sink or handler, and the result's `refused`
 counts it. A policy that throws fails the batch like a sink that throws.
+Consumers are your own server code, not principals, so the block has no
+default policy for them under an authorization provider; the sinks they
+feed (webhooks, notifications, realtime) check their own subscribers.
 
 ```ts
 const outbox = createOutbox(postgres.admin, {

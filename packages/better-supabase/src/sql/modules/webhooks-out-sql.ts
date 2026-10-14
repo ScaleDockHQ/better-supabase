@@ -426,6 +426,10 @@ function claim(ctx: ModuleContext, n: HookNames): string {
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
   const endpointField = (logical: string, key: string) =>
     n.has("endpoints", logical) ? `, '${key}', d.${d(logical)}` : "";
+  const principalField =
+    n.principal && n.has("endpoints", "tenant")
+      ? `, 'principal', ${n.has("endpoints", "createdBy") ? `case when d.${d("createdBy")} is null then ${n.principal(`d.${d("tenant")}`)} end` : n.principal(`d.${d("tenant")}`)}`
+      : "";
   const stamp = [
     n.has("deliveries", "lastError")
       ? `, ${v("lastError")} = 'The lease ran out on the last attempt'`
@@ -493,7 +497,7 @@ begin
     'payload', c.${v("payload")},
     'attempt', c.${v("attempt")},
     'url', d.${d("url")},
-    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
+    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${principalField}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
   ) order by c.${v("availableAt")}), '[]')
   into result
   from claimed c

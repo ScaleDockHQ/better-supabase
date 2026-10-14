@@ -292,6 +292,36 @@ describe("topic.fanOut", () => {
     expect(sent).toEqual([]);
   });
 
+  it("refuses an event with a subject under hooks without a policy", async () => {
+    const { client, sent } = fakeClient();
+    const server = {
+      authorization: defineAuthorizationHooks({ apiVersion: 1, name: "test" }),
+    };
+    const result = await inbox().fanOut(client, {
+      subscribers,
+      values: (subscriber) => ({ userId: subscriber.principal }),
+      event: "created",
+      payload: { title: "Hi" },
+      source,
+      server,
+    });
+    expect(!result.ok && result.error.hint).toBe(
+      "REALTIME_SUBSCRIBER_POLICY_REQUIRED",
+    );
+    expect(sent).toEqual([]);
+    const tenantWide = await inbox()
+      .fanOut(client, {
+        subscribers,
+        values: (subscriber) => ({ userId: subscriber.principal }),
+        event: "created",
+        payload: { title: "Hi" },
+        source: { ...source, subject: null },
+        server,
+      })
+      .orThrow();
+    expect(tenantWide.sent).toEqual(subscribers);
+  });
+
   it("collects failed sends and keeps going", async () => {
     const { client, sent } = fakeClient("u1");
     const result = await inbox()
