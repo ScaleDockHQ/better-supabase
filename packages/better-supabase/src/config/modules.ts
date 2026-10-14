@@ -166,6 +166,15 @@ export interface AccessModuleConfig extends ModuleConfig {
    */
   readonly platformClaim?: string;
   /**
+   * OAuth scope to the permission keys it grants a delegated token (a
+   * `client_id`, or an `act` chain that is not a support or impersonation
+   * level). The access functions refuse every key the token's scopes don't
+   * map to, whatever the user holds. A scope without an entry grants the
+   * key with its own name; map a scope to `["*"]` to grant everything.
+   * Merged over `authorization.delegation.scopes`.
+   */
+  readonly scopes?: Readonly<Record<string, readonly string[]>>;
+  /**
    * What disables a tenant or a user. A string is a column that disables
    * when set, as `schema.table.column`, keyed by the table's `id` (tenant)
    * or the column named in `userKey` (user). An object is an active row:

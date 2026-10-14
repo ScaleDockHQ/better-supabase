@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { contextClaims, delegatedClaims } from "../../src/auth/delegation.ts";
+import {
+  contextClaims,
+  delegatedClaims,
+  narrowCap,
+  permissionMatches,
+} from "../../src/auth/delegation.ts";
 
 const user = { id: "user-1", kind: "user" as const };
 
@@ -188,5 +193,52 @@ describe("contextClaims", () => {
       ok: false,
       message: "forContext got invalid delegation claims",
     });
+  });
+
+  it("sets a permission cap that only ever narrows", () => {
+    expect(
+      contextClaims({ actor: user }, { permissions: ["posts.write"] }),
+    ).toMatchObject({
+      ok: true,
+      claims: { bs_permission_cap: ["posts.write"] },
+    });
+    expect(
+      contextClaims(
+        { actor: user, claims: { bs_permission_cap: ["posts.*"] } },
+        { permissions: ["posts.write", "billing.manage"] },
+      ),
+    ).toMatchObject({
+      ok: true,
+      claims: { bs_permission_cap: ["posts.write"] },
+    });
+    expect(
+      contextClaims({ actor: user, claims: { bs_permission_cap: ["a"] } }),
+    ).toMatchObject({ ok: true, claims: { bs_permission_cap: ["a"] } });
+    expect(
+      contextClaims({ actor: user }, { extra: { bs_permission_cap: ["*"] } }),
+    ).toEqual({ ok: true, claims: { role: "authenticated", sub: "user-1" } });
+    expect(
+      contextClaims({ actor: user, claims: { bs_permission_cap: "a" } }),
+    ).toEqual({
+      ok: false,
+      message: "forContext got an invalid permission cap",
+    });
+  });
+});
+
+describe("narrowCap and permissionMatches", () => {
+  it("matches wildcards like permission_matches in SQL", () => {
+    expect(permissionMatches("*", "x.y")).toBe(true);
+    expect(permissionMatches("x.*", "x.y")).toBe(true);
+    expect(permissionMatches("x.*", "xy")).toBe(false);
+    expect(permissionMatches("x.y", "x.y")).toBe(true);
+  });
+
+  it("keeps either side alone and intersects both", () => {
+    expect(narrowCap(undefined, undefined)).toBeUndefined();
+    expect(narrowCap(["a"], undefined)).toEqual(["a"]);
+    expect(narrowCap(undefined, ["b"])).toEqual(["b"]);
+    expect(narrowCap(["a.*"], ["a.b", "c"])).toEqual(["a.b"]);
+    expect(narrowCap([], ["a"])).toEqual([]);
   });
 });

@@ -208,6 +208,14 @@ export interface AuthorizationProvider {
   /** `schema.table.column` of every column that decides access (BS213). */
   readonly decidingColumns?: readonly string[];
   readonly tokenHook?: AuthorizationTokenHook;
+  /** What a delegated token (an OAuth client or agent) may use. */
+  readonly delegation?: {
+    /**
+     * OAuth scope to the permission keys it grants (RFC 9396 details stay
+     * with the app). `sql.modules.access.scopes` is merged over it.
+     */
+    readonly scopes?: Readonly<Record<string, readonly string[]>>;
+  };
   /** How `canApprove` decisions are made. */
   readonly approvals?: {
     /** The user who asked for the tool call can't approve it. Default `false`. */

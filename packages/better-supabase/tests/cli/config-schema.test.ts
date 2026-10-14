@@ -192,6 +192,22 @@ describe("configIssues for authorization", () => {
     expect(configIssues({ claims: { memberships: "orgs" } })).toEqual([]);
   });
 
+  it("accepts delegation scopes on the provider and the access module", () => {
+    expect(
+      issues({ delegation: { scopes: { "posts:write": ["posts.*"] } } }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        sql: { modules: { access: { scopes: { "mcp:read": ["*"] } } } },
+      }),
+    ).toEqual([]);
+    expect(
+      issues({ delegation: { scopes: { "posts:write": "posts.*" } } }).join(
+        "\n",
+      ),
+    ).toMatch(/delegation/);
+  });
+
   it("accepts isApprover, holdersOf, actorMayWrite and an operations table", () => {
     expect(
       issues({

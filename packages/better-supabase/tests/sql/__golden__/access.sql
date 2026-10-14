@@ -48,6 +48,54 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- The permission keys an OAuth scope grants a delegated token
+-- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- without an entry grants the key with its own name.
+create or replace function better_supabase.scope_permissions(scope text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array[scope]
+$$;
+
+-- False when the token is narrower than the permission: a permission cap
+-- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- don't map to it. True for every other token, the service role included.
+create or replace function better_supabase.cap_allows(permission text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+      and not exists (
+        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        where better_supabase.permission_matches(c.key, cap_allows.permission)
+      ) then false
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    else exists (
+      select 1
+      from unnest(case jsonb_typeof(jwt -> 'scope')
+          when 'string' then regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+')
+          when 'array' then array(select jsonb_array_elements_text(jwt -> 'scope'))
+          else '{}'::text[]
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where s.scope <> ''
+        and better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -90,6 +138,7 @@ as $$
   select member is not null
     and not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member and m."disabled_at" is null
@@ -110,6 +159,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can_while_deleting.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
@@ -141,6 +191,7 @@ as $$
   select member is not null
     and (platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(platform_can.permission))
     and ((platform_can.member = auth.uid() and exists (
     select 1
     from jsonb_array_elements_text(
@@ -165,6 +216,7 @@ as $$
   where m."user_id" = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m."organization_id") and m."disabled_at" is null
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and better_supabase.role_grants(m."role", tenant_ids_with.permission)
 $$;
 
@@ -261,6 +313,10 @@ $$;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.scope_permissions(text) from public;
+grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.cap_allows(text) from public;
+grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -365,6 +421,54 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- The permission keys an OAuth scope grants a delegated token
+-- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- without an entry grants the key with its own name.
+create or replace function better_supabase.scope_permissions(scope text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array[scope]
+$$;
+
+-- False when the token is narrower than the permission: a permission cap
+-- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- don't map to it. True for every other token, the service role included.
+create or replace function better_supabase.cap_allows(permission text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+      and not exists (
+        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        where better_supabase.permission_matches(c.key, cap_allows.permission)
+      ) then false
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    else exists (
+      select 1
+      from unnest(case jsonb_typeof(jwt -> 'scope')
+          when 'string' then regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+')
+          when 'array' then array(select jsonb_array_elements_text(jwt -> 'scope'))
+          else '{}'::text[]
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where s.scope <> ''
+        and better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -407,6 +511,7 @@ as $$
   select member is not null
     and not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member and m."disabled_at" is null
@@ -427,6 +532,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can_while_deleting.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
@@ -458,6 +564,7 @@ as $$
   select member is not null
     and (platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(platform_can.permission))
     and ((platform_can.member = auth.uid() and exists (
     select 1
     from jsonb_array_elements_text(
@@ -482,6 +589,7 @@ as $$
   where m."user_id" = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m."organization_id") and m."disabled_at" is null
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and better_supabase.role_grants(m."role", tenant_ids_with.permission)
 $$;
 
@@ -578,6 +686,10 @@ $$;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.scope_permissions(text) from public;
+grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.cap_allows(text) from public;
+grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -683,6 +795,54 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- The permission keys an OAuth scope grants a delegated token
+-- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- without an entry grants the key with its own name.
+create or replace function better_supabase.scope_permissions(scope text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array[scope]
+$$;
+
+-- False when the token is narrower than the permission: a permission cap
+-- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- don't map to it. True for every other token, the service role included.
+create or replace function better_supabase.cap_allows(permission text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+      and not exists (
+        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        where better_supabase.permission_matches(c.key, cap_allows.permission)
+      ) then false
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    else exists (
+      select 1
+      from unnest(case jsonb_typeof(jwt -> 'scope')
+          when 'string' then regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+')
+          when 'array' then array(select jsonb_array_elements_text(jwt -> 'scope'))
+          else '{}'::text[]
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where s.scope <> ''
+        and better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -725,6 +885,7 @@ as $$
   select member is not null
     and not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member and m."disabled_at" is null
@@ -745,6 +906,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can_while_deleting.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
@@ -776,6 +938,7 @@ as $$
   select member is not null
     and (platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(platform_can.permission))
     and ((platform_can.member = auth.uid() and exists (
     select 1
     from jsonb_array_elements_text(
@@ -800,6 +963,7 @@ as $$
   where m."user_id" = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m."organization_id") and m."disabled_at" is null
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and better_supabase.role_grants(m."role", tenant_ids_with.permission)
 $$;
 
@@ -896,6 +1060,10 @@ $$;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.scope_permissions(text) from public;
+grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.cap_allows(text) from public;
+grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -999,6 +1167,54 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- The permission keys an OAuth scope grants a delegated token
+-- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- without an entry grants the key with its own name.
+create or replace function better_supabase.scope_permissions(scope text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array[scope]
+$$;
+
+-- False when the token is narrower than the permission: a permission cap
+-- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- don't map to it. True for every other token, the service role included.
+create or replace function better_supabase.cap_allows(permission text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+      and not exists (
+        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        where better_supabase.permission_matches(c.key, cap_allows.permission)
+      ) then false
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    else exists (
+      select 1
+      from unnest(case jsonb_typeof(jwt -> 'scope')
+          when 'string' then regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+')
+          when 'array' then array(select jsonb_array_elements_text(jwt -> 'scope'))
+          else '{}'::text[]
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where s.scope <> ''
+        and better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -1041,6 +1257,7 @@ as $$
   select member is not null
     and not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member and m."disabled_at" is null
@@ -1061,6 +1278,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can_while_deleting.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
@@ -1092,6 +1310,7 @@ as $$
   select member is not null
     and (platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(platform_can.permission))
     and ((platform_can.member = auth.uid() and exists (
     select 1
     from jsonb_array_elements_text(
@@ -1116,6 +1335,7 @@ as $$
   where m."user_id" = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m."organization_id") and m."disabled_at" is null
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and better_supabase.role_grants(m."role", tenant_ids_with.permission)
 $$;
 
@@ -1212,6 +1432,10 @@ $$;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.scope_permissions(text) from public;
+grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.cap_allows(text) from public;
+grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -1288,6 +1512,24 @@ set search_path = ''
 as $$ select "better_supabase"."permission_matches"($1, $2) $$;
 revoke execute on function "api"."permission_matches"(text, text) from public;
 grant execute on function "api"."permission_matches"(text, text) to anon, authenticated, service_role;
+
+create or replace function "api"."scope_permissions"(scope text)
+returns text[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."scope_permissions"($1) $$;
+revoke execute on function "api"."scope_permissions"(text) from public;
+grant execute on function "api"."scope_permissions"(text) to anon, authenticated, service_role;
+
+create or replace function "api"."cap_allows"(permission text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."cap_allows"($1) $$;
+revoke execute on function "api"."cap_allows"(text) from public;
+grant execute on function "api"."cap_allows"(text) to anon, authenticated, service_role;
 
 create or replace function "api"."can"(scope text, scope_id uuid, permission text)
 returns boolean
@@ -1463,6 +1705,54 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- The permission keys an OAuth scope grants a delegated token
+-- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- without an entry grants the key with its own name.
+create or replace function better_supabase.scope_permissions(scope text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array[scope]
+$$;
+
+-- False when the token is narrower than the permission: a permission cap
+-- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- don't map to it. True for every other token, the service role included.
+create or replace function better_supabase.cap_allows(permission text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jwt is null then true
+    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+      and not exists (
+        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        where better_supabase.permission_matches(c.key, cap_allows.permission)
+      ) then false
+    when coalesce(jwt ->> 'client_id', '') = ''
+      and (jwt -> 'act' is null
+        or (jsonb_typeof(jwt -> 'act') = 'object'
+          and jwt -> 'act' ->> 'kind' in ('support', 'impersonation'))) then true
+    else exists (
+      select 1
+      from unnest(case jsonb_typeof(jwt -> 'scope')
+          when 'string' then regexp_split_to_array(btrim(jwt ->> 'scope'), '\s+')
+          when 'array' then array(select jsonb_array_elements_text(jwt -> 'scope'))
+          else '{}'::text[]
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where s.scope <> ''
+        and better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
+  end
+  from (select auth.jwt() as jwt) as token
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -1505,6 +1795,7 @@ as $$
   select member is not null
     and not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member and m."disabled_at" is null
@@ -1525,6 +1816,7 @@ set search_path = ''
 as $$
   select member is not null
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(member_can_while_deleting.permission))
     and exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member and m."disabled_at" is null
@@ -1556,6 +1848,7 @@ as $$
   select member is not null
     and (platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)
     and not better_supabase.user_disabled(member)
+    and (member is distinct from auth.uid() or better_supabase.cap_allows(platform_can.permission))
     and ((platform_can.member = auth.uid() and exists (
     select 1
     from jsonb_array_elements_text(
@@ -1580,6 +1873,7 @@ as $$
   where m."user_id" = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(m."organization_id") and m."disabled_at" is null
+    and better_supabase.cap_allows(tenant_ids_with.permission)
     and better_supabase.role_grants(m."role", tenant_ids_with.permission)
 $$;
 
@@ -1676,6 +1970,10 @@ $$;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.scope_permissions(text) from public;
+grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.cap_allows(text) from public;
+grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;

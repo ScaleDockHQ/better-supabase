@@ -42,6 +42,8 @@ export interface JobContext {
   readonly authorization_details?: readonly AuthorizationDetail[];
   /** The opaque ticket `forContext` resolves into the context the job runs as. */
   readonly ticket?: string;
+  /** The permission keys a `forContext({ permissions })` cap left the work. */
+  readonly bs_permission_cap?: readonly string[];
 }
 
 export interface Job<P = unknown> {

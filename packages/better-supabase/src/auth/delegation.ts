@@ -30,13 +30,59 @@ export type DelegatedClaimsOutcome =
       readonly reason: "invalid-chain" | "invalid-delegation";
     };
 
+/**
+ * The claim `forContext({ permissions })` sets: the permission keys the
+ * work may use. `better_supabase.cap_allows` refuses every other key, and
+ * a job queued under a cap keeps it.
+ */
+export const PERMISSION_CAP_CLAIM = "bs_permission_cap";
+
 /** The claims a delegated token adds; `contextClaims` never takes them from `claimsFor`. */
 export const DELEGATION_CLAIMS: readonly string[] = [
   "act",
   "client_id",
   "scope",
   "authorization_details",
+  PERMISSION_CAP_CLAIM,
 ];
+
+/** `*` grants every key and `prefix.*` every key under prefix, as `permission_matches` in SQL. */
+export function permissionMatches(granted: string, wanted: string): boolean {
+  return (
+    granted === "*" ||
+    granted === wanted ||
+    (granted.endsWith(".*") && wanted.startsWith(granted.slice(0, -1)))
+  );
+}
+
+/**
+ * The permission cap in `claims`: `undefined` without one, `false` for a
+ * cap that is not a list of strings.
+ */
+export function permissionCapOf(
+  claims: Readonly<Record<string, unknown>>,
+): readonly string[] | false | undefined {
+  const cap = claims[PERMISSION_CAP_CLAIM];
+  if (cap === undefined) return undefined;
+  return Array.isArray(cap) && cap.every((key) => typeof key === "string")
+    ? cap
+    : false;
+}
+
+/**
+ * The keys of `wanted` that `inherited` allows, so a cap only ever narrows.
+ * Either side alone is the cap; neither is no cap.
+ */
+export function narrowCap(
+  inherited: readonly string[] | undefined,
+  wanted: readonly string[] | undefined,
+): readonly string[] | undefined {
+  if (wanted === undefined) return inherited;
+  if (inherited === undefined) return wanted;
+  return wanted.filter((key) =>
+    inherited.some((granted) => permissionMatches(granted, key)),
+  );
+}
 
 const INVALID: DelegatedClaimsOutcome = {
   ok: false,
@@ -129,13 +175,16 @@ export interface ContextClaimsOptions {
   readonly extra?: Readonly<Record<string, unknown>>;
   /** `act.reason` for an impersonator. Defaults to `"job"`. */
   readonly reason?: string;
+  /** `ForContextOptions.permissions`: narrows the recorded cap, never widens it. */
+  readonly permissions?: readonly string[];
 }
 
 /**
  * The SQL claims for the user in a recorded context: the user as
  * `authenticated`, the tenant as `tenant_id`, and the context's delegation,
- * so `token_scope_allows` and the TypeScript scope checks narrow the work
- * to what the queuing token held. The `act` claim is the support session,
+ * so the access functions (through `cap_allows`), `token_scope_allows` and
+ * the TypeScript scope checks narrow the work to what the queuing token
+ * held, and to its permission cap. The `act` claim is the support session,
  * else the OAuth client chain, else the impersonating admin.
  */
 export function contextClaims(
@@ -152,6 +201,11 @@ export function contextClaims(
   const claims = context.claims ?? {};
   const recorded = actorOf(claims);
   const delegated = delegatedClaims(claims);
+  const inherited = permissionCapOf(claims);
+  if (inherited === false) {
+    return { ok: false, message: "forContext got an invalid permission cap" };
+  }
+  const cap = narrowCap(inherited, options.permissions);
   if (!recorded.ok || !delegated.ok) {
     return {
       ok: false,
@@ -188,6 +242,7 @@ export function contextClaims(
       ...(tenant === undefined ? {} : { tenant_id: tenant }),
       ...delegation,
       ...(act === undefined ? {} : { act }),
+      ...(cap === undefined ? {} : { [PERMISSION_CAP_CLAIM]: cap }),
     },
     ...(impersonator === undefined ? {} : { impersonator }),
     ...(support?.readOnly ? { readOnly: true } : {}),

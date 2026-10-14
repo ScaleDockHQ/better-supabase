@@ -105,6 +105,25 @@ describe("job envelope", () => {
     }
   });
 
+  it("keeps a permission cap and refuses a malformed one", () => {
+    const stored = withContext(null, {
+      actor,
+      claims: { bs_permission_cap: ["posts.write"] },
+    });
+    expect(stored).toMatchObject({
+      context: { bs_permission_cap: ["posts.write"] },
+    });
+    expect(unwrap(JSON.parse(JSON.stringify(stored))).context.claims).toEqual({
+      bs_permission_cap: ["posts.write"],
+    });
+    const wrapped = wrapPayload(null, {
+      actor,
+      claims: { bs_permission_cap: [1] },
+    });
+    expect(wrapped.ok).toBe(false);
+    expect(wrapped.error).toMatchObject({ kind: "forbidden" });
+  });
+
   it("makes forContext refuse a stored envelope with a bad act chain", () => {
     const { context } = unwrap({
       $bs: 1,

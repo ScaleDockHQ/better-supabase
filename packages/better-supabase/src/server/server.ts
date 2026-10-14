@@ -782,6 +782,9 @@ export function createServer<
           ...(forOptions.reason === undefined
             ? {}
             : { reason: forOptions.reason }),
+          ...(forOptions.permissions === undefined
+            ? {}
+            : { permissions: forOptions.permissions }),
         });
         if (!built.ok) return err(dbError("forbidden", built.message));
         const { claims, impersonator, readOnly } = built;

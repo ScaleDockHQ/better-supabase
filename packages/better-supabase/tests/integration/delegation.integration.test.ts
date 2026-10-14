@@ -14,19 +14,25 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
-  /** A posts table whose update policy needs the `posts:write` scope. */
-  async function postsTable(session: BlockSession): Promise<string> {
+  /**
+   * A posts table whose update policy asks the access functions for
+   * `members.invite`, which only the `posts:write` scope maps to.
+   */
+  async function postsTable(
+    session: BlockSession,
+    organization: string,
+  ): Promise<string> {
     const table = `delegation_posts_${crypto.randomUUID().slice(0, 8)}`;
     await session.service();
     await session.client.query(`
-      create table public.${table} (id int primary key, title text not null);
+      create table public.${table} (id int primary key, organization_id uuid not null, title text not null);
       alter table public.${table} enable row level security;
       create policy read on public.${table} for select to authenticated using (true);
       create policy write on public.${table} for update to authenticated
-        using (better_supabase.token_scope_allows('posts:write'))
-        with check (better_supabase.token_scope_allows('posts:write'));
+        using (organization_id in (select better_supabase.tenant_ids_with('members.invite')))
+        with check (organization_id in (select better_supabase.tenant_ids_with('members.invite')));
       grant select, update on public.${table} to authenticated;
-      insert into public.${table} values (1, 'draft');
+      insert into public.${table} values (1, '${organization}', 'draft');
     `);
     return table;
   }
@@ -65,9 +71,14 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
   it("refuses a job queued with a read scope and runs one with the write scope", async () => {
     const session = await BlockSession.open(pool);
     try {
-      await session.install(["actor"]);
+      await session.install(["actor", "access"], {
+        modules: { access: { scopes: { "posts:write": ["members.invite"] } } },
+      });
       const author = await session.user("author");
-      const table = await postsTable(session);
+      const table = await postsTable(
+        session,
+        await session.organization(author),
+      );
       const actor = { id: author.id, kind: "user" as const };
 
       const reader = await roundTrip(session, {
@@ -98,6 +109,13 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
       const own = await roundTrip(session, { actor, claims: {} });
       expect(own.claims).toBeUndefined();
       expect(await updateAs(session, table, own)).toBe(1);
+
+      const capped = await roundTrip(session, {
+        actor,
+        claims: { bs_permission_cap: ["audit.read"] },
+      });
+      expect(capped.claims).toEqual({ bs_permission_cap: ["audit.read"] });
+      expect(await updateAs(session, table, capped)).toBe(0);
     } finally {
       await session.close();
     }

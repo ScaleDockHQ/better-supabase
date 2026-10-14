@@ -424,6 +424,41 @@ table and a tenant column in every key. Use `sameTenant` when the tables
 already exist and their keys should stay as they are, or when the
 reference also needs a `where` condition.
 
+## Delegated tokens
+
+A delegated token is one an OAuth client or agent acts with: it carries a
+`client_id`, or an RFC 8693 `act` chain that is not a support or
+impersonation session. The access functions narrow it in every model:
+`member_can`, `member_can_while_deleting`, `platform_can` and
+`tenant_ids_with` ask `better_supabase.cap_allows(permission)`, which is true
+only when one of the token's scopes maps to the permission. The user's own
+roles still apply, so the token gets the overlap.
+
+Map scopes to permission keys in `authorization.delegation.scopes` (the
+provider's map) or `sql.modules.access.scopes`, which is merged over it. A
+scope without an entry grants the key with its own name, and `["*"]` grants
+every key.
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    access: {
+      scopes: {
+        "posts:write": ["posts.*"],
+        "mcp:admin": ["*"],
+      },
+    },
+  },
+},
+```
+
+`cap_allows` also reads the `bs_permission_cap` claim that
+`forContext(context, { permissions })` sets, and refuses every key outside
+it. A check about another user (an inviter, the holders of a permission) is
+not narrowed by the caller's token, and the service role is never narrowed.
+`token_scope_allows(scope)` in the `actor` module stays available for a
+policy that checks the literal scope.
+
 ## Disabled tenants and users
 
 `sql.modules.access.disabled` names columns that switch a tenant or a user off when

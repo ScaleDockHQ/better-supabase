@@ -227,6 +227,8 @@ export interface ModuleLayout {
   readonly subjects?: SubjectsConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
+  /** `authorization.delegation.scopes`: the access module's `scope_permissions` (with `sql.modules.access.scopes` merged over it). */
+  readonly delegationScopes?: Readonly<Record<string, readonly string[]>>;
 }
 
 /** Where the `entitlements` module reads the provider's memberships, and the tables behind them. */
