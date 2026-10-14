@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_43_workflow_sdk_world.sql
 -- better-supabase module: workflow-sdk-world
--- @bs-module workflow-sdk-world@1 managed
+-- @bs-module workflow-sdk-world@2 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -313,7 +313,11 @@ create index if not exists workflow_runs_attributes_idx on workflow.workflow_run
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bs.tenant and bs.actor attributes that startFor sets. A run with an
 -- actor keeps its tenant only when the actor holds workflow.run there; a
--- run without one was started by the server, which is trusted.
+-- run without one, or one with bs.principal_kind (a runAs start, whose
+-- actor is the user who triggered it), was started by the server, which is
+-- trusted. bs.subject
+-- (type/id), bs.principal_kind, bs.principal, bs.mode and bs.trigger_node
+-- fill the run's subject, principal, mode and trigger node.
 create or replace function "better_supabase"."workflow_sdk_mirror_run"()
 returns trigger
 language plpgsql
@@ -323,6 +327,11 @@ as $$
 declare
   v_tenant uuid;
   v_actor uuid;
+  v_subject text;
+  v_subject_type text;
+  v_subject_id text;
+  v_principal_kind text;
+  v_mode text;
 begin
   begin
     v_tenant := (new.attributes ->> 'bs.tenant')::uuid;
@@ -334,10 +343,21 @@ begin
   exception when others then
     v_actor := null;
   end;
-  if v_tenant is not null and v_actor is not null
+  v_principal_kind := new.attributes ->> 'bs.principal_kind';
+  if v_principal_kind is not null and v_principal_kind not in ('user', 'service_principal', 'system', 'external') then
+    v_principal_kind := null;
+  end if;
+  if v_tenant is not null and v_actor is not null and v_principal_kind is null
     and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
     v_tenant := null;
   end if;
+  v_subject := new.attributes ->> 'bs.subject';
+  if v_subject is not null and position('/' in v_subject) between 2 and 101
+    and length(v_subject) - position('/' in v_subject) between 1 and 200 then
+    v_subject_type := left(v_subject, position('/' in v_subject) - 1);
+    v_subject_id := substr(v_subject, position('/' in v_subject) + 1);
+  end if;
+  v_mode := case when new.attributes ->> 'bs.mode' = 'test' then 'test' else 'live' end;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -345,10 +365,16 @@ begin
     case new.status::text when 'pending' then 'queued' else new.status::text end,
     v_tenant,
     v_actor,
-    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor',
+    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor' - 'bs.subject' - 'bs.principal_kind' - 'bs.principal' - 'bs.mode' - 'bs.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
     new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC'
+    new.completed_at at time zone 'UTC',
+    v_subject_type,
+    v_subject_id,
+    v_principal_kind,
+    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bs.principal', 200), '') end,
+    v_mode,
+    nullif(left(new.attributes ->> 'bs.trigger_node', 100), '')
   );
   return null;
 end;
@@ -428,13 +454,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-sdk-world', 1, 'managed')
+values ('workflow-sdk-world', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_43_workflow_sdk_world.sql
 -- better-supabase module: workflow-sdk-world
--- @bs-module workflow-sdk-world@1 managed
+-- @bs-module workflow-sdk-world@2 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -747,7 +773,11 @@ create index if not exists workflow_runs_attributes_idx on workflow.workflow_run
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bs.tenant and bs.actor attributes that startFor sets. A run with an
 -- actor keeps its tenant only when the actor holds workflow.run there; a
--- run without one was started by the server, which is trusted.
+-- run without one, or one with bs.principal_kind (a runAs start, whose
+-- actor is the user who triggered it), was started by the server, which is
+-- trusted. bs.subject
+-- (type/id), bs.principal_kind, bs.principal, bs.mode and bs.trigger_node
+-- fill the run's subject, principal, mode and trigger node.
 create or replace function "better_supabase"."workflow_sdk_mirror_run"()
 returns trigger
 language plpgsql
@@ -757,6 +787,11 @@ as $$
 declare
   v_tenant uuid;
   v_actor uuid;
+  v_subject text;
+  v_subject_type text;
+  v_subject_id text;
+  v_principal_kind text;
+  v_mode text;
 begin
   begin
     v_tenant := (new.attributes ->> 'bs.tenant')::uuid;
@@ -768,10 +803,21 @@ begin
   exception when others then
     v_actor := null;
   end;
-  if v_tenant is not null and v_actor is not null
+  v_principal_kind := new.attributes ->> 'bs.principal_kind';
+  if v_principal_kind is not null and v_principal_kind not in ('user', 'service_principal', 'system', 'external') then
+    v_principal_kind := null;
+  end if;
+  if v_tenant is not null and v_actor is not null and v_principal_kind is null
     and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
     v_tenant := null;
   end if;
+  v_subject := new.attributes ->> 'bs.subject';
+  if v_subject is not null and position('/' in v_subject) between 2 and 101
+    and length(v_subject) - position('/' in v_subject) between 1 and 200 then
+    v_subject_type := left(v_subject, position('/' in v_subject) - 1);
+    v_subject_id := substr(v_subject, position('/' in v_subject) + 1);
+  end if;
+  v_mode := case when new.attributes ->> 'bs.mode' = 'test' then 'test' else 'live' end;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -779,10 +825,16 @@ begin
     case new.status::text when 'pending' then 'queued' else new.status::text end,
     v_tenant,
     v_actor,
-    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor',
+    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor' - 'bs.subject' - 'bs.principal_kind' - 'bs.principal' - 'bs.mode' - 'bs.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
     new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC'
+    new.completed_at at time zone 'UTC',
+    v_subject_type,
+    v_subject_id,
+    v_principal_kind,
+    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bs.principal', 200), '') end,
+    v_mode,
+    nullif(left(new.attributes ->> 'bs.trigger_node', 100), '')
   );
   return null;
 end;
@@ -862,13 +914,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-sdk-world', 1, 'managed')
+values ('workflow-sdk-world', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_43_workflow_sdk_world.sql
 -- better-supabase module: workflow-sdk-world
--- @bs-module workflow-sdk-world@1 managed
+-- @bs-module workflow-sdk-world@2 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1183,7 +1235,11 @@ create index if not exists workflow_runs_attributes_idx on workflow.workflow_run
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bs.tenant and bs.actor attributes that startFor sets. A run with an
 -- actor keeps its tenant only when the actor holds workflow.run there; a
--- run without one was started by the server, which is trusted.
+-- run without one, or one with bs.principal_kind (a runAs start, whose
+-- actor is the user who triggered it), was started by the server, which is
+-- trusted. bs.subject
+-- (type/id), bs.principal_kind, bs.principal, bs.mode and bs.trigger_node
+-- fill the run's subject, principal, mode and trigger node.
 create or replace function "app_private"."workflow_sdk_mirror_run"()
 returns trigger
 language plpgsql
@@ -1193,6 +1249,11 @@ as $$
 declare
   v_tenant uuid;
   v_actor uuid;
+  v_subject text;
+  v_subject_type text;
+  v_subject_id text;
+  v_principal_kind text;
+  v_mode text;
 begin
   begin
     v_tenant := (new.attributes ->> 'bs.tenant')::uuid;
@@ -1204,10 +1265,21 @@ begin
   exception when others then
     v_actor := null;
   end;
-  if v_tenant is not null and v_actor is not null
+  v_principal_kind := new.attributes ->> 'bs.principal_kind';
+  if v_principal_kind is not null and v_principal_kind not in ('user', 'service_principal', 'system', 'external') then
+    v_principal_kind := null;
+  end if;
+  if v_tenant is not null and v_actor is not null and v_principal_kind is null
     and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
     v_tenant := null;
   end if;
+  v_subject := new.attributes ->> 'bs.subject';
+  if v_subject is not null and position('/' in v_subject) between 2 and 101
+    and length(v_subject) - position('/' in v_subject) between 1 and 200 then
+    v_subject_type := left(v_subject, position('/' in v_subject) - 1);
+    v_subject_id := substr(v_subject, position('/' in v_subject) + 1);
+  end if;
+  v_mode := case when new.attributes ->> 'bs.mode' = 'test' then 'test' else 'live' end;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -1215,10 +1287,16 @@ begin
     case new.status::text when 'pending' then 'queued' else new.status::text end,
     v_tenant,
     v_actor,
-    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor',
+    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor' - 'bs.subject' - 'bs.principal_kind' - 'bs.principal' - 'bs.mode' - 'bs.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
     new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC'
+    new.completed_at at time zone 'UTC',
+    v_subject_type,
+    v_subject_id,
+    v_principal_kind,
+    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bs.principal', 200), '') end,
+    v_mode,
+    nullif(left(new.attributes ->> 'bs.trigger_node', 100), '')
   );
   return null;
 end;
@@ -1298,13 +1376,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-sdk-world', 1, 'managed')
+values ('workflow-sdk-world', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_43_workflow_sdk_world.sql
 -- better-supabase module: workflow-sdk-world
--- @bs-module workflow-sdk-world@1 managed
+-- @bs-module workflow-sdk-world@2 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,7 +1695,11 @@ create index if not exists workflow_runs_attributes_idx on workflow.workflow_run
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bs.tenant and bs.actor attributes that startFor sets. A run with an
 -- actor keeps its tenant only when the actor holds workflow.run there; a
--- run without one was started by the server, which is trusted.
+-- run without one, or one with bs.principal_kind (a runAs start, whose
+-- actor is the user who triggered it), was started by the server, which is
+-- trusted. bs.subject
+-- (type/id), bs.principal_kind, bs.principal, bs.mode and bs.trigger_node
+-- fill the run's subject, principal, mode and trigger node.
 create or replace function "better_supabase"."workflow_sdk_mirror_run"()
 returns trigger
 language plpgsql
@@ -1627,6 +1709,11 @@ as $$
 declare
   v_tenant uuid;
   v_actor uuid;
+  v_subject text;
+  v_subject_type text;
+  v_subject_id text;
+  v_principal_kind text;
+  v_mode text;
 begin
   begin
     v_tenant := (new.attributes ->> 'bs.tenant')::uuid;
@@ -1638,10 +1725,21 @@ begin
   exception when others then
     v_actor := null;
   end;
-  if v_tenant is not null and v_actor is not null
+  v_principal_kind := new.attributes ->> 'bs.principal_kind';
+  if v_principal_kind is not null and v_principal_kind not in ('user', 'service_principal', 'system', 'external') then
+    v_principal_kind := null;
+  end if;
+  if v_tenant is not null and v_actor is not null and v_principal_kind is null
     and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
     v_tenant := null;
   end if;
+  v_subject := new.attributes ->> 'bs.subject';
+  if v_subject is not null and position('/' in v_subject) between 2 and 101
+    and length(v_subject) - position('/' in v_subject) between 1 and 200 then
+    v_subject_type := left(v_subject, position('/' in v_subject) - 1);
+    v_subject_id := substr(v_subject, position('/' in v_subject) + 1);
+  end if;
+  v_mode := case when new.attributes ->> 'bs.mode' = 'test' then 'test' else 'live' end;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -1649,10 +1747,16 @@ begin
     case new.status::text when 'pending' then 'queued' else new.status::text end,
     v_tenant,
     v_actor,
-    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor',
+    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor' - 'bs.subject' - 'bs.principal_kind' - 'bs.principal' - 'bs.mode' - 'bs.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
     new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC'
+    new.completed_at at time zone 'UTC',
+    v_subject_type,
+    v_subject_id,
+    v_principal_kind,
+    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bs.principal', 200), '') end,
+    v_mode,
+    nullif(left(new.attributes ->> 'bs.trigger_node', 100), '')
   );
   return null;
 end;
@@ -1745,6 +1849,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-sdk-world', 1, 'managed')
+values ('workflow-sdk-world', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

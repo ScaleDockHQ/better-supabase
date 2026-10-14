@@ -6,6 +6,6 @@
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'managed')
+values ('notifications', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

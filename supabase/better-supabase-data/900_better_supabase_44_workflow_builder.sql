@@ -8,6 +8,6 @@
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-builder', 1, 'managed')
+values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

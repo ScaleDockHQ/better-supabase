@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_67_saved_views.sql
 -- better-supabase module: saved-views
--- @bs-module saved-views@1 managed
+-- @bs-module saved-views@2 managed
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,6 +73,25 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
+create table if not exists "better_supabase"."saved_view_preferences" (
+  "view_id" uuid not null references "better_supabase"."saved_views" ("id") on delete cascade,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "is_default" boolean not null default false,
+  "hidden" boolean not null default false,
+  "pinned" boolean not null default false,
+  "updated_at" timestamptz not null default now(),
+  primary key ("view_id", "user_id")
+);
+create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "better_supabase"."saved_view_preferences" enable row level security;
+revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+grant select on "better_supabase"."saved_view_preferences" to authenticated;
+grant all on "better_supabase"."saved_view_preferences" to service_role;
+drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+using ("user_id" = (select auth.uid()));
+
 
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -195,9 +214,11 @@ as $$
     'state', v."state",
     'rank', v."rank",
     'isDefault', v."is_default",
-    'updatedAt', v."updated_at"
+    'updatedAt', v."updated_at",
+    'preference', jsonb_build_object('isDefault', coalesce(p."is_default", false), 'hidden', coalesce(p."hidden", false), 'pinned', coalesce(p."pinned", false))
   ) order by v."rank" collate "C", v."id"), '[]'::jsonb)
   from "better_supabase"."saved_views" v
+  left join "better_supabase"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())
   where v."tenant_id" = list_views.tenant and v."list" = list_views.list
 $$;
 revoke execute on function "better_supabase"."list_views"(uuid, text) from public, anon;
@@ -300,6 +321,86 @@ $$;
 revoke execute on function "better_supabase"."delete_view"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_view"(uuid) to authenticated, service_role;
 
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function "better_supabase"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."saved_views";
+begin
+  select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  return "better_supabase"."save_view"(v_row."tenant_id", v_row."list",
+    coalesce(duplicate_view.name, v_row."name"), v_row."kind",
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
+end;
+$$;
+revoke execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function "better_supabase"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row "better_supabase"."saved_views";
+  v_pref "better_supabase"."saved_view_preferences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'a preference needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  if set_view_preference.make_default then
+    update "better_supabase"."saved_view_preferences" p set "is_default" = false, "updated_at" = now()
+    from "better_supabase"."saved_views" o
+    where p."user_id" = v_user and p."is_default" and p."view_id" <> v_row."id"
+      and o."id" = p."view_id"
+      and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";
+  end if;
+  insert into "better_supabase"."saved_view_preferences" as p ("view_id", "user_id", "tenant_id", "is_default", "hidden", "pinned")
+  values (v_row."id", v_user, v_row."tenant_id",
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict ("view_id", "user_id") do update set
+    "is_default" = coalesce(set_view_preference.make_default, p."is_default"),
+    "hidden" = coalesce(set_view_preference.hide, p."hidden"),
+    "pinned" = coalesce(set_view_preference.pin, p."pinned"),
+    "updated_at" = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref."view_id") || jsonb_build_object('isDefault', coalesce(v_pref."is_default", false), 'hidden', coalesce(v_pref."hidden", false), 'pinned', coalesce(v_pref."pinned", false));
+end;
+$$;
+revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -321,13 +422,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('saved-views', 1, 'managed')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_67_saved_views.sql
 -- better-supabase module: saved-views
--- @bs-module saved-views@1 managed
+-- @bs-module saved-views@2 managed
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -400,6 +501,25 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
     or "scope" = 'tenant'
   ));
+create table if not exists "better_supabase"."saved_view_preferences" (
+  "view_id" uuid not null references "better_supabase"."saved_views" ("id") on delete cascade,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "is_default" boolean not null default false,
+  "hidden" boolean not null default false,
+  "pinned" boolean not null default false,
+  "updated_at" timestamptz not null default now(),
+  primary key ("view_id", "user_id")
+);
+create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "better_supabase"."saved_view_preferences" enable row level security;
+revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+grant select on "better_supabase"."saved_view_preferences" to authenticated;
+grant all on "better_supabase"."saved_view_preferences" to service_role;
+drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+using ("user_id" = (select auth.uid()));
+
 
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -522,9 +642,11 @@ as $$
     'state', v."state",
     'rank', v."rank",
     'isDefault', v."is_default",
-    'updatedAt', v."updated_at"
+    'updatedAt', v."updated_at",
+    'preference', jsonb_build_object('isDefault', coalesce(p."is_default", false), 'hidden', coalesce(p."hidden", false), 'pinned', coalesce(p."pinned", false))
   ) order by v."rank" collate "C", v."id"), '[]'::jsonb)
   from "better_supabase"."saved_views" v
+  left join "better_supabase"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())
   where v."tenant_id" = list_views.tenant and v."list" = list_views.list
 $$;
 revoke execute on function "better_supabase"."list_views"(uuid, text) from public, anon;
@@ -627,6 +749,86 @@ $$;
 revoke execute on function "better_supabase"."delete_view"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_view"(uuid) to authenticated, service_role;
 
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function "better_supabase"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."saved_views";
+begin
+  select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  return "better_supabase"."save_view"(v_row."tenant_id", v_row."list",
+    coalesce(duplicate_view.name, v_row."name"), v_row."kind",
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
+end;
+$$;
+revoke execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function "better_supabase"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row "better_supabase"."saved_views";
+  v_pref "better_supabase"."saved_view_preferences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'a preference needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  if set_view_preference.make_default then
+    update "better_supabase"."saved_view_preferences" p set "is_default" = false, "updated_at" = now()
+    from "better_supabase"."saved_views" o
+    where p."user_id" = v_user and p."is_default" and p."view_id" <> v_row."id"
+      and o."id" = p."view_id"
+      and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";
+  end if;
+  insert into "better_supabase"."saved_view_preferences" as p ("view_id", "user_id", "tenant_id", "is_default", "hidden", "pinned")
+  values (v_row."id", v_user, v_row."tenant_id",
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict ("view_id", "user_id") do update set
+    "is_default" = coalesce(set_view_preference.make_default, p."is_default"),
+    "hidden" = coalesce(set_view_preference.hide, p."hidden"),
+    "pinned" = coalesce(set_view_preference.pin, p."pinned"),
+    "updated_at" = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref."view_id") || jsonb_build_object('isDefault', coalesce(v_pref."is_default", false), 'hidden', coalesce(v_pref."hidden", false), 'pinned', coalesce(v_pref."pinned", false));
+end;
+$$;
+revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -648,13 +850,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('saved-views', 1, 'managed')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_67_saved_views.sql
 -- better-supabase module: saved-views
--- @bs-module saved-views@1 managed
+-- @bs-module saved-views@2 managed
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -729,6 +931,25 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
+create table if not exists "app_private"."saved_view_preferences" (
+  "view_id" uuid not null references "app_private"."saved_views" ("id") on delete cascade,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "is_default" boolean not null default false,
+  "hidden" boolean not null default false,
+  "pinned" boolean not null default false,
+  "updated_at" timestamptz not null default now(),
+  primary key ("view_id", "user_id")
+);
+create index if not exists saved_view_preferences_user_idx on "app_private"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "app_private"."saved_view_preferences" enable row level security;
+revoke all on "app_private"."saved_view_preferences" from anon, authenticated;
+grant select on "app_private"."saved_view_preferences" to authenticated;
+grant all on "app_private"."saved_view_preferences" to service_role;
+drop policy if exists saved_view_preferences_read on "app_private"."saved_view_preferences";
+create policy saved_view_preferences_read on "app_private"."saved_view_preferences" for select to authenticated
+using ("user_id" = (select auth.uid()));
+
 
 create or replace function "app_private"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -851,9 +1072,11 @@ as $$
     'state', v."state",
     'rank', v."rank",
     'isDefault', v."is_default",
-    'updatedAt', v."updated_at"
+    'updatedAt', v."updated_at",
+    'preference', jsonb_build_object('isDefault', coalesce(p."is_default", false), 'hidden', coalesce(p."hidden", false), 'pinned', coalesce(p."pinned", false))
   ) order by v."rank" collate "C", v."id"), '[]'::jsonb)
   from "app_private"."saved_views" v
+  left join "app_private"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())
   where v."tenant_id" = list_views.tenant and v."list" = list_views.list
 $$;
 revoke execute on function "app_private"."list_views"(uuid, text) from public, anon;
@@ -956,6 +1179,86 @@ $$;
 revoke execute on function "app_private"."delete_view"(uuid) from public, anon;
 grant execute on function "app_private"."delete_view"(uuid) to authenticated, service_role;
 
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function "app_private"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."saved_views";
+begin
+  select * into v_row from "app_private"."saved_views" where "id" = duplicate_view.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  return "app_private"."save_view"(v_row."tenant_id", v_row."list",
+    coalesce(duplicate_view.name, v_row."name"), v_row."kind",
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
+end;
+$$;
+revoke execute on function "app_private"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function "app_private"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row "app_private"."saved_views";
+  v_pref "app_private"."saved_view_preferences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'a preference needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
+  end if;
+  select * into v_row from "app_private"."saved_views" where "id" = set_view_preference.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  if set_view_preference.make_default then
+    update "app_private"."saved_view_preferences" p set "is_default" = false, "updated_at" = now()
+    from "app_private"."saved_views" o
+    where p."user_id" = v_user and p."is_default" and p."view_id" <> v_row."id"
+      and o."id" = p."view_id"
+      and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";
+  end if;
+  insert into "app_private"."saved_view_preferences" as p ("view_id", "user_id", "tenant_id", "is_default", "hidden", "pinned")
+  values (v_row."id", v_user, v_row."tenant_id",
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict ("view_id", "user_id") do update set
+    "is_default" = coalesce(set_view_preference.make_default, p."is_default"),
+    "hidden" = coalesce(set_view_preference.hide, p."hidden"),
+    "pinned" = coalesce(set_view_preference.pin, p."pinned"),
+    "updated_at" = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref."view_id") || jsonb_build_object('isDefault', coalesce(v_pref."is_default", false), 'hidden', coalesce(v_pref."hidden", false), 'pinned', coalesce(v_pref."pinned", false));
+end;
+$$;
+revoke execute on function "app_private"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "app_private"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -977,13 +1280,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('saved-views', 1, 'managed')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_67_saved_views.sql
 -- better-supabase module: saved-views
--- @bs-module saved-views@1 managed
+-- @bs-module saved-views@2 managed
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1056,6 +1359,25 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
+create table if not exists "better_supabase"."saved_view_preferences" (
+  "view_id" uuid not null references "better_supabase"."saved_views" ("id") on delete cascade,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "is_default" boolean not null default false,
+  "hidden" boolean not null default false,
+  "pinned" boolean not null default false,
+  "updated_at" timestamptz not null default now(),
+  primary key ("view_id", "user_id")
+);
+create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "better_supabase"."saved_view_preferences" enable row level security;
+revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+grant select on "better_supabase"."saved_view_preferences" to authenticated;
+grant all on "better_supabase"."saved_view_preferences" to service_role;
+drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+using ("user_id" = (select auth.uid()));
+
 
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -1178,9 +1500,11 @@ as $$
     'state', v."state",
     'rank', v."rank",
     'isDefault', v."is_default",
-    'updatedAt', v."updated_at"
+    'updatedAt', v."updated_at",
+    'preference', jsonb_build_object('isDefault', coalesce(p."is_default", false), 'hidden', coalesce(p."hidden", false), 'pinned', coalesce(p."pinned", false))
   ) order by v."rank" collate "C", v."id"), '[]'::jsonb)
   from "better_supabase"."saved_views" v
+  left join "better_supabase"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())
   where v."tenant_id" = list_views.tenant and v."list" = list_views.list
 $$;
 revoke execute on function "better_supabase"."list_views"(uuid, text) from public, anon;
@@ -1282,6 +1606,86 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_view"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_view"(uuid) to authenticated, service_role;
+
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function "better_supabase"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."saved_views";
+begin
+  select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  return "better_supabase"."save_view"(v_row."tenant_id", v_row."list",
+    coalesce(duplicate_view.name, v_row."name"), v_row."kind",
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
+end;
+$$;
+revoke execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function "better_supabase"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row "better_supabase"."saved_views";
+  v_pref "better_supabase"."saved_view_preferences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'a preference needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  if set_view_preference.make_default then
+    update "better_supabase"."saved_view_preferences" p set "is_default" = false, "updated_at" = now()
+    from "better_supabase"."saved_views" o
+    where p."user_id" = v_user and p."is_default" and p."view_id" <> v_row."id"
+      and o."id" = p."view_id"
+      and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";
+  end if;
+  insert into "better_supabase"."saved_view_preferences" as p ("view_id", "user_id", "tenant_id", "is_default", "hidden", "pinned")
+  values (v_row."id", v_user, v_row."tenant_id",
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict ("view_id", "user_id") do update set
+    "is_default" = coalesce(set_view_preference.make_default, p."is_default"),
+    "hidden" = coalesce(set_view_preference.hide, p."hidden"),
+    "pinned" = coalesce(set_view_preference.pin, p."pinned"),
+    "updated_at" = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref."view_id") || jsonb_build_object('isDefault', coalesce(v_pref."is_default", false), 'hidden', coalesce(v_pref."hidden", false), 'pinned', coalesce(v_pref."pinned", false));
+end;
+$$;
+revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
 -- sql.modules.saved-views.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1350,6 +1754,24 @@ as $$ select "better_supabase"."delete_view"($1) $$;
 revoke execute on function "api"."delete_view"(uuid) from public, anon;
 grant execute on function "api"."delete_view"(uuid) to authenticated, service_role;
 
+create or replace function "api"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."duplicate_view"($1, $2, $3, $4) $$;
+revoke execute on function "api"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "api"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_view_preference"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "api"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1371,13 +1793,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('saved-views', 1, 'managed')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_67_saved_views.sql
 -- better-supabase module: saved-views
--- @bs-module saved-views@1 adopt
+-- @bs-module saved-views@2 adopt
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1426,6 +1848,10 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
+drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+using ("user_id" = (select auth.uid()));
+
 
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -1548,9 +1974,11 @@ as $$
     'state', v."state",
     'rank', v."rank",
     'isDefault', v."is_default",
-    'updatedAt', v."updated_at"
+    'updatedAt', v."updated_at",
+    'preference', jsonb_build_object('isDefault', coalesce(p."is_default", false), 'hidden', coalesce(p."hidden", false), 'pinned', coalesce(p."pinned", false))
   ) order by v."rank" collate "C", v."id"), '[]'::jsonb)
   from "better_supabase"."saved_views" v
+  left join "better_supabase"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())
   where v."tenant_id" = list_views.tenant and v."list" = list_views.list
 $$;
 revoke execute on function "better_supabase"."list_views"(uuid, text) from public, anon;
@@ -1653,6 +2081,86 @@ $$;
 revoke execute on function "better_supabase"."delete_view"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_view"(uuid) to authenticated, service_role;
 
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function "better_supabase"."duplicate_view"(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."saved_views";
+begin
+  select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  return "better_supabase"."save_view"(v_row."tenant_id", v_row."list",
+    coalesce(duplicate_view.name, v_row."name"), v_row."kind",
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
+end;
+$$;
+revoke execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."duplicate_view"(uuid, text, text, text) to authenticated, service_role;
+
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function "better_supabase"."set_view_preference"(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row "better_supabase"."saved_views";
+  v_pref "better_supabase"."saved_view_preferences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'a preference needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
+  if not found or not (auth.role() = 'service_role'
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      or (v_row."scope" = 'team' and false)
+      or v_row."scope" = 'tenant'))) then
+    raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
+  end if;
+  if set_view_preference.make_default then
+    update "better_supabase"."saved_view_preferences" p set "is_default" = false, "updated_at" = now()
+    from "better_supabase"."saved_views" o
+    where p."user_id" = v_user and p."is_default" and p."view_id" <> v_row."id"
+      and o."id" = p."view_id"
+      and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";
+  end if;
+  insert into "better_supabase"."saved_view_preferences" as p ("view_id", "user_id", "tenant_id", "is_default", "hidden", "pinned")
+  values (v_row."id", v_user, v_row."tenant_id",
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict ("view_id", "user_id") do update set
+    "is_default" = coalesce(set_view_preference.make_default, p."is_default"),
+    "hidden" = coalesce(set_view_preference.hide, p."hidden"),
+    "pinned" = coalesce(set_view_preference.pin, p."pinned"),
+    "updated_at" = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref."view_id") || jsonb_build_object('isDefault', coalesce(v_pref."is_default", false), 'hidden', coalesce(v_pref."hidden", false), 'pinned', coalesce(v_pref."pinned", false));
+end;
+$$;
+revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1674,6 +2182,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('saved-views', 1, 'adopt')
+values ('saved-views', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
