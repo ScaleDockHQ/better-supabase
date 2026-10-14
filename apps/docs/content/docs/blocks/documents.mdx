@@ -1,0 +1,113 @@
+---
+title: Documents
+description: Collaborative Yjs documents attached to any subject. The database keeps an update log and a compacted snapshot, a private Realtime topic carries live edits and presence, and better-supabase/yjs connects a Y.Doc to both.
+---
+
+`documents` stores [Yjs](https://docs.yjs.dev) documents for any subject: the body of a page, the notes on a deal. Each document is one row per subject and name, an append-only log of Yjs updates, and a snapshot that compaction folds the log into. Editors send each edit to the log and broadcast it on the document's private Realtime topic, so other editors see it at once and a client that was offline catches up from the log.
+
+The database never parses Yjs. It stores the updates as bytes and checks who may read and write: reading needs `documents.read` and the subject's read rules, editing needs `documents.write` and the subject's write rules, and compacting needs the service role or `documents.manage`.
+
+```bash
+better-supabase sql add documents
+pnpm add yjs
+```
+
+```ts
+import * as Y from "yjs";
+import {
+  createDocuments,
+  rpcTransport,
+} from "better-supabase/blocks/documents";
+import { createDocumentProvider } from "better-supabase/yjs";
+
+const documents = createDocuments({ transport: rpcTransport(supabase) });
+const doc = new Y.Doc();
+const provider = createDocumentProvider({
+  documents,
+  client: supabase,
+  doc,
+  ref: { organizationId, subjectType: "page", subjectId: page.id },
+  onPresence: (members) => setEditors(members),
+});
+await provider.connect().orThrow();
+await provider.track({ name: user.name, color: "#0a7" });
+
+// Bind doc to an editor (Tiptap, Lexical, CodeMirror), then on unmount:
+await provider.destroy();
+```
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    documents: {
+      options: {
+        maxUpdateBytes: 262_144,
+        compactAfter: 500,
+      },
+    },
+  },
+},
+```
+
+| Option           | Default           | What it does                                                                                                |
+| ---------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `subjects`       | `config.subjects` | The [subject types](/docs/blocks/sql#subject-registry) documents attach to, with their read and write rules |
+| `topic`          | `documents`       | The Realtime topic prefix; each document's topic is `<topic>:<document id>`                                 |
+| `maxUpdateBytes` | `1048576`         | The largest update `push` accepts (`DOCUMENT_UPDATE_TOO_LARGE` otherwise)                                   |
+| `compactAfter`   | `200`             | The number of updates since the snapshot that enqueues a `documents.compact` job, with the `jobs` module    |
+
+A document is created on the first `open` by someone who may edit the subject; a reader who opens a document that doesn't exist yet gets `DOCUMENT_NOT_FOUND`. Deleting a subject deletes its documents.
+
+## The provider
+
+`createDocumentProvider` from `better-supabase/yjs` connects one `Y.Doc` to one document:
+
+1. `connect()` opens the document, applies the snapshot and the updates after it, and joins the private topic.
+2. Each local edit is stored with `push`, then broadcast with its sequence number. Edits made while a push fails wait and are merged into one update.
+3. When the channel reconnects, the provider pulls the updates after the last one it has and sends the edits that waited. Yjs ignores updates it already applied, so a repeat is harmless.
+
+A reader (`canWrite: false`) receives edits and presence but never pushes. `track(state)` shares a presence state on the topic and `members()` returns everyone from the last sync.
+
+`yjs` is an optional peer. The provider imports it on the first `connect()`, or takes the module as `options.yjs`. It only calls `applyUpdate` and `mergeUpdates`, and listens to the document's `update` event.
+
+## Compaction
+
+Compaction merges the snapshot and the log into one state with `Y.mergeUpdates`, stores it and drops the updates it contains. Run it from the service role, in the `documents.compact` job or a scheduled sweep:
+
+```ts
+import { compactDocument } from "better-supabase/yjs";
+
+const documents = createDocuments({ transport: serviceTransport });
+for (const documentId of await documents.toCompact().orThrow()) {
+  await compactDocument({ documents, documentId }).orThrow();
+}
+```
+
+A client that pulls updates that compaction dropped gets the snapshot back with them, and starts from it.
+
+## Versions
+
+With the [versions](/docs/blocks/versions) module installed, `saveVersion(documentId, state, label)` saves the merged state as a version of subject type `document`, and `versions(documentId)` and `version(documentId, versionId)` read them back. To restore one, apply the saved state to a new `Y.Doc` and replace the editor's content in a transaction, so the restore is an edit that every editor receives.
+
+```ts
+const saved = await documents
+  .saveVersion(document.id, Y.encodeStateAsUpdate(doc), "Sent to legal")
+  .orThrow();
+```
+
+## Errors
+
+| Hint                         | When                                                      |
+| ---------------------------- | --------------------------------------------------------- |
+| `DOCUMENT_NOT_FOUND`         | The document doesn't exist, or the caller may not read it |
+| `DOCUMENT_FORBIDDEN`         | The caller may not edit the document, or compact it       |
+| `DOCUMENT_UPDATE_INVALID`    | The update is empty or not base64                         |
+| `DOCUMENT_UPDATE_TOO_LARGE`  | The update is larger than `maxUpdateBytes`                |
+| `DOCUMENT_COMPACT_INVALID`   | `compact` names a sequence number past the last update    |
+| `DOCUMENT_VERSION_NOT_FOUND` | The version doesn't belong to the document                |
+
+## Events and hooks
+
+`open` records `document.created` with `organizationId`, `subjectType`, `subjectId`, `id` and `name`. The `before_document_create` and `after_document_create` SQL hooks run around the insert.

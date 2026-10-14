@@ -1,0 +1,140 @@
+---
+title: Saved views
+description: Named list views per user, team or organization, with the filter tree, sort, columns, grouping and density checked against the list definition, and useSavedViews for nuqs.
+---
+
+`saved-views` stores named views of a list: a filter tree, a sort, the
+visible columns, the grouping and the density. A view belongs to one user,
+one team or the whole organization, and each of those can have a default
+view that opens first. The client checks a view's query against the list's
+`defineListQuery` definition before it saves it, so a stored view always
+parses.
+
+```bash
+better-supabase sql add saved-views
+```
+
+```ts
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+import { useSavedViews } from "better-supabase/blocks/saved-views/react";
+```
+
+## Scopes and permissions
+
+| Scope    | Who sees it                              | Who can change it                      |
+| -------- | ---------------------------------------- | -------------------------------------- |
+| `user`   | The owner                                | The owner                              |
+| `team`   | Members of the team (the `teams` module) | Members of the team with `views.share` |
+| `tenant` | Everyone in the organization             | Anyone with `views.share`              |
+
+Reading any view needs `views.read`. The default roles give members
+`views.read` and admins `views.*`. Without the `teams` module installed, team
+views can't be created and are never visible.
+
+## Save and list views
+
+Pass the list definitions to `lists` so `save` checks each view's `query`
+with the list's own `parse`. An invalid view returns a `validation` error
+with the issues, prefixed with `query`, and makes no call.
+
+```ts title="lib/views.ts"
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+
+import { tasksList } from "./lists";
+
+export const savedViews = createSavedViews({
+  transport,
+  lists: { tasks: tasksList },
+});
+
+await savedViews
+  .save({
+    organizationId,
+    list: "tasks",
+    name: "Open bugs",
+    kind: "board",
+    scope: "tenant",
+    state: {
+      query: { facets: { status: ["open"] }, sort: "newest" },
+      grouping: ["status"],
+      columns: { visible: ["title", "assignee"], pinned: { left: ["title"] } },
+      density: "compact",
+    },
+  })
+  .orThrow();
+
+const views = await savedViews.list(organizationId, "tasks").orThrow();
+```
+
+`state.query` never stores `page` or `after`, so a view opens on the first
+page. `savedViewStateSchema(tasksList)` returns the JSON Schema of the whole
+state, with `query` taken from the list's `jsonSchema`, for API docs and
+forms.
+
+| Method                    | What it does                                                        |
+| ------------------------- | ------------------------------------------------------------------- |
+| `save(input)`             | Adds a view, or updates `input.id`; resolves to its id and rank key |
+| `list(organizationId, l)` | The caller's views of list `l`, in rank order                       |
+| `reorder(id, neighbors)`  | Moves a view between its neighbours' rank keys                      |
+| `setDefault(id, on)`      | Makes a view the default of its slot, clearing the slot's other one |
+| `delete(id)`              | Deletes a view                                                      |
+
+`defaultView(views)` picks the view to open: the user's default, then a team
+default, then the organization's, then the first view.
+
+| Hint                      | When                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `SAVED_VIEW_INVALID`      | A name, list, kind or scope is out of range, or `state` is not an object |
+| `SAVED_VIEW_FORBIDDEN`    | The caller can't read, share or change the view                          |
+| `SAVED_VIEW_NOT_FOUND`    | The view doesn't exist or isn't visible                                  |
+| `SAVED_VIEW_RANK_INVALID` | `reorder` was given a key that is not a rank key                         |
+
+## Sync with the URL
+
+`useSavedViews` reads and writes the list's nuqs state. It loads the views,
+opens the default view when the URL holds no query, reports which view the
+URL matches, and saves the URL's query as a view.
+
+```tsx title="app/tasks/views-menu.tsx"
+"use client";
+
+import { useQueryStates, createParser } from "nuqs";
+import { useSavedViews } from "better-supabase/blocks/saved-views/react";
+
+import { tasksList } from "@/lib/lists";
+import { listViews, saveView, deleteView } from "./actions";
+
+export function ViewsMenu({ organizationId }: { organizationId: string }) {
+  const [urlState, setUrlState] = useQueryStates(tasksList.nuqs(createParser));
+  const views = useSavedViews({
+    load: () => listViews(organizationId, "tasks"),
+    save: (input) => saveView({ organizationId, list: "tasks", ...input }),
+    remove: deleteView,
+    urlState,
+    setUrlState,
+  });
+  // views.views, views.active, views.isDirty, views.apply(view), views.saveCurrent(name)
+}
+```
+
+`queryFromUrlState` and `urlStateFromQuery` convert between nuqs values and a
+stored query outside React, and `sameQuery` compares two queries while
+ignoring the page and empty facets.
+
+## Events
+
+`save` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
+outbox when it is installed, and call the `before_view_save` and
+`after_view_save` hooks.
+
+## With ReUI
+
+- Filters edits the filter tree a view stores, and Data Grid's column
+  state maps onto `columns` (visibility, order, sizes and pinning).
+- A Select or Tabs list in the toolbar switches views with `apply`, with a
+  dot when `isDirty` is true.
+- `kind` picks the layout: Data Grid, Kanban, Event Calendar or Gantt.
+
+The free `c-data-grid-*` examples show column state, and the Pro data grid
+and filters blocks show a toolbar with saved views. Pro blocks are licensed
+per user, so copy them from [reui.io](https://reui.io).

@@ -36,17 +36,20 @@ export function moduleFiles(recipe: Recipe) {
   ];
 }
 
-/** The recipe's tables and every module file, as one migration. */
+/** The recipe's tables, every module file and its after SQL, as one migration. */
 export function migration(recipe: Recipe): string {
   return [
     recipe.tables,
     ...moduleFiles(recipe).map((file) => file.contents),
+    recipe.after ?? "",
   ].join("\n\n");
 }
 
 export interface User {
   readonly id: string;
+  /** Empty for an anonymous sign-in. */
   readonly email: string;
+  readonly anonymous?: boolean;
 }
 
 /** A connection inside one transaction, acting as a user per call. */
@@ -67,6 +70,17 @@ export class Session {
       [id, email],
     );
     return { id, email };
+  }
+
+  /** A user from an anonymous sign-in: no email, `is_anonymous` in the claims. */
+  async anonymousUser(): Promise<User> {
+    const id = crypto.randomUUID();
+    await this.client.query(
+      `insert into auth.users (id, aud, role, instance_id, is_anonymous)
+       values ($1, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', true)`,
+      [id],
+    );
+    return { id, email: "", anonymous: true };
   }
 
   /** An organization owned by `owner`, with `members` as members. */
@@ -96,11 +110,11 @@ export class Session {
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [
-        JSON.stringify({
-          sub: user.id,
-          role: "authenticated",
-          email: user.email,
-        }),
+        JSON.stringify(
+          user.anonymous
+            ? { sub: user.id, role: "authenticated", is_anonymous: true }
+            : { sub: user.id, role: "authenticated", email: user.email },
+        ),
       ],
     );
     await this.client.query("set local role authenticated");
@@ -161,6 +175,18 @@ export class Session {
 
   /** `SqlClient` for the block transports; each call runs in a savepoint, one at a time. */
   get sql(): SqlClient {
+    return this.sqlClient(false);
+  }
+
+  /**
+   * `SqlClient` for a block's `service` transport: each call runs as the
+   * service role, then the caller's role and claims come back.
+   */
+  get serviceSql(): SqlClient {
+    return this.sqlClient(true);
+  }
+
+  private sqlClient(asService: boolean): SqlClient {
     const client = this.client;
     const run = async <T>(
       text: string,
@@ -168,7 +194,24 @@ export class Session {
     ): Promise<T[]> => {
       await client.query("savepoint call");
       try {
+        const caller = asService
+          ? (
+              await client.query<{ role: string; claims: string }>(
+                "select current_user as role, coalesce(current_setting('request.jwt.claims', true), '') as claims",
+              )
+            ).rows[0]
+          : undefined;
+        if (caller) await this.service();
         const { rows } = await client.query(text, [...params]);
+        if (caller) {
+          await client.query(
+            "select set_config('request.jwt.claims', $1, true)",
+            [caller.claims],
+          );
+          if (caller.role === "authenticated") {
+            await client.query("set local role authenticated");
+          }
+        }
         await client.query("release savepoint call");
         // SAFETY: callers name the row shape of the query they send.
         return rows as T[];
@@ -195,11 +238,35 @@ export async function withRecipe(
 ): Promise<void> {
   const client = await pool.connect();
   try {
-    await client.query("begin");
-    await client.query(migration(recipe));
+    await install(client, migration(recipe));
     await body(new Session(client));
   } finally {
     await client.query("rollback");
     client.release();
+  }
+}
+
+/**
+ * Other suites install modules on the same stack at the same time, and
+ * Postgres resolves a deadlock between two installs by aborting one of
+ * them. The aborted install starts over.
+ */
+async function install(client: PoolClient, sql: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    await client.query("begin");
+    try {
+      // validation-centrakit installs blocks on the same database; concurrent installs deadlock.
+      await client.query(
+        "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
+      );
+      await client.query(sql);
+      return;
+    } catch (error) {
+      await client.query("rollback");
+      if (!(error instanceof DatabaseError) || error.code !== "40P01") {
+        throw error;
+      }
+      if (attempt === 5) throw error;
+    }
   }
 }

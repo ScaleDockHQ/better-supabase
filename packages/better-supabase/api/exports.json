@@ -1497,6 +1497,7 @@
       "BlockOptions",
       "Blocks",
       "BlocksHooks",
+      "BlockSinks",
       "BlockTransport",
       "BlockTransportMiddleware",
       "BlockTransportRequest",
@@ -1546,6 +1547,7 @@
       "AuditPage",
       "AuditRecord",
       "AuditRetentionSource",
+      "AuditReverted",
       "AuditSinkOptions",
       "AuditSort",
       "BlockTransport",
@@ -1930,13 +1932,18 @@
       "BlockEventType",
       "CloudEvent",
       "CloudEventOptions",
+      "CollaborationEventData",
       "CommentEventData",
+      "CommerceEventData",
+      "CommerceSubjectEventData",
       "ConnectorEventData",
       "CredentialEventData",
       "DataExportEventData",
       "DataschemaContext",
       "EventSink",
       "FlagEventData",
+      "FormEventData",
+      "FormSubmissionEventData",
       "ForwardBlockOptions",
       "ForwardOptions",
       "HttpMode",
@@ -1953,13 +1960,17 @@
       "RowEventData",
       "SaasEventData",
       "SaasSubjectEventData",
+      "SchedulingEventData",
       "ScimEventData",
       "SettingEventData",
+      "SignatureEventData",
       "SsoProviderEventData",
       "StorageObjectEventData",
       "SubjectEventData",
       "SubjectEventType",
       "SupportEventData",
+      "TimeEntryEventData",
+      "TimesheetEventData",
       "WaitlistEventData",
       "WebhookEventData",
       "WorkflowEventData",
@@ -2669,6 +2680,20 @@
       "VercelConnectRef"
     ]
   },
+  "./yjs": {
+    "values": [
+      "compactDocument",
+      "createDocumentProvider"
+    ],
+    "types": [
+      "CompactDocumentOptions",
+      "DocumentProvider",
+      "DocumentProviderOptions",
+      "DocumentProviderStatus",
+      "YDocLike",
+      "YjsLike"
+    ]
+  },
   "./better-result": {
     "values": [
       "withBetterResult"
@@ -3365,6 +3390,34 @@
       "TeamsOptions"
     ]
   },
+  "./blocks/undo": {
+    "values": [
+      "createUndo",
+      "dbTransport",
+      "isUndoToken",
+      "rpcTransport",
+      "sqlTransport",
+      "UNDO_FUNCTIONS",
+      "undoToken"
+    ],
+    "types": [
+      "BlockTransport",
+      "Undo",
+      "UndoCall",
+      "UndoOptions",
+      "UndoToken"
+    ]
+  },
+  "./blocks/undo/react": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "UndoEntry",
+      "UndoStack",
+      "UseUndoStackOptions"
+    ]
+  },
   "./blocks/tags": {
     "values": [
       "createTags"
@@ -3457,6 +3510,757 @@
       "RankNeighbors",
       "RankOptions",
       "RankRebalancePayload"
+    ]
+  },
+  "./blocks/saved-views": {
+    "values": [
+      "createSavedViews",
+      "defaultView",
+      "queryFromUrlState",
+      "sameQuery",
+      "SAVED_VIEW_DENSITIES",
+      "SAVED_VIEW_KINDS",
+      "SAVED_VIEW_SCOPES",
+      "savedViewIssues",
+      "savedViewStateSchema",
+      "urlStateFromQuery"
+    ],
+    "types": [
+      "ListUrlState",
+      "SavedView",
+      "SavedViewColumns",
+      "SavedViewDensity",
+      "SavedViewKind",
+      "SavedViewList",
+      "SavedViews",
+      "SavedViewScope",
+      "SavedViewsOptions",
+      "SavedViewState",
+      "SaveViewInput"
+    ]
+  },
+  "./blocks/relations": {
+    "values": [
+      "createRelations",
+      "toGanttTasks",
+      "toTreeItems"
+    ],
+    "types": [
+      "GanttDependency",
+      "GanttDependencyType",
+      "LinkInput",
+      "LinkResult",
+      "Relation",
+      "RelationEdge",
+      "RelationNode",
+      "RelationRollup",
+      "Relations",
+      "RelationsOptions",
+      "RollupInput",
+      "SubjectRef",
+      "TreeItem",
+      "UnlinkInput",
+      "UnlinkResult"
+    ]
+  },
+  "./blocks/bulk": {
+    "values": [
+      "createBulk"
+    ],
+    "types": [
+      "BuiltInBulkAction",
+      "Bulk",
+      "BulkActionArgs",
+      "BulkDrainOptions",
+      "BulkInput",
+      "BulkOptions",
+      "BulkOutcome",
+      "BulkProgress",
+      "BulkResult",
+      "BulkRowResult",
+      "BulkRows",
+      "BulkRun",
+      "BulkStarted",
+      "BulkStatus"
+    ]
+  },
+  "./blocks/saved-views/react": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "SavedViewLike",
+      "SavedViewsState",
+      "UseSavedViewsOptions"
+    ]
+  },
+  "./blocks/search": {
+    "values": [
+      "createSearch",
+      "dbTransport",
+      "rpcTransport",
+      "SEARCH_SINK_DEFAULTS",
+      "searchSink",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Embedder",
+      "PendingEmbedding",
+      "Search",
+      "SearchHit",
+      "SearchListOptions",
+      "SearchOptions",
+      "SearchQuery",
+      "SearchSinkAction",
+      "SearchSinkOptions",
+      "SearchUserItem"
+    ]
+  },
+  "./blocks/search/react": {
+    "values": [
+      "groupHits",
+      "useCommandSearch"
+    ],
+    "types": [
+      "CommandSearchGroup",
+      "CommandSearchItem",
+      "CommandSearchState",
+      "UseCommandSearchOptions"
+    ]
+  },
+  "./blocks/metrics": {
+    "values": [
+      "checkMetric",
+      "compareValues",
+      "createMetrics",
+      "dbTransport",
+      "defineMetric",
+      "METRIC_GRAINS",
+      "METRICS_ROLLUP_QUEUE",
+      "metricsOf",
+      "metricsSink",
+      "previousRange",
+      "rpcTransport",
+      "sqlTransport",
+      "toChartData"
+    ],
+    "types": [
+      "BlockTransport",
+      "Kpi",
+      "MetricChartOptions",
+      "MetricChartRow",
+      "MetricDefinition",
+      "MetricDimension",
+      "MetricGrain",
+      "MetricInfo",
+      "MetricKey",
+      "MetricMeasure",
+      "MetricPoint",
+      "MetricRange",
+      "MetricReadOptions",
+      "Metrics",
+      "MetricSeries",
+      "MetricSeriesOptions",
+      "MetricsOptions",
+      "MetricsRollupRequest",
+      "MetricsSinkOptions",
+      "MetricWhereValue"
+    ]
+  },
+  "./blocks/commerce": {
+    "values": [
+      "addMoney",
+      "allocateMoney",
+      "applyRate",
+      "compareMoney",
+      "CurrencyMismatchError",
+      "fixedRates",
+      "formatMoney",
+      "fromStripeAmount",
+      "invalidPaymentAmount",
+      "invalidTaxCart",
+      "isCurrency",
+      "isMoney",
+      "ISO_4217_MINOR_UNITS",
+      "isRate",
+      "minorUnits",
+      "money",
+      "moneyFromJson",
+      "moneyToJson",
+      "multiplyMoney",
+      "negateMoney",
+      "parseMoney",
+      "paymentProviderOf",
+      "reversalOf",
+      "roundHalfEven",
+      "SHIPPING_LINE",
+      "stripePaymentEvents",
+      "stripePayments",
+      "stripeTax",
+      "subtractMoney",
+      "sumMoney",
+      "taxProviderOf",
+      "toDecimal",
+      "toStripeAmount"
+    ],
+    "types": [
+      "CreatePaymentInput",
+      "FixedRatesOptions",
+      "Money",
+      "MoneyJson",
+      "Payment",
+      "PaymentCallOptions",
+      "PaymentEvent",
+      "PaymentEventType",
+      "PaymentProvider",
+      "PaymentStatus",
+      "Refund",
+      "RefundInput",
+      "RefundStatus",
+      "StripePaymentIntent",
+      "StripePaymentsClient",
+      "StripePaymentsOptions",
+      "StripeRefund",
+      "StripeTaxCalculation",
+      "StripeTaxCalculationLine",
+      "StripeTaxClient",
+      "StripeTaxOptions",
+      "StripeTaxTransaction",
+      "StripeTaxTransactionLine",
+      "TaxAddress",
+      "TaxCallOptions",
+      "TaxCart",
+      "TaxCartLine",
+      "TaxCommitInput",
+      "TaxLine",
+      "TaxProvider",
+      "TaxQuote",
+      "TaxRates",
+      "TaxReverseInput",
+      "TaxTransaction"
+    ]
+  },
+  "./blocks/calendar": {
+    "values": [
+      "calendarEventOf",
+      "createCalendar",
+      "expandOccurrences",
+      "fromEventCalendarUpdate",
+      "parseIcs",
+      "seriesOf",
+      "splitRule",
+      "toEventCalendarEvents",
+      "toEventCalendarResources",
+      "toIcs"
+    ],
+    "types": [
+      "AttendeeResponse",
+      "AttendeeRole",
+      "Calendar",
+      "CalendarAttendee",
+      "CalendarEvent",
+      "CalendarEventInput",
+      "CalendarEventStatus",
+      "CalendarImport",
+      "CalendarInfo",
+      "CalendarOccurrence",
+      "CalendarOptions",
+      "EventCalendarEvent",
+      "EventCalendarOptions",
+      "EventCalendarResource",
+      "IcsEvent",
+      "IcsSource",
+      "OccurrenceMove",
+      "OccurrenceOptions",
+      "OccurrenceRange",
+      "ParsedIcs",
+      "SavedCalendarEvent",
+      "SplitRules",
+      "ToIcsOptions"
+    ]
+  },
+  "./blocks/calendar/react": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "CalendarState",
+      "UseCalendarOptions"
+    ]
+  },
+  "./blocks/bookings": {
+    "values": [
+      "BOOKING_EXPIRE_QUEUE",
+      "bookingOf",
+      "createBookings",
+      "slotsByDay",
+      "toEventCalendarBookings"
+    ],
+    "types": [
+      "Booking",
+      "BookingCustomer",
+      "BookingDuration",
+      "BookingEventOptions",
+      "BookingExceptionInput",
+      "BookingExpirePayload",
+      "BookingRange",
+      "BookingResourceInput",
+      "Bookings",
+      "BookingServiceInput",
+      "BookingSlot",
+      "BookingsOptions",
+      "BookingStatus",
+      "PlacedBooking",
+      "PublicBookingService",
+      "WeeklyHours"
+    ]
+  },
+  "./blocks/bookings/react": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsState",
+      "UseAvailableSlotsOptions"
+    ]
+  },
+  "./blocks/versions": {
+    "values": [
+      "applyPatch",
+      "createPatch",
+      "createVersions",
+      "dbTransport",
+      "jsonEqual",
+      "JsonPatchError",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "JsonPatchOperation",
+      "JsonValue",
+      "RestoreResult",
+      "SnapshotInput",
+      "SnapshotResult",
+      "Version",
+      "VersionListOptions",
+      "Versions",
+      "VersionsOptions",
+      "VersionSource"
+    ]
+  },
+  "./blocks/trash": {
+    "values": [
+      "createTrash",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Trash",
+      "TrashBatch",
+      "TrashItem",
+      "TrashListOptions",
+      "TrashOptions"
+    ]
+  },
+  "./blocks/reactions": {
+    "values": [
+      "createReactions",
+      "dbTransport",
+      "reactionsTopic",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "CustomEmoji",
+      "CustomEmojiInput",
+      "ReactionCount",
+      "Reactions",
+      "ReactionsOptions",
+      "ReactOptions"
+    ]
+  },
+  "./blocks/approvals": {
+    "values": [
+      "createApprovals",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "ApprovalApprovers",
+      "ApprovalDecision",
+      "ApprovalListOptions",
+      "ApprovalRequest",
+      "ApprovalRequestDetail",
+      "ApprovalRequestInput",
+      "Approvals",
+      "ApprovalsOptions",
+      "ApprovalStatus",
+      "ApprovalStep",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/access-requests": {
+    "values": [
+      "createAccessRequests",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AccessRequest",
+      "AccessRequestInput",
+      "AccessRequestListOptions",
+      "AccessRequests",
+      "AccessRequestsOptions",
+      "AccessRequestStatus",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/documents": {
+    "values": [
+      "createDocuments",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "DocumentInfo",
+      "DocumentRef",
+      "Documents",
+      "DocumentsOptions",
+      "DocumentState",
+      "DocumentUpdate",
+      "DocumentVersion",
+      "OpenedDocument"
+    ]
+  },
+  "./blocks/drive": {
+    "values": [
+      "createDrive",
+      "dbTransport",
+      "DRIVE_ROOT",
+      "driveSubject",
+      "driveTree",
+      "fileTypeCategory",
+      "nodeType",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Drive",
+      "DriveBatch",
+      "DriveBinEntry",
+      "DriveConflict",
+      "DriveCrumb",
+      "DriveFile",
+      "DriveFileType",
+      "DriveGrant",
+      "DriveLinkView",
+      "DriveNode",
+      "DriveNodeKind",
+      "DriveOptions",
+      "DrivePage",
+      "DrivePrincipal",
+      "DrivePrincipalType",
+      "DriveRevision",
+      "DriveStoredObject",
+      "DriveTreeData",
+      "DriveUpload",
+      "NewDriveFile",
+      "NewDriveFolder"
+    ]
+  },
+  "./blocks/forms": {
+    "values": [
+      "answersSchema",
+      "conditionHolds",
+      "createForms",
+      "createSignatures",
+      "dbTransport",
+      "finishQuestionnaire",
+      "FORM_DEFINITION_SCHEMA",
+      "FORM_FIELD_TYPES",
+      "FORM_SCHEMA_DIALECT",
+      "formDefinitionProblems",
+      "formSchema",
+      "initialQuestionnaire",
+      "isFormDefinition",
+      "pruneAnswers",
+      "questionnaireReducer",
+      "questionnaireSteps",
+      "rpcTransport",
+      "sqlTransport",
+      "stepIssues",
+      "validateAnswers",
+      "visibleFields",
+      "visibleSteps"
+    ],
+    "types": [
+      "BlockTransport",
+      "Form",
+      "FormAnswers",
+      "FormCondition",
+      "FormDefinition",
+      "FormDetail",
+      "FormField",
+      "FormFieldType",
+      "FormInput",
+      "FormJson",
+      "FormJsonSchema",
+      "FormOption",
+      "Forms",
+      "FormsOptions",
+      "FormStatus",
+      "FormStep",
+      "FormSubmission",
+      "FormSubmissionSource",
+      "FormSubmissionStatus",
+      "FormUpdate",
+      "FormVersion",
+      "PublicForm",
+      "PublicSubmission",
+      "PublicSubmitOptions",
+      "QuestionnaireAction",
+      "QuestionnaireForm",
+      "QuestionnaireState",
+      "QuestionnaireStepView",
+      "Signature",
+      "SignatureMethod",
+      "SignatureOrder",
+      "SignatureRequest",
+      "SignatureRequestDetail",
+      "SignatureRequestInput",
+      "SignatureRequestListOptions",
+      "SignatureRequestStatus",
+      "Signatures",
+      "SignaturesOptions",
+      "SignatureVerification",
+      "SignInput",
+      "SubmissionListOptions",
+      "SubmitOptions"
+    ]
+  },
+  "./blocks/forms/react": {
+    "values": [
+      "useQuestionnaire"
+    ],
+    "types": [
+      "QuestionnaireView",
+      "UseQuestionnaireOptions"
+    ]
+  },
+  "./blocks/time-tracking": {
+    "values": [
+      "createTimeTracking",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport",
+      "TIME_TRACKING_METRIC_EVENTS",
+      "timeEntryMetricTime",
+      "timeTrackingMetrics",
+      "toWeeklyGrid"
+    ],
+    "types": [
+      "BlockTransport",
+      "LogTimeInput",
+      "TimeEntry",
+      "TimeEntryFields",
+      "TimeEntryListOptions",
+      "TimeEntryPatch",
+      "Timesheet",
+      "TimesheetDetail",
+      "TimesheetListOptions",
+      "TimesheetStatus",
+      "TimesheetTotals",
+      "TimeTracking",
+      "TimeTrackingMetrics",
+      "TimeTrackingMetricsOptions",
+      "TimeTrackingOptions",
+      "WeeklyGrid",
+      "WeeklyGridDay",
+      "WeeklyGridEntry",
+      "WeeklyGridOptions",
+      "WeeklyGridRow"
+    ]
+  },
+  "./blocks/reactions/react": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "ReactionsState",
+      "UseReactionsOptions"
+    ]
+  },
+  "./blocks/catalog": {
+    "values": [
+      "catalogSubjects",
+      "createCatalog",
+      "dbTransport",
+      "extendBlock",
+      "PRODUCT_KINDS",
+      "PRODUCT_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Catalog",
+      "CatalogOptions",
+      "CatalogSubjectsOptions",
+      "CategoryInput",
+      "CollectionInput",
+      "OptionInput",
+      "OptionValue",
+      "Price",
+      "PriceInput",
+      "PriceListInput",
+      "ProductInput",
+      "ProductKind",
+      "ProductStatus",
+      "RpcClient",
+      "SavedCategory",
+      "SavedCollection",
+      "SavedOption",
+      "SavedPrice",
+      "SavedProduct",
+      "SavedVariant",
+      "StatusChange",
+      "VariantInput",
+      "VariantPriceOptions"
+    ]
+  },
+  "./blocks/inventory": {
+    "values": [
+      "ADJUST_REASONS",
+      "createInventory",
+      "dbTransport",
+      "extendBlock",
+      "LOCATION_KINDS",
+      "PURCHASE_ORDER_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "AdjustReason",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Inventory",
+      "InventoryOptions",
+      "LocationInput",
+      "LocationKind",
+      "PurchaseOrderInput",
+      "PurchaseOrderLine",
+      "PurchaseOrderStatus",
+      "Receipt",
+      "ReceiptLine",
+      "Reservation",
+      "ReserveInput",
+      "RpcClient",
+      "SavedLocation",
+      "StockChange",
+      "StockCount",
+      "StockLine",
+      "TransferInput"
+    ]
+  },
+  "./blocks/orders": {
+    "values": [
+      "createOrders",
+      "dbTransport",
+      "extendBlock",
+      "FULFILLMENT_STATUSES",
+      "ORDER_METRIC_EVENTS",
+      "ORDER_STATUSES",
+      "orderMetrics",
+      "REFUND_STATUSES",
+      "RETURN_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Address",
+      "AppliedPromotion",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CartDetails",
+      "CartInput",
+      "CartLine",
+      "CartProblem",
+      "Checkout",
+      "CheckoutInput",
+      "Fulfillment",
+      "FulfillmentInput",
+      "FulfillmentStatus",
+      "Invoice",
+      "Order",
+      "OrderLine",
+      "OrderMetrics",
+      "OrderMetricsOptions",
+      "OrderPayment",
+      "OrderRefund",
+      "OrderRefundStatus",
+      "OrderReturn",
+      "Orders",
+      "OrdersOptions",
+      "OrderStatus",
+      "PaymentEventOutcome",
+      "PaymentRecord",
+      "PricedCart",
+      "QuantityLine",
+      "RefundOutcome",
+      "RefundRequest",
+      "ReturnStatus",
+      "RpcClient",
+      "ShippingOption",
+      "ShippingRateInput",
+      "TrackingInput"
+    ]
+  },
+  "./blocks/promotions": {
+    "values": [
+      "createPromotions",
+      "dbTransport",
+      "extendBlock",
+      "PROMOTION_KINDS",
+      "PROMOTION_SCOPES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "AppliedCode",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CodesInput",
+      "PromotionCode",
+      "PromotionDiscount",
+      "PromotionInput",
+      "PromotionKind",
+      "Promotions",
+      "PromotionScope",
+      "PromotionsOptions",
+      "RpcClient"
     ]
   },
   "./blocks/announcements/react": {
@@ -3852,10 +4656,12 @@
       "testGraphCompiler",
       "testIncomingDestination",
       "testNotificationChannel",
+      "testPaymentProvider",
       "testPlugin",
       "testQueueBackend",
       "testStreamStore",
       "testSupportSessionStore",
+      "testTaxProvider",
       "testWebhookSecretStore",
       "testWebhookSigner",
       "testWebhookTransport"
@@ -3906,11 +4712,13 @@
       "TestIncomingDestinationOptions",
       "TestJwtClaims",
       "TestNotificationChannelOptions",
+      "TestPaymentProviderOptions",
       "TestPluginOptions",
       "TestQueueBackendOptions",
       "TestSigner",
       "TestStreamStoreOptions",
       "TestSupportSessionStoreOptions",
+      "TestTaxProviderOptions",
       "TestUser",
       "TestWebhookSecretStoreOptions",
       "TestWebhookSignerOptions",

@@ -31,5 +31,7 @@ export const NOTIFICATION_TYPES = {
   "subject.moved": subject,
   "subject.shared": subject,
   "subject.field_changed": subject,
+  "order.paid": subject,
+  "order.shipped": subject,
   "reminder.due": reminderDue,
 };

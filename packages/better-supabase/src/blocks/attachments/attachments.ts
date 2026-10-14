@@ -175,7 +175,8 @@ function statusOf(value: unknown): AttachmentStatus {
   return status;
 }
 
-function attachmentOf(value: unknown): Attachment {
+/** An attachments row, as `get_attachment` and `create_attachment` return it. */
+export function attachmentOf(value: unknown): Attachment {
   const row = recordOf(value, "attachments");
   return {
     id: textOf(row["id"]),
@@ -202,7 +203,8 @@ const notFound = (): DbError =>
     hint: "ATTACHMENT_NOT_FOUND",
   });
 
-function stored<T>(
+/** A Storage reply as a result, its error mapped to a `DbError`. */
+export function stored<T>(
   reply: PromiseLike<StorageReply<T>>,
 ): AsyncResult<NonNullable<T>> {
   return AsyncResult.from(async () => {

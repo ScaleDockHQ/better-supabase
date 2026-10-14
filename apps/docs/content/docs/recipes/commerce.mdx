@@ -1,0 +1,325 @@
+---
+title: Commerce
+description: A store with a catalog imported from CSV, stock, carts on anonymous sign-ins, promotion codes, checkout, invoices and shipping.
+---
+
+A visitor fills a cart before signing in, applies a code and checks out
+once they sign in. The catalog prices the cart, promotions take their
+discount, inventory reserves the stock, and the order gets a gapless order
+number and, once paid, an invoice number. The people watching the order
+hear when it is paid and when it ships. Revenue, average order value and
+units sold chart from paid orders, and a large refund waits for an admin to
+approve it.
+
+## Tables
+
+The catalog, stock, carts, orders and promotions are module tables, so the
+app adds none of its own. Orders are subjects of type `order`: their events
+carry `subjectType: "order"` and the order id, so `watcherHandler` and
+`notifications.subscribe` work on them like on any app row. Registering
+`order` in `subjects` lets approvals file requests on orders.
+
+Two pieces of app SQL read the module tables, so they go in a schema file
+that runs after the modules. Order lines carry no time, so units sold reads
+them through a view that joins each line to its order's `paid_at`. The
+`after_refund_create` hook runs in the transaction that records a refund
+and refuses one above 50.00 unless the order's latest `refund` request was
+approved:
+
+```sql title="supabase/schemas/commerce.sql"
+create schema store;
+grant usage on schema store to authenticated, service_role;
+create view store.units_sold with (security_invoker = true) as
+  select l.tenant_id, o.paid_at, l.quantity
+  from better_supabase.order_lines l
+  join better_supabase.orders o on o.id = l.order_id;
+grant select on store.units_sold to authenticated, service_role;
+
+create function public.after_refund_create(refund uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_refund record;
+begin
+  select r.order_id, r.amount into v_refund
+  from better_supabase.order_refunds r where r.id = refund;
+  if v_refund.amount > 5000
+    and not better_supabase.is_approved('order', v_refund.order_id::text, 'refund') then
+    raise exception 'a refund above 50.00 needs an approved refund request'
+      using errcode = '42501', hint = 'REFUND_APPROVAL_REQUIRED';
+  end if;
+end;
+$$;
+revoke execute on function public.after_refund_create(uuid) from public, anon, authenticated;
+```
+
+## Config
+
+```ts title="src/metrics.ts"
+import { defineMetric } from "better-supabase/blocks/metrics";
+import { orderMetrics } from "better-supabase/blocks/orders";
+
+export const metrics = [
+  ...orderMetrics({ currency: "EUR" }),
+  defineMetric({
+    key: "units_sold",
+    label: "Units sold",
+    table: "store.units_sold",
+    tenant: "tenant_id",
+    measure: { sum: "quantity" },
+    timeColumn: "paid_at",
+  }),
+] as const;
+```
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+import { metrics } from "./src/metrics";
+
+export default defineConfig({
+  subjects: {
+    order: {
+      table: "better_supabase.orders",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "number",
+    },
+  },
+  sql: {
+    modules: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      catalog: {},
+      inventory: {},
+      imports: {},
+      "number-sequences": {
+        options: {
+          entities: {
+            order: { period: "none", format: "SO-{n:4}" },
+            invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
+          },
+        },
+      },
+      orders: {},
+      promotions: {},
+      metrics: { options: { metrics } },
+      approvals: {
+        options: {
+          policies: {
+            order: { refund: { steps: [{ approvers: { role: "admin" } }] } },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+An unpaid order has no `paid_at`, so it falls outside every bucket.
+`orders` needs `catalog`, and `promotions` needs `orders`; `sql add` adds
+them when the config leaves them out. Name `inventory` yourself: without it
+orders reserve no stock. The `order` and `invoice` entities give the order
+and invoice numbers.
+
+## The blocks
+
+`orders` takes the payment and tax providers. The service transport merges
+carts and records payment events; everything else runs as the caller, so
+the policies apply:
+
+```ts title="lib/store.ts"
+import { fixedRates, stripePayments } from "better-supabase/blocks/commerce";
+import { createOrders } from "better-supabase/blocks/orders";
+import { createPromotions } from "better-supabase/blocks/promotions";
+
+export const orders = createOrders({
+  transport,
+  service,
+  payments: stripePayments({
+    stripe: { secretKey: env.STRIPE_SECRET_KEY },
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  }),
+  tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
+});
+export const promotions = createPromotions({ transport });
+```
+
+## Importing the catalog
+
+An import reads the product CSV and writes each batch through the catalog
+block, so a product gets the same checks as one made in the admin. The row
+key is the SKU, so a rerun skips what already imported:
+
+```ts title="lib/imports/products.ts"
+import { defineImport } from "better-supabase/blocks/imports";
+import { money } from "better-supabase/blocks/commerce";
+
+export const products = defineImport({
+  kind: "products",
+  columns: productRow,
+  key: (row) => row.sku,
+  async insert(batch, { organizationId }) {
+    for (const row of batch) {
+      const product = await catalog
+        .createProduct(organizationId, { title: row.title })
+        .orThrow();
+      await catalog.setProductStatus(product.id, "active").orThrow();
+      const variant = await catalog
+        .createVariant(product.id, { sku: row.sku })
+        .orThrow();
+      await catalog
+        .setPrice(variant.id, { amount: money(BigInt(row.price), "EUR") })
+        .orThrow();
+    }
+  },
+});
+```
+
+## From cart to shipment
+
+<Steps>
+
+### Shop anonymously
+
+The storefront signs the visitor in with `supabase.auth.signInAnonymously()`,
+then keeps their cart:
+
+```ts
+const cart = await orders
+  .createCart(organizationId, { currency: "EUR" })
+  .orThrow();
+await orders.addToCart(cart.id, variantId, 2).orThrow();
+await promotions.applyCode(cart.id, "WELCOME10").orThrow();
+```
+
+### Merge on sign-in
+
+When the visitor signs in to an account, the auth callback route moves the
+anonymous user's cart to the account. A cart the account already had in the
+same currency takes the lines, adding up quantities, and the promotion
+codes:
+
+```ts title="app/auth/callback/route.ts"
+await orders.mergeCarts(anonymousUserId, user.id).orThrow();
+```
+
+### Check out
+
+`priceCart` shows the discount and any problem that blocks checkout, such
+as a code that no longer applies. `checkout` places the order, reserves the
+stock, redeems the promotions and creates the payment with an idempotency
+key, so a retry returns the same order and payment. Once the payment
+succeeds, the reservations turn into `sale` movements and the order gets
+its invoice number:
+
+```ts
+const { order, payment } = await orders.checkout(cart.id).orThrow();
+```
+
+### Ship
+
+Staff create and ship a fulfillment:
+
+```ts
+const fulfillment = await orders.createFulfillment(order.id).orThrow();
+await orders.shipFulfillment(fulfillment.id, { carrier: "PostNL" }).orThrow();
+```
+
+### Refund
+
+A refund up to 50.00 goes through at once. A larger one fails with
+`REFUND_APPROVAL_REQUIRED` until an admin approves a `refund` request on the
+order:
+
+```ts
+const refund = await orders.refund(order.id);
+if (!refund.ok && refund.error.hint === "REFUND_APPROVAL_REQUIRED") {
+  await approvals
+    .request({
+      organizationId,
+      subjectType: "order",
+      subjectId: order.id,
+      action: "refund",
+      reason,
+    })
+    .orThrow();
+}
+```
+
+Once the request is approved, the same `orders.refund(order.id)` call
+succeeds.
+
+</Steps>
+
+## Metrics
+
+Relay `order.placed` and `order.paid` to the metrics sink so the charts
+include an order as soon as it is placed and paid, and run `metrics.job` on a schedule for late changes.
+`createBlocks` builds the sink from `metricEvents`:
+
+```ts title="app/api/outbox/route.ts"
+const app = createBlocks(
+  {
+    transport: service,
+    metricEvents: {
+      ...ORDER_METRIC_EVENTS,
+      "order.paid": [...ORDER_METRIC_EVENTS["order.paid"], "units_sold"],
+    },
+  },
+  { metrics: (options) => createMetrics({ ...options, metrics }) },
+);
+
+export const GET = outbox.relayRoute({
+  secret: process.env.CRON_SECRET,
+  consumers: { ...app.sinks },
+});
+```
+
+Stat cards read `kpi("revenue", range, { organizationId })` and charts read
+`series`, as the caller.
+
+## Event flow
+
+| What happens         | Call                            | Event                 | Watchers get    |
+| -------------------- | ------------------------------- | --------------------- | --------------- |
+| The order is paid    | `orders.checkout(cartId)`       | `order.paid`          | `order.paid`    |
+| A code is redeemed   | `orders.checkout(cartId)`       | `promotion.redeemed`  |                 |
+| The order ships      | `orders.shipFulfillment(id)`    | `fulfillment.shipped` | `order.shipped` |
+| The catalog imported | `runImport(products, csv, ...)` | `import.completed`    |                 |
+| A refund is approved | `approvals.approve(requestId)`  | `approval.approved`   |                 |
+
+```ts title="app/api/cron/watchers/route.ts"
+const watchers = watcherHandler(notifications, {
+  types: {
+    "order.paid": "order.paid",
+    "fulfillment.shipped": "order.shipped",
+  },
+});
+```
+
+`promotion.redeemed` has no subject, so it goes to a consumer of its own,
+such as a marketing sink, instead of to watchers.
+
+## Not included yet
+
+Approval for large discounts, product search and saved views for the order
+grid come with their blocks, but the recipe doesn't wire them yet.
+
+## With ReUI
+
+- Product grid and product detail for the storefront, from the catalog's
+  products, variants and prices.
+- Shopping cart and coupon for the cart, from `priceCart` and
+  `promotions.applyCode`.
+- `checkout-2` for checkout, with the payment's `clientSecret`.
+- Receipt for the order page, with the order and invoice numbers.
+- The inventory blocks for stock levels, from `inventory`.
+- Stat cards and charts for revenue, average order value and units sold,
+  from `metrics.kpi` and `metrics.series`.
+
+Pro ecommerce blocks are licensed per user; copy them from
+[reui.io](https://reui.io).

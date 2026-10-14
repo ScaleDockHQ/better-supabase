@@ -5,6 +5,7 @@ import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
+import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
@@ -15,45 +16,62 @@ import { AI_PROVIDERS } from "./modules/ai-providers.ts";
 import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
+import { APPROVALS } from "./modules/approvals.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
+import { BOOKINGS } from "./modules/bookings.ts";
+import { BULK } from "./modules/bulk.ts";
+import { CALENDAR } from "./modules/calendar.ts";
+import { CATALOG } from "./modules/catalog.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DOCUMENTS } from "./modules/documents.ts";
+import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
+import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { MEMORY } from "./modules/memory.ts";
+import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
+import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PROFILES } from "./modules/profiles.ts";
+import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
+import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
+import { SAVED_VIEWS } from "./modules/saved-views.ts";
+import { SEARCH } from "./modules/search.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
+import { SIGNATURES } from "./modules/signatures.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
@@ -62,9 +80,12 @@ import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TENANT } from "./modules/tenant.ts";
+import { TIME_TRACKING } from "./modules/time-tracking.ts";
+import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
+import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
@@ -165,11 +186,40 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IMPORTS),
       built(SUBJECTS),
       built(RANK),
+      built(SAVED_VIEWS),
+      built(RELATIONS),
+      built(BULK),
+      built(SEARCH),
+      built(METRICS),
+      built(CALENDAR),
+      built(BOOKINGS),
+      built(VERSIONS),
+      built(TRASH),
+      built(REACTIONS),
+      built(APPROVALS),
+      built(ACCESS_REQUESTS),
+      built(DOCUMENTS),
+      built(CATALOG),
+      built(INVENTORY),
+      built(DRIVE),
+      built(DRIVE_FILES),
+      built(ORDERS),
+      built(PROMOTIONS),
+      built(FORMS),
+      built(SIGNATURES),
+      built(TIME_TRACKING),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
 
 export const ORDER: readonly string[] = Object.keys(SQL_MODULES);
+
+/** Where a module renders: its own position, or just ahead of `before`. */
+function renderPosition(module: SqlModule): number {
+  return module.before === undefined
+    ? ORDER.indexOf(module.name)
+    : ORDER.indexOf(module.before) - 0.5;
+}
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveModules });
 
@@ -192,7 +242,7 @@ export function resolveModules(
     ordered.push(module);
   };
   for (const name of names) visit(name);
-  return ordered.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
+  return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 
 /** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */

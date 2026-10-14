@@ -15,3 +15,6 @@ pnpm-lock.yaml linguist-generated=true
 apps/examples/**/lib/supabase/generated.ts linguist-generated=true
 tests/validation-*/src/generated.ts linguist-generated=true
 packages/better-supabase/api/** linguist-generated=true
+
+# Vendored upstream bytes; ISO 4217 List One ships with CRLF line endings.
+packages/better-supabase/tests/standards/schemas/*.xml -text

@@ -1,0 +1,256 @@
+---
+title: Bookings
+description: Bookable resources with weekly hours, services with buffers, open slots computed in SQL, holds that expire, double bookings refused by an exclusion constraint, and public booking through a share link.
+---
+
+`bookings` lets customers book time on a resource: a person, a room or a
+piece of equipment. Postgres computes the open slots, and an exclusion
+constraint refuses two bookings that overlap on the same seat, so a race
+between two customers can never double-book.
+
+```bash
+better-supabase sql add bookings
+```
+
+```ts
+import { createBookings } from "better-supabase/blocks/bookings";
+```
+
+The module requires `tenant` and `access`, and installs the `btree_gist`
+extension in the `extensions` schema for its exclusion constraint (see
+[ADR 0023](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0023-bookings-btree-gist.md)).
+With `jobs` a hold expires itself, with `share-links` and `rate-limit`
+guests book through a link, with `calendar` confirmed bookings appear on the
+resource's calendar, with `reminders` customers get reminders, and with
+`outbox` its events are recorded.
+
+## Tables
+
+| Table                  | Holds                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`    |
+| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                     |
+| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                |
+| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice` |
+| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer  |
+
+Each booking also stores `blocked`, its `during` widened by the service's
+buffers. The constraint is on that range:
+
+```sql
+constraint bookings_no_overlap exclude using gist
+  (resource_id with =, seat with =, blocked with &&)
+  where (status <> 'cancelled')
+```
+
+A resource with a `capacity` of 3 has seats 1 to 3, and each seat takes one
+booking at a time. Members read through the tables' policies, and a customer
+always sees their own bookings. Every write goes through a function: resources,
+hours and services need `bookings.manage`; members book with `bookings.create`
+and read with `bookings.read`.
+
+## Resources and services
+
+```ts
+const bookings = createBookings({ transport, service: serviceTransport });
+
+const { id: resourceId } = await bookings
+  .saveResource(organizationId, {
+    name: "Ann",
+    kind: "staff",
+    tz: "Europe/Amsterdam",
+  })
+  .orThrow();
+
+await bookings
+  .setAvailability(resourceId, [
+    { weekday: 1, start: "09:00", end: "17:00" },
+    { weekday: 2, start: "09:00", end: "17:00" },
+  ])
+  .orThrow();
+
+const { id: serviceId } = await bookings
+  .saveService(organizationId, {
+    name: "Haircut",
+    duration: Temporal.Duration.from({ minutes: 30 }),
+    bufferAfter: "PT15M",
+    resourceKinds: ["staff"],
+  })
+  .orThrow();
+```
+
+Hours are wall-clock times in the resource's zone, so 09:00 stays 09:00 across
+a daylight saving change. `addException` closes a range (a holiday, a
+dentist appointment) or, with `available: true`, opens one outside the weekly
+hours. Durations take a `Temporal.Duration` or an ISO 8601 string.
+
+## Slots
+
+`available_slots(service, range_start, range_end, tz)` is a SQL function, and
+`availableSlots` calls it. It builds each resource's open windows from its
+hours and exceptions, steps through them by the service's `step` (default its
+duration), and keeps the slots where the slot plus its buffers fits and a seat
+is free. Slots start no sooner than `min_notice` from now, and one call covers
+at most 62 days.
+
+```ts
+const slots = await bookings
+  .availableSlots(
+    serviceId,
+    {
+      from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
+      until: Temporal.Instant.from("2030-03-11T00:00:00Z"),
+    },
+    { tz: "America/New_York" },
+  )
+  .orThrow();
+// [{ resourceId, startsAt, endsAt, localStart, seats }, ...]
+```
+
+`localStart` is the start in the zone you pass, else the resource's zone.
+`slotsByDay(slots)` groups them by local date for a day-by-day picker.
+
+## Holds and confirmation
+
+`hold` reserves a slot for the service's `holdFor` (default 10 minutes) while
+the customer finishes, and `confirm` books it. `hold(..., { confirm: true })`
+books in one step. A member books for themselves, with their email filled in;
+a manager can book for any customer.
+
+```ts
+const held = await bookings
+  .hold(serviceId, slot.resourceId, slot.startsAt, { name: "Bo" })
+  .orThrow();
+
+await bookings.confirm(held.id).orThrow();
+await bookings.cancel(held.id, "Ill").orThrow();
+```
+
+The function checks the slot again before it inserts, and the constraint
+settles a race: the second caller gets `BOOKING_SLOT_UNAVAILABLE`. Each new
+booking also returns an `accessToken`, shown once and stored hashed, that
+confirms or cancels it without signing in, for a link in a confirmation email.
+
+With `jobs` installed, each hold enqueues a job on `bookings.expire-holds` that
+runs when the hold ends. Add the handler to your drain route:
+
+```ts
+import { BOOKING_EXPIRE_QUEUE } from "better-supabase/blocks/bookings";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { [BOOKING_EXPIRE_QUEUE]: bookings.job },
+});
+```
+
+`expireHolds()` (service only) cancels every hold whose time is up and records
+`booking.expired`. A new hold on the same time also clears an expired hold
+first, so a missed job never blocks a slot.
+
+When a booking is confirmed and the `calendar` block is installed, it is copied
+into the resource's `calendar_id` with the uid `booking-<id>`. With `reminders`,
+a customer with a user id gets a reminder for each of the service's
+`reminderOffsets` (minutes before the start, default one day). Cancelling
+removes both.
+
+| Method                                   | Does                                                                    |
+| ---------------------------------------- | ----------------------------------------------------------------------- |
+| `saveResource(organizationId, input)`    | Inserts a resource, or updates the one with `input.id`                  |
+| `setAvailability(resourceId, hours)`     | Replaces the weekly hours                                               |
+| `addException`, `deleteException`        | Closes or opens a range                                                 |
+| `saveService(organizationId, input)`     | Inserts a service, or updates the one with `input.id`                   |
+| `availableSlots(serviceId, range, opts)` | The open slots, optionally for one `resourceId` and in a `tz`           |
+| `hold(serviceId, resourceId, at, ...)`   | Holds a slot, or books it with `confirm`                                |
+| `confirm(id)`, `cancel(id, reason)`      | Confirms a live hold, or cancels a hold or booking                      |
+| `list(organizationId, range, opts)`      | The bookings that overlap the range, as the caller's policies allow     |
+| `expireHolds()`, `job`                   | Cancels expired holds; `job` is the handler for `bookings.expire-holds` |
+
+## Public booking
+
+With `share-links` installed, a share link to a service (`subjectType:
+"booking_service"`) is a public booking page. The `public_*` functions are open
+to `anon`, hash the token before the lookup, and refuse a revoked, expired or
+unknown token, or a link whose organization is not the service's. A guest
+must give a name and an email.
+
+```ts
+const link = await shareLinks
+  .create(organizationId, "booking_service", serviceId, "view")
+  .orThrow();
+
+// On the public page, signed out:
+const service = await bookings.public.service(token).orThrow();
+const slots = await bookings.public.slots(token, range).orThrow();
+const held = await bookings.public
+  .hold(token, slot.resourceId, slot.startsAt, { name, email })
+  .orThrow();
+await bookings.public.confirm(held.id, held.accessToken).orThrow();
+```
+
+With `rate-limit` installed, every public call counts against the scope
+`bookings.public`, keyed by the link and the first `x-forwarded-for` address.
+The default is 30 calls a minute; set your own rule with
+`better_supabase.set_rate_limit('bookings.public', 10)`. Over the limit a call
+returns a `rate_limited` error with the seconds to wait.
+
+## React
+
+`useAvailableSlots` loads the open slots of a visible range and holds one. It
+is typed structurally, so it needs no UI library. Pass `token` on a public page.
+
+```tsx
+"use client";
+
+import { useAvailableSlots } from "better-supabase/blocks/bookings/react";
+
+const slots = useAvailableSlots({ serviceId, range: { start, end } });
+
+slots.days.get("2030-03-04")?.map((slot) => (
+  <button key={String(slot.startsAt)} onClick={() => slots.hold(slot)}>
+    {slot.localStart.toPlainTime().toString({ smallestUnit: "minute" })}
+  </button>
+));
+```
+
+`toEventCalendarBookings(bookings)` turns bookings into resource-view events
+for the staff side: each sits on its resource's row, holds are read-only and
+cancelled bookings are left out.
+
+## Hooks
+
+`before_booking_reserve(tenant, service, resource, during, customer)` runs before a booking is
+placed and can raise to refuse it. `after_booking_reserve(booking)`,
+`after_booking_confirm(booking)` and `after_booking_cancel(booking)` run after
+the change. See [block hooks](/docs/extending/blocks#hooks).
+
+## Errors
+
+| Hint                         | When                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `BOOKING_FORBIDDEN`          | The caller lacks the permission, or the access token does not match                                              |
+| `BOOKING_SLOT_UNAVAILABLE`   | The slot is outside the hours, too soon, not served by the resource's kind, or every seat is taken (`exclusion`) |
+| `BOOKING_HOLD_EXPIRED`       | Confirming a hold whose time is up, or a cancelled booking                                                       |
+| `BOOKING_STATUS_INVALID`     | A status other than `confirmed` or `cancelled`                                                                   |
+| `BOOKING_NOT_FOUND`          | The booking does not exist                                                                                       |
+| `BOOKING_RESOURCE_NOT_FOUND` | The resource does not exist, is inactive, or is in another organization                                          |
+| `BOOKING_SERVICE_NOT_FOUND`  | The service does not exist or is inactive                                                                        |
+| `BOOKING_TZ_INVALID`         | `tz` is not an IANA time zone                                                                                    |
+| `BOOKING_RANGE_INVALID`      | The range is empty or longer than 62 days                                                                        |
+| `BOOKING_LINK_INVALID`       | The share link is unknown, revoked, expired, or for another subject                                              |
+| `BOOKING_CUSTOMER_INVALID`   | A guest booking without a name or a valid email                                                                  |
+| `BOOKING_RATE_LIMITED`       | Too many public calls (`rate_limited`)                                                                           |
+
+Reschedule by cancelling and booking the new time. Availability is weekly
+hours plus exceptions; there is no RRULE for hours, and no deposit through the
+billing block yet.
+
+## With ReUI
+
+ReUI's Time Picker renders `useAvailableSlots`' slots, with taken times
+disabled; the free example `c-time-picker-7` shows 30-minute slots with
+booked times greyed out, and `c-calendar-27` pairs a date picker with time
+slots. For the staff side, the Event Calendar's resource view renders
+`toEventCalendarBookings`. The Pro blocks in the `application/schedule`
+category build full booking pages, such as a Calendly-style month calendar
+with a slot picker; their source is licensed per user, so copy them into your
+app from [reui.io](https://reui.io).

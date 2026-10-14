@@ -27,6 +27,10 @@ import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts"
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
+import { useReactions } from "../../src/blocks/reactions/react/index.ts";
+import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
+import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
+import { undoToken } from "../../src/blocks/undo/undo.ts";
 import {
   useWorkflowBuilder,
   useWorkflowCanvasRun,
@@ -1252,6 +1256,79 @@ describe("useAnnouncements", () => {
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.error?.message).toBe("offline");
+    view.unmount();
+  });
+});
+
+describe("useReactions", () => {
+  it("loads, toggles and reloads when a watched subject changes", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let counts = [{ emoji: "👍", count: 1, reacted: false, actors: ["u2"] }];
+    const rpc = withRpc(client, (fn, args) => {
+      if (fn === "react") {
+        return [
+          {
+            emoji: args["emoji"],
+            count: args["present"] ? 2 : 0,
+            reacted: args["present"],
+            actors: [],
+          },
+        ];
+      }
+      return { c1: counts, c2: [] };
+    });
+    const view = renderHook(
+      () =>
+        useReactions({
+          organizationId: "org-1",
+          subjectType: "comment",
+          subjectIds: ["c1", "c2"],
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.reactions?.["c1"]?.[0]?.count).toBe(1);
+    expect(rpc).toHaveBeenCalledWith("reaction_summary", {
+      tenant: "org-1",
+      subject_type: "comment",
+      subject_ids: ["c1", "c2"],
+    });
+
+    await view.result.toggle("c1", "👍");
+    expect(rpc).toHaveBeenLastCalledWith("react", {
+      tenant: "org-1",
+      subject_type: "comment",
+      subject_id: "c1",
+      emoji: "👍",
+      present: true,
+      actor: null,
+    });
+    expect(view.result.reactions?.["c1"]?.[0]).toMatchObject({
+      count: 2,
+      reacted: true,
+    });
+    await view.result.toggle("c1", "👍");
+    expect(rpc).toHaveBeenLastCalledWith(
+      "react",
+      expect.objectContaining({ present: false }),
+    );
+
+    const calls = rpc.mock.calls.length;
+    emit("reactions:org-1", "changed", {
+      subjectType: "comment",
+      subjectId: "other",
+    });
+    await flush();
+    expect(rpc.mock.calls.length).toBe(calls);
+    counts = [{ emoji: "🎉", count: 1, reacted: false, actors: ["u3"] }];
+    emit("reactions:org-1", "changed", {
+      subjectType: "comment",
+      subjectId: "c2",
+    });
+    await flush();
+    expect(view.result.reactions?.["c1"]?.[0]?.emoji).toBe("🎉");
     view.unmount();
   });
 });
@@ -2862,5 +2939,144 @@ describe("powersync/react", () => {
     expect(view.result.changes).toHaveLength(1);
     view.result.dismiss();
     expect(view.result.changes).toEqual([]);
+  });
+});
+
+describe("useSavedViews", () => {
+  const views = [
+    {
+      id: "all",
+      name: "All",
+      scope: "tenant" as const,
+      isDefault: false,
+      state: {},
+    },
+    {
+      id: "open",
+      name: "Open",
+      scope: "user" as const,
+      isDefault: true,
+      state: { query: { facets: { status: ["open"] }, sort: "name" } },
+    },
+  ];
+
+  it("opens the default view, tracks the active one and saves the URL", async () => {
+    let urlState: Record<string, unknown> = {
+      q: null,
+      sort: null,
+      page: null,
+      status: null,
+    };
+    const setUrlState = vi.fn((next: Record<string, unknown>) => {
+      urlState = { ...urlState, ...next };
+    });
+    const save = vi.fn(async () => undefined);
+    const remove = vi.fn(async () => undefined);
+    const load = vi.fn(async () => views);
+    const view = renderHook(
+      () => useSavedViews({ load, save, remove, urlState, setUrlState }),
+      undefined,
+      null,
+    );
+    expect(view.result.views).toBeUndefined();
+    await flush();
+    expect(setUrlState).toHaveBeenCalledWith({
+      q: null,
+      sort: "name",
+      page: null,
+      status: ["open"],
+    });
+    view.rerender(undefined);
+    expect(view.result.active?.id).toBe("open");
+    expect(view.result.isDirty).toBe(false);
+
+    urlState = { ...urlState, q: "bug" };
+    view.rerender(undefined);
+    expect(view.result.active).toBeUndefined();
+    expect(view.result.isDirty).toBe(true);
+    await view.result.saveCurrent("Bugs");
+    expect(save).toHaveBeenCalledWith({
+      name: "Bugs",
+      query: { q: "bug", sort: "name", facets: { status: ["open"] } },
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+
+    view.result.apply(views[0]!);
+    view.rerender(undefined);
+    expect(urlState).toMatchObject({ q: null, sort: null, status: null });
+    expect(view.result.active?.id).toBe("all");
+    await view.result.remove("all");
+    expect(remove).toHaveBeenCalledWith("all");
+    expect(view.result.isDirty).toBe(false);
+  });
+
+  it("leaves a URL with a query alone and reports load errors", async () => {
+    const setUrlState = vi.fn();
+    const load = vi
+      .fn<() => Promise<typeof views>>()
+      .mockResolvedValueOnce(views)
+      .mockRejectedValueOnce(new Error("down"));
+    const view = renderHook(
+      () =>
+        useSavedViews({
+          load,
+          urlState: { q: "x", status: null },
+          setUrlState,
+        }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(setUrlState).not.toHaveBeenCalled();
+    await view.result.refresh();
+    expect(view.result.error).toEqual(new Error("down"));
+    await expect(view.result.saveCurrent("x")).rejects.toThrow("pass `save`");
+    await expect(view.result.remove("x")).rejects.toThrow("pass `remove`");
+  });
+});
+
+describe("useUndoStack", () => {
+  const token = (entry: string) =>
+    undoToken([{ fn: "revert_audit_entries", args: { entries: [entry] } }]);
+
+  it("keeps the newest tokens and applies them last in, first out", async () => {
+    const apply = vi.fn(async () => undefined);
+    const view = renderHook(
+      () => useUndoStack({ apply, limit: 2 }),
+      undefined,
+      null,
+    );
+    const { push } = view.result;
+    push(token("1"), "first");
+    push(null, "no inverse");
+    push(token("2"), "second");
+    push(token("3"), "third");
+    view.rerender(undefined);
+    expect(view.result.entries.map((entry) => entry.label)).toEqual([
+      "second",
+      "third",
+    ]);
+    expect(view.result.canUndo).toBe(true);
+
+    expect(await view.result.undo()).toBe(true);
+    expect(apply).toHaveBeenCalledWith(token("3"));
+    view.rerender(undefined);
+    expect(view.result.entries.map((entry) => entry.label)).toEqual(["second"]);
+    view.result.clear();
+    view.rerender(undefined);
+    expect(view.result.canUndo).toBe(false);
+    expect(await view.result.undo()).toBe(false);
+  });
+
+  it("drops a token whose undo failed and reports the error", async () => {
+    const apply = vi.fn(async () => {
+      throw new Error("ROW_CHANGED_SINCE");
+    });
+    const view = renderHook(() => useUndoStack({ apply }), undefined, null);
+    view.result.push(token("1"), "moved");
+    expect(await view.result.undo()).toBe(false);
+    view.rerender(undefined);
+    expect(view.result.entries).toEqual([]);
+    expect(view.result.error).toEqual(new Error("ROW_CHANGED_SINCE"));
   });
 });

@@ -1,0 +1,6628 @@
+-- ==== alone: schema supabase/schemas/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module catalog@1 managed
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Products with options, variants and prices in minor units, plus
+-- categories, collections, price lists and an optional public storefront.
+create or replace function "better_supabase"."currency_minor_units"(code text)
+returns integer
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
+$$;
+grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+create table if not exists "better_supabase"."products" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "title" text not null check (length("title") between 1 and 500),
+  "description" text,
+  "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
+  "status" text not null default 'draft',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
+alter table "better_supabase"."products" enable row level security;
+revoke all on "better_supabase"."products" from anon, authenticated;
+grant select on "better_supabase"."products" to authenticated;
+grant all on "better_supabase"."products" to service_role;
+drop policy if exists products_read on "better_supabase"."products";
+create policy products_read on "better_supabase"."products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_options" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "name" text not null check (length("name") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("product_id", "name")
+);
+alter table "better_supabase"."product_options" enable row level security;
+revoke all on "better_supabase"."product_options" from anon, authenticated;
+grant select on "better_supabase"."product_options" to authenticated;
+grant all on "better_supabase"."product_options" to service_role;
+drop policy if exists product_options_read on "better_supabase"."product_options";
+create policy product_options_read on "better_supabase"."product_options" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_option_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
+  "value" text not null check (length("value") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("option_id", "value")
+);
+alter table "better_supabase"."product_option_values" enable row level security;
+revoke all on "better_supabase"."product_option_values" from anon, authenticated;
+grant select on "better_supabase"."product_option_values" to authenticated;
+grant all on "better_supabase"."product_option_values" to service_role;
+drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
+create policy product_option_values_read on "better_supabase"."product_option_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "sku" text not null check (length("sku") between 1 and 100),
+  "title" text,
+  "barcode" text,
+  "weight_grams" integer check ("weight_grams" >= 0),
+  "track_inventory" boolean not null default true,
+  "allow_backorder" boolean not null default false,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "sku")
+);
+create index if not exists product_variants_product_idx on "better_supabase"."product_variants" ("product_id");
+alter table "better_supabase"."product_variants" enable row level security;
+revoke all on "better_supabase"."product_variants" from anon, authenticated;
+grant select on "better_supabase"."product_variants" to authenticated;
+grant all on "better_supabase"."product_variants" to service_role;
+drop policy if exists product_variants_read on "better_supabase"."product_variants";
+create policy product_variants_read on "better_supabase"."product_variants" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variant_values" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "option_value_id" uuid not null references "better_supabase"."product_option_values" ("id"),
+  primary key ("variant_id", "option_value_id")
+);
+create index if not exists product_variant_values_value_idx on "better_supabase"."product_variant_values" ("option_value_id");
+alter table "better_supabase"."product_variant_values" enable row level security;
+revoke all on "better_supabase"."product_variant_values" from anon, authenticated;
+grant select on "better_supabase"."product_variant_values" to authenticated;
+grant all on "better_supabase"."product_variant_values" to service_role;
+drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
+create policy product_variant_values_read on "better_supabase"."product_variant_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."price_lists" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "customer_group" text,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "name")
+);
+alter table "better_supabase"."price_lists" enable row level security;
+revoke all on "better_supabase"."price_lists" from anon, authenticated;
+grant select on "better_supabase"."price_lists" to authenticated;
+grant all on "better_supabase"."price_lists" to service_role;
+drop policy if exists price_lists_read on "better_supabase"."price_lists";
+create policy price_lists_read on "better_supabase"."price_lists" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_prices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete cascade,
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null check ("amount" >= 0),
+  "compare_at_amount" bigint check ("compare_at_amount" > "amount"),
+  "valid_from" timestamptz,
+  "valid_until" timestamptz check ("valid_until" > "valid_from"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
+create index if not exists product_prices_price_list_idx on "better_supabase"."product_prices" ("price_list_id");
+alter table "better_supabase"."product_prices" enable row level security;
+revoke all on "better_supabase"."product_prices" from anon, authenticated;
+grant select on "better_supabase"."product_prices" to authenticated;
+grant all on "better_supabase"."product_prices" to service_role;
+drop policy if exists product_prices_read on "better_supabase"."product_prices";
+create policy product_prices_read on "better_supabase"."product_prices" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."categories" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "parent_id" uuid references "better_supabase"."categories" ("id"),
+  "name" text not null check (length("name") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "description" text,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists categories_parent_idx on "better_supabase"."categories" ("parent_id");
+alter table "better_supabase"."categories" enable row level security;
+revoke all on "better_supabase"."categories" from anon, authenticated;
+grant select on "better_supabase"."categories" to authenticated;
+grant all on "better_supabase"."categories" to service_role;
+drop policy if exists categories_read on "better_supabase"."categories";
+create policy categories_read on "better_supabase"."categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_categories" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "category_id" uuid not null references "better_supabase"."categories" ("id") on delete cascade,
+  primary key ("product_id", "category_id")
+);
+create index if not exists product_categories_category_idx on "better_supabase"."product_categories" ("category_id");
+alter table "better_supabase"."product_categories" enable row level security;
+revoke all on "better_supabase"."product_categories" from anon, authenticated;
+grant select on "better_supabase"."product_categories" to authenticated;
+grant all on "better_supabase"."product_categories" to service_role;
+drop policy if exists product_categories_read on "better_supabase"."product_categories";
+create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collections" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "title" text not null check (length("title") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
+  "rule" jsonb,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug"),
+  check (("kind" = 'rule') = ("rule" is not null))
+);
+alter table "better_supabase"."collections" enable row level security;
+revoke all on "better_supabase"."collections" from anon, authenticated;
+grant select on "better_supabase"."collections" to authenticated;
+grant all on "better_supabase"."collections" to service_role;
+drop policy if exists collections_read on "better_supabase"."collections";
+create policy collections_read on "better_supabase"."collections" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collection_products" (
+  "tenant_id" uuid not null,
+  "collection_id" uuid not null references "better_supabase"."collections" ("id") on delete cascade,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "rank" text collate "C" not null default 'V',
+  primary key ("collection_id", "product_id")
+);
+create index if not exists collection_products_product_idx on "better_supabase"."collection_products" ("product_id");
+alter table "better_supabase"."collection_products" enable row level security;
+revoke all on "better_supabase"."collection_products" from anon, authenticated;
+grant select on "better_supabase"."collection_products" to authenticated;
+grant all on "better_supabase"."collection_products" to service_role;
+drop policy if exists collection_products_read on "better_supabase"."collection_products";
+create policy collection_products_read on "better_supabase"."collection_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."storefronts" (
+  "tenant_id" uuid primary key,
+  "published_at" timestamptz
+);
+alter table "better_supabase"."storefronts" enable row level security;
+revoke all on "better_supabase"."storefronts" from anon, authenticated;
+grant select on "better_supabase"."storefronts" to authenticated;
+grant all on "better_supabase"."storefronts" to service_role;
+drop policy if exists storefronts_read on "better_supabase"."storefronts";
+create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- Creates a product (product null) or updates one. Returns its id, slug and status.
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_product.product;
+  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_status text;
+  v_created boolean := save_product.product is null;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_product_save"(uuid, uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
+        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+    end if;
+  end;
+  begin
+    if v_created then
+      insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      returning "id", "status" into v_id, v_status;
+    else
+      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      returning x."status" into v_status;
+      if not found then
+        raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+-- Moves a product to another status: draft, active or archived.
+create or replace function "better_supabase"."set_product_status"(product uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_from from "better_supabase"."products" x where x."id" = set_product_status.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_status.status not in ('draft', 'active', 'archived') then
+    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
+  end if;
+  if v_from = set_product_status.status then
+    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
+  end if;
+  if not (case v_from
+    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
+    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
+    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+    else false
+  end) then
+    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
+  end if;
+  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  where x."id" = set_product_status.product;
+  null;
+  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_product_status"(uuid, text) to authenticated, service_role;
+
+-- Deletes a product with its options, variants and prices.
+create or replace function "better_supabase"."delete_product"(product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = delete_product.product;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."products" x where x."id" = delete_product.product;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product"(uuid) to authenticated, service_role;
+
+-- Creates a variant (variant null) or updates one. option_values holds one
+-- option value id per product option; no two variants share a combination.
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_variant.variant;
+  v_created boolean := save_variant.variant is null;
+  v_wanted uuid[];
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+    or exists (
+      select 1 from unnest(v_wanted) x
+      where not exists (
+        select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
+        where ov."id" = x and o."product_id" = save_variant.product
+      )
+    )
+    or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."product_variants" x
+    where x."product_id" = save_variant.product
+      and x."id" is distinct from save_variant.variant
+      and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
+  ) then
+    raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
+        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+    end if;
+  end;
+  begin
+    if v_created then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
+  insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+  select v_tenant, v_id, x from unnest(v_wanted) x
+  on conflict do nothing;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+-- Sets a variant's rank key among the product's variants.
+create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_variant.rank is null or rank_variant.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = rank_variant.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  update "better_supabase"."product_variants" x set "rank" = rank_variant.rank, "updated_at" = now() where x."id" = rank_variant.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_variant"(uuid, text) to authenticated, service_role;
+
+-- Deletes a variant with its prices.
+create or replace function "better_supabase"."delete_variant"(variant uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_product uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- Creates an option (option null) or updates one, with its values in order.
+-- Values missing from the list are removed; values a variant uses can't be.
+create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_product_option.option;
+  v_last text;
+  v_rank text;
+  v_value text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+    raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
+  end if;
+  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+    raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
+  end if;
+  begin
+    if v_id is null then
+      if exists (select 1 from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product) then
+        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
+      end if;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
+      values (v_tenant, save_product_option.product, save_product_option.name, case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_options" x set "name" = save_product_option.name
+      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      if not found then
+        raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end;
+  begin
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  v_rank := null;
+  foreach v_value in array save_product_option.option_values loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_option_values" x set "rank" = v_rank where x."option_id" = v_id and x."value" = v_value;
+    if not found then
+      insert into "better_supabase"."product_option_values" ("tenant_id", "option_id", "value", "rank")
+      values (v_tenant, v_id, v_value, v_rank);
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'id', v_id,
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" x where x."option_id" = v_id)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Deletes an option and its values; refused while a variant uses one.
+create or replace function "better_supabase"."delete_product_option"(option uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value of this option' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Creates a price list (price_list null) or renames one. customer_group
+-- names the customers it is for, such as a B2B tier.
+create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_price_list.price_list;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."price_lists" ("tenant_id", "name", "customer_group")
+      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      if not found then
+        raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another price list has this name' using errcode = '23505', hint = 'CATALOG_PRICE_LIST_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Deletes a price list and its prices.
+create or replace function "better_supabase"."delete_price_list"(price_list uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price_list"(uuid) to authenticated, service_role;
+
+-- Sets a variant's price in a currency, in minor units, for a price list
+-- (null for the base price) and a validity window. The same window is
+-- updated in place; a window that overlaps another price is refused.
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_amount bigint := case when set_price.amount ~ '^[0-9]{1,18}$' then set_price.amount::bigint end;
+  v_compare bigint := case when set_price.compare_at ~ '^[0-9]{1,18}$' then set_price.compare_at::bigint end;
+  v_id uuid;
+  v_previous bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_price.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if "better_supabase"."currency_minor_units"(set_price.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_amount is null then
+    raise exception 'the amount must be a whole number of minor units' using errcode = '22023', hint = 'CATALOG_AMOUNT_INVALID';
+  end if;
+  if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
+    raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
+  end if;
+  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
+    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  end if;
+  if set_price.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_price_set"(uuid, text, bigint, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::bigint, $4::uuid)', v_hook::oid::regproc)
+        using set_price.variant, set_price.currency, v_amount, set_price.price_list;
+    end if;
+  end;
+  select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
+  where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+  if exists (
+    select 1 from "better_supabase"."product_prices" x
+    where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+      and x."id" is distinct from v_id
+      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+  ) then
+    raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    returning "id" into v_id;
+  else
+    update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
+    where x."id" = v_id;
+  end if;
+  if v_previous is distinct from v_amount then
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::bigint)', v_hook::oid::regproc)
+        using v_id, v_previous;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+-- Deletes a price.
+create or replace function "better_supabase"."delete_price"(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at in a currency at a time: the price list's
+-- price when it has one, otherwise the base price. Runs as the caller, so
+-- the read policies decide which prices it sees. Amounts are text: JSON
+-- numbers lose bigint precision.
+create or replace function "better_supabase"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'variantId', x."variant_id",
+    'currency', x."currency",
+    'amount', x."amount"::text,
+    'compareAt', x."compare_at_amount"::text,
+    'priceListId', x."price_list_id"
+  )
+  from "better_supabase"."product_prices" x
+  where x."variant_id" = $1 and x."currency" = $2
+    and (x."price_list_id" is null or x."price_list_id" = $3)
+    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+  order by (x."price_list_id" is null), x."updated_at" desc
+  limit 1
+$$;
+grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Creates a category (category null) or updates one, under parent (null
+-- for the top level). A new category goes after its siblings.
+create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_category.category;
+  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if save_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if save_category.parent is not null and exists (
+    with recursive up (id) as (
+      select save_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = v_id
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  begin
+    if v_id is null then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."categories" x
+      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
+        "description" = save_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Moves a category under parent (null for the top level) at rank, a key
+-- from rankBetween over its new siblings' keys.
+create or replace function "better_supabase"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if move_category.rank is null or move_category.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = move_category.category for update;
+  if v_tenant is null then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if move_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = move_category.parent and x."tenant_id" = v_tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if move_category.parent is not null and exists (
+    with recursive up (id) as (
+      select move_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = move_category.category
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  update "better_supabase"."categories" x set "parent_id" = move_category.parent, "rank" = move_category.rank, "updated_at" = now()
+  where x."id" = move_category.category;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+-- Deletes a category without subcategories; products leave it.
+create or replace function "better_supabase"."delete_category"(category uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = delete_category.category;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."categories" x where x."id" = delete_category.category;
+  exception when foreign_key_violation then
+    raise exception 'move or delete the subcategories first' using errcode = '23503', hint = 'CATALOG_CATEGORY_HAS_CHILDREN';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_category"(uuid) to authenticated, service_role;
+
+-- Replaces the categories a product is filed under.
+create or replace function "better_supabase"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_categories.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+    where not exists (select 1 from "better_supabase"."categories" x where x."id" = c and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."product_categories" x
+  where x."product_id" = set_product_categories.product
+    and not (x."category_id" = any (coalesce(set_product_categories.categories, '{}'::uuid[])));
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  select distinct v_tenant, set_product_categories.product, c from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+  on conflict do nothing;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+-- Creates a collection (collection null) or updates one. A manual
+-- collection lists ranked products; a rule collection stores a filter tree
+-- (a FilterQuery group) that picks them.
+create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_collection.collection;
+  v_kind text := coalesce(save_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if v_kind not in ('manual', 'rule') then
+    raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
+  end if;
+  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+    raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if v_kind = 'rule' and not (
+    jsonb_typeof(save_collection.rule) = 'object'
+    and save_collection.rule ->> 'type' = 'group'
+    and save_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+  ) then
+    raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = save_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      if not found then
+        raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another collection has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_kind = 'rule' then
+    delete from "better_supabase"."collection_products" x where x."collection_id" = v_id;
+  end if;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
+end;
+$$;
+revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- Deletes a collection.
+create or replace function "better_supabase"."delete_collection"(collection uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_collection"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_collection"(uuid) to authenticated, service_role;
+
+-- Adds a product to a manual collection at rank (null to append), or moves
+-- it there. Returns its rank key.
+create or replace function "better_supabase"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_kind text;
+  v_last text;
+  v_rank text := add_to_collection.rank;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."collections" x where x."id" = add_to_collection.collection for update;
+  if v_tenant is null then
+    raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_kind <> 'manual' then
+    raise exception 'a rule collection picks its products from its rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if not exists (select 1 from "better_supabase"."products" x where x."id" = add_to_collection.product and x."tenant_id" = v_tenant) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if v_rank is not null and v_rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  if v_rank is null then
+    select max(x."rank" collate "C") into v_last from "better_supabase"."collection_products" x where x."collection_id" = add_to_collection.collection;
+    v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  end if;
+  insert into "better_supabase"."collection_products" as x ("tenant_id", "collection_id", "product_id", "rank")
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  on conflict ("collection_id", "product_id") do update set "rank" = excluded."rank";
+  return v_rank;
+end;
+$$;
+revoke execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+-- Removes a product from a manual collection.
+create or replace function "better_supabase"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = remove_from_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collection_products" x where x."collection_id" = remove_from_collection.collection and x."product_id" = remove_from_collection.product;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+-- Tenants whose storefront is published. The storefront read policies
+-- call it, so it runs as its owner and returns nothing else.
+create or replace function "better_supabase"."storefront_tenants"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
+$$;
+grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
+
+-- Active products of published storefronts, for the storefront policies.
+create or replace function "better_supabase"."storefront_products"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."products" x
+  where x."status" = 'active'
+    and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
+$$;
+grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
+
+-- Publishes or unpublishes a tenant's storefront. With options.storefront
+-- "public", anyone can read the active products of a published storefront.
+create or replace function "better_supabase"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', publish_storefront.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."storefronts" as x ("tenant_id", "published_at")
+  values (publish_storefront.tenant, case when publish_storefront.published then now() end)
+  on conflict ("tenant_id") do update
+    set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
+  if publish_storefront.published then
+    null;
+  else
+    null;
+  end if;
+  return publish_storefront.published;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+drop policy if exists products_storefront on "better_supabase"."products";
+drop policy if exists product_options_storefront on "better_supabase"."product_options";
+drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
+drop policy if exists product_variants_storefront on "better_supabase"."product_variants";
+drop policy if exists product_variant_values_storefront on "better_supabase"."product_variant_values";
+drop policy if exists product_prices_storefront on "better_supabase"."product_prices";
+drop policy if exists categories_storefront on "better_supabase"."categories";
+drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
+drop policy if exists collections_storefront on "better_supabase"."collections";
+drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module-data catalog
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('catalog', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== with every module: schema supabase/schemas/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module catalog@1 managed
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Products with options, variants and prices in minor units, plus
+-- categories, collections, price lists and an optional public storefront.
+create or replace function "better_supabase"."currency_minor_units"(code text)
+returns integer
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
+$$;
+grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+create table if not exists "better_supabase"."products" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "title" text not null check (length("title") between 1 and 500),
+  "description" text,
+  "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
+  "status" text not null default 'draft',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
+alter table "better_supabase"."products" enable row level security;
+revoke all on "better_supabase"."products" from anon, authenticated;
+grant select on "better_supabase"."products" to authenticated;
+grant all on "better_supabase"."products" to service_role;
+drop policy if exists products_read on "better_supabase"."products";
+create policy products_read on "better_supabase"."products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_options" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "name" text not null check (length("name") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("product_id", "name")
+);
+alter table "better_supabase"."product_options" enable row level security;
+revoke all on "better_supabase"."product_options" from anon, authenticated;
+grant select on "better_supabase"."product_options" to authenticated;
+grant all on "better_supabase"."product_options" to service_role;
+drop policy if exists product_options_read on "better_supabase"."product_options";
+create policy product_options_read on "better_supabase"."product_options" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_option_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
+  "value" text not null check (length("value") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("option_id", "value")
+);
+alter table "better_supabase"."product_option_values" enable row level security;
+revoke all on "better_supabase"."product_option_values" from anon, authenticated;
+grant select on "better_supabase"."product_option_values" to authenticated;
+grant all on "better_supabase"."product_option_values" to service_role;
+drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
+create policy product_option_values_read on "better_supabase"."product_option_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "sku" text not null check (length("sku") between 1 and 100),
+  "title" text,
+  "barcode" text,
+  "weight_grams" integer check ("weight_grams" >= 0),
+  "track_inventory" boolean not null default true,
+  "allow_backorder" boolean not null default false,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "sku")
+);
+create index if not exists product_variants_product_idx on "better_supabase"."product_variants" ("product_id");
+alter table "better_supabase"."product_variants" enable row level security;
+revoke all on "better_supabase"."product_variants" from anon, authenticated;
+grant select on "better_supabase"."product_variants" to authenticated;
+grant all on "better_supabase"."product_variants" to service_role;
+drop policy if exists product_variants_read on "better_supabase"."product_variants";
+create policy product_variants_read on "better_supabase"."product_variants" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variant_values" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "option_value_id" uuid not null references "better_supabase"."product_option_values" ("id"),
+  primary key ("variant_id", "option_value_id")
+);
+create index if not exists product_variant_values_value_idx on "better_supabase"."product_variant_values" ("option_value_id");
+alter table "better_supabase"."product_variant_values" enable row level security;
+revoke all on "better_supabase"."product_variant_values" from anon, authenticated;
+grant select on "better_supabase"."product_variant_values" to authenticated;
+grant all on "better_supabase"."product_variant_values" to service_role;
+drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
+create policy product_variant_values_read on "better_supabase"."product_variant_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."price_lists" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "customer_group" text,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "name")
+);
+alter table "better_supabase"."price_lists" enable row level security;
+revoke all on "better_supabase"."price_lists" from anon, authenticated;
+grant select on "better_supabase"."price_lists" to authenticated;
+grant all on "better_supabase"."price_lists" to service_role;
+drop policy if exists price_lists_read on "better_supabase"."price_lists";
+create policy price_lists_read on "better_supabase"."price_lists" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_prices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete cascade,
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null check ("amount" >= 0),
+  "compare_at_amount" bigint check ("compare_at_amount" > "amount"),
+  "valid_from" timestamptz,
+  "valid_until" timestamptz check ("valid_until" > "valid_from"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
+create index if not exists product_prices_price_list_idx on "better_supabase"."product_prices" ("price_list_id");
+alter table "better_supabase"."product_prices" enable row level security;
+revoke all on "better_supabase"."product_prices" from anon, authenticated;
+grant select on "better_supabase"."product_prices" to authenticated;
+grant all on "better_supabase"."product_prices" to service_role;
+drop policy if exists product_prices_read on "better_supabase"."product_prices";
+create policy product_prices_read on "better_supabase"."product_prices" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."categories" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "parent_id" uuid references "better_supabase"."categories" ("id"),
+  "name" text not null check (length("name") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "description" text,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists categories_parent_idx on "better_supabase"."categories" ("parent_id");
+alter table "better_supabase"."categories" enable row level security;
+revoke all on "better_supabase"."categories" from anon, authenticated;
+grant select on "better_supabase"."categories" to authenticated;
+grant all on "better_supabase"."categories" to service_role;
+drop policy if exists categories_read on "better_supabase"."categories";
+create policy categories_read on "better_supabase"."categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_categories" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "category_id" uuid not null references "better_supabase"."categories" ("id") on delete cascade,
+  primary key ("product_id", "category_id")
+);
+create index if not exists product_categories_category_idx on "better_supabase"."product_categories" ("category_id");
+alter table "better_supabase"."product_categories" enable row level security;
+revoke all on "better_supabase"."product_categories" from anon, authenticated;
+grant select on "better_supabase"."product_categories" to authenticated;
+grant all on "better_supabase"."product_categories" to service_role;
+drop policy if exists product_categories_read on "better_supabase"."product_categories";
+create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collections" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "title" text not null check (length("title") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
+  "rule" jsonb,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug"),
+  check (("kind" = 'rule') = ("rule" is not null))
+);
+alter table "better_supabase"."collections" enable row level security;
+revoke all on "better_supabase"."collections" from anon, authenticated;
+grant select on "better_supabase"."collections" to authenticated;
+grant all on "better_supabase"."collections" to service_role;
+drop policy if exists collections_read on "better_supabase"."collections";
+create policy collections_read on "better_supabase"."collections" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collection_products" (
+  "tenant_id" uuid not null,
+  "collection_id" uuid not null references "better_supabase"."collections" ("id") on delete cascade,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "rank" text collate "C" not null default 'V',
+  primary key ("collection_id", "product_id")
+);
+create index if not exists collection_products_product_idx on "better_supabase"."collection_products" ("product_id");
+alter table "better_supabase"."collection_products" enable row level security;
+revoke all on "better_supabase"."collection_products" from anon, authenticated;
+grant select on "better_supabase"."collection_products" to authenticated;
+grant all on "better_supabase"."collection_products" to service_role;
+drop policy if exists collection_products_read on "better_supabase"."collection_products";
+create policy collection_products_read on "better_supabase"."collection_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."storefronts" (
+  "tenant_id" uuid primary key,
+  "published_at" timestamptz
+);
+alter table "better_supabase"."storefronts" enable row level security;
+revoke all on "better_supabase"."storefronts" from anon, authenticated;
+grant select on "better_supabase"."storefronts" to authenticated;
+grant all on "better_supabase"."storefronts" to service_role;
+drop policy if exists storefronts_read on "better_supabase"."storefronts";
+create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- Creates a product (product null) or updates one. Returns its id, slug and status.
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_product.product;
+  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_status text;
+  v_created boolean := save_product.product is null;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_product_save"(uuid, uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
+        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+    end if;
+  end;
+  begin
+    if v_created then
+      insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      returning "id", "status" into v_id, v_status;
+    else
+      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      returning x."status" into v_status;
+      if not found then
+        raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_created then
+    perform "better_supabase".emit_event('product.created', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug, 'kind', coalesce(save_product.kind, 'physical')), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
+  else
+    perform "better_supabase".emit_event('product.updated', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+-- Moves a product to another status: draft, active or archived.
+create or replace function "better_supabase"."set_product_status"(product uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_from from "better_supabase"."products" x where x."id" = set_product_status.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_status.status not in ('draft', 'active', 'archived') then
+    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
+  end if;
+  if v_from = set_product_status.status then
+    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
+  end if;
+  if not (case v_from
+    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
+    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
+    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+    else false
+  end) then
+    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
+  end if;
+  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  where x."id" = set_product_status.product;
+  perform "better_supabase".emit_event('product.status_changed', jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', set_product_status.status), 'products/' || set_product_status.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_product_status"(uuid, text) to authenticated, service_role;
+
+-- Deletes a product with its options, variants and prices.
+create or replace function "better_supabase"."delete_product"(product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = delete_product.product;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (select v."id" from "better_supabase"."product_variants" v where v."product_id" = delete_product.product)) then
+    raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_PRODUCT_IN_USE';
+  end if;
+  delete from "better_supabase"."products" x where x."id" = delete_product.product;
+  perform "better_supabase".emit_event('product.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_product.product), 'products/' || delete_product.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product"(uuid) to authenticated, service_role;
+
+-- Creates a variant (variant null) or updates one. option_values holds one
+-- option value id per product option; no two variants share a combination.
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_variant.variant;
+  v_created boolean := save_variant.variant is null;
+  v_wanted uuid[];
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+    or exists (
+      select 1 from unnest(v_wanted) x
+      where not exists (
+        select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
+        where ov."id" = x and o."product_id" = save_variant.product
+      )
+    )
+    or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."product_variants" x
+    where x."product_id" = save_variant.product
+      and x."id" is distinct from save_variant.variant
+      and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
+  ) then
+    raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
+        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+    end if;
+  end;
+  begin
+    if v_created then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
+  insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+  select v_tenant, v_id, x from unnest(v_wanted) x
+  on conflict do nothing;
+  if v_created then
+    perform "better_supabase".emit_event('variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  else
+    perform "better_supabase".emit_event('variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+-- Sets a variant's rank key among the product's variants.
+create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_variant.rank is null or rank_variant.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = rank_variant.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  update "better_supabase"."product_variants" x set "rank" = rank_variant.rank, "updated_at" = now() where x."id" = rank_variant.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_variant"(uuid, text) to authenticated, service_role;
+
+-- Deletes a variant with its prices.
+create or replace function "better_supabase"."delete_variant"(variant uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_product uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (delete_variant.variant)) then
+    raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_VARIANT_IN_USE';
+  end if;
+  delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product), 'variants/' || delete_variant.variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- Creates an option (option null) or updates one, with its values in order.
+-- Values missing from the list are removed; values a variant uses can't be.
+create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_product_option.option;
+  v_last text;
+  v_rank text;
+  v_value text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+    raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
+  end if;
+  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+    raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
+  end if;
+  begin
+    if v_id is null then
+      if exists (select 1 from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product) then
+        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
+      end if;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
+      values (v_tenant, save_product_option.product, save_product_option.name, case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_options" x set "name" = save_product_option.name
+      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      if not found then
+        raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end;
+  begin
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  v_rank := null;
+  foreach v_value in array save_product_option.option_values loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_option_values" x set "rank" = v_rank where x."option_id" = v_id and x."value" = v_value;
+    if not found then
+      insert into "better_supabase"."product_option_values" ("tenant_id", "option_id", "value", "rank")
+      values (v_tenant, v_id, v_value, v_rank);
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'id', v_id,
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" x where x."option_id" = v_id)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Deletes an option and its values; refused while a variant uses one.
+create or replace function "better_supabase"."delete_product_option"(option uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value of this option' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Creates a price list (price_list null) or renames one. customer_group
+-- names the customers it is for, such as a B2B tier.
+create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_price_list.price_list;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."price_lists" ("tenant_id", "name", "customer_group")
+      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      if not found then
+        raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another price list has this name' using errcode = '23505', hint = 'CATALOG_PRICE_LIST_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Deletes a price list and its prices.
+create or replace function "better_supabase"."delete_price_list"(price_list uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price_list"(uuid) to authenticated, service_role;
+
+-- Sets a variant's price in a currency, in minor units, for a price list
+-- (null for the base price) and a validity window. The same window is
+-- updated in place; a window that overlaps another price is refused.
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_amount bigint := case when set_price.amount ~ '^[0-9]{1,18}$' then set_price.amount::bigint end;
+  v_compare bigint := case when set_price.compare_at ~ '^[0-9]{1,18}$' then set_price.compare_at::bigint end;
+  v_id uuid;
+  v_previous bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_price.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if "better_supabase"."currency_minor_units"(set_price.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_amount is null then
+    raise exception 'the amount must be a whole number of minor units' using errcode = '22023', hint = 'CATALOG_AMOUNT_INVALID';
+  end if;
+  if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
+    raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
+  end if;
+  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
+    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  end if;
+  if set_price.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_price_set"(uuid, text, bigint, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::bigint, $4::uuid)', v_hook::oid::regproc)
+        using set_price.variant, set_price.currency, v_amount, set_price.price_list;
+    end if;
+  end;
+  select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
+  where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+  if exists (
+    select 1 from "better_supabase"."product_prices" x
+    where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+      and x."id" is distinct from v_id
+      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+  ) then
+    raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    returning "id" into v_id;
+  else
+    update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
+    where x."id" = v_id;
+  end if;
+  if v_previous is distinct from v_amount then
+    perform "better_supabase".emit_event('catalog.price_changed', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'variantId', set_price.variant, 'priceListId', set_price.price_list, 'currency', set_price.currency, 'amount', v_amount::text, 'previousAmount', v_previous::text), 'prices/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::bigint)', v_hook::oid::regproc)
+        using v_id, v_previous;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+-- Deletes a price.
+create or replace function "better_supabase"."delete_price"(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at in a currency at a time: the price list's
+-- price when it has one, otherwise the base price. Runs as the caller, so
+-- the read policies decide which prices it sees. Amounts are text: JSON
+-- numbers lose bigint precision.
+create or replace function "better_supabase"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'variantId', x."variant_id",
+    'currency', x."currency",
+    'amount', x."amount"::text,
+    'compareAt', x."compare_at_amount"::text,
+    'priceListId', x."price_list_id"
+  )
+  from "better_supabase"."product_prices" x
+  where x."variant_id" = $1 and x."currency" = $2
+    and (x."price_list_id" is null or x."price_list_id" = $3)
+    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+  order by (x."price_list_id" is null), x."updated_at" desc
+  limit 1
+$$;
+grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Creates a category (category null) or updates one, under parent (null
+-- for the top level). A new category goes after its siblings.
+create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_category.category;
+  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if save_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if save_category.parent is not null and exists (
+    with recursive up (id) as (
+      select save_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = v_id
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  begin
+    if v_id is null then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."categories" x
+      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
+        "description" = save_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Moves a category under parent (null for the top level) at rank, a key
+-- from rankBetween over its new siblings' keys.
+create or replace function "better_supabase"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if move_category.rank is null or move_category.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = move_category.category for update;
+  if v_tenant is null then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if move_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = move_category.parent and x."tenant_id" = v_tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if move_category.parent is not null and exists (
+    with recursive up (id) as (
+      select move_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = move_category.category
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  update "better_supabase"."categories" x set "parent_id" = move_category.parent, "rank" = move_category.rank, "updated_at" = now()
+  where x."id" = move_category.category;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+-- Deletes a category without subcategories; products leave it.
+create or replace function "better_supabase"."delete_category"(category uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = delete_category.category;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."categories" x where x."id" = delete_category.category;
+  exception when foreign_key_violation then
+    raise exception 'move or delete the subcategories first' using errcode = '23503', hint = 'CATALOG_CATEGORY_HAS_CHILDREN';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_category"(uuid) to authenticated, service_role;
+
+-- Replaces the categories a product is filed under.
+create or replace function "better_supabase"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_categories.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+    where not exists (select 1 from "better_supabase"."categories" x where x."id" = c and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."product_categories" x
+  where x."product_id" = set_product_categories.product
+    and not (x."category_id" = any (coalesce(set_product_categories.categories, '{}'::uuid[])));
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  select distinct v_tenant, set_product_categories.product, c from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+  on conflict do nothing;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+-- Creates a collection (collection null) or updates one. A manual
+-- collection lists ranked products; a rule collection stores a filter tree
+-- (a FilterQuery group) that picks them.
+create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_collection.collection;
+  v_kind text := coalesce(save_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if v_kind not in ('manual', 'rule') then
+    raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
+  end if;
+  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+    raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if v_kind = 'rule' and not (
+    jsonb_typeof(save_collection.rule) = 'object'
+    and save_collection.rule ->> 'type' = 'group'
+    and save_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+  ) then
+    raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = save_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      if not found then
+        raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another collection has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_kind = 'rule' then
+    delete from "better_supabase"."collection_products" x where x."collection_id" = v_id;
+  end if;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
+end;
+$$;
+revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- Deletes a collection.
+create or replace function "better_supabase"."delete_collection"(collection uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_collection"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_collection"(uuid) to authenticated, service_role;
+
+-- Adds a product to a manual collection at rank (null to append), or moves
+-- it there. Returns its rank key.
+create or replace function "better_supabase"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_kind text;
+  v_last text;
+  v_rank text := add_to_collection.rank;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."collections" x where x."id" = add_to_collection.collection for update;
+  if v_tenant is null then
+    raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_kind <> 'manual' then
+    raise exception 'a rule collection picks its products from its rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if not exists (select 1 from "better_supabase"."products" x where x."id" = add_to_collection.product and x."tenant_id" = v_tenant) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if v_rank is not null and v_rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  if v_rank is null then
+    select max(x."rank" collate "C") into v_last from "better_supabase"."collection_products" x where x."collection_id" = add_to_collection.collection;
+    v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  end if;
+  insert into "better_supabase"."collection_products" as x ("tenant_id", "collection_id", "product_id", "rank")
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  on conflict ("collection_id", "product_id") do update set "rank" = excluded."rank";
+  return v_rank;
+end;
+$$;
+revoke execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+-- Removes a product from a manual collection.
+create or replace function "better_supabase"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = remove_from_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collection_products" x where x."collection_id" = remove_from_collection.collection and x."product_id" = remove_from_collection.product;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+-- Tenants whose storefront is published. The storefront read policies
+-- call it, so it runs as its owner and returns nothing else.
+create or replace function "better_supabase"."storefront_tenants"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
+$$;
+grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
+
+-- Active products of published storefronts, for the storefront policies.
+create or replace function "better_supabase"."storefront_products"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."products" x
+  where x."status" = 'active'
+    and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
+$$;
+grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
+
+-- Publishes or unpublishes a tenant's storefront. With options.storefront
+-- "public", anyone can read the active products of a published storefront.
+create or replace function "better_supabase"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', publish_storefront.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."storefronts" as x ("tenant_id", "published_at")
+  values (publish_storefront.tenant, case when publish_storefront.published then now() end)
+  on conflict ("tenant_id") do update
+    set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
+  if publish_storefront.published then
+    perform "better_supabase".emit_event('storefront.published', jsonb_build_object('organizationId', publish_storefront.tenant), 'storefronts/' || publish_storefront.tenant::text, (publish_storefront.tenant)::text, null, 'better-supabase/catalog');
+  else
+    perform "better_supabase".emit_event('storefront.unpublished', jsonb_build_object('organizationId', publish_storefront.tenant), 'storefronts/' || publish_storefront.tenant::text, (publish_storefront.tenant)::text, null, 'better-supabase/catalog');
+  end if;
+  return publish_storefront.published;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+drop policy if exists products_storefront on "better_supabase"."products";
+drop policy if exists product_options_storefront on "better_supabase"."product_options";
+drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
+drop policy if exists product_variants_storefront on "better_supabase"."product_variants";
+drop policy if exists product_variant_values_storefront on "better_supabase"."product_variant_values";
+drop policy if exists product_prices_storefront on "better_supabase"."product_prices";
+drop policy if exists categories_storefront on "better_supabase"."categories";
+drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
+drop policy if exists collections_storefront on "better_supabase"."collections";
+drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module-data catalog
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('catalog', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module catalog@1 managed
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create schema if not exists "app_private";
+grant usage on schema "app_private" to anon, authenticated, service_role;
+-- Products with options, variants and prices in minor units, plus
+-- categories, collections, price lists and an optional public storefront.
+create or replace function "app_private"."currency_minor_units"(code text)
+returns integer
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
+$$;
+grant execute on function "app_private"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+create table if not exists "app_private"."products" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "title" text not null check (length("title") between 1 and 500),
+  "description" text,
+  "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
+  "status" text not null default 'draft',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists products_status_idx on "app_private"."products" ("tenant_id", "status");
+alter table "app_private"."products" enable row level security;
+revoke all on "app_private"."products" from anon, authenticated;
+grant select on "app_private"."products" to authenticated;
+grant all on "app_private"."products" to service_role;
+drop policy if exists products_read on "app_private"."products";
+create policy products_read on "app_private"."products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_options" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
+  "name" text not null check (length("name") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("product_id", "name")
+);
+alter table "app_private"."product_options" enable row level security;
+revoke all on "app_private"."product_options" from anon, authenticated;
+grant select on "app_private"."product_options" to authenticated;
+grant all on "app_private"."product_options" to service_role;
+drop policy if exists product_options_read on "app_private"."product_options";
+create policy product_options_read on "app_private"."product_options" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_option_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "option_id" uuid not null references "app_private"."product_options" ("id") on delete cascade,
+  "value" text not null check (length("value") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("option_id", "value")
+);
+alter table "app_private"."product_option_values" enable row level security;
+revoke all on "app_private"."product_option_values" from anon, authenticated;
+grant select on "app_private"."product_option_values" to authenticated;
+grant all on "app_private"."product_option_values" to service_role;
+drop policy if exists product_option_values_read on "app_private"."product_option_values";
+create policy product_option_values_read on "app_private"."product_option_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_variants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
+  "sku" text not null check (length("sku") between 1 and 100),
+  "title" text,
+  "barcode" text,
+  "weight_grams" integer check ("weight_grams" >= 0),
+  "track_inventory" boolean not null default true,
+  "allow_backorder" boolean not null default false,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "sku")
+);
+create index if not exists product_variants_product_idx on "app_private"."product_variants" ("product_id");
+alter table "app_private"."product_variants" enable row level security;
+revoke all on "app_private"."product_variants" from anon, authenticated;
+grant select on "app_private"."product_variants" to authenticated;
+grant all on "app_private"."product_variants" to service_role;
+drop policy if exists product_variants_read on "app_private"."product_variants";
+create policy product_variants_read on "app_private"."product_variants" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_variant_values" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "app_private"."product_variants" ("id") on delete cascade,
+  "option_value_id" uuid not null references "app_private"."product_option_values" ("id"),
+  primary key ("variant_id", "option_value_id")
+);
+create index if not exists product_variant_values_value_idx on "app_private"."product_variant_values" ("option_value_id");
+alter table "app_private"."product_variant_values" enable row level security;
+revoke all on "app_private"."product_variant_values" from anon, authenticated;
+grant select on "app_private"."product_variant_values" to authenticated;
+grant all on "app_private"."product_variant_values" to service_role;
+drop policy if exists product_variant_values_read on "app_private"."product_variant_values";
+create policy product_variant_values_read on "app_private"."product_variant_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."price_lists" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "customer_group" text,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "name")
+);
+alter table "app_private"."price_lists" enable row level security;
+revoke all on "app_private"."price_lists" from anon, authenticated;
+grant select on "app_private"."price_lists" to authenticated;
+grant all on "app_private"."price_lists" to service_role;
+drop policy if exists price_lists_read on "app_private"."price_lists";
+create policy price_lists_read on "app_private"."price_lists" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_prices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "app_private"."product_variants" ("id") on delete cascade,
+  "price_list_id" uuid references "app_private"."price_lists" ("id") on delete cascade,
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null check ("amount" >= 0),
+  "compare_at_amount" bigint check ("compare_at_amount" > "amount"),
+  "valid_from" timestamptz,
+  "valid_until" timestamptz check ("valid_until" > "valid_from"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists product_prices_variant_idx on "app_private"."product_prices" ("variant_id", "currency");
+create index if not exists product_prices_price_list_idx on "app_private"."product_prices" ("price_list_id");
+alter table "app_private"."product_prices" enable row level security;
+revoke all on "app_private"."product_prices" from anon, authenticated;
+grant select on "app_private"."product_prices" to authenticated;
+grant all on "app_private"."product_prices" to service_role;
+drop policy if exists product_prices_read on "app_private"."product_prices";
+create policy product_prices_read on "app_private"."product_prices" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."categories" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "parent_id" uuid references "app_private"."categories" ("id"),
+  "name" text not null check (length("name") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "description" text,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists categories_parent_idx on "app_private"."categories" ("parent_id");
+alter table "app_private"."categories" enable row level security;
+revoke all on "app_private"."categories" from anon, authenticated;
+grant select on "app_private"."categories" to authenticated;
+grant all on "app_private"."categories" to service_role;
+drop policy if exists categories_read on "app_private"."categories";
+create policy categories_read on "app_private"."categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."product_categories" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
+  "category_id" uuid not null references "app_private"."categories" ("id") on delete cascade,
+  primary key ("product_id", "category_id")
+);
+create index if not exists product_categories_category_idx on "app_private"."product_categories" ("category_id");
+alter table "app_private"."product_categories" enable row level security;
+revoke all on "app_private"."product_categories" from anon, authenticated;
+grant select on "app_private"."product_categories" to authenticated;
+grant all on "app_private"."product_categories" to service_role;
+drop policy if exists product_categories_read on "app_private"."product_categories";
+create policy product_categories_read on "app_private"."product_categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."collections" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "title" text not null check (length("title") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
+  "rule" jsonb,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug"),
+  check (("kind" = 'rule') = ("rule" is not null))
+);
+alter table "app_private"."collections" enable row level security;
+revoke all on "app_private"."collections" from anon, authenticated;
+grant select on "app_private"."collections" to authenticated;
+grant all on "app_private"."collections" to service_role;
+drop policy if exists collections_read on "app_private"."collections";
+create policy collections_read on "app_private"."collections" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."collection_products" (
+  "tenant_id" uuid not null,
+  "collection_id" uuid not null references "app_private"."collections" ("id") on delete cascade,
+  "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
+  "rank" text collate "C" not null default 'V',
+  primary key ("collection_id", "product_id")
+);
+create index if not exists collection_products_product_idx on "app_private"."collection_products" ("product_id");
+alter table "app_private"."collection_products" enable row level security;
+revoke all on "app_private"."collection_products" from anon, authenticated;
+grant select on "app_private"."collection_products" to authenticated;
+grant all on "app_private"."collection_products" to service_role;
+drop policy if exists collection_products_read on "app_private"."collection_products";
+create policy collection_products_read on "app_private"."collection_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "app_private"."storefronts" (
+  "tenant_id" uuid primary key,
+  "published_at" timestamptz
+);
+alter table "app_private"."storefronts" enable row level security;
+revoke all on "app_private"."storefronts" from anon, authenticated;
+grant select on "app_private"."storefronts" to authenticated;
+grant all on "app_private"."storefronts" to service_role;
+drop policy if exists storefronts_read on "app_private"."storefronts";
+create policy storefronts_read on "app_private"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- Creates a product (product null) or updates one. Returns its id, slug and status.
+create or replace function "app_private"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_product.product;
+  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_status text;
+  v_created boolean := save_product.product is null;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_product_save"(uuid, uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
+        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+    end if;
+  end;
+  begin
+    if v_created then
+      insert into "app_private"."products" ("tenant_id", "title", "slug", "description", "kind")
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      returning "id", "status" into v_id, v_status;
+    else
+      update "app_private"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      returning x."status" into v_status;
+      if not found then
+        raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+end;
+$$;
+revoke execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+-- Moves a product to another status: draft, active or archived.
+create or replace function "app_private"."set_product_status"(product uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_from from "app_private"."products" x where x."id" = set_product_status.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_status.status not in ('draft', 'active', 'archived') then
+    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
+  end if;
+  if v_from = set_product_status.status then
+    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
+  end if;
+  if not (case v_from
+    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
+    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
+    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+    else false
+  end) then
+    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
+  end if;
+  update "app_private"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  where x."id" = set_product_status.product;
+  null;
+  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+end;
+$$;
+revoke execute on function "app_private"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "app_private"."set_product_status"(uuid, text) to authenticated, service_role;
+
+-- Deletes a product with its options, variants and prices.
+create or replace function "app_private"."delete_product"(product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = delete_product.product;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."products" x where x."id" = delete_product.product;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_product"(uuid) from public, anon;
+grant execute on function "app_private"."delete_product"(uuid) to authenticated, service_role;
+
+-- Creates a variant (variant null) or updates one. option_values holds one
+-- option value id per product option; no two variants share a combination.
+create or replace function "app_private"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_variant.variant;
+  v_created boolean := save_variant.variant is null;
+  v_wanted uuid[];
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = save_variant.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+    or exists (
+      select 1 from unnest(v_wanted) x
+      where not exists (
+        select 1 from "app_private"."product_option_values" ov join "app_private"."product_options" o on o."id" = ov."option_id"
+        where ov."id" = x and o."product_id" = save_variant.product
+      )
+    )
+    or (select count(distinct ov."option_id") from "app_private"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
+    or (select count(*) from "app_private"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
+  end if;
+  if exists (
+    select 1 from "app_private"."product_variants" x
+    where x."product_id" = save_variant.product
+      and x."id" is distinct from save_variant.variant
+      and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
+  ) then
+    raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
+        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+    end if;
+  end;
+  begin
+    if v_created then
+      select max(x."rank" collate "C") into v_last from "app_private"."product_variants" x where x."product_id" = save_variant.product;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "app_private"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning "id" into v_id;
+    else
+      update "app_private"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  delete from "app_private"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
+  insert into "app_private"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+  select v_tenant, v_id, x from unnest(v_wanted) x
+  on conflict do nothing;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+-- Sets a variant's rank key among the product's variants.
+create or replace function "app_private"."rank_variant"(variant uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_variant.rank is null or rank_variant.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."product_variants" x where x."id" = rank_variant.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  update "app_private"."product_variants" x set "rank" = rank_variant.rank, "updated_at" = now() where x."id" = rank_variant.variant;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "app_private"."rank_variant"(uuid, text) to authenticated, service_role;
+
+-- Deletes a variant with its prices.
+create or replace function "app_private"."delete_variant"(variant uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_product uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "app_private"."product_variants" x where x."id" = delete_variant.variant;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."product_variants" x where x."id" = delete_variant.variant;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_variant"(uuid) from public, anon;
+grant execute on function "app_private"."delete_variant"(uuid) to authenticated, service_role;
+
+-- Creates an option (option null) or updates one, with its values in order.
+-- Values missing from the list are removed; values a variant uses can't be.
+create or replace function "app_private"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_product_option.option;
+  v_last text;
+  v_rank text;
+  v_value text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = save_product_option.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+    raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
+  end if;
+  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+    raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
+  end if;
+  begin
+    if v_id is null then
+      if exists (select 1 from "app_private"."product_variants" x where x."product_id" = save_product_option.product) then
+        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
+      end if;
+      select max(x."rank" collate "C") into v_last from "app_private"."product_options" x where x."product_id" = save_product_option.product;
+      insert into "app_private"."product_options" ("tenant_id", "product_id", "name", "rank")
+      values (v_tenant, save_product_option.product, save_product_option.name, case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end)
+      returning "id" into v_id;
+    else
+      update "app_private"."product_options" x set "name" = save_product_option.name
+      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      if not found then
+        raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end;
+  begin
+    delete from "app_private"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  v_rank := null;
+  foreach v_value in array save_product_option.option_values loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "app_private"."product_option_values" x set "rank" = v_rank where x."option_id" = v_id and x."value" = v_value;
+    if not found then
+      insert into "app_private"."product_option_values" ("tenant_id", "option_id", "value", "rank")
+      values (v_tenant, v_id, v_value, v_rank);
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'id', v_id,
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "app_private"."product_option_values" x where x."option_id" = v_id)
+  );
+end;
+$$;
+revoke execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Deletes an option and its values; refused while a variant uses one.
+create or replace function "app_private"."delete_product_option"(option uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."product_options" x where x."id" = delete_product_option.option;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "app_private"."product_options" x where x."id" = delete_product_option.option;
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value of this option' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_product_option"(uuid) from public, anon;
+grant execute on function "app_private"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Creates a price list (price_list null) or renames one. customer_group
+-- names the customers it is for, such as a B2B tier.
+create or replace function "app_private"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_price_list.price_list;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    if v_id is null then
+      insert into "app_private"."price_lists" ("tenant_id", "name", "customer_group")
+      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      returning "id" into v_id;
+    else
+      update "app_private"."price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      if not found then
+        raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another price list has this name' using errcode = '23505', hint = 'CATALOG_PRICE_LIST_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id);
+end;
+$$;
+revoke execute on function "app_private"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "app_private"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Deletes a price list and its prices.
+create or replace function "app_private"."delete_price_list"(price_list uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."price_lists" x where x."id" = delete_price_list.price_list;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."price_lists" x where x."id" = delete_price_list.price_list;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_price_list"(uuid) from public, anon;
+grant execute on function "app_private"."delete_price_list"(uuid) to authenticated, service_role;
+
+-- Sets a variant's price in a currency, in minor units, for a price list
+-- (null for the base price) and a validity window. The same window is
+-- updated in place; a window that overlaps another price is refused.
+create or replace function "app_private"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_amount bigint := case when set_price.amount ~ '^[0-9]{1,18}$' then set_price.amount::bigint end;
+  v_compare bigint := case when set_price.compare_at ~ '^[0-9]{1,18}$' then set_price.compare_at::bigint end;
+  v_id uuid;
+  v_previous bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."product_variants" x where x."id" = set_price.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if "app_private"."currency_minor_units"(set_price.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_amount is null then
+    raise exception 'the amount must be a whole number of minor units' using errcode = '22023', hint = 'CATALOG_AMOUNT_INVALID';
+  end if;
+  if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
+    raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
+  end if;
+  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
+    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  end if;
+  if set_price.price_list is not null and not exists (select 1 from "app_private"."price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_price_set"(uuid, text, bigint, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::bigint, $4::uuid)', v_hook::oid::regproc)
+        using set_price.variant, set_price.currency, v_amount, set_price.price_list;
+    end if;
+  end;
+  select x."id", x."amount" into v_id, v_previous from "app_private"."product_prices" x
+  where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+  if exists (
+    select 1 from "app_private"."product_prices" x
+    where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+      and x."id" is distinct from v_id
+      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+  ) then
+    raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
+  end if;
+  if v_id is null then
+    insert into "app_private"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    returning "id" into v_id;
+  else
+    update "app_private"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
+    where x."id" = v_id;
+  end if;
+  if v_previous is distinct from v_amount then
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::bigint)', v_hook::oid::regproc)
+        using v_id, v_previous;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+revoke execute on function "app_private"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "app_private"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+-- Deletes a price.
+create or replace function "app_private"."delete_price"(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."product_prices" x where x."id" = delete_price.price;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."product_prices" x where x."id" = delete_price.price;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_price"(uuid) from public, anon;
+grant execute on function "app_private"."delete_price"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at in a currency at a time: the price list's
+-- price when it has one, otherwise the base price. Runs as the caller, so
+-- the read policies decide which prices it sees. Amounts are text: JSON
+-- numbers lose bigint precision.
+create or replace function "app_private"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'variantId', x."variant_id",
+    'currency', x."currency",
+    'amount', x."amount"::text,
+    'compareAt', x."compare_at_amount"::text,
+    'priceListId', x."price_list_id"
+  )
+  from "app_private"."product_prices" x
+  where x."variant_id" = $1 and x."currency" = $2
+    and (x."price_list_id" is null or x."price_list_id" = $3)
+    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+  order by (x."price_list_id" is null), x."updated_at" desc
+  limit 1
+$$;
+grant execute on function "app_private"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Creates a category (category null) or updates one, under parent (null
+-- for the top level). A new category goes after its siblings.
+create or replace function "app_private"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_category.category;
+  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if save_category.parent is not null and not exists (select 1 from "app_private"."categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if save_category.parent is not null and exists (
+    with recursive up (id) as (
+      select save_category.parent
+      union
+      select x."parent_id" from "app_private"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = v_id
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  begin
+    if v_id is null then
+      select max(x."rank" collate "C") into v_last from "app_private"."categories" x
+      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "app_private"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      returning "id" into v_id;
+    else
+      update "app_private"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
+        "description" = save_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "app_private"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Moves a category under parent (null for the top level) at rank, a key
+-- from rankBetween over its new siblings' keys.
+create or replace function "app_private"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if move_category.rank is null or move_category.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."categories" x where x."id" = move_category.category for update;
+  if v_tenant is null then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if move_category.parent is not null and not exists (select 1 from "app_private"."categories" x where x."id" = move_category.parent and x."tenant_id" = v_tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if move_category.parent is not null and exists (
+    with recursive up (id) as (
+      select move_category.parent
+      union
+      select x."parent_id" from "app_private"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = move_category.category
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  update "app_private"."categories" x set "parent_id" = move_category.parent, "rank" = move_category.rank, "updated_at" = now()
+  where x."id" = move_category.category;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+-- Deletes a category without subcategories; products leave it.
+create or replace function "app_private"."delete_category"(category uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."categories" x where x."id" = delete_category.category;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "app_private"."categories" x where x."id" = delete_category.category;
+  exception when foreign_key_violation then
+    raise exception 'move or delete the subcategories first' using errcode = '23503', hint = 'CATALOG_CATEGORY_HAS_CHILDREN';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_category"(uuid) from public, anon;
+grant execute on function "app_private"."delete_category"(uuid) to authenticated, service_role;
+
+-- Replaces the categories a product is filed under.
+create or replace function "app_private"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = set_product_categories.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+    where not exists (select 1 from "app_private"."categories" x where x."id" = c and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  delete from "app_private"."product_categories" x
+  where x."product_id" = set_product_categories.product
+    and not (x."category_id" = any (coalesce(set_product_categories.categories, '{}'::uuid[])));
+  insert into "app_private"."product_categories" ("tenant_id", "product_id", "category_id")
+  select distinct v_tenant, set_product_categories.product, c from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+  on conflict do nothing;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "app_private"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+-- Creates a collection (collection null) or updates one. A manual
+-- collection lists ranked products; a rule collection stores a filter tree
+-- (a FilterQuery group) that picks them.
+create or replace function "app_private"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_collection.collection;
+  v_kind text := coalesce(save_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if v_kind not in ('manual', 'rule') then
+    raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
+  end if;
+  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+    raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if v_kind = 'rule' and not (
+    jsonb_typeof(save_collection.rule) = 'object'
+    and save_collection.rule ->> 'type' = 'group'
+    and save_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+  ) then
+    raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  begin
+    if v_id is null then
+      insert into "app_private"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      returning "id" into v_id;
+    else
+      update "app_private"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = save_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      if not found then
+        raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another collection has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_kind = 'rule' then
+    delete from "app_private"."collection_products" x where x."collection_id" = v_id;
+  end if;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
+end;
+$$;
+revoke execute on function "app_private"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- Deletes a collection.
+create or replace function "app_private"."delete_collection"(collection uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."collections" x where x."id" = delete_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."collections" x where x."id" = delete_collection.collection;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_collection"(uuid) from public, anon;
+grant execute on function "app_private"."delete_collection"(uuid) to authenticated, service_role;
+
+-- Adds a product to a manual collection at rank (null to append), or moves
+-- it there. Returns its rank key.
+create or replace function "app_private"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_kind text;
+  v_last text;
+  v_rank text := add_to_collection.rank;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "app_private"."collections" x where x."id" = add_to_collection.collection for update;
+  if v_tenant is null then
+    raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_kind <> 'manual' then
+    raise exception 'a rule collection picks its products from its rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if not exists (select 1 from "app_private"."products" x where x."id" = add_to_collection.product and x."tenant_id" = v_tenant) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if v_rank is not null and v_rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  if v_rank is null then
+    select max(x."rank" collate "C") into v_last from "app_private"."collection_products" x where x."collection_id" = add_to_collection.collection;
+    v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  end if;
+  insert into "app_private"."collection_products" as x ("tenant_id", "collection_id", "product_id", "rank")
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  on conflict ("collection_id", "product_id") do update set "rank" = excluded."rank";
+  return v_rank;
+end;
+$$;
+revoke execute on function "app_private"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+-- Removes a product from a manual collection.
+create or replace function "app_private"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."collections" x where x."id" = remove_from_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "app_private"."collection_products" x where x."collection_id" = remove_from_collection.collection and x."product_id" = remove_from_collection.product;
+  return found;
+end;
+$$;
+revoke execute on function "app_private"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+-- Tenants whose storefront is published. The storefront read policies
+-- call it, so it runs as its owner and returns nothing else.
+create or replace function "app_private"."storefront_tenants"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."tenant_id" from "app_private"."storefronts" x where x."published_at" is not null
+$$;
+grant execute on function "app_private"."storefront_tenants"() to anon, authenticated, service_role;
+
+-- Active products of published storefronts, for the storefront policies.
+create or replace function "app_private"."storefront_products"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "app_private"."products" x
+  where x."status" = 'active'
+    and x."tenant_id" in (select y."tenant_id" from "app_private"."storefronts" y where y."published_at" is not null)
+$$;
+grant execute on function "app_private"."storefront_products"() to anon, authenticated, service_role;
+
+-- Publishes or unpublishes a tenant's storefront. With options.storefront
+-- "public", anyone can read the active products of a published storefront.
+create or replace function "app_private"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', publish_storefront.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  insert into "app_private"."storefronts" as x ("tenant_id", "published_at")
+  values (publish_storefront.tenant, case when publish_storefront.published then now() end)
+  on conflict ("tenant_id") do update
+    set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
+  if publish_storefront.published then
+    null;
+  else
+    null;
+  end if;
+  return publish_storefront.published;
+end;
+$$;
+revoke execute on function "app_private"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+drop policy if exists products_storefront on "app_private"."products";
+drop policy if exists product_options_storefront on "app_private"."product_options";
+drop policy if exists product_option_values_storefront on "app_private"."product_option_values";
+drop policy if exists product_variants_storefront on "app_private"."product_variants";
+drop policy if exists product_variant_values_storefront on "app_private"."product_variant_values";
+drop policy if exists product_prices_storefront on "app_private"."product_prices";
+drop policy if exists categories_storefront on "app_private"."categories";
+drop policy if exists product_categories_storefront on "app_private"."product_categories";
+drop policy if exists collections_storefront on "app_private"."collections";
+drop policy if exists collection_products_storefront on "app_private"."collection_products";
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module-data catalog
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('catalog', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== api schema: schema supabase/schemas/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module catalog@1 managed
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Products with options, variants and prices in minor units, plus
+-- categories, collections, price lists and an optional public storefront.
+create or replace function "better_supabase"."currency_minor_units"(code text)
+returns integer
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
+$$;
+grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+create table if not exists "better_supabase"."products" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "title" text not null check (length("title") between 1 and 500),
+  "description" text,
+  "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
+  "status" text not null default 'draft',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
+alter table "better_supabase"."products" enable row level security;
+revoke all on "better_supabase"."products" from anon, authenticated;
+grant select on "better_supabase"."products" to authenticated;
+grant all on "better_supabase"."products" to service_role;
+drop policy if exists products_read on "better_supabase"."products";
+create policy products_read on "better_supabase"."products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_options" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "name" text not null check (length("name") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("product_id", "name")
+);
+alter table "better_supabase"."product_options" enable row level security;
+revoke all on "better_supabase"."product_options" from anon, authenticated;
+grant select on "better_supabase"."product_options" to authenticated;
+grant all on "better_supabase"."product_options" to service_role;
+drop policy if exists product_options_read on "better_supabase"."product_options";
+create policy product_options_read on "better_supabase"."product_options" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_option_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
+  "value" text not null check (length("value") between 1 and 80),
+  "rank" text collate "C" not null default 'V',
+  unique ("option_id", "value")
+);
+alter table "better_supabase"."product_option_values" enable row level security;
+revoke all on "better_supabase"."product_option_values" from anon, authenticated;
+grant select on "better_supabase"."product_option_values" to authenticated;
+grant all on "better_supabase"."product_option_values" to service_role;
+drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
+create policy product_option_values_read on "better_supabase"."product_option_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "sku" text not null check (length("sku") between 1 and 100),
+  "title" text,
+  "barcode" text,
+  "weight_grams" integer check ("weight_grams" >= 0),
+  "track_inventory" boolean not null default true,
+  "allow_backorder" boolean not null default false,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "sku")
+);
+create index if not exists product_variants_product_idx on "better_supabase"."product_variants" ("product_id");
+alter table "better_supabase"."product_variants" enable row level security;
+revoke all on "better_supabase"."product_variants" from anon, authenticated;
+grant select on "better_supabase"."product_variants" to authenticated;
+grant all on "better_supabase"."product_variants" to service_role;
+drop policy if exists product_variants_read on "better_supabase"."product_variants";
+create policy product_variants_read on "better_supabase"."product_variants" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variant_values" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "option_value_id" uuid not null references "better_supabase"."product_option_values" ("id"),
+  primary key ("variant_id", "option_value_id")
+);
+create index if not exists product_variant_values_value_idx on "better_supabase"."product_variant_values" ("option_value_id");
+alter table "better_supabase"."product_variant_values" enable row level security;
+revoke all on "better_supabase"."product_variant_values" from anon, authenticated;
+grant select on "better_supabase"."product_variant_values" to authenticated;
+grant all on "better_supabase"."product_variant_values" to service_role;
+drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
+create policy product_variant_values_read on "better_supabase"."product_variant_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."price_lists" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "customer_group" text,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "name")
+);
+alter table "better_supabase"."price_lists" enable row level security;
+revoke all on "better_supabase"."price_lists" from anon, authenticated;
+grant select on "better_supabase"."price_lists" to authenticated;
+grant all on "better_supabase"."price_lists" to service_role;
+drop policy if exists price_lists_read on "better_supabase"."price_lists";
+create policy price_lists_read on "better_supabase"."price_lists" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_prices" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete cascade,
+  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null check ("amount" >= 0),
+  "compare_at_amount" bigint check ("compare_at_amount" > "amount"),
+  "valid_from" timestamptz,
+  "valid_until" timestamptz check ("valid_until" > "valid_from"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
+create index if not exists product_prices_price_list_idx on "better_supabase"."product_prices" ("price_list_id");
+alter table "better_supabase"."product_prices" enable row level security;
+revoke all on "better_supabase"."product_prices" from anon, authenticated;
+grant select on "better_supabase"."product_prices" to authenticated;
+grant all on "better_supabase"."product_prices" to service_role;
+drop policy if exists product_prices_read on "better_supabase"."product_prices";
+create policy product_prices_read on "better_supabase"."product_prices" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."categories" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "parent_id" uuid references "better_supabase"."categories" ("id"),
+  "name" text not null check (length("name") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "description" text,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug")
+);
+create index if not exists categories_parent_idx on "better_supabase"."categories" ("parent_id");
+alter table "better_supabase"."categories" enable row level security;
+revoke all on "better_supabase"."categories" from anon, authenticated;
+grant select on "better_supabase"."categories" to authenticated;
+grant all on "better_supabase"."categories" to service_role;
+drop policy if exists categories_read on "better_supabase"."categories";
+create policy categories_read on "better_supabase"."categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_categories" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "category_id" uuid not null references "better_supabase"."categories" ("id") on delete cascade,
+  primary key ("product_id", "category_id")
+);
+create index if not exists product_categories_category_idx on "better_supabase"."product_categories" ("category_id");
+alter table "better_supabase"."product_categories" enable row level security;
+revoke all on "better_supabase"."product_categories" from anon, authenticated;
+grant select on "better_supabase"."product_categories" to authenticated;
+grant all on "better_supabase"."product_categories" to service_role;
+drop policy if exists product_categories_read on "better_supabase"."product_categories";
+create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collections" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "title" text not null check (length("title") between 1 and 200),
+  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
+  "rule" jsonb,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "slug"),
+  check (("kind" = 'rule') = ("rule" is not null))
+);
+alter table "better_supabase"."collections" enable row level security;
+revoke all on "better_supabase"."collections" from anon, authenticated;
+grant select on "better_supabase"."collections" to authenticated;
+grant all on "better_supabase"."collections" to service_role;
+drop policy if exists collections_read on "better_supabase"."collections";
+create policy collections_read on "better_supabase"."collections" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."collection_products" (
+  "tenant_id" uuid not null,
+  "collection_id" uuid not null references "better_supabase"."collections" ("id") on delete cascade,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "rank" text collate "C" not null default 'V',
+  primary key ("collection_id", "product_id")
+);
+create index if not exists collection_products_product_idx on "better_supabase"."collection_products" ("product_id");
+alter table "better_supabase"."collection_products" enable row level security;
+revoke all on "better_supabase"."collection_products" from anon, authenticated;
+grant select on "better_supabase"."collection_products" to authenticated;
+grant all on "better_supabase"."collection_products" to service_role;
+drop policy if exists collection_products_read on "better_supabase"."collection_products";
+create policy collection_products_read on "better_supabase"."collection_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."storefronts" (
+  "tenant_id" uuid primary key,
+  "published_at" timestamptz
+);
+alter table "better_supabase"."storefronts" enable row level security;
+revoke all on "better_supabase"."storefronts" from anon, authenticated;
+grant select on "better_supabase"."storefronts" to authenticated;
+grant all on "better_supabase"."storefronts" to service_role;
+drop policy if exists storefronts_read on "better_supabase"."storefronts";
+create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- Creates a product (product null) or updates one. Returns its id, slug and status.
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_product.product;
+  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_status text;
+  v_created boolean := save_product.product is null;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_product_save"(uuid, uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
+        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+    end if;
+  end;
+  begin
+    if v_created then
+      insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      returning "id", "status" into v_id, v_status;
+    else
+      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      returning x."status" into v_status;
+      if not found then
+        raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+-- Moves a product to another status: draft, active or archived.
+create or replace function "better_supabase"."set_product_status"(product uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_from from "better_supabase"."products" x where x."id" = set_product_status.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_status.status not in ('draft', 'active', 'archived') then
+    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
+  end if;
+  if v_from = set_product_status.status then
+    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
+  end if;
+  if not (case v_from
+    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
+    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
+    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+    else false
+  end) then
+    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
+  end if;
+  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  where x."id" = set_product_status.product;
+  null;
+  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_product_status"(uuid, text) to authenticated, service_role;
+
+-- Deletes a product with its options, variants and prices.
+create or replace function "better_supabase"."delete_product"(product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = delete_product.product;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."products" x where x."id" = delete_product.product;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product"(uuid) to authenticated, service_role;
+
+-- Creates a variant (variant null) or updates one. option_values holds one
+-- option value id per product option; no two variants share a combination.
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_variant.variant;
+  v_created boolean := save_variant.variant is null;
+  v_wanted uuid[];
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+    or exists (
+      select 1 from unnest(v_wanted) x
+      where not exists (
+        select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
+        where ov."id" = x and o."product_id" = save_variant.product
+      )
+    )
+    or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."product_variants" x
+    where x."product_id" = save_variant.product
+      and x."id" is distinct from save_variant.variant
+      and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
+  ) then
+    raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
+        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+    end if;
+  end;
+  begin
+    if v_created then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
+  insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+  select v_tenant, v_id, x from unnest(v_wanted) x
+  on conflict do nothing;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+-- Sets a variant's rank key among the product's variants.
+create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_variant.rank is null or rank_variant.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = rank_variant.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  update "better_supabase"."product_variants" x set "rank" = rank_variant.rank, "updated_at" = now() where x."id" = rank_variant.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_variant"(uuid, text) to authenticated, service_role;
+
+-- Deletes a variant with its prices.
+create or replace function "better_supabase"."delete_variant"(variant uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_product uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- Creates an option (option null) or updates one, with its values in order.
+-- Values missing from the list are removed; values a variant uses can't be.
+create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_product_option.option;
+  v_last text;
+  v_rank text;
+  v_value text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+    raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
+  end if;
+  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+    raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
+  end if;
+  begin
+    if v_id is null then
+      if exists (select 1 from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product) then
+        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
+      end if;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
+      values (v_tenant, save_product_option.product, save_product_option.name, case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_options" x set "name" = save_product_option.name
+      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      if not found then
+        raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end;
+  begin
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  v_rank := null;
+  foreach v_value in array save_product_option.option_values loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_option_values" x set "rank" = v_rank where x."option_id" = v_id and x."value" = v_value;
+    if not found then
+      insert into "better_supabase"."product_option_values" ("tenant_id", "option_id", "value", "rank")
+      values (v_tenant, v_id, v_value, v_rank);
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'id', v_id,
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" x where x."option_id" = v_id)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Deletes an option and its values; refused while a variant uses one.
+create or replace function "better_supabase"."delete_product_option"(option uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value of this option' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Creates a price list (price_list null) or renames one. customer_group
+-- names the customers it is for, such as a B2B tier.
+create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_price_list.price_list;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."price_lists" ("tenant_id", "name", "customer_group")
+      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      if not found then
+        raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another price list has this name' using errcode = '23505', hint = 'CATALOG_PRICE_LIST_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Deletes a price list and its prices.
+create or replace function "better_supabase"."delete_price_list"(price_list uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price_list"(uuid) to authenticated, service_role;
+
+-- Sets a variant's price in a currency, in minor units, for a price list
+-- (null for the base price) and a validity window. The same window is
+-- updated in place; a window that overlaps another price is refused.
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_amount bigint := case when set_price.amount ~ '^[0-9]{1,18}$' then set_price.amount::bigint end;
+  v_compare bigint := case when set_price.compare_at ~ '^[0-9]{1,18}$' then set_price.compare_at::bigint end;
+  v_id uuid;
+  v_previous bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_price.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if "better_supabase"."currency_minor_units"(set_price.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_amount is null then
+    raise exception 'the amount must be a whole number of minor units' using errcode = '22023', hint = 'CATALOG_AMOUNT_INVALID';
+  end if;
+  if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
+    raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
+  end if;
+  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
+    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  end if;
+  if set_price.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_price_set"(uuid, text, bigint, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::bigint, $4::uuid)', v_hook::oid::regproc)
+        using set_price.variant, set_price.currency, v_amount, set_price.price_list;
+    end if;
+  end;
+  select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
+  where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+  if exists (
+    select 1 from "better_supabase"."product_prices" x
+    where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+      and x."id" is distinct from v_id
+      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+  ) then
+    raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    returning "id" into v_id;
+  else
+    update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
+    where x."id" = v_id;
+  end if;
+  if v_previous is distinct from v_amount then
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::bigint)', v_hook::oid::regproc)
+        using v_id, v_previous;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+-- Deletes a price.
+create or replace function "better_supabase"."delete_price"(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at in a currency at a time: the price list's
+-- price when it has one, otherwise the base price. Runs as the caller, so
+-- the read policies decide which prices it sees. Amounts are text: JSON
+-- numbers lose bigint precision.
+create or replace function "better_supabase"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'variantId', x."variant_id",
+    'currency', x."currency",
+    'amount', x."amount"::text,
+    'compareAt', x."compare_at_amount"::text,
+    'priceListId', x."price_list_id"
+  )
+  from "better_supabase"."product_prices" x
+  where x."variant_id" = $1 and x."currency" = $2
+    and (x."price_list_id" is null or x."price_list_id" = $3)
+    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+  order by (x."price_list_id" is null), x."updated_at" desc
+  limit 1
+$$;
+grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Creates a category (category null) or updates one, under parent (null
+-- for the top level). A new category goes after its siblings.
+create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_category.category;
+  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if save_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if save_category.parent is not null and exists (
+    with recursive up (id) as (
+      select save_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = v_id
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  begin
+    if v_id is null then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."categories" x
+      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
+        "description" = save_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Moves a category under parent (null for the top level) at rank, a key
+-- from rankBetween over its new siblings' keys.
+create or replace function "better_supabase"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if move_category.rank is null or move_category.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = move_category.category for update;
+  if v_tenant is null then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if move_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = move_category.parent and x."tenant_id" = v_tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if move_category.parent is not null and exists (
+    with recursive up (id) as (
+      select move_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = move_category.category
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  update "better_supabase"."categories" x set "parent_id" = move_category.parent, "rank" = move_category.rank, "updated_at" = now()
+  where x."id" = move_category.category;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+-- Deletes a category without subcategories; products leave it.
+create or replace function "better_supabase"."delete_category"(category uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = delete_category.category;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."categories" x where x."id" = delete_category.category;
+  exception when foreign_key_violation then
+    raise exception 'move or delete the subcategories first' using errcode = '23503', hint = 'CATALOG_CATEGORY_HAS_CHILDREN';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_category"(uuid) to authenticated, service_role;
+
+-- Replaces the categories a product is filed under.
+create or replace function "better_supabase"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_categories.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+    where not exists (select 1 from "better_supabase"."categories" x where x."id" = c and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."product_categories" x
+  where x."product_id" = set_product_categories.product
+    and not (x."category_id" = any (coalesce(set_product_categories.categories, '{}'::uuid[])));
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  select distinct v_tenant, set_product_categories.product, c from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+  on conflict do nothing;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+-- Creates a collection (collection null) or updates one. A manual
+-- collection lists ranked products; a rule collection stores a filter tree
+-- (a FilterQuery group) that picks them.
+create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_collection.collection;
+  v_kind text := coalesce(save_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if v_kind not in ('manual', 'rule') then
+    raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
+  end if;
+  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+    raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if v_kind = 'rule' and not (
+    jsonb_typeof(save_collection.rule) = 'object'
+    and save_collection.rule ->> 'type' = 'group'
+    and save_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+  ) then
+    raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = save_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      if not found then
+        raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another collection has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_kind = 'rule' then
+    delete from "better_supabase"."collection_products" x where x."collection_id" = v_id;
+  end if;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
+end;
+$$;
+revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- Deletes a collection.
+create or replace function "better_supabase"."delete_collection"(collection uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_collection"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_collection"(uuid) to authenticated, service_role;
+
+-- Adds a product to a manual collection at rank (null to append), or moves
+-- it there. Returns its rank key.
+create or replace function "better_supabase"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_kind text;
+  v_last text;
+  v_rank text := add_to_collection.rank;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."collections" x where x."id" = add_to_collection.collection for update;
+  if v_tenant is null then
+    raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_kind <> 'manual' then
+    raise exception 'a rule collection picks its products from its rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if not exists (select 1 from "better_supabase"."products" x where x."id" = add_to_collection.product and x."tenant_id" = v_tenant) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if v_rank is not null and v_rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  if v_rank is null then
+    select max(x."rank" collate "C") into v_last from "better_supabase"."collection_products" x where x."collection_id" = add_to_collection.collection;
+    v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  end if;
+  insert into "better_supabase"."collection_products" as x ("tenant_id", "collection_id", "product_id", "rank")
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  on conflict ("collection_id", "product_id") do update set "rank" = excluded."rank";
+  return v_rank;
+end;
+$$;
+revoke execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+-- Removes a product from a manual collection.
+create or replace function "better_supabase"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = remove_from_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collection_products" x where x."collection_id" = remove_from_collection.collection and x."product_id" = remove_from_collection.product;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+-- Tenants whose storefront is published. The storefront read policies
+-- call it, so it runs as its owner and returns nothing else.
+create or replace function "better_supabase"."storefront_tenants"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
+$$;
+grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
+
+-- Active products of published storefronts, for the storefront policies.
+create or replace function "better_supabase"."storefront_products"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."products" x
+  where x."status" = 'active'
+    and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
+$$;
+grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
+
+-- Publishes or unpublishes a tenant's storefront. With options.storefront
+-- "public", anyone can read the active products of a published storefront.
+create or replace function "better_supabase"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', publish_storefront.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."storefronts" as x ("tenant_id", "published_at")
+  values (publish_storefront.tenant, case when publish_storefront.published then now() end)
+  on conflict ("tenant_id") do update
+    set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
+  if publish_storefront.published then
+    null;
+  else
+    null;
+  end if;
+  return publish_storefront.published;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+drop policy if exists products_storefront on "better_supabase"."products";
+drop policy if exists product_options_storefront on "better_supabase"."product_options";
+drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
+drop policy if exists product_variants_storefront on "better_supabase"."product_variants";
+drop policy if exists product_variant_values_storefront on "better_supabase"."product_variant_values";
+drop policy if exists product_prices_storefront on "better_supabase"."product_prices";
+drop policy if exists categories_storefront on "better_supabase"."categories";
+drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
+drop policy if exists collections_storefront on "better_supabase"."collections";
+drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
+
+-- sql.modules.catalog.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."currency_minor_units"(code text)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."currency_minor_units"($1) $$;
+revoke execute on function "api"."currency_minor_units"(text) from public;
+grant execute on function "api"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+create or replace function "api"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_product"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "api"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."set_product_status"(product uuid, status text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_product_status"($1, $2) $$;
+revoke execute on function "api"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "api"."set_product_status"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."delete_product"(product uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_product"($1) $$;
+revoke execute on function "api"."delete_product"(uuid) from public, anon;
+grant execute on function "api"."delete_product"(uuid) to authenticated, service_role;
+
+create or replace function "api"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_variant"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+create or replace function "api"."rank_variant"(variant uuid, rank text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."rank_variant"($1, $2) $$;
+revoke execute on function "api"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "api"."rank_variant"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."delete_variant"(variant uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_variant"($1) $$;
+revoke execute on function "api"."delete_variant"(uuid) from public, anon;
+grant execute on function "api"."delete_variant"(uuid) to authenticated, service_role;
+
+create or replace function "api"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_product_option"($1, $2, $3, $4) $$;
+revoke execute on function "api"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "api"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+create or replace function "api"."delete_product_option"(option uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_product_option"($1) $$;
+revoke execute on function "api"."delete_product_option"(uuid) from public, anon;
+grant execute on function "api"."delete_product_option"(uuid) to authenticated, service_role;
+
+create or replace function "api"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_price_list"($1, $2, $3, $4) $$;
+revoke execute on function "api"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "api"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."delete_price_list"(price_list uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_price_list"($1) $$;
+revoke execute on function "api"."delete_price_list"(uuid) from public, anon;
+grant execute on function "api"."delete_price_list"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_price"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "api"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."delete_price"(price uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_price"($1) $$;
+revoke execute on function "api"."delete_price"(uuid) from public, anon;
+grant execute on function "api"."delete_price"(uuid) to authenticated, service_role;
+
+create or replace function "api"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."variant_price"($1, $2, $3, $4) $$;
+revoke execute on function "api"."variant_price"(uuid, text, uuid, timestamptz) from public;
+grant execute on function "api"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+create or replace function "api"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_category"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "api"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."move_category"($1, $2, $3) $$;
+revoke execute on function "api"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."delete_category"(category uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_category"($1) $$;
+revoke execute on function "api"."delete_category"(uuid) from public, anon;
+grant execute on function "api"."delete_category"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_product_categories"($1, $2) $$;
+revoke execute on function "api"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "api"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+create or replace function "api"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_collection"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+create or replace function "api"."delete_collection"(collection uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_collection"($1) $$;
+revoke execute on function "api"."delete_collection"(uuid) from public, anon;
+grant execute on function "api"."delete_collection"(uuid) to authenticated, service_role;
+
+create or replace function "api"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."add_to_collection"($1, $2, $3) $$;
+revoke execute on function "api"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_from_collection"($1, $2) $$;
+revoke execute on function "api"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "api"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."storefront_tenants"()
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."storefront_tenants"() $$;
+revoke execute on function "api"."storefront_tenants"() from public;
+grant execute on function "api"."storefront_tenants"() to anon, authenticated, service_role;
+
+create or replace function "api"."storefront_products"()
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."storefront_products"() $$;
+revoke execute on function "api"."storefront_products"() from public;
+grant execute on function "api"."storefront_products"() to anon, authenticated, service_role;
+
+create or replace function "api"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."publish_storefront"($1, $2) $$;
+revoke execute on function "api"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "api"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module-data catalog
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('catalog', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== adopt: schema supabase/schemas/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module catalog@1 adopt
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Products with options, variants and prices in minor units, plus
+-- categories, collections, price lists and an optional public storefront.
+create or replace function "better_supabase"."currency_minor_units"(code text)
+returns integer
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
+$$;
+grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+-- Creates a product (product null) or updates one. Returns its id, slug and status.
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_product.product;
+  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_status text;
+  v_created boolean := save_product.product is null;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_product_save"(uuid, uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
+        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+    end if;
+  end;
+  begin
+    if v_created then
+      insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      returning "id", "status" into v_id, v_status;
+    else
+      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      returning x."status" into v_status;
+      if not found then
+        raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+end;
+$$;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+
+-- Moves a product to another status: draft, active or archived.
+create or replace function "better_supabase"."set_product_status"(product uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."status" into v_tenant, v_from from "better_supabase"."products" x where x."id" = set_product_status.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_status.status not in ('draft', 'active', 'archived') then
+    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
+  end if;
+  if v_from = set_product_status.status then
+    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
+  end if;
+  if not (case v_from
+    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
+    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
+    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+    else false
+  end) then
+    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
+  end if;
+  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  where x."id" = set_product_status.product;
+  null;
+  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_product_status"(uuid, text) to authenticated, service_role;
+
+-- Deletes a product with its options, variants and prices.
+create or replace function "better_supabase"."delete_product"(product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = delete_product.product;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."products" x where x."id" = delete_product.product;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product"(uuid) to authenticated, service_role;
+
+-- Creates a variant (variant null) or updates one. option_values holds one
+-- option value id per product option; no two variants share a combination.
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_variant.variant;
+  v_created boolean := save_variant.variant is null;
+  v_wanted uuid[];
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+    or exists (
+      select 1 from unnest(v_wanted) x
+      where not exists (
+        select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
+        where ov."id" = x and o."product_id" = save_variant.product
+      )
+    )
+    or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."product_variants" x
+    where x."product_id" = save_variant.product
+      and x."id" is distinct from save_variant.variant
+      and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
+  ) then
+    raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
+        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+    end if;
+  end;
+  begin
+    if v_created then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+  end;
+  delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
+  insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+  select v_tenant, v_id, x from unnest(v_wanted) x
+  on conflict do nothing;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+
+-- Sets a variant's rank key among the product's variants.
+create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if rank_variant.rank is null or rank_variant.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = rank_variant.variant;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  update "better_supabase"."product_variants" x set "rank" = rank_variant.rank, "updated_at" = now() where x."id" = rank_variant.variant;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."rank_variant"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."rank_variant"(uuid, text) to authenticated, service_role;
+
+-- Deletes a variant with its prices.
+create or replace function "better_supabase"."delete_variant"(variant uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_product uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- Creates an option (option null) or updates one, with its values in order.
+-- Values missing from the list are removed; values a variant uses can't be.
+create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_id uuid := save_product_option.option;
+  v_last text;
+  v_rank text;
+  v_value text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+    raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
+  end if;
+  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+    raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
+  end if;
+  begin
+    if v_id is null then
+      if exists (select 1 from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product) then
+        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
+      end if;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
+      values (v_tenant, save_product_option.product, save_product_option.name, case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."product_options" x set "name" = save_product_option.name
+      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      if not found then
+        raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end;
+  begin
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  v_rank := null;
+  foreach v_value in array save_product_option.option_values loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_option_values" x set "rank" = v_rank where x."option_id" = v_id and x."value" = v_value;
+    if not found then
+      insert into "better_supabase"."product_option_values" ("tenant_id", "option_id", "value", "rank")
+      values (v_tenant, v_id, v_value, v_rank);
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'id', v_id,
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" x where x."option_id" = v_id)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Deletes an option and its values; refused while a variant uses one.
+create or replace function "better_supabase"."delete_product_option"(option uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."product_options" x where x."id" = delete_product_option.option;
+  exception when foreign_key_violation then
+    raise exception 'a variant uses a value of this option' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Creates a price list (price_list null) or renames one. customer_group
+-- names the customers it is for, such as a B2B tier.
+create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_price_list.price_list;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."price_lists" ("tenant_id", "name", "customer_group")
+      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      if not found then
+        raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another price list has this name' using errcode = '23505', hint = 'CATALOG_PRICE_LIST_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Deletes a price list and its prices.
+create or replace function "better_supabase"."delete_price_list"(price_list uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."price_lists" x where x."id" = delete_price_list.price_list;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price_list"(uuid) to authenticated, service_role;
+
+-- Sets a variant's price in a currency, in minor units, for a price list
+-- (null for the base price) and a validity window. The same window is
+-- updated in place; a window that overlaps another price is refused.
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_amount bigint := case when set_price.amount ~ '^[0-9]{1,18}$' then set_price.amount::bigint end;
+  v_compare bigint := case when set_price.compare_at ~ '^[0-9]{1,18}$' then set_price.compare_at::bigint end;
+  v_id uuid;
+  v_previous bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_price.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if "better_supabase"."currency_minor_units"(set_price.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if v_amount is null then
+    raise exception 'the amount must be a whole number of minor units' using errcode = '22023', hint = 'CATALOG_AMOUNT_INVALID';
+  end if;
+  if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
+    raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
+  end if;
+  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
+    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  end if;
+  if set_price.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_price_set"(uuid, text, bigint, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::bigint, $4::uuid)', v_hook::oid::regproc)
+        using set_price.variant, set_price.currency, v_amount, set_price.price_list;
+    end if;
+  end;
+  select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
+  where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+  if exists (
+    select 1 from "better_supabase"."product_prices" x
+    where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
+      and x."id" is distinct from v_id
+      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+  ) then
+    raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    returning "id" into v_id;
+  else
+    update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
+    where x."id" = v_id;
+  end if;
+  if v_previous is distinct from v_amount then
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::bigint)', v_hook::oid::regproc)
+        using v_id, v_previous;
+    end if;
+  end;
+  return jsonb_build_object('id', v_id, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."set_price"(uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
+
+-- Deletes a price.
+create or replace function "better_supabase"."delete_price"(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."product_prices" x where x."id" = delete_price.price;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_price"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_price"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at in a currency at a time: the price list's
+-- price when it has one, otherwise the base price. Runs as the caller, so
+-- the read policies decide which prices it sees. Amounts are text: JSON
+-- numbers lose bigint precision.
+create or replace function "better_supabase"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'variantId', x."variant_id",
+    'currency', x."currency",
+    'amount', x."amount"::text,
+    'compareAt', x."compare_at_amount"::text,
+    'priceListId', x."price_list_id"
+  )
+  from "better_supabase"."product_prices" x
+  where x."variant_id" = $1 and x."currency" = $2
+    and (x."price_list_id" is null or x."price_list_id" = $3)
+    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+  order by (x."price_list_id" is null), x."updated_at" desc
+  limit 1
+$$;
+grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Creates a category (category null) or updates one, under parent (null
+-- for the top level). A new category goes after its siblings.
+create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_category.category;
+  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_last text;
+  v_rank text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if save_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if save_category.parent is not null and exists (
+    with recursive up (id) as (
+      select save_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = v_id
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  begin
+    if v_id is null then
+      select max(x."rank" collate "C") into v_last from "better_supabase"."categories" x
+      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+      insert into "better_supabase"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
+        "description" = save_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      returning x."rank" into v_rank;
+      if not found then
+        raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+end;
+$$;
+revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+
+-- Moves a category under parent (null for the top level) at rank, a key
+-- from rankBetween over its new siblings' keys.
+create or replace function "better_supabase"."move_category"(category uuid, parent uuid, rank text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if move_category.rank is null or move_category.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = move_category.category for update;
+  if v_tenant is null then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if move_category.parent is not null and not exists (select 1 from "better_supabase"."categories" x where x."id" = move_category.parent and x."tenant_id" = v_tenant) then
+    raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  if move_category.parent is not null and exists (
+    with recursive up (id) as (
+      select move_category.parent
+      union
+      select x."parent_id" from "better_supabase"."categories" x join up on x."id" = up.id where x."parent_id" is not null
+    )
+    select 1 from up where up.id = move_category.category
+  ) then
+    raise exception 'a category can''t sit under itself' using errcode = '22023', hint = 'CATALOG_CATEGORY_CYCLE';
+  end if;
+  update "better_supabase"."categories" x set "parent_id" = move_category.parent, "rank" = move_category.rank, "updated_at" = now()
+  where x."id" = move_category.category;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."move_category"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."move_category"(uuid, uuid, text) to authenticated, service_role;
+
+-- Deletes a category without subcategories; products leave it.
+create or replace function "better_supabase"."delete_category"(category uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."categories" x where x."id" = delete_category.category;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  begin
+    delete from "better_supabase"."categories" x where x."id" = delete_category.category;
+  exception when foreign_key_violation then
+    raise exception 'move or delete the subcategories first' using errcode = '23503', hint = 'CATALOG_CATEGORY_HAS_CHILDREN';
+  end;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_category"(uuid) to authenticated, service_role;
+
+-- Replaces the categories a product is filed under.
+create or replace function "better_supabase"."set_product_categories"(product uuid, categories uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_categories.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+    where not exists (select 1 from "better_supabase"."categories" x where x."id" = c and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."product_categories" x
+  where x."product_id" = set_product_categories.product
+    and not (x."category_id" = any (coalesce(set_product_categories.categories, '{}'::uuid[])));
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  select distinct v_tenant, set_product_categories.product, c from unnest(coalesce(set_product_categories.categories, '{}'::uuid[])) c
+  on conflict do nothing;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
+
+-- Creates a collection (collection null) or updates one. A manual
+-- collection lists ranked products; a rule collection stores a filter tree
+-- (a FilterQuery group) that picks them.
+create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_collection.collection;
+  v_kind text := coalesce(save_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
+  end if;
+  if v_kind not in ('manual', 'rule') then
+    raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
+  end if;
+  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+    raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if v_kind = 'rule' and not (
+    jsonb_typeof(save_collection.rule) = 'object'
+    and save_collection.rule ->> 'type' = 'group'
+    and save_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+  ) then
+    raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      returning "id" into v_id;
+    else
+      update "better_supabase"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = save_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      if not found then
+        raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another collection has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+  end;
+  if v_kind = 'rule' then
+    delete from "better_supabase"."collection_products" x where x."collection_id" = v_id;
+  end if;
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
+end;
+$$;
+revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- Deletes a collection.
+create or replace function "better_supabase"."delete_collection"(collection uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_collection"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_collection"(uuid) to authenticated, service_role;
+
+-- Adds a product to a manual collection at rank (null to append), or moves
+-- it there. Returns its rank key.
+create or replace function "better_supabase"."add_to_collection"(collection uuid, product uuid, rank text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_kind text;
+  v_last text;
+  v_rank text := add_to_collection.rank;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."collections" x where x."id" = add_to_collection.collection for update;
+  if v_tenant is null then
+    raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if v_kind <> 'manual' then
+    raise exception 'a rule collection picks its products from its rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
+  end if;
+  if not exists (select 1 from "better_supabase"."products" x where x."id" = add_to_collection.product and x."tenant_id" = v_tenant) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if v_rank is not null and v_rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CATALOG_RANK_INVALID';
+  end if;
+  if v_rank is null then
+    select max(x."rank" collate "C") into v_last from "better_supabase"."collection_products" x where x."collection_id" = add_to_collection.collection;
+    v_rank := case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+  end if;
+  insert into "better_supabase"."collection_products" as x ("tenant_id", "collection_id", "product_id", "rank")
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  on conflict ("collection_id", "product_id") do update set "rank" = excluded."rank";
+  return v_rank;
+end;
+$$;
+revoke execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."add_to_collection"(uuid, uuid, text) to authenticated, service_role;
+
+-- Removes a product from a manual collection.
+create or replace function "better_supabase"."remove_from_collection"(collection uuid, product uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = remove_from_collection.collection;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."collection_products" x where x."collection_id" = remove_from_collection.collection and x."product_id" = remove_from_collection.product;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_from_collection"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."remove_from_collection"(uuid, uuid) to authenticated, service_role;
+
+-- Tenants whose storefront is published. The storefront read policies
+-- call it, so it runs as its owner and returns nothing else.
+create or replace function "better_supabase"."storefront_tenants"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
+$$;
+grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
+
+-- Active products of published storefronts, for the storefront policies.
+create or replace function "better_supabase"."storefront_products"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."products" x
+  where x."status" = 'active'
+    and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
+$$;
+grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
+
+-- Publishes or unpublishes a tenant's storefront. With options.storefront
+-- "public", anyone can read the active products of a published storefront.
+create or replace function "better_supabase"."publish_storefront"(tenant uuid, published boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', publish_storefront.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."storefronts" as x ("tenant_id", "published_at")
+  values (publish_storefront.tenant, case when publish_storefront.published then now() end)
+  on conflict ("tenant_id") do update
+    set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
+  if publish_storefront.published then
+    null;
+  else
+    null;
+  end if;
+  return publish_storefront.published;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
+
+-- ==== adopt: data supabase/better-supabase-data/900_better_supabase_80_catalog.sql
+-- better-supabase module: catalog
+-- @bs-module-data catalog
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('catalog', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

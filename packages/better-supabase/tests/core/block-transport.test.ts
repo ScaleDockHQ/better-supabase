@@ -4,7 +4,7 @@ import type { Executor } from "../../src/core/executor.ts";
 
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { toBlockError } from "../../src/core/block-helpers.ts";
-import { dbTransport } from "../../src/core/block-transport.ts";
+import { dbTransport, sqlTransport } from "../../src/core/block-transport.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { err } from "../../src/core/result.ts";
@@ -27,6 +27,26 @@ function overPostgrest(response: { data: unknown; error: unknown }) {
   const executor = postgrestExecutor({ from: vi.fn(), schema });
   return { rpc, schema, db: { $executor: executor } };
 }
+
+describe("sqlTransport", () => {
+  it("sends objects and arrays of objects as JSON, other arrays as they are", async () => {
+    const queryRaw = vi.fn(() => Promise.resolve([{ value: true }]));
+    const transport = sqlTransport({ queryRaw } as never);
+    expect(
+      await transport.call("s", "f", {
+        lines: [{ lineId: "l1", quantity: 1 }],
+        ids: ["a", "b"],
+        data: { a: 1 },
+        none: null,
+        skipped: undefined,
+      }),
+    ).toBe(true);
+    expect(queryRaw).toHaveBeenCalledWith(
+      'select "s"."f"("lines" => $1, "ids" => $2, "data" => $3, "none" => $4) as value',
+      ['[{"lineId":"l1","quantity":1}]', ["a", "b"], '{"a":1}', null],
+    );
+  });
+});
 
 describe("dbTransport over Postgres", () => {
   it("calls the function with named arguments and returns its value", async () => {

@@ -1,0 +1,431 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { JobHandler } from "../jobs/types.ts";
+import type { BlockOptions } from "../shared.ts";
+
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult } from "../../core/result.ts";
+import { type Money } from "../commerce/money.ts";
+import {
+  applyTemporal,
+  blockCall,
+  enumOrThrow,
+  instantArg,
+  isRecord,
+  optionalText,
+  recordOf,
+  requiredInstant,
+  textOf,
+} from "../shared.ts";
+
+export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
+export type LocationKind = (typeof LOCATION_KINDS)[number];
+
+/** The reasons `adjustStock` accepts. Counts, sales and transfers write their own. */
+export const ADJUST_REASONS = [
+  "adjustment",
+  "damage",
+  "loss",
+  "return",
+  "receipt",
+] as const;
+export type AdjustReason = (typeof ADJUST_REASONS)[number];
+
+export const PURCHASE_ORDER_STATUSES = [
+  "draft",
+  "ordered",
+  "partially_received",
+  "received",
+  "cancelled",
+] as const;
+export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
+
+export interface InventoryOptions extends BlockOptions {
+  /** `withBlockHooks` hooks around any inventory method. */
+  readonly hooks?: NoInfer<BlockHooks<Inventory>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+}
+
+export interface LocationInput {
+  /** Updates this location; creates one when left out. */
+  readonly id?: string;
+  /** Unique within the organization, such as `WH-AMS`. */
+  readonly code: string;
+  readonly name: string;
+  /** Default `warehouse`. */
+  readonly kind?: LocationKind;
+}
+
+export interface SavedLocation {
+  readonly id: string;
+  readonly code: string;
+  readonly active: boolean;
+}
+
+export interface StockChange {
+  readonly movementId: string;
+  readonly onHand: number;
+  readonly available: number;
+}
+
+export interface StockCount {
+  /** Null when the count matched on-hand and no movement was written. */
+  readonly movementId: string | null;
+  readonly delta: number;
+  readonly onHand: number;
+}
+
+export interface ReserveInput {
+  readonly quantity: number;
+  /** What holds the stock, such as `cart` or `order`. */
+  readonly referenceType?: string;
+  readonly referenceId?: string;
+  /** Default: 15 minutes from now. */
+  readonly expiresAt?: Temporal.Instant;
+}
+
+export interface Reservation {
+  readonly id: string;
+  readonly expiresAt: Temporal.Instant;
+  /** Stock still available at the location after this hold. */
+  readonly available: number;
+}
+
+export interface StockLine {
+  readonly variantId: string;
+  readonly quantity: number;
+}
+
+export interface TransferInput {
+  readonly fromLocationId: string;
+  readonly toLocationId: string;
+  readonly lines: readonly StockLine[];
+  readonly note?: string;
+}
+
+export interface PurchaseOrderLine extends StockLine {
+  /** The cost per unit, in the order's currency. */
+  readonly unitCost: Money;
+}
+
+export interface PurchaseOrderInput {
+  readonly id?: string;
+  /** Where the goods arrive. */
+  readonly locationId: string;
+  /** A `config.subjects` record for the supplier, such as a company. */
+  readonly supplier?: { readonly type: string; readonly id: string };
+  readonly currency: string;
+  readonly expectedAt?: Temporal.Instant;
+  readonly lines: readonly PurchaseOrderLine[];
+  readonly note?: string;
+}
+
+export interface ReceiptLine {
+  readonly lineId: string;
+  readonly quantity: number;
+}
+
+export interface Receipt {
+  readonly status: PurchaseOrderStatus;
+  /** Units ordered and not yet received across the order. */
+  readonly backordered: number;
+}
+
+export interface Inventory {
+  saveLocation(
+    organizationId: string,
+    input: LocationInput,
+  ): AsyncResult<SavedLocation>;
+  /** An inactive location takes no new reservations or transfers. */
+  setLocationActive(locationId: string, active: boolean): AsyncResult<boolean>;
+  /** Refused with `INVENTORY_LOCATION_IN_USE` once it has stock history. */
+  deleteLocation(locationId: string): AsyncResult<boolean>;
+  /** Writes a movement of `quantity` (negative to remove). Emits `stock.adjusted`. */
+  adjustStock(
+    variantId: string,
+    locationId: string,
+    quantity: number,
+    reason: AdjustReason,
+    note?: string,
+  ): AsyncResult<StockChange>;
+  /** Sets on-hand to a counted number and writes the difference as a `count` movement. */
+  countStock(
+    variantId: string,
+    locationId: string,
+    counted: number,
+    note?: string,
+  ): AsyncResult<StockCount>;
+  /** Emits `stock.reorder_point_reached` when available stock drops to it. */
+  setReorderPoint(
+    variantId: string,
+    locationId: string,
+    reorderPoint: number,
+  ): AsyncResult<boolean>;
+  /** Holds stock until it is committed, released or expires. */
+  reserve(
+    variantId: string,
+    locationId: string,
+    input: ReserveInput,
+  ): AsyncResult<Reservation>;
+  /** Turns a hold into a `sale` movement. Resolves to the movement id. */
+  commitReservation(reservationId: string): AsyncResult<string>;
+  /** Resolves to `false` when the hold was already closed. */
+  releaseReservation(reservationId: string): AsyncResult<boolean>;
+  /** Releases expired holds. Service only. Resolves to the number released. */
+  expireReservations(maxRows?: number): AsyncResult<number>;
+  createTransfer(
+    organizationId: string,
+    input: TransferInput,
+  ): AsyncResult<{ readonly id: string }>;
+  /** Takes the stock out of the source location. */
+  shipTransfer(transferId: string): AsyncResult<boolean>;
+  /** Puts the stock into the destination location. */
+  receiveTransfer(transferId: string): AsyncResult<boolean>;
+  /** Returns shipped stock to the source location. */
+  cancelTransfer(transferId: string): AsyncResult<boolean>;
+  /** Creates or updates a draft purchase order. */
+  savePurchaseOrder(
+    organizationId: string,
+    input: PurchaseOrderInput,
+  ): AsyncResult<{ readonly id: string }>;
+  /** Marks the order as ordered and counts its lines as incoming stock. */
+  placePurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
+  /** Receives some or all of the ordered units; the rest stay on backorder. */
+  receivePurchaseOrder(
+    purchaseOrderId: string,
+    lines: readonly ReceiptLine[],
+  ): AsyncResult<Receipt>;
+  cancelPurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
+  /** The handler for a scheduled job that runs `expireReservations`. */
+  readonly job: JobHandler<unknown>;
+}
+
+const isTrue = (value: unknown): boolean => value === true;
+
+function stockChangeOf(value: unknown): StockChange {
+  const row = recordOf(value, "adjust_stock");
+  return {
+    movementId: textOf(row["movementId"]),
+    onHand: Number(row["onHand"]),
+    available: Number(row["available"]),
+  };
+}
+
+function idOf(fn: string) {
+  return (value: unknown): { readonly id: string } => ({
+    id: textOf(recordOf(value, fn)["id"]),
+  });
+}
+
+function maxRowsOf(payload: unknown): number | undefined {
+  if (!isRecord(payload)) return undefined;
+  const value = payload["maxRows"];
+  return typeof value === "number" ? value : undefined;
+}
+
+function purchaseLines(
+  input: PurchaseOrderInput,
+): readonly Record<string, unknown>[] | string {
+  const lines: Record<string, unknown>[] = [];
+  for (const line of input.lines) {
+    if (line.unitCost.currency !== input.currency) {
+      return `a line costs ${line.unitCost.currency}, the order is in ${input.currency}`;
+    }
+    lines.push({
+      variantId: line.variantId,
+      quantity: line.quantity,
+      unitCost: line.unitCost.amount.toString(),
+    });
+  }
+  return lines;
+}
+
+/** Locations, a stock ledger, reservations, transfers and purchase orders over the `inventory` SQL module. */
+export function createInventory(options: InventoryOptions): Inventory {
+  applyTemporal(options);
+  const call = blockCall(options.transport, options.schema, options.mappers);
+  const service = blockCall(
+    options.service ?? options.transport,
+    options.schema,
+    options.mappers,
+  );
+  const expireReservations: Inventory["expireReservations"] = (maxRows) =>
+    service("expire_reservations", { max_rows: maxRows ?? null }, Number);
+  const inventory: Inventory = {
+    saveLocation: (organizationId, input) =>
+      call(
+        "save_location",
+        {
+          tenant: organizationId,
+          location: input.id ?? null,
+          code: input.code,
+          name: input.name,
+          kind: input.kind ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "save_location");
+          return {
+            id: textOf(row["id"]),
+            code: textOf(row["code"]),
+            active: row["active"] === true,
+          };
+        },
+      ),
+    setLocationActive: (locationId, active) =>
+      call("set_location_active", { location: locationId, active }, isTrue),
+    deleteLocation: (locationId) =>
+      call("delete_location", { location: locationId }, isTrue),
+    adjustStock: (variantId, locationId, quantity, reason, note) =>
+      call(
+        "adjust_stock",
+        {
+          variant: variantId,
+          location: locationId,
+          quantity,
+          reason,
+          note: note ?? null,
+        },
+        stockChangeOf,
+      ),
+    countStock: (variantId, locationId, counted, note) =>
+      call(
+        "count_stock",
+        {
+          variant: variantId,
+          location: locationId,
+          counted,
+          note: note ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "count_stock");
+          return {
+            movementId: optionalText(row["movementId"]) ?? null,
+            delta: Number(row["delta"]),
+            onHand: Number(row["onHand"]),
+          };
+        },
+      ),
+    setReorderPoint: (variantId, locationId, reorderPoint) =>
+      call(
+        "set_reorder_point",
+        {
+          variant: variantId,
+          location: locationId,
+          reorder_point: reorderPoint,
+        },
+        isTrue,
+      ),
+    reserve: (variantId, locationId, input) =>
+      call(
+        "reserve_stock",
+        {
+          variant: variantId,
+          location: locationId,
+          quantity: input.quantity,
+          reference_type: input.referenceType ?? null,
+          reference_id: input.referenceId ?? null,
+          expires_at: instantArg(input.expiresAt) ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "reserve_stock");
+          return {
+            id: textOf(row["id"]),
+            expiresAt: requiredInstant(row["expiresAt"], "expiresAt"),
+            available: Number(row["available"]),
+          };
+        },
+      ),
+    commitReservation: (reservationId) =>
+      call("commit_reservation", { reservation: reservationId }, (value) =>
+        textOf(recordOf(value, "commit_reservation")["movementId"]),
+      ),
+    releaseReservation: (reservationId) =>
+      call("release_reservation", { reservation: reservationId }, isTrue),
+    expireReservations,
+    createTransfer: (organizationId, input) =>
+      call(
+        "create_transfer",
+        {
+          tenant: organizationId,
+          from_location: input.fromLocationId,
+          to_location: input.toLocationId,
+          lines: input.lines.map((line) => ({
+            variantId: line.variantId,
+            quantity: line.quantity,
+          })),
+          note: input.note ?? null,
+        },
+        idOf("create_transfer"),
+      ),
+    shipTransfer: (transferId) =>
+      call("ship_transfer", { transfer: transferId }, isTrue),
+    receiveTransfer: (transferId) =>
+      call("receive_transfer", { transfer: transferId }, isTrue),
+    cancelTransfer: (transferId) =>
+      call("cancel_transfer", { transfer: transferId }, isTrue),
+    savePurchaseOrder: (organizationId, input) => {
+      const lines = purchaseLines(input);
+      if (typeof lines === "string") {
+        return AsyncResult.err(
+          dbError("invalid_request", lines, {
+            hint: "INVENTORY_CURRENCY_INVALID",
+          }),
+        );
+      }
+      return call(
+        "save_purchase_order",
+        {
+          tenant: organizationId,
+          purchase_order: input.id ?? null,
+          location: input.locationId,
+          supplier_type: input.supplier?.type ?? null,
+          supplier_id: input.supplier?.id ?? null,
+          currency: input.currency,
+          expected_at: instantArg(input.expectedAt) ?? null,
+          lines,
+          note: input.note ?? null,
+        },
+        idOf("save_purchase_order"),
+      );
+    },
+    placePurchaseOrder: (purchaseOrderId) =>
+      call("place_purchase_order", { purchase_order: purchaseOrderId }, isTrue),
+    receivePurchaseOrder: (purchaseOrderId, lines) =>
+      call(
+        "receive_purchase_order",
+        {
+          purchase_order: purchaseOrderId,
+          lines: lines.map((line) => ({
+            lineId: line.lineId,
+            quantity: line.quantity,
+          })),
+        },
+        (value) => {
+          const row = recordOf(value, "receive_purchase_order");
+          return {
+            status: enumOrThrow(
+              row["status"],
+              PURCHASE_ORDER_STATUSES,
+              "purchase order status",
+            ),
+            backordered: Number(row["backordered"]),
+          };
+        },
+      ),
+    cancelPurchaseOrder: (purchaseOrderId) =>
+      call(
+        "cancel_purchase_order",
+        { purchase_order: purchaseOrderId },
+        isTrue,
+      ),
+    job: async (payload) => {
+      await expireReservations(maxRowsOf(payload)).orThrow();
+    },
+  };
+  return withBlockHooks(inventory, options.hooks, {
+    block: "inventory",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+}

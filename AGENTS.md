@@ -66,7 +66,7 @@ docs/
 - `pnpm --filter @better-supabase/example-nextjs test:e2e`: resets the local stack, builds the Next.js example with the testing API and runs its `instant()` specs (local only; see `docs/agents/nextjs.md`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
 - `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
-- `tests/validation-*`: five validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`), and the four docs Recipes installed and driven end to end against the local stack (`recipes`, also part of `pnpm test:integration`).
+- `tests/validation-*`: five validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`), and the five docs Recipes installed and driven end to end against the local stack (`recipes`, also part of `pnpm test:integration`).
 - `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
 
 ## Local development
@@ -146,7 +146,8 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `@next/playwright` through a variable specifier in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
-    tools without it), `@supabase/lite` through variable specifiers in
+    tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`
+    (an install message, or pass the module), `@supabase/lite` through variable specifiers in
     `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
     `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
@@ -316,6 +317,10 @@ standard or sets how the repo works.
 - 0019: security definer writes refuse a read-only support or impersonation session.
 - 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
 - 0021: rows are ordered by base-62 fractional rank keys (`rank_between`, `rankBetween`); `move()` runs as the caller.
+- 0022: Yjs documents are an update log and a snapshot in Postgres, compacted in JavaScript; `yjs` is an optional peer of `better-supabase/yjs`.
+- 0023: the bookings block installs `btree_gist` for the exclusion constraint that refuses double bookings.
+- 0024: money is `bigint` minor units from ISO 4217; payments and tax plug in through the versioned `PaymentProvider` and `TaxProvider`, with Stripe adapters.
+- 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
 
 ## Pre-release pins
 

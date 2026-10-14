@@ -7,6 +7,10 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
+import type {
+  PaymentProvider,
+  TaxProvider,
+} from "../../src/blocks/commerce/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type { NotificationChannel } from "../../src/blocks/notifications/index.ts";
@@ -84,6 +88,11 @@ import type {
 import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
 import {
+  fixedRates,
+  stripePayments,
+  stripeTax,
+} from "../../src/blocks/commerce/index.ts";
+import {
   pgmqPublicBackend,
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
@@ -145,6 +154,11 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(stripePayments).returns.toExtend<PaymentProvider>();
+    expectTypeOf<PaymentProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(fixedRates).returns.toExtend<TaxProvider>();
+    expectTypeOf(stripeTax).returns.toExtend<TaxProvider>();
+    expectTypeOf<TaxProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();
