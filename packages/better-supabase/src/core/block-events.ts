@@ -384,7 +384,15 @@ export type SubjectEventType =
   | "fulfillment.shipped"
   | "fulfillment.delivered"
   | "return.requested"
-  | "return.received";
+  | "return.received"
+  | "form_submission.submitted"
+  | "form_submission.reviewed"
+  | "form_submission.deleted"
+  | "signature.requested"
+  | "signature.signed"
+  | "signature.completed"
+  | "signature.declined"
+  | "signature.cancelled";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -537,6 +545,78 @@ export interface DriveEventData extends SubjectEventData {
     readonly bucket: string;
     readonly path: string;
   }[];
+}
+
+/** `form.created` and `form_version.published` from the forms module. */
+export interface FormEventData {
+  readonly organizationId: string;
+  /** The form, or for `form_version.published` the version. */
+  readonly id: string;
+  readonly key?: string;
+  readonly formId?: string;
+  readonly number?: number;
+}
+
+/**
+ * Submission events from the forms module. The subject is the record the
+ * submission is linked to, or the form itself (`form`) when it has none.
+ */
+export interface FormSubmissionEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The submission. */
+  readonly id: string;
+  readonly formId: string;
+  readonly versionId?: string;
+  /** `member`, `public` or `service`. */
+  readonly source?: string;
+  /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
+  readonly status?: string;
+}
+
+/**
+ * Signature events from the signatures module. The subject is the record the
+ * request asks signers to sign.
+ */
+export interface SignatureEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The signature request. */
+  readonly id: string;
+  readonly versionId?: string;
+  /** For `signature.signed`: the signature. */
+  readonly signatureId?: string;
+  /** For `signature.signed` and `signature.declined`. */
+  readonly signer?: string;
+  /** For `signature.signed`: `drawn`, `typed` or `click`. */
+  readonly method?: string;
+}
+
+/**
+ * Time entry events from the time-tracking module. `subjectType` and
+ * `subjectId` are null for time not tracked on a record.
+ */
+export interface TimeEntryEventData {
+  readonly organizationId: string;
+  /** The time entry. */
+  readonly id: string;
+  readonly userId: string;
+  readonly subjectType: string | null;
+  readonly subjectId: string | null;
+  /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
+  readonly seconds?: number | null;
+  readonly billable?: boolean;
+  /** The hourly rate, when the entry has one. */
+  readonly rate?: number | null;
+}
+
+/** Timesheet events from the time-tracking module. */
+export interface TimesheetEventData {
+  readonly organizationId: string;
+  /** The timesheet. */
+  readonly id: string;
+  readonly userId: string;
+  /** The Monday the week starts on, as `YYYY-MM-DD`. */
+  readonly week: string;
+  readonly approvalId: string | null;
 }
 
 /** Every block event type and its data. */
@@ -741,6 +821,23 @@ export interface BlockEventMap {
   "return.requested": CommerceSubjectEventData;
   "return.received": CommerceSubjectEventData;
   "promotion.redeemed": CommerceEventData;
+  "form.created": FormEventData;
+  "form_version.published": FormEventData;
+  "form_submission.submitted": FormSubmissionEventData;
+  "form_submission.reviewed": FormSubmissionEventData;
+  "form_submission.deleted": FormSubmissionEventData;
+  "signature.requested": SignatureEventData;
+  "signature.signed": SignatureEventData;
+  "signature.completed": SignatureEventData;
+  "signature.declined": SignatureEventData;
+  "signature.cancelled": SignatureEventData;
+  "time_entry.started": TimeEntryEventData;
+  "time_entry.recorded": TimeEntryEventData;
+  "time_entry.updated": TimeEntryEventData;
+  "time_entry.deleted": TimeEntryEventData;
+  "timesheet.submitted": TimesheetEventData;
+  "timesheet.approved": TimesheetEventData;
+  "timesheet.reopened": TimesheetEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

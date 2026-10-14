@@ -49,13 +49,27 @@ const SUBJECT_EVENTS = [
   "fulfillment.delivered",
   "return.requested",
   "return.received",
+  "form_submission.submitted",
+  "form_submission.reviewed",
+  "form_submission.deleted",
+  "signature.requested",
+  "signature.signed",
+  "signature.completed",
+  "signature.declined",
+  "signature.cancelled",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;
 const everyTypeListed: Unlisted extends never ? true : false = true;
 
 /** Events that name a subject only when the row is attached to one. */
-const OPTIONAL_SUBJECT = new Set(["attachment.uploaded"]);
+const OPTIONAL_SUBJECT = new Set([
+  "attachment.uploaded",
+  "time_entry.started",
+  "time_entry.recorded",
+  "time_entry.updated",
+  "time_entry.deleted",
+]);
 
 interface CatalogEntry {
   readonly module: string;

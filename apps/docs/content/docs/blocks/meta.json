@@ -70,6 +70,8 @@
     "inventory",
     "drive",
     "orders",
-    "promotions"
+    "promotions",
+    "forms",
+    "time-tracking"
   ]
 }

@@ -145,6 +145,8 @@ expose the module schema itself.
 | [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                                                                     | `drive`, `drive-files`                 |
 | [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                                                                    | `orders`                               |
 | [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                                                                                | `promotions`                           |
+| [Forms](/docs/blocks/forms)                                 | `better-supabase/blocks/forms`, `better-supabase/blocks/forms/react`                                                               | `forms`, `signatures`                  |
+| [Time tracking](/docs/blocks/time-tracking)                 | `better-supabase/blocks/time-tracking`                                                                                             | `time-tracking`                        |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -168,94 +170,97 @@ module installs and runs without that step. Every module also writes its
 events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 `better-supabase sql list` prints both lists for each module.
 
-| Module               | Requires                                  | Works with                                                                              |
-| -------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `updated-at`         | none                                      | none                                                                                    |
-| `actor`              | none                                      | none                                                                                    |
-| `audit`              | none                                      | `access`, `organizations`                                                               |
-| `tenant`             | `updated-at`                              | `access`, `invitations`, `organizations`                                                |
-| `invitations`        | `tenant`, `access`, `updated-at`          | `organizations`, `profiles`                                                             |
-| `reserved-slugs`     | none                                      | none                                                                                    |
-| `jobs`               | none                                      | none                                                                                    |
-| `idempotency`        | none                                      | none                                                                                    |
-| `webhook-inbox`      | none                                      | none                                                                                    |
-| `realtime-tables`    | none                                      | none                                                                                    |
-| `jsonb-schemas`      | none                                      | none                                                                                    |
-| `pgtap`              | none                                      | none                                                                                    |
-| `grants`             | none                                      | none                                                                                    |
-| `read-sets`          | none                                      | none                                                                                    |
-| `mfa`                | none                                      | none                                                                                    |
-| `entitlements`       | `tenant`                                  | none                                                                                    |
-| `rate-limit`         | none                                      | none                                                                                    |
-| `vector-search`      | none                                      | none                                                                                    |
-| `access`             | `tenant`                                  | `invitations`, `organizations`                                                          |
-| `support-sessions`   | `access`, `audit`                         | `invitations`                                                                           |
-| `organizations`      | `tenant`, `access`, `updated-at`          | `audit`, `data-lifecycle`, `entitlements`, `invitations`, `reserved-slugs`              |
-| `profiles`           | none                                      | `tenant`                                                                                |
-| `outbox`             | none                                      | none                                                                                    |
-| `notifications`      | `updated-at`                              | `access`, `profiles`, `tenant`                                                          |
-| `webhooks-out`       | `updated-at`                              | `access`                                                                                |
-| `sessions`           | none                                      | none                                                                                    |
-| `webhooks-in`        | `access`, `updated-at`, `webhook-inbox`   | none                                                                                    |
-| `api-keys`           | `tenant`, `access`                        | none                                                                                    |
-| `settings`           | `tenant`, `access`                        | `jsonb-schemas`                                                                         |
-| `usage`              | `tenant`, `access`                        | `entitlements`                                                                          |
-| `billing`            | `tenant`, `access`                        | `organizations`                                                                         |
-| `flags`              | `tenant`                                  | `access`, `entitlements`                                                                |
-| `comments`           | `tenant`, `access`                        | `jsonb-schemas`, `notifications`                                                        |
-| `attachments`        | `tenant`, `access`                        | none                                                                                    |
-| `data-lifecycle`     | `tenant`, `access`                        | every installed module                                                                  |
-| `sso`                | `tenant`, `access`                        | `organizations`                                                                         |
-| `onboarding`         | `tenant`, `access`                        | `outbox`                                                                                |
-| `waitlist`           | `tenant`, `access`                        | `invitations`, `organizations`                                                          |
-| `announcements`      | `tenant`, `access`                        | `entitlements`                                                                          |
-| `streams`            | none                                      | none                                                                                    |
-| `credentials`        | none                                      | none                                                                                    |
-| `workflows`          | `tenant`, `access`                        | none                                                                                    |
-| `workflow-sdk-world` | `workflows`, `jobs`, `access`             | none                                                                                    |
-| `workflow-builder`   | `workflows`, `tenant`, `access`           | none                                                                                    |
-| `chat-sdk-state`     | none                                      | none                                                                                    |
-| `inbox`              | `tenant`, `access`, `updated-at`, `teams` | `jobs`, `notifications`, `reactions`                                                    |
-| `ai-chat`            | `tenant`, `access`, `streams`             | `entitlements`, `ai-providers`                                                          |
-| `ai-files`           | `tenant`, `access`                        | `ai-chat`                                                                               |
-| `knowledge`          | `tenant`, `access`, `vector-search`       | `ai-chat`, `ai-files`, `jobs`                                                           |
-| `memory`             | `tenant`, `access`, `vector-search`       | `ai-chat`                                                                               |
-| `agents`             | `tenant`, `access`                        | none                                                                                    |
-| `connectors`         | `tenant`, `access`                        | none                                                                                    |
-| `ai-tasks`           | `tenant`, `access`                        | `agents`, `ai-chat`, `jobs`                                                             |
-| `push`               | none                                      | none                                                                                    |
-| `ai-cache`           | none                                      | none                                                                                    |
-| `ai-providers`       | `tenant`, `access`                        | `ai-chat`                                                                               |
-| `number-sequences`   | `tenant`, `access`                        | `outbox`, `audit`                                                                       |
-| `teams`              | `tenant`, `access`                        | `inbox`, `outbox`, `audit`                                                              |
-| `tags`               | `tenant`, `access`                        | `outbox`                                                                                |
-| `state-machine`      | `tenant`, `access`                        | `outbox`, `audit`, `approvals`                                                          |
-| `custom-fields`      | `tenant`, `access`                        | `outbox`                                                                                |
-| `share-links`        | `tenant`, `access`                        | `ai-chat`, `outbox`                                                                     |
-| `reminders`          | `tenant`, `access`, `jobs`                | `notifications`, `outbox`                                                               |
-| `imports`            | `tenant`, `access`, `jobs`                | `attachments`, `outbox`                                                                 |
-| `subjects`           | `access`                                  | none                                                                                    |
-| `rank`               | `access`, `subjects`                      | `jobs`                                                                                  |
-| `saved-views`        | `tenant`, `access`                        | `outbox`, `teams`                                                                       |
-| `relations`          | `tenant`, `access`                        | `outbox`                                                                                |
-| `bulk`               | `tenant`, `access`                        | `jobs`, `outbox`, `tags`, `state-machine`, `relations`                                  |
-| `search`             | `tenant`, `access`, `subjects`            | `share-links`, `vector-search`                                                          |
-| `metrics`            | `tenant`, `access`                        | `usage`, `jobs`                                                                         |
-| `calendar`           | `tenant`, `access`                        | `share-links`, `reminders`, `outbox`                                                    |
-| `bookings`           | `tenant`, `access`                        | `jobs`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox`                  |
-| `versions`           | `tenant`, `access`                        | `outbox`, `audit`                                                                       |
-| `trash`              | `tenant`, `access`                        | `outbox`, `audit`                                                                       |
-| `reactions`          | `tenant`, `access`                        | `outbox`, `comments`, `inbox`                                                           |
-| `approvals`          | `tenant`, `access`                        | `outbox`, `audit`, `notifications`, `jobs`, `teams`, `state-machine`, `access-requests` |
-| `access-requests`    | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                       |
-| `documents`          | `tenant`, `access`                        | `outbox`, `audit`, `jobs`, `versions`                                                   |
-| `catalog`            | `tenant`, `access`                        | `outbox`, `state-machine`, `inventory`                                                  |
-| `inventory`          | `tenant`, `access`, `catalog`             | `outbox`                                                                                |
-| `drive`              | `tenant`, `access`, `drive-files`         | `outbox`, `audit`, `attachments`, `versions`, `trash`, `teams`, `share-links`           |
-| `drive-files`        | `attachments`                             | `drive`, `outbox`, `audit`, `versions`, `trash`, `teams`, `share-links`                 |
-| `orders`             | `tenant`, `access`, `catalog`             | `outbox`, `inventory`, `promotions`, `number-sequences`, `state-machine`                |
-| `promotions`         | `tenant`, `access`, `catalog`, `orders`   | `outbox`                                                                                |
-| `ensure-rls`         | none                                      | none                                                                                    |
+| Module               | Requires                                  | Works with                                                                                               |
+| -------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `updated-at`         | none                                      | none                                                                                                     |
+| `actor`              | none                                      | none                                                                                                     |
+| `audit`              | none                                      | `access`, `organizations`                                                                                |
+| `tenant`             | `updated-at`                              | `access`, `invitations`, `organizations`                                                                 |
+| `invitations`        | `tenant`, `access`, `updated-at`          | `organizations`, `profiles`                                                                              |
+| `reserved-slugs`     | none                                      | none                                                                                                     |
+| `jobs`               | none                                      | none                                                                                                     |
+| `idempotency`        | none                                      | none                                                                                                     |
+| `webhook-inbox`      | none                                      | none                                                                                                     |
+| `realtime-tables`    | none                                      | none                                                                                                     |
+| `jsonb-schemas`      | none                                      | none                                                                                                     |
+| `pgtap`              | none                                      | none                                                                                                     |
+| `grants`             | none                                      | none                                                                                                     |
+| `read-sets`          | none                                      | none                                                                                                     |
+| `mfa`                | none                                      | none                                                                                                     |
+| `entitlements`       | `tenant`                                  | none                                                                                                     |
+| `rate-limit`         | none                                      | none                                                                                                     |
+| `vector-search`      | none                                      | none                                                                                                     |
+| `access`             | `tenant`                                  | `invitations`, `organizations`                                                                           |
+| `support-sessions`   | `access`, `audit`                         | `invitations`                                                                                            |
+| `organizations`      | `tenant`, `access`, `updated-at`          | `audit`, `data-lifecycle`, `entitlements`, `invitations`, `reserved-slugs`                               |
+| `profiles`           | none                                      | `tenant`                                                                                                 |
+| `outbox`             | none                                      | none                                                                                                     |
+| `notifications`      | `updated-at`                              | `access`, `profiles`, `tenant`                                                                           |
+| `webhooks-out`       | `updated-at`                              | `access`                                                                                                 |
+| `sessions`           | none                                      | none                                                                                                     |
+| `webhooks-in`        | `access`, `updated-at`, `webhook-inbox`   | none                                                                                                     |
+| `api-keys`           | `tenant`, `access`                        | none                                                                                                     |
+| `settings`           | `tenant`, `access`                        | `jsonb-schemas`                                                                                          |
+| `usage`              | `tenant`, `access`                        | `entitlements`                                                                                           |
+| `billing`            | `tenant`, `access`                        | `organizations`                                                                                          |
+| `flags`              | `tenant`                                  | `access`, `entitlements`                                                                                 |
+| `comments`           | `tenant`, `access`                        | `jsonb-schemas`, `notifications`                                                                         |
+| `attachments`        | `tenant`, `access`                        | none                                                                                                     |
+| `data-lifecycle`     | `tenant`, `access`                        | every installed module                                                                                   |
+| `sso`                | `tenant`, `access`                        | `organizations`                                                                                          |
+| `onboarding`         | `tenant`, `access`                        | `outbox`                                                                                                 |
+| `waitlist`           | `tenant`, `access`                        | `invitations`, `organizations`                                                                           |
+| `announcements`      | `tenant`, `access`                        | `entitlements`                                                                                           |
+| `streams`            | none                                      | none                                                                                                     |
+| `credentials`        | none                                      | none                                                                                                     |
+| `workflows`          | `tenant`, `access`                        | none                                                                                                     |
+| `workflow-sdk-world` | `workflows`, `jobs`, `access`             | none                                                                                                     |
+| `workflow-builder`   | `workflows`, `tenant`, `access`           | none                                                                                                     |
+| `chat-sdk-state`     | none                                      | none                                                                                                     |
+| `inbox`              | `tenant`, `access`, `updated-at`, `teams` | `jobs`, `notifications`, `reactions`                                                                     |
+| `ai-chat`            | `tenant`, `access`, `streams`             | `entitlements`, `ai-providers`                                                                           |
+| `ai-files`           | `tenant`, `access`                        | `ai-chat`                                                                                                |
+| `knowledge`          | `tenant`, `access`, `vector-search`       | `ai-chat`, `ai-files`, `jobs`                                                                            |
+| `memory`             | `tenant`, `access`, `vector-search`       | `ai-chat`                                                                                                |
+| `agents`             | `tenant`, `access`                        | none                                                                                                     |
+| `connectors`         | `tenant`, `access`                        | none                                                                                                     |
+| `ai-tasks`           | `tenant`, `access`                        | `agents`, `ai-chat`, `jobs`                                                                              |
+| `push`               | none                                      | none                                                                                                     |
+| `ai-cache`           | none                                      | none                                                                                                     |
+| `ai-providers`       | `tenant`, `access`                        | `ai-chat`                                                                                                |
+| `number-sequences`   | `tenant`, `access`                        | `outbox`, `audit`                                                                                        |
+| `teams`              | `tenant`, `access`                        | `inbox`, `outbox`, `audit`                                                                               |
+| `tags`               | `tenant`, `access`                        | `outbox`                                                                                                 |
+| `state-machine`      | `tenant`, `access`                        | `outbox`, `audit`, `approvals`                                                                           |
+| `custom-fields`      | `tenant`, `access`                        | `outbox`                                                                                                 |
+| `share-links`        | `tenant`, `access`                        | `ai-chat`, `outbox`                                                                                      |
+| `reminders`          | `tenant`, `access`, `jobs`                | `notifications`, `outbox`                                                                                |
+| `imports`            | `tenant`, `access`, `jobs`                | `attachments`, `outbox`                                                                                  |
+| `subjects`           | `access`                                  | none                                                                                                     |
+| `rank`               | `access`, `subjects`                      | `jobs`                                                                                                   |
+| `saved-views`        | `tenant`, `access`                        | `outbox`, `teams`                                                                                        |
+| `relations`          | `tenant`, `access`                        | `outbox`                                                                                                 |
+| `bulk`               | `tenant`, `access`                        | `jobs`, `outbox`, `tags`, `state-machine`, `relations`                                                   |
+| `search`             | `tenant`, `access`, `subjects`            | `share-links`, `vector-search`                                                                           |
+| `metrics`            | `tenant`, `access`                        | `usage`, `jobs`                                                                                          |
+| `calendar`           | `tenant`, `access`                        | `share-links`, `reminders`, `outbox`                                                                     |
+| `bookings`           | `tenant`, `access`                        | `jobs`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox`                                   |
+| `versions`           | `tenant`, `access`                        | `outbox`, `audit`                                                                                        |
+| `trash`              | `tenant`, `access`                        | `outbox`, `audit`                                                                                        |
+| `reactions`          | `tenant`, `access`                        | `outbox`, `comments`, `inbox`                                                                            |
+| `approvals`          | `tenant`, `access`                        | `outbox`, `audit`, `notifications`, `jobs`, `teams`, `state-machine`, `access-requests`, `time-tracking` |
+| `access-requests`    | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                                        |
+| `documents`          | `tenant`, `access`                        | `outbox`, `audit`, `jobs`, `versions`                                                                    |
+| `catalog`            | `tenant`, `access`                        | `outbox`, `state-machine`, `inventory`                                                                   |
+| `inventory`          | `tenant`, `access`, `catalog`             | `outbox`                                                                                                 |
+| `drive`              | `tenant`, `access`, `drive-files`         | `outbox`, `audit`, `attachments`, `versions`, `trash`, `teams`, `share-links`                            |
+| `drive-files`        | `attachments`                             | `drive`, `outbox`, `audit`, `versions`, `trash`, `teams`, `share-links`                                  |
+| `orders`             | `tenant`, `access`, `catalog`             | `outbox`, `inventory`, `promotions`, `number-sequences`, `state-machine`                                 |
+| `promotions`         | `tenant`, `access`, `catalog`, `orders`   | `outbox`                                                                                                 |
+| `forms`              | `tenant`, `access`, `jsonb-schemas`       | `custom-fields`, `share-links`, `rate-limit`, `outbox`, `audit`                                          |
+| `signatures`         | `tenant`, `access`, `versions`            | `approvals`, `attachments`, `outbox`, `audit`                                                            |
+| `time-tracking`      | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                                        |
+| `ensure-rls`         | none                                      | none                                                                                                     |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
 `support-sessions` and the rest) are listed on the

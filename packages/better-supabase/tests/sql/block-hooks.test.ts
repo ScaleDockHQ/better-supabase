@@ -84,6 +84,24 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_refund_create",
   ],
   promotions: ["before_promotion_save", "after_promotion_save"],
+  forms: [
+    "before_form_publish",
+    "after_form_publish",
+    "before_form_submission",
+    "after_form_submission",
+  ],
+  signatures: [
+    "before_signature_request",
+    "after_signature_request",
+    "before_signature_sign",
+    "after_signature_sign",
+  ],
+  "time-tracking": [
+    "before_time_entry_save",
+    "after_time_entry_save",
+    "before_timesheet_submit",
+    "after_timesheet_submit",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

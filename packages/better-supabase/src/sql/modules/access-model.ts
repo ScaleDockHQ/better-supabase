@@ -51,6 +51,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "access_requests.*",
     "documents.*",
     "drive.*",
+    "forms.*",
+    "signatures.*",
+    "time_tracking.*",
   ],
   member: [
     "organization.read",
@@ -101,6 +104,11 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "documents.write",
     "drive.read",
     "drive.create",
+    "forms.read",
+    "forms.submit",
+    "signatures.read",
+    "signatures.request",
+    "time_tracking.track",
   ],
   viewer: ["organization.read"],
 };
@@ -290,6 +298,23 @@ export const MODULE_PERMISSIONS = {
     create: "drive.create",
     manage: "drive.manage",
   },
+  forms: {
+    read: "forms.read",
+    manage: "forms.manage",
+    submit: "forms.submit",
+    review: "forms.review",
+  },
+  signatures: {
+    read: "signatures.read",
+    request: "signatures.request",
+    manage: "signatures.manage",
+  },
+  "time-tracking": {
+    read: "time_tracking.read",
+    track: "time_tracking.track",
+    approve: "time_tracking.approve",
+    manage: "time_tracking.manage",
+  },
 } as const;
 
 /**
@@ -428,6 +453,19 @@ export const MODULE_PERMISSION_SCOPES: {
   "access-requests": { read: "tenant", create: "tenant", manage: "tenant" },
   documents: { read: "tenant", write: "tenant", manage: "tenant" },
   drive: { read: "tenant", create: "tenant", manage: "tenant" },
+  forms: {
+    read: "tenant",
+    manage: "tenant",
+    submit: "tenant",
+    review: "tenant",
+  },
+  signatures: { read: "tenant", request: "tenant", manage: "tenant" },
+  "time-tracking": {
+    read: "tenant",
+    track: "tenant",
+    approve: "tenant",
+    manage: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

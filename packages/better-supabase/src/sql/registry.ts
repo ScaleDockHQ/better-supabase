@@ -35,6 +35,7 @@ import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -70,6 +71,7 @@ import { SEARCH } from "./modules/search.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
+import { SIGNATURES } from "./modules/signatures.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
@@ -78,6 +80,7 @@ import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TENANT } from "./modules/tenant.ts";
+import { TIME_TRACKING } from "./modules/time-tracking.ts";
 import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
@@ -202,6 +205,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(DRIVE_FILES),
       built(ORDERS),
       built(PROMOTIONS),
+      built(FORMS),
+      built(SIGNATURES),
+      built(TIME_TRACKING),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
