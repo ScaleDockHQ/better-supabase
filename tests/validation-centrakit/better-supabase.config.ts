@@ -350,6 +350,7 @@ export default defineConfig({
           views: "centrakit.subject_views",
           state: "centrakit.subject_user_state",
         },
+        columns: { links: { versionId: null } },
       },
       reminders: {
         mode: "adopt",
