@@ -54,6 +54,7 @@
     "commerce",
     "catalog",
     "inventory",
-    "orders"
+    "orders",
+    "promotions"
   ]
 }

@@ -631,6 +631,11 @@
       "types": "./dist/blocks/orders/index.d.ts",
       "default": "./dist/blocks/orders/index.js"
     },
+    "./blocks/promotions": {
+      "@better-supabase/source": "./src/blocks/promotions/index.ts",
+      "types": "./dist/blocks/promotions/index.d.ts",
+      "default": "./dist/blocks/promotions/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1210,6 +1215,10 @@
       "./blocks/orders": {
         "types": "./dist/blocks/orders/index.d.ts",
         "default": "./dist/blocks/orders/index.js"
+      },
+      "./blocks/promotions": {
+        "types": "./dist/blocks/promotions/index.d.ts",
+        "default": "./dist/blocks/promotions/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

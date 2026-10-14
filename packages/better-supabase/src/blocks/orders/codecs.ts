@@ -71,6 +71,10 @@ export interface CartProblem {
   readonly lineId?: string;
   readonly variantId?: string;
   readonly code?: string;
+  /** For `promotion_unavailable`: the promotion behind the code. */
+  readonly promotionId?: string;
+  /** For `promotion_unavailable`, such as `expired`, `limit_reached` or `not_combinable`. */
+  readonly reason?: string;
 }
 
 export interface CartLine {
@@ -90,11 +94,19 @@ export interface CartLine {
   readonly requiresShipping: boolean;
 }
 
+export const PROMOTION_KINDS = [
+  "percentage",
+  "fixed",
+  "free_shipping",
+] as const;
+
 /** A promotion the cart gets, as the `promotions` module reports it. */
 export interface AppliedPromotion {
   readonly promotionId: string;
   readonly name: string;
+  readonly kind: (typeof PROMOTION_KINDS)[number];
   readonly code?: string;
+  /** Zero for free shipping, which shows in the shipping total instead. */
   readonly discount: Money;
   readonly freeShipping: boolean;
 }
@@ -301,12 +313,14 @@ function promotionsOf(
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((entry) => {
     const code = optionalText(entry["code"]);
+    const kind = enumOrThrow(entry["kind"], PROMOTION_KINDS, "promotion kind");
     return {
       promotionId: textOf(entry["promotionId"]),
       name: textOf(entry["name"]),
+      kind,
       ...(code === undefined ? {} : { code }),
-      discount: moneyOf(entry["discount"] ?? "0", currency),
-      freeShipping: entry["freeShipping"] === true,
+      discount: moneyOf(entry["amount"] ?? "0", currency),
+      freeShipping: kind === "free_shipping",
     };
   });
 }
@@ -317,11 +331,15 @@ function problemsOf(value: unknown): readonly CartProblem[] {
     const lineId = optionalText(entry["lineId"]);
     const variantId = optionalText(entry["variantId"]);
     const code = optionalText(entry["code"]);
+    const promotionId = optionalText(entry["promotionId"]);
+    const reason = optionalText(entry["reason"]);
     return {
       problem: textOf(entry["problem"]),
       ...(lineId === undefined ? {} : { lineId }),
       ...(variantId === undefined ? {} : { variantId }),
       ...(code === undefined ? {} : { code }),
+      ...(promotionId === undefined ? {} : { promotionId }),
+      ...(reason === undefined ? {} : { reason }),
     };
   });
 }

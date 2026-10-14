@@ -2220,6 +2220,13 @@ begin
       v_weight := v_weight + coalesce(v_line.weight, 0)::bigint * v_line.quantity;
     end if;
   end loop;
+  if jsonb_array_length(v_lines) > 0 then
+    v_promo := "better_supabase"."cart_discounts"(p_cart, v_lines);
+    v_discounts := coalesce(v_promo -> 'lines', '{}'::jsonb);
+    v_applied := coalesce(v_promo -> 'applied', '[]'::jsonb);
+    v_free := coalesce((v_promo ->> 'freeShipping')::boolean, false);
+    v_problems := v_problems || coalesce(v_promo -> 'problems', '[]'::jsonb);
+  end if;
   select coalesce(jsonb_agg(e.l || jsonb_build_object(
       'discount', coalesce(v_discounts ->> (e.l ->> 'id'), '0'),
       'total', ((e.l ->> 'subtotal')::bigint - coalesce((v_discounts ->> (e.l ->> 'id'))::bigint, 0))::text) order by e.n), '[]'::jsonb),
@@ -2808,6 +2815,7 @@ begin
       "backordered" = (v_reservation ->> 'available')::integer < 0
     where x."id" = v_line.id;
   end loop;
+  perform "better_supabase"."redeem_promotions"(v_order.id, v_priced -> 'promotions');
   update "better_supabase"."carts" x set "status" = 'converted', "converted_at" = now(), "updated_at" = now()
   where x."id" = place_order.cart;
   perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', v_priced ->> 'subtotal', 'discountTotal', v_priced ->> 'discountTotal', 'shippingTotal', v_priced ->> 'shippingTotal', 'taxTotal', v_tax::text, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
@@ -2973,6 +2981,7 @@ begin
   perform "better_supabase"."release_reservation"(v_line.reservation);
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end loop;
+  perform "better_supabase"."release_promotions"(v_order.id);
   perform "better_supabase".emit_event('order.cancelled', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'reason', coalesce(p_reason, 'cancelled')), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
 end;
 $$;

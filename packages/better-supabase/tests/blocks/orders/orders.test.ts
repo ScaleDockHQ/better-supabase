@@ -80,9 +80,9 @@ const cartRow = (overrides: Record<string, unknown> = {}) => ({
     {
       promotionId: "pr1",
       name: "Ten off",
+      kind: "fixed",
       code: "TEN",
-      discount: "400",
-      freeShipping: false,
+      amount: "400",
     },
   ],
   problems: [],
