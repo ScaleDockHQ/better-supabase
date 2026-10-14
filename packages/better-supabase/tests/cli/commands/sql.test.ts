@@ -758,6 +758,157 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(check.output).toContain("-- edited");
   });
 
+  it("turns pg-delta on under the pg-delta workflow, and leaves migra alone", async () => {
+    await mkdir(join(root, "supabase"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      "[api]\nport = 54321\n",
+    );
+    const config: BetterSupabaseConfig = { sql: { modules: ["mfa"] } };
+    const migra = await sql(["sync"], {
+      sql: { ...config.sql, workflow: "migra" },
+    });
+    expect(migra.output).not.toContain("pg-delta");
+    await rm(join(root, "supabase/schemas"), { recursive: true, force: true });
+    const synced = await sql(["sync"], config);
+    expect(synced.output).toContain("Enabled pg-delta in supabase/config.toml");
+    expect(await readFile(join(root, "supabase/config.toml"), "utf8")).toBe(
+      "[api]\nport = 54321\n\n[experimental.pgdelta]\nenabled = true\n",
+    );
+    expect((await sql(["sync"], config)).output).not.toContain("pg-delta");
+  });
+
+  describe("the migrations workflow", () => {
+    const migrations = (modules: string[]): BetterSupabaseConfig => ({
+      sql: { workflow: "migrations", modules },
+    });
+    const moduleMigrations = async (): Promise<string[]> =>
+      (await readdir(join(root, "supabase/migrations")).catch(() => []))
+        .filter((name) => name.endsWith("_better_supabase_modules.sql"))
+        .toSorted();
+
+    it("writes the modules into one migration and nothing into sql.dir", async () => {
+      const config = migrations(["jobs", "jsonb-schemas"]);
+      expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
+        /^Would write supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+      );
+      const synced = await sql(["sync"], config);
+      expect(synced.output).toMatch(
+        /^Wrote supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+      );
+      expect(synced.output).not.toContain("sql data");
+      expect(
+        await readdir(join(root, "supabase/schemas")).catch(() => []),
+      ).toEqual([]);
+      const [name] = await moduleMigrations();
+      const text = await readFile(
+        join(root, "supabase/migrations", name!),
+        "utf8",
+      );
+      expect(text).toMatch(/^-- better-supabase sql: the SQL modules /);
+      expect(text).toContain("-- @bs-module jobs@");
+      expect(text).toContain("-- @bs-module jsonb-schemas@");
+      expect(
+        text.indexOf('create extension if not exists "pg_jsonschema"'),
+      ).toBeLessThan(text.indexOf("-- @bs-module jobs@"));
+
+      expect((await sql(["sync"], config)).output).toContain(
+        `Kept    supabase/migrations/${name!} (it has these statements)`,
+      );
+      expect(await moduleMigrations()).toHaveLength(1);
+      expect(await sql(["sync", "--check"], config)).toEqual({
+        code: 0,
+        output: "SQL module migration is up to date.",
+      });
+
+      const more = migrations(["jobs", "jsonb-schemas", "mfa"]);
+      const check = await sql(["sync", "--check"], more);
+      expect(check.code).toBe(1);
+      expect(check.error).toBe(
+        `Out of date: supabase/migrations/${name!}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+      );
+      await sql(["sync"], more);
+      expect(await moduleMigrations()).toHaveLength(2);
+      expect((await sql(["sync", "--check"], more)).code).toBe(0);
+    });
+
+    it("reports a missing module migration in sync --check", async () => {
+      const check = await sql(["sync", "--check"], migrations(["mfa"]));
+      expect(check.code).toBe(1);
+      expect(check.error).toContain(
+        "supabase/migrations/<stamp>_better_supabase_modules.sql",
+      );
+    });
+
+    it("adds a module into the migration and says to apply it", async () => {
+      const added = await sql(["add", "mfa"], migrations([]));
+      expect(added.output).toMatch(
+        /^Wrote supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+      );
+      expect(added.output).toContain("Then apply it: supabase migration up");
+    });
+
+    it("keeps the rows in the module migration, so sql data writes nothing", async () => {
+      const config = migrations(["tenant"]);
+      await sql(["sync"], config);
+      const [name] = await moduleMigrations();
+      const text = await readFile(
+        join(root, "supabase/migrations", name!),
+        "utf8",
+      );
+      expect(text).toContain("-- @bs-module-data tenant");
+      expect((await sql(["data"], config)).output).toContain(
+        "already writes the rows into the module migration; nothing to write.",
+      );
+    });
+
+    it("lists the modules the newest migration installs", async () => {
+      const config = migrations(["mfa"]);
+      expect((await sql(["list"], config)).output).not.toMatch(/^● mfa/m);
+      await sql(["sync"], config);
+      expect((await sql(["list"], config)).output).toMatch(/^● mfa/m);
+    });
+
+    it("reads installed versions from the migration and writes the upgrade steps into the next one", async () => {
+      const config = migrations(["tenant"]);
+      await sql(["sync"], config);
+      const [name] = await moduleMigrations();
+      const path = join(root, "supabase/migrations", name!);
+      await writeFile(
+        path,
+        (await readFile(path, "utf8")).replace(
+          /^-- @bs-module tenant@2/m,
+          "-- @bs-module tenant@1",
+        ),
+      );
+      const check = await sql(["upgrade", "--check"], config);
+      expect(check.code).toBe(1);
+      expect(check.error).toContain(
+        "tenant is at version 1; the current version is 2",
+      );
+      const done = await sql(["upgrade"], config);
+      expect(done.output).toContain(
+        "Renames memberships.org_id to organization_id",
+      );
+      expect(done.output).toContain("Then apply it: supabase migration up");
+      expect(done.output).not.toContain("_better_supabase_block_upgrade.sql");
+      const all = await moduleMigrations();
+      expect(all).toHaveLength(2);
+      const upgraded = await readFile(
+        join(root, "supabase/migrations", all[1]!),
+        "utf8",
+      );
+      expect(upgraded).toContain("-- @bs-upgrade-start");
+      expect(upgraded.indexOf("-- @bs-upgrade-end")).toBeLessThan(
+        upgraded.indexOf("-- @bs-module tenant@2"),
+      );
+      expect((await sql(["upgrade"], config)).output).toBe(
+        "SQL modules are at their current versions.",
+      );
+      expect((await sql(["sync"], config)).output).toContain("Kept    ");
+    });
+  });
+
   it("prints a rendered module with the configured claims", async () => {
     const printed = await sql(["print", "tenant"], {
       claims: { scope: "workspace" },

@@ -169,6 +169,37 @@ describe("gen", () => {
     );
   });
 
+  it("writes the read sets into a migration under the migrations workflow", async () => {
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
+    const config = configure({
+      readSets: ["src/read-sets.ts"],
+      sql: { workflow: "migrations" },
+    });
+    const gen = (check: boolean) =>
+      runGen({ config, env: {}, check, snapshot });
+
+    const first = await gen(false);
+    const path =
+      /supabase\/migrations\/\d{14}_better_supabase_read_sets\.sql/.exec(
+        first.output ?? "",
+      )?.[0];
+    expect(path).toBeDefined();
+    expect(existsSync(join(root, READ_SET_FILE))).toBe(false);
+    expect(await readFile(join(root, path!), "utf8")).toContain(
+      "create or replace function public.rs_chrome(p jsonb)",
+    );
+    expect((await gen(true)).code).toBe(0);
+    expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);
+    expect(existsSync(join(root, path!))).toBe(true);
+
+    await writeFile(join(root, path!), "-- emptied\n");
+    expect(await gen(true)).toMatchObject({
+      code: 1,
+      error: `Generated files are out of date:\n  ${path!}\nRun \`better-supabase gen\`.`,
+    });
+  });
+
   it("gives generators a frozen model with the column types gen wrote", async () => {
     let model: GeneratorModel | undefined;
     const config = configure({

@@ -607,6 +607,37 @@ describe("generated and module files (BS303, BS304)", () => {
     ]);
   });
 
+  it("checks the newest module migration under the migrations workflow", async () => {
+    const ctx = rooted({
+      sql: { workflow: "migrations", modules: ["tenant", "mfa"] },
+    });
+    const missing = await run("BS304", ctx);
+    expect(missing.map((finding) => finding.message)).toEqual(
+      ["updated-at", "tenant", "mfa"].map(
+        (module) =>
+          `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+      ),
+    );
+    const files = renderModules(["tenant", "mfa"], moduleLayout(ctx.config));
+    const name =
+      "supabase/migrations/20200101000000_better_supabase_modules.sql";
+    await write(
+      name,
+      files
+        .filter((file) => file.kind !== "test")
+        .map((file) => file.contents)
+        .join("\n")
+        .replace(/^-- @bs-module tenant@2/m, "-- @bs-module tenant@1"),
+    );
+    expect(await run("BS304", ctx)).toEqual([]);
+    expect(await run("BS311", ctx)).toEqual([
+      expect.objectContaining({
+        target: name,
+        message: expect.stringContaining("has tenant version 1"),
+      }),
+    ]);
+  });
+
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ sql: { modules: ["tenant"] } });
     const files = renderModules(["tenant"], moduleLayout(ctx.config));
@@ -1346,6 +1377,19 @@ describe("legacy migra engine (BS316)", () => {
         ),
       ),
     ).toHaveLength(1);
+  });
+
+  it("stays quiet when sql.workflow chooses migra or migrations", async () => {
+    const legacy = { configToml: toml("[db]\n"), sqlFiles: [schema] };
+    const [unset] = await run("BS316", context(base, legacy));
+    expect(unset!.message).toContain(
+      'To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.',
+    );
+    for (const workflow of ["migra", "migrations"] as const) {
+      expect(
+        await run("BS316", context(base, legacy, { sql: { workflow } })),
+      ).toEqual([]);
+    }
   });
 
   it("passes pg-delta projects and projects without declarative schemas", async () => {

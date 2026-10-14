@@ -208,6 +208,23 @@ describe("init and add", () => {
     expect(again.stdout).not.toContain("pg-delta");
   });
 
+  it("writes sql.workflow and leaves config.toml alone for --workflow", async () => {
+    const toml = "[api]\nport = 54321\n";
+    await project({}, { "supabase/config.toml": toml });
+    expect((await run(["init", "--workflow", "nope", "--cwd", dir])).code).toBe(
+      2,
+    );
+    const init = await run(["init", "--workflow", "migrations", "--cwd", dir]);
+    expect(init.code).toBe(0);
+    expect(init.stdout).not.toContain("pg-delta");
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+      toml,
+    );
+    expect(
+      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+    ).toContain("sql: { workflow: 'migrations' },");
+  });
+
   it("keeps pg-delta off when config.toml turns it off", async () => {
     const off = "[experimental.pgdelta]\nenabled = false\n";
     await project({}, { "supabase/config.toml": off });

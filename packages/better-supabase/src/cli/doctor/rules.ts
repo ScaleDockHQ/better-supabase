@@ -668,6 +668,13 @@ const OWN_RULES: readonly Rule[] = [
         const subject = migrated
           ? `${file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
           : `${path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}`;
+        if (
+          stale.some(
+            (finding) => finding.message === `${subject}. ${next}${edited}`,
+          )
+        ) {
+          continue;
+        }
         stale.push({
           message: `${subject}. ${next}${edited}`,
           target: path,
