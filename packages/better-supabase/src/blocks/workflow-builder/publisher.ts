@@ -102,13 +102,15 @@ export function mayPublishRefusal(
 
 /**
  * The claims a step of `version` runs with: `workflow_run_principal` checks
- * the stored publisher, then `runAs` narrows their claims. Every refusal is
- * an error; nothing falls back to the service role.
+ * the stored publisher, then `runAs` narrows their claims. `tenant` is the
+ * one a system definition's run belongs to. Every refusal is an error;
+ * nothing falls back to the service role.
  */
 export function runAsPublisher(
   serviceCall: BlockCall,
   runAs: AutomationHooks["runAs"],
   version: string | undefined,
+  tenant?: string,
 ): AsyncResult<Readonly<Record<string, unknown>>> {
   if (version === undefined) {
     return AsyncResult.err(
@@ -120,7 +122,7 @@ export function runAsPublisher(
   }
   return serviceCall(
     "workflow_run_principal",
-    { version },
+    { version, tenant },
     (value): AutomationRef => {
       const row = recordOf(value, "workflow_run_principal");
       return {

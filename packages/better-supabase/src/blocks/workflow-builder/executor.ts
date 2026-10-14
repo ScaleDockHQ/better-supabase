@@ -3,12 +3,19 @@ import {
   conditionOf,
   durationMs,
   evaluateCondition,
+  isGraphRecord,
   topologicalOrder,
   validateGraph,
   type WorkflowGraph,
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
 } from "./graph.ts";
+
+/** The record a run belongs to. */
+export interface GraphSubject {
+  readonly type: string;
+  readonly id: string;
+}
 
 /** What a step node passes to the engine's step: plain data, so it serializes. */
 export interface GraphStepCall {
@@ -25,6 +32,9 @@ export interface GraphStepCall {
   readonly runKey: string;
   /** The published version's id; pass it to `builder.versions.runAs`. */
   readonly version?: string;
+  /** The tenant the run belongs to; pass it to `builder.versions.runAs` too. */
+  readonly tenant?: string;
+  readonly subject?: GraphSubject;
 }
 
 /** What an approval node passes to `GraphRuntime.requestApproval`: plain data, so it serializes. */
@@ -36,6 +46,8 @@ export interface GraphApprovalCall {
   readonly results: Readonly<Record<string, unknown>>;
   readonly runKey: string;
   readonly version?: string;
+  readonly tenant?: string;
+  readonly subject?: GraphSubject;
 }
 
 /** What the engine does for each kind of node. */
@@ -43,6 +55,18 @@ export interface GraphRuntime {
   readonly runKey: string;
   /** The published version's id (`GraphRunMeta.versionId`), passed to each step. */
   readonly version?: string;
+  /** The run's tenant, passed to each step. */
+  readonly tenant?: string;
+  /** The record the run belongs to: passed to each step, and conditions read it as `subject`. */
+  readonly subject?: GraphSubject;
+  /** The trigger node the run starts at; required when the graph has several. */
+  readonly triggerNode?: string;
+  /**
+   * Set for a test run: each step node returns its stub (by node id, else
+   * `{ stubbed: true }`) instead of calling `step`, sleeps are skipped, and
+   * an approval node takes its stub as the decision (else approved).
+   */
+  readonly stubs?: Readonly<Record<string, unknown>>;
   step(call: GraphStepCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
   /**
@@ -70,10 +94,80 @@ const active = (
   return edge.branch === undefined || String(outcome) === edge.branch;
 };
 
+/** The run fields a graph run's meta carries (`GraphRunMeta` in `workflow-sdk/builder`). */
+export type GraphRunFields = Pick<
+  GraphRuntime,
+  "runKey" | "version" | "tenant" | "subject" | "triggerNode" | "stubs"
+>;
+
 /**
- * Runs `graph` in dependency order: a node runs when the trigger reaches it
- * through edges whose sources ran (and, from a condition or an approval,
- * took the edge's branch). Returns each node's output by id. It only calls
+ * The runtime fields of a static executor's `meta`: spread them into the
+ * runtime passed to `executeGraph`, so a run starts at its trigger node,
+ * conditions read its subject, and a test run returns its stubs instead of
+ * running steps.
+ */
+export function graphRunFields(meta: unknown): GraphRunFields {
+  const record = isGraphRecord(meta) ? meta : {};
+  const text = (key: string): string | undefined =>
+    typeof record[key] === "string" ? record[key] : undefined;
+  const subject = record["subject"];
+  const stubs = record["stubs"];
+  const version = text("versionId");
+  const tenant = text("tenant");
+  const triggerNode = text("triggerNode");
+  return {
+    runKey: text("runKey") ?? "",
+    ...(version === undefined ? {} : { version }),
+    ...(tenant === undefined ? {} : { tenant }),
+    ...(isGraphRecord(subject)
+      ? {
+          subject: { type: String(subject["type"]), id: String(subject["id"]) },
+        }
+      : {}),
+    ...(triggerNode === undefined ? {} : { triggerNode }),
+    ...(record["mode"] === "test"
+      ? { stubs: isGraphRecord(stubs) ? stubs : {} }
+      : {}),
+  };
+}
+
+/** A test run's stub for `node`, or `fallback` when it has none. */
+function stubOf(
+  stubs: Readonly<Record<string, unknown>>,
+  node: string,
+  fallback: unknown,
+): unknown {
+  return Object.hasOwn(stubs, node) ? stubs[node] : fallback;
+}
+
+/**
+ * The trigger node a run starts at: `requested` when the graph has it, else
+ * the graph's only trigger. Throws when neither picks one.
+ */
+export function startNodeOf(
+  graph: WorkflowGraph,
+  requested: string | undefined,
+): string {
+  const triggers = graph.nodes.filter((node) => node.kind === "trigger");
+  const start =
+    requested === undefined
+      ? triggers.length === 1
+        ? triggers[0]?.id
+        : undefined
+      : triggers.find((node) => node.id === requested)?.id;
+  if (start === undefined) {
+    throw new TypeError(
+      "workflow-builder: pass the trigger node the run starts at, the id of one of the graph's trigger nodes",
+    );
+  }
+  return start;
+}
+
+/**
+ * Runs `graph` in dependency order from its start trigger
+ * (`runtime.triggerNode`): a node runs when the trigger reaches it through
+ * edges whose sources ran (and, from a condition or an approval, took the
+ * edge's branch). Returns each node's output by id. It only calls
  * `runtime`, so it is deterministic and runs inside a `"use workflow"`
  * function as the static executor.
  */
@@ -86,6 +180,7 @@ export async function executeGraph(
   if (errors.length > 0) {
     throw new TypeError(`workflow-builder: ${errors.join("; ")}`);
   }
+  const start = startNodeOf(graph, runtime.triggerNode);
   const order = topologicalOrder(graph) ?? [];
   const incoming = new Map<string, WorkflowGraphEdge[]>();
   for (const edge of graph.edges) {
@@ -94,7 +189,9 @@ export async function executeGraph(
   const results: Record<string, unknown> = {};
   const ran = new Map<string, boolean>();
   for (const node of order) {
-    if (node.kind !== "trigger") {
+    if (node.kind === "trigger") {
+      if (node.id !== start) continue;
+    } else {
       const edges = incoming.get(node.id) ?? [];
       if (!edges.some((edge) => active(edge, ran))) continue;
     }
@@ -104,6 +201,14 @@ export async function executeGraph(
   }
   return results;
 }
+
+const extrasOf = (
+  runtime: GraphRuntime,
+): Pick<GraphStepCall, "version" | "tenant" | "subject"> => ({
+  ...(runtime.version === undefined ? {} : { version: runtime.version }),
+  ...(runtime.tenant === undefined ? {} : { tenant: runtime.tenant }),
+  ...(runtime.subject === undefined ? {} : { subject: runtime.subject }),
+});
 
 async function runNode(
   node: WorkflowGraphNode,
@@ -116,22 +221,31 @@ async function runNode(
       return { output: input, outcome: true };
     }
     case "step": {
-      const output = await runtime.step({
-        node: node.id,
-        step: node.step ?? "",
-        config: node.config ?? {},
-        input,
-        results: { ...results },
-        runKey: runtime.runKey,
-        ...(runtime.version === undefined ? {} : { version: runtime.version }),
-      });
+      const output =
+        runtime.stubs === undefined
+          ? await runtime.step({
+              node: node.id,
+              step: node.step ?? "",
+              config: node.config ?? {},
+              input,
+              results: { ...results },
+              runKey: runtime.runKey,
+              ...extrasOf(runtime),
+            })
+          : stubOf(runtime.stubs, node.id, { stubbed: true });
       return { output: output ?? null, outcome: true };
     }
     case "sleep": {
-      await runtime.sleep(durationMs(node.config?.["duration"]) ?? 0);
+      if (runtime.stubs === undefined) {
+        await runtime.sleep(durationMs(node.config?.["duration"]) ?? 0);
+      }
       return { output: null, outcome: true };
     }
     case "approval": {
+      if (runtime.stubs !== undefined) {
+        const payload = stubOf(runtime.stubs, node.id, { approved: true });
+        return { output: payload ?? null, outcome: approved(payload) };
+      }
       const token =
         runtime.requestApproval === undefined
           ? approvalToken(runtime.runKey, node.id)
@@ -141,9 +255,7 @@ async function runNode(
               input,
               results: { ...results },
               runKey: runtime.runKey,
-              ...(runtime.version === undefined
-                ? {}
-                : { version: runtime.version }),
+              ...extrasOf(runtime),
             });
       const payload = await runtime.approval(token, node.id);
       return { output: payload ?? null, outcome: approved(payload) };
@@ -152,7 +264,11 @@ async function runNode(
       const condition = conditionOf(node);
       const outcome =
         condition !== undefined &&
-        evaluateCondition(condition, { input, results });
+        evaluateCondition(condition, {
+          input,
+          results,
+          subject: runtime.subject,
+        });
       return { output: outcome, outcome };
     }
     default: {

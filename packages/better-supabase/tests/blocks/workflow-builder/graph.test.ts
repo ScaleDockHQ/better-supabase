@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   approvalToken,
   executeGraph,
+  type GraphStepCall,
+  graphRunFields,
 } from "../../../src/blocks/workflow-builder/executor.ts";
 import {
   approved,
@@ -148,7 +150,6 @@ describe("validateGraph", () => {
       "Node s names no step",
       "Node z has no valid duration",
       "Node c has no valid condition",
-      "A graph has exactly one trigger node",
       "Edge x joins a node that does not exist",
       "Edge y branches from a step node",
       "Edge y appears twice",
@@ -339,9 +340,95 @@ describe("executeGraph", () => {
     expect(unversioned).toEqual([undefined, undefined]);
   });
 
+  it("returns stubs in a test run without calling steps, sleeps or hooks", async () => {
+    const runtime = fakeRuntime("free", undefined);
+    const results = await executeGraph(
+      GRAPH,
+      {},
+      {
+        ...runtime,
+        stubs: { lookup: { plan: "pro" } },
+      },
+    );
+    expect(runtime.log).toEqual([]);
+    expect(results).toMatchObject({
+      lookup: { plan: "pro" },
+      isPro: true,
+      ok: { approved: true },
+      welcome: { stubbed: true },
+    });
+  });
+
+  it("starts at the requested trigger node and reads the subject", async () => {
+    const graph = {
+      nodes: [
+        { id: "a", kind: "trigger" as const },
+        { id: "b", kind: "trigger" as const },
+        {
+          id: "deal",
+          kind: "condition" as const,
+          config: { path: "subject.id", op: "equals" as const, value: "d1" },
+        },
+        { id: "s", kind: "step" as const, step: "x" },
+      ],
+      edges: [
+        { id: "1", source: "a", target: "s" },
+        { id: "2", source: "b", target: "deal" },
+      ],
+    };
+    const calls: GraphStepCall[] = [];
+    const runtime = {
+      ...fakeRuntime("", undefined),
+      tenant: "t1",
+      subject: { type: "deal", id: "d1" },
+      step: async (call: GraphStepCall) => {
+        calls.push(call);
+        return "done";
+      },
+    };
+    expect(
+      await executeGraph(graph, 1, { ...runtime, triggerNode: "b" }),
+    ).toEqual({ b: 1, deal: true });
+    expect(
+      await executeGraph(graph, 1, { ...runtime, triggerNode: "a" }),
+    ).toEqual({ a: 1, s: "done" });
+    expect(calls[0]).toMatchObject({
+      tenant: "t1",
+      subject: { type: "deal", id: "d1" },
+    });
+    await expect(executeGraph(graph, 1, runtime)).rejects.toThrow(
+      "pass the trigger node",
+    );
+  });
+
+  it("reads the run fields from a static executor's meta", () => {
+    expect(
+      graphRunFields({
+        runKey: "k",
+        versionId: "v1",
+        tenant: "t1",
+        subject: { type: "deal", id: "d1" },
+        triggerNode: "b",
+        mode: "test",
+        stubs: { s: 1 },
+      }),
+    ).toEqual({
+      runKey: "k",
+      version: "v1",
+      tenant: "t1",
+      subject: { type: "deal", id: "d1" },
+      triggerNode: "b",
+      stubs: { s: 1 },
+    });
+    expect(graphRunFields({ runKey: "k", stubs: { s: 1 } })).toEqual({
+      runKey: "k",
+    });
+    expect(graphRunFields(null)).toEqual({ runKey: "" });
+  });
+
   it("refuses an invalid graph", async () => {
     await expect(
       executeGraph({ nodes: [], edges: [] }, {}, fakeRuntime("pro", undefined)),
-    ).rejects.toThrow("exactly one trigger");
+    ).rejects.toThrow("at least one trigger");
   });
 });

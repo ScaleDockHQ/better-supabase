@@ -98,8 +98,82 @@ describe("workflow-builder module", () => {
     );
     expect(principal).toContain("published before publishers were recorded");
     expect(principal).toMatch(
-      /revoke execute on function "better_supabase"\."workflow_run_principal"\(uuid\) from public, anon, authenticated;/,
+      /revoke execute on function "better_supabase"\."workflow_run_principal"\(uuid, uuid\) from public, anon, authenticated;/,
     );
+    expect(principal).toContain(
+      `select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant`,
+    );
+    expect(body).toContain(
+      'drop function if exists "better_supabase"."workflow_run_principal"(uuid);',
+    );
+  });
+
+  it("binds definitions to subject types and checks the record on a subject start", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    expect(body).toContain(
+      `add column if not exists "subject_types" text[] not null default '{}'`,
+    );
+    expect(body).toContain(
+      'drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);',
+    );
+    expect(body).toContain(
+      'or workflow_definitions_list.subject_type = any (x."subject_types")',
+    );
+    const start = (sql: string) => {
+      const from = sql.indexOf('"workflow_subject_start_target"(\n');
+      return sql.slice(from, sql.indexOf("$$;", from));
+    };
+    expect(start(body)).toContain("hint = 'WORKFLOW_SUBJECT_TYPE'");
+    expect(start(body)).not.toContain("can_subject");
+    expect(start(body)).not.toContain("security definer");
+    const withSubjects = schemaOf(["workflow-builder", "subjects"]);
+    expect(start(withSubjects)).toContain(
+      `"better_supabase"."can_subject"(subject_type, subject_id, 'read')`,
+    );
+  });
+
+  it("scopes system definitions, forks and opt-outs", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    expect(body).toContain(`"scope" = 'tenant' or "tenant_id" is null`);
+    expect(body).toContain(
+      `or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read')))`,
+    );
+    const target = body.slice(
+      body.indexOf('"workflow_start_target"(definition uuid'),
+    );
+    expect(target).toContain("hint = 'WORKFLOW_TENANT_REQUIRED'");
+    expect(target).toContain("hint = 'WORKFLOW_OPTED_OUT'");
+    expect(body).toContain(
+      `"set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)`,
+    );
+    expect(body).toContain(
+      `'behind', coalesce(u.version > x."forked_from_version", false)`,
+    );
+    const events = body.slice(body.indexOf('"workflow_event_targets"(type'));
+    expect(events).toContain(
+      `or (y."scope" = 'system' and workflow_event_targets.tenant is not null)`,
+    );
+    expect(events).toContain(
+      'select 1 from "better_supabase"."workflow_opt_outs" z',
+    );
+  });
+
+  it("checks grants on restricted definitions and skips test runs in alerts", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    expect(body).toContain(
+      `"workflow_definition_grants" gr\n        where gr."definition_id" = definition\n          and gr."action" in ('run', 'edit')`,
+    );
+    expect(body).not.toContain('"team_members"');
+    expect(schemaOf(["workflow-builder", "teams"])).toContain(
+      `gr."principal_kind" = 'team' and exists`,
+    );
+    expect(body).toContain("'A graph has at least one trigger node'");
+    expect(body).toContain(
+      `if new."mode" = 'test' or new."status" <> 'failed'`,
+    );
+    expect(body).toContain(`and y."mode" = 'live'`);
+    const test = body.slice(body.indexOf('"start_test_run"(\n'));
+    expect(test).toContain("hint = 'WORKFLOW_TRIGGER_NODE'");
   });
 
   it("resolves step permissions from the provider's node operations, then the step's operation, then the renamed module key", () => {
@@ -160,6 +234,11 @@ describe("workflow-builder module", () => {
       "save_workflow_definition",
       "publish_workflow_version",
       "workflow_start_target",
+      "workflow_subject_start_target",
+      "start_test_run",
+      "fork_workflow_definition",
+      "set_workflow_opt_out",
+      "set_workflow_definition_grant",
       "workflow_webhook_target",
       "workflow_graph_permissions",
       "workflow_run_principal",

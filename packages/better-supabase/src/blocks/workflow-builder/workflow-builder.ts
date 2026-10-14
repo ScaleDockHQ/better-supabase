@@ -2,13 +2,18 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
-import type { WorkflowStartCall } from "../workflows/workflows.ts";
+import type {
+  WorkflowStartCall,
+  WorkflowSubject,
+} from "../workflows/workflows.ts";
 import type {
   BuilderOptions,
   BuilderStarter,
+  GrantInput,
   RunInput,
   WorkflowBuilder,
   WorkflowDefinition,
+  WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowVersion,
 } from "./types.ts";
@@ -24,10 +29,12 @@ import {
   blockCall,
   injectableOf,
   isRecord,
+  optionalText,
   randomToken,
   recordOf,
   recordsOf,
   seconds,
+  stringsOf,
   textOf,
 } from "../shared.ts";
 import { createWorkflows } from "../workflows/workflows.ts";
@@ -37,6 +44,7 @@ import {
   alertOf,
   credentialOf,
   definitionOf,
+  grantOf,
   nodeRunOf,
   optionalOf,
   stepOf,
@@ -52,15 +60,22 @@ export type {
   CredentialInput,
   DefinitionInput,
   GraphCompiler,
+  GrantInput,
   NodeRunRecord,
   OutboxLikeEvent,
   PublishOptions,
   RunInput,
+  TestRunInput,
   TriggerInput,
+  VersionSaveOptions,
   WorkflowAlert,
   WorkflowBuilder,
   WorkflowCredential,
   WorkflowDefinition,
+  WorkflowDefinitionGrant,
+  WorkflowDefinitionScope,
+  WorkflowGrantAction,
+  WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
   WorkflowStepInfo,
@@ -116,21 +131,30 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
 
   const startTarget = (
     caller: typeof call,
-    definition: string,
-    start: (target: {
-      definition: WorkflowDefinition;
-      version: WorkflowVersion;
-    }) => Promise<string>,
+    input: {
+      readonly definition: string;
+      readonly tenant: string | undefined;
+      readonly subject: WorkflowSubject | undefined;
+    },
+    start: (target: StartTarget) => Promise<string>,
   ): AsyncResult<string> =>
-    caller("workflow_start_target", { definition }, (value) =>
-      recordOf(value, "workflow_start_target"),
-    ).andThen(async (row) => {
-      const target = {
-        definition: definitionOf(recordOf(row["definition"], "definition")),
-        version: versionOf(recordOf(row["version"], "version")),
-      };
-      return ok(await start(target));
-    });
+    (input.subject === undefined
+      ? caller(
+          "workflow_start_target",
+          { definition: input.definition, tenant: input.tenant },
+          (value) => recordOf(value, "workflow_start_target"),
+        )
+      : caller(
+          "workflow_subject_start_target",
+          {
+            definition: input.definition,
+            subject_type: input.subject.type,
+            subject_id: input.subject.id,
+            tenant: input.tenant,
+          },
+          (value) => recordOf(value, "workflow_subject_start_target"),
+        )
+    ).andThen(async (row) => ok(await start(startTargetOf(row))));
 
   const starterOf = (): BuilderStarter | undefined => options.start;
   const missingStarter = () =>
@@ -145,18 +169,42 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
   ): AsyncResult<string> => {
     const start = starterOf();
     if (start === undefined) return AsyncResult.err(missingStarter());
-    return startTarget(caller, input.definition, (target) =>
-      start({
-        definition: target.definition,
-        version: target.version,
-        input: input.input ?? {},
-        tenant: target.definition.tenant,
-        actor: input.actor,
-        idempotencyKey: input.idempotencyKey ?? `run:${randomToken(16)}`,
-        ...(input.trigger === undefined ? {} : { trigger: input.trigger }),
-      }),
+    return startTarget(
+      caller,
+      {
+        definition: input.definition,
+        tenant: input.tenant,
+        subject: input.subject,
+      },
+      (target) => {
+        const node = input.trigger?.config["node"];
+        return start({
+          definition: target.definition,
+          version: target.version,
+          input: input.input ?? {},
+          tenant: target.tenant,
+          actor: input.actor,
+          idempotencyKey: input.idempotencyKey ?? `run:${randomToken(16)}`,
+          ...(input.trigger === undefined ? {} : { trigger: input.trigger }),
+          ...(target.subject === undefined ? {} : { subject: target.subject }),
+          ...(typeof node === "string" ? { triggerNode: node } : {}),
+        });
+      },
     );
   };
+
+  const grant = (input: GrantInput, granted: boolean) =>
+    call(
+      "set_workflow_definition_grant",
+      {
+        definition: input.definition,
+        principal_kind: input.principalKind,
+        principal_id: input.principalId,
+        action: input.action,
+        granted,
+      },
+      (value) => value === true,
+    );
 
   const credentialRow = (id: string) =>
     serviceCall("workflow_credential_get", { credential: id }, (value) =>
@@ -173,12 +221,18 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
             slug: input.slug,
             name: input.name,
             description: input.description,
+            subject_types: input.subjectTypes,
+            scope: input.scope,
+            restricted: input.restricted,
           },
           (value) => definitionOf(recordOf(value, "save_workflow_definition")),
         ),
-      list: (tenant) =>
-        call("workflow_definitions_list", { tenant }, (value) =>
-          recordsOf(value, "workflow_definitions_list").map(definitionOf),
+      list: (tenant, filter = {}) =>
+        call(
+          "workflow_definitions_list",
+          { tenant, subject_type: filter.subjectType },
+          (value) =>
+            recordsOf(value, "workflow_definitions_list").map(definitionOf),
         ),
       get: (id) =>
         call(
@@ -192,11 +246,43 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           { definition: id },
           (value) => value === true,
         ),
+      fork: (input) =>
+        call(
+          "fork_workflow_definition",
+          { source: input.source, tenant: input.tenant, slug: input.slug },
+          (value) => definitionOf(recordOf(value, "fork_workflow_definition")),
+        ),
+      optOut: (input) =>
+        call(
+          "set_workflow_opt_out",
+          {
+            tenant: input.tenant,
+            definition: input.definition,
+            opted_out: input.optedOut ?? true,
+          },
+          (value) => value === true,
+        ),
+      grants: {
+        add: (input) => grant(input, true),
+        remove: (input) => grant(input, false).map(() => true),
+        list: (definition) =>
+          call("workflow_definition_grants_list", { definition }, (value) =>
+            recordsOf(value, "workflow_definition_grants_list").map(grantOf),
+          ),
+      },
     },
     versions: {
-      save: (definition, graph) =>
-        call("save_workflow_draft", { definition, graph }, (value) =>
-          versionOf(recordOf(value, "save_workflow_draft")),
+      save: (definition, graph, saveOptions = {}) =>
+        call(
+          "save_workflow_draft",
+          {
+            definition,
+            graph,
+            ...(saveOptions.inputSchema === undefined
+              ? {}
+              : { input_schema: saveOptions.inputSchema }),
+          },
+          (value) => versionOf(recordOf(value, "save_workflow_draft")),
         ),
       publish: (version, publishOptions = {}) =>
         getVersion(version).andThen(async (found) => {
@@ -250,11 +336,12 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           recordsOf(value, "workflow_versions_list").map(versionOf),
         ),
       get: getVersion,
-      runAs: (version) =>
+      runAs: (version, tenant) =>
         runAsPublisher(
           serviceCall,
           options.authorization?.automation?.runAs,
           version,
+          tenant,
         ),
       diff: (from, to) =>
         getVersion(from).andThen(async (before) => {
@@ -272,6 +359,54 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
         }),
     },
     run: (input) => runWith(call, input),
+    test: (input) => {
+      const start = starterOf();
+      if (start === undefined) return AsyncResult.err(missingStarter());
+      return call(
+        "start_test_run",
+        {
+          definition: input.definition,
+          version: input.version,
+          trigger_node: input.triggerNode,
+          input: input.input ?? {},
+          stubs: input.stubs ?? {},
+        },
+        (value) => recordOf(value, "start_test_run"),
+      ).andThen(async (row) => {
+        const target = startTargetOf(row);
+        const subject = input.subject;
+        if (
+          subject !== undefined &&
+          !target.definition.subjectTypes.includes(subject.type)
+        ) {
+          return err(
+            dbError(
+              "invalid_input",
+              "This workflow doesn't run on that subject type",
+              { hint: "WORKFLOW_SUBJECT_TYPE" },
+            ),
+          );
+        }
+        const node = row["triggerNode"];
+        return ok(
+          await start({
+            definition: target.definition,
+            version: target.version,
+            input: row["input"] ?? {},
+            tenant: target.tenant,
+            actor: undefined,
+            idempotencyKey: `test:${randomToken(16)}`,
+            mode: "test",
+            stubs: {
+              ...exampleStubs(target.version, options.steps ?? []),
+              ...(isRecord(row["stubs"]) ? row["stubs"] : {}),
+            },
+            ...(typeof node === "string" ? { triggerNode: node } : {}),
+            ...(subject === undefined ? {} : { subject }),
+          }),
+        );
+      });
+    },
     triggers: {
       save: (input) =>
         call(
@@ -349,11 +484,16 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           const runs: string[] = [];
           for (const row of rows) {
             const trigger = triggerOf(recordOf(row["trigger"], "trigger"));
+            const subject = eventSubject(event, stringsOf(row["subjectTypes"]));
+            const tenant = optionalText(row["tenant"]);
             const started = await runWith(serviceCall, {
               definition: trigger.definition,
               input: event.payload ?? {},
               idempotencyKey: `event:${trigger.id}:${event.id}`,
               trigger,
+              ...(event.actorId == null ? {} : { actor: event.actorId }),
+              ...(tenant === undefined ? {} : { tenant }),
+              ...(subject === undefined ? {} : { subject }),
             });
             if (!started.ok) return started;
             runs.push(started.data);
@@ -395,12 +535,22 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           }
           return fallback(scheduled);
         }
-        return runWith(serviceCall, {
+        const started = await runWith(serviceCall, {
           definition: scheduled.workflow.slice(BUILDER_PREFIX.length),
           input: scheduled.input,
           idempotencyKey: scheduled.idempotencyKey,
           ...(scheduled.actor === undefined ? {} : { actor: scheduled.actor }),
-        }).orThrow();
+          ...(scheduled.tenant === undefined
+            ? {}
+            : { tenant: scheduled.tenant }),
+          ...(scheduled.subject === undefined
+            ? {}
+            : { subject: scheduled.subject }),
+        });
+        if (!started.ok && started.error.hint === "WORKFLOW_OPTED_OUT") {
+          return "";
+        }
+        return AsyncResult.from(() => Promise.resolve(started)).orThrow();
       },
     },
     credentials: {
@@ -573,6 +723,73 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
     },
   };
   return builder;
+}
+
+/**
+ * A test run's default stubs: each step node's library `outputSchema`
+ * example (its first `examples` entry, else its `default`).
+ */
+function exampleStubs(
+  version: WorkflowVersion,
+  steps: readonly WorkflowStepInfo[],
+): Record<string, unknown> {
+  const schemas = new Map(steps.map((step) => [step.name, step.outputSchema]));
+  const stubs: Record<string, unknown> = {};
+  for (const node of version.graph?.nodes ?? []) {
+    if (node.kind !== "step" || node.step === undefined) continue;
+    const schema = schemas.get(node.step);
+    if (schema === undefined) continue;
+    const examples = schema["examples"];
+    if (Array.isArray(examples) && examples.length > 0) {
+      stubs[node.id] = examples[0];
+    } else if (Object.hasOwn(schema, "default")) {
+      stubs[node.id] = schema["default"];
+    }
+  }
+  return stubs;
+}
+
+interface StartTarget {
+  readonly definition: WorkflowDefinition;
+  readonly version: WorkflowVersion;
+  readonly tenant: string | undefined;
+  readonly subject: WorkflowSubject | undefined;
+}
+
+function startTargetOf(row: Record<string, unknown>): StartTarget {
+  const definition = definitionOf(recordOf(row["definition"], "definition"));
+  const subject = isRecord(row["subject"]) ? row["subject"] : undefined;
+  return {
+    definition,
+    version: versionOf(recordOf(row["version"], "version")),
+    tenant: "tenant" in row ? optionalText(row["tenant"]) : definition.tenant,
+    subject:
+      subject === undefined
+        ? undefined
+        : { type: textOf(subject["type"]), id: textOf(subject["id"]) },
+  };
+}
+
+/**
+ * A subject event's record (the event's `subjectType` and `subjectId`, else
+ * its payload's), when the definition runs on its type.
+ */
+function eventSubject(
+  event: {
+    readonly subjectType?: unknown;
+    readonly subjectId?: unknown;
+    readonly payload?: unknown;
+  },
+  subjectTypes: readonly string[],
+): WorkflowSubject | undefined {
+  const payload = isRecord(event.payload) ? event.payload : {};
+  const type = event.subjectType ?? payload["subjectType"];
+  const id = event.subjectId ?? payload["subjectId"];
+  return typeof type === "string" &&
+    typeof id === "string" &&
+    subjectTypes.includes(type)
+    ? { type, id }
+    : undefined;
 }
 
 function webhookToken(request: Request): string | undefined {

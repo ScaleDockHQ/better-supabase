@@ -3,6 +3,10 @@ import type {
   WorkflowAlert,
   WorkflowCredential,
   WorkflowDefinition,
+  WorkflowDefinitionGrant,
+  WorkflowDefinitionScope,
+  WorkflowGrantAction,
+  WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
   WorkflowStepInfo,
@@ -42,6 +46,13 @@ const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "form",
   "chat",
 ];
+const SCOPES: readonly WorkflowDefinitionScope[] = ["tenant", "system"];
+const GRANT_PRINCIPALS: readonly WorkflowGrantPrincipal[] = [
+  "user",
+  "team",
+  "role",
+];
+const GRANT_ACTIONS: readonly WorkflowGrantAction[] = ["run", "edit"];
 const NODE_RUN_STATUSES: readonly WorkflowNodeRunStatus[] = [
   "running",
   "waiting",
@@ -61,11 +72,44 @@ export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
     createdBy: optionalText(row["createdBy"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...("published" in row
-      ? { published: typeof published === "number" ? published : undefined }
-      : {}),
+    subjectTypes: stringsOf(row["subjectTypes"]),
+    scope:
+      row["scope"] === undefined || row["scope"] === null
+        ? "tenant"
+        : enumOrThrow(row["scope"], SCOPES, "definition scope"),
+    forkedFrom: optionalText(row["forkedFrom"]),
+    forkedFromVersion: optionalNumber(row["forkedFromVersion"]),
+    restricted: row["restricted"] === true,
+    ...("published" in row ? { published: optionalNumber(published) } : {}),
     ...("draft" in row ? { draft: row["draft"] === true } : {}),
+    ...("upstreamVersion" in row
+      ? { upstreamVersion: optionalNumber(row["upstreamVersion"]) }
+      : {}),
+    ...("behind" in row ? { behind: row["behind"] === true } : {}),
+    ...("optedOut" in row && typeof row["optedOut"] === "boolean"
+      ? { optedOut: row["optedOut"] }
+      : {}),
   };
+}
+
+export function grantOf(row: Record<string, unknown>): WorkflowDefinitionGrant {
+  return {
+    id: textOf(row["id"]),
+    definition: textOf(row["definition"]),
+    principalKind: enumOrThrow(
+      row["principalKind"],
+      GRANT_PRINCIPALS,
+      "grant principal",
+    ),
+    principalId: textOf(row["principalId"]),
+    action: enumOrThrow(row["action"], GRANT_ACTIONS, "grant action"),
+    createdBy: optionalText(row["createdBy"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+  };
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 export function versionOf(row: Record<string, unknown>): WorkflowVersion {
@@ -88,6 +132,9 @@ export function versionOf(row: Record<string, unknown>): WorkflowVersion {
     ...("graph" in row ? { graph: graphOf(row["graph"]) } : {}),
     ...("compiled" in row && row["compiled"] !== null
       ? { compiled: row["compiled"] }
+      : {}),
+    ...(isRecord(row["inputSchema"])
+      ? { inputSchema: row["inputSchema"] }
       : {}),
   };
 }

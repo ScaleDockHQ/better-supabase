@@ -3,7 +3,10 @@ import type { World } from "@workflow/world";
 import { getStepMetadata, getWorkflowMetadata } from "workflow";
 import { start } from "workflow/api";
 
-import type { GraphStepCall } from "../../blocks/workflow-builder/executor.ts";
+import type {
+  GraphStepCall,
+  GraphSubject,
+} from "../../blocks/workflow-builder/executor.ts";
 import type {
   BuilderStartCall,
   BuilderStarter,
@@ -11,6 +14,7 @@ import type {
 } from "../../blocks/workflow-builder/workflow-builder.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 
+import { startNodeOf } from "../../blocks/workflow-builder/executor.ts";
 import {
   durationMs,
   isGraphRecord,
@@ -20,7 +24,7 @@ import {
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
 } from "../../blocks/workflow-builder/graph.ts";
-import { WORKFLOW_ATTRIBUTES } from "../attributes.ts";
+import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "../attributes.ts";
 import {
   contextAttributes,
   runForKey,
@@ -53,6 +57,16 @@ export interface GraphRunMeta {
   readonly version: number;
   /** The version's id, for `builder.versions.runAs` inside each step. */
   readonly versionId: string;
+  /** The run's tenant, for `builder.versions.runAs` (a system definition's runs need it). */
+  readonly tenant?: string;
+  /** The record the run belongs to; conditions read it as `subject`. */
+  readonly subject?: GraphSubject;
+  /** `test`: steps return `stubs` and never run, sleeps are skipped. */
+  readonly mode?: "live" | "test";
+  /** The trigger node the run starts at, in a graph with several. */
+  readonly triggerNode?: string;
+  /** A test run's step outputs and approval decisions, by node id. */
+  readonly stubs?: Readonly<Record<string, unknown>>;
 }
 
 const EXPORT_NAME = "workflow";
@@ -69,9 +83,17 @@ const RUNTIME = `  const results = {};
   const ran = Object.create(null);
   const runKey = meta !== null && typeof meta === "object" && typeof meta.runKey === "string" ? meta.runKey : "";
   const versionId = meta !== null && typeof meta === "object" && typeof meta.versionId === "string" ? meta.versionId : undefined;
+  const tenant = meta !== null && typeof meta === "object" && typeof meta.tenant === "string" ? meta.tenant : undefined;
+  const subject = meta !== null && typeof meta === "object" && meta.subject !== null && typeof meta.subject === "object" ? { type: String(meta.subject.type), id: String(meta.subject.id) } : undefined;
+  const start = meta !== null && typeof meta === "object" && typeof meta.triggerNode === "string" ? meta.triggerNode : null;
+  const testing = meta !== null && typeof meta === "object" && meta.mode === "test";
+  const stubs = testing && meta.stubs !== null && typeof meta.stubs === "object" ? meta.stubs : {};
+  function stub(id, fallback) {
+    return Object.prototype.hasOwnProperty.call(stubs, id) ? stubs[id] : fallback;
+  }
   function read(path) {
     const parts = path.split(".");
-    let value = parts[0] === "input" ? input : results;
+    let value = parts[0] === "input" ? input : parts[0] === "subject" ? subject : results;
     for (let i = 1; i < parts.length; i++) {
       if (Array.isArray(value)) value = value[Number(parts[i])];
       else if (value !== null && typeof value === "object") value = value[parts[i]];
@@ -107,18 +129,18 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
       return `results[${id}] = input;\n    ran[${id}] = true;`;
     }
     case "step": {
-      return `const output = await steps.${alias ?? ""}({ node: ${id}, step: ${literal(node.step)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId });
+      return `const output = testing ? stub(${id}, { stubbed: true }) : await steps.${alias ?? ""}({ node: ${id}, step: ${literal(node.step)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
     results[${id}] = output === undefined ? null : output;
     ran[${id}] = true;`;
     }
     case "sleep": {
-      return `await sleep(${literal(durationMs(node.config?.["duration"]))});
+      return `if (!testing) await sleep(${literal(durationMs(node.config?.["duration"]))});
     results[${id}] = null;
     ran[${id}] = true;`;
     }
     case "approval": {
-      return `const token = steps.${APPROVAL_ALIAS} === undefined ? runKey + ":" + ${id} : await steps.${APPROVAL_ALIAS}({ node: ${id}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId });
-    const payload = await createHook({ token });
+      return `const token = testing ? null : steps.${APPROVAL_ALIAS} === undefined ? runKey + ":" + ${id} : await steps.${APPROVAL_ALIAS}({ node: ${id}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
+    const payload = testing ? stub(${id}, { approved: true }) : await createHook({ token });
     results[${id}] = payload === undefined ? null : payload;
     ran[${id}] = !(payload !== null && typeof payload === "object" && !Array.isArray(payload) && payload.approved === false);`;
     }
@@ -146,10 +168,11 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
 
 /**
  * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that
- * calls each step node through its own alias, sleeps with `sleep` and waits
- * on approvals with `createHook`: the token is the id `steps.bs_approval`
- * returns (graphStarter's `approval`), else `<runKey>:<node>`. It runs the
- * same way `executeGraph` does. Throws when the graph is invalid or the
+ * starts at `meta.triggerNode` (or the only trigger), calls each step node
+ * through its own alias, sleeps with `sleep` and waits on approvals with
+ * `createHook`: the token is the id `steps.bs_approval` returns
+ * (graphStarter's `approval`), else `<runKey>:<node>`. A `meta.mode` of
+ * `test` returns `meta.stubs` instead. It runs the same way `executeGraph` does. Throws when the graph is invalid or the
  * source is over 128 KiB. Pass it as `compile` to `createBuilder`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {
@@ -162,6 +185,7 @@ export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   for (const edge of graph.edges) {
     incoming.set(edge.target, [...(incoming.get(edge.target) ?? []), edge]);
   }
+  const triggers = graph.nodes.filter((node) => node.kind === "trigger");
   const aliases: Record<string, string> = {};
   const blocks = order.map((node, index) => {
     let alias: string | undefined;
@@ -171,12 +195,22 @@ export function compileGraph(graph: WorkflowGraph): CompiledGraph {
     }
     const body = nodeBody(node, alias);
     const comment = `  // ${node.kind} node ${String(index)}`;
-    if (node.kind === "trigger") return `${comment}\n  {\n    ${body}\n  }`;
+    if (node.kind === "trigger") {
+      const starts =
+        triggers.length === 1
+          ? `start === null || start === ${literal(node.id)}`
+          : `start === ${literal(node.id)}`;
+      return `${comment}\n  if (${starts}) {\n    ${body}\n  }`;
+    }
     return `${comment}\n  if (${guard(incoming.get(node.id) ?? [])}) {\n    ${body}\n  }`;
   });
+  const pick =
+    triggers.length === 1
+      ? ""
+      : `  if (start === null) throw new TypeError("workflow-builder: pass the trigger node the run starts at, the id of one of the graph's trigger nodes");\n`;
   const source = `async function ${EXPORT_NAME}(input, meta) {
   "use workflow";
-${RUNTIME}
+${RUNTIME}${pick}
 ${blocks.join("\n")}
   return Object.assign({}, results);
 }
@@ -232,10 +266,16 @@ export interface GraphStarterOptions {
   readonly steps: Readonly<Record<string, GraphStep>>;
   /**
    * The static executor: a `"use workflow"` function that calls
-   * `executeGraph(graph, input, runtime)`. Runs start with it when dynamic
-   * workflows are off.
+   * `executeGraph(graph, input, { ...graphRunFields(meta), step, sleep, approval })`.
+   * Runs start with it when dynamic workflows are off.
    */
   readonly executor?: WorkflowFn<[WorkflowGraph, unknown, GraphRunMeta]>;
+  /**
+   * Set once `executor` spreads `graphRunFields(meta)` into its runtime: a
+   * test run through an executor that doesn't would run real steps, so
+   * test runs on the static executor are refused without it.
+   */
+  readonly executorRunsTests?: boolean;
   /** Whether to start dynamic source; defaults to `WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS`. */
   readonly dynamic?: boolean;
   /** The World to look idempotency keys up in. Defaults to the configured one. */
@@ -260,6 +300,30 @@ const dynamicEnabled = (): boolean => {
   return raw === "1" || raw?.toLowerCase() === "true";
 };
 
+/** Who a live run's steps run as: the version's publisher, or the app's service principal. */
+function principalAttributes(call: BuilderStartCall): Record<string, string> {
+  switch (call.version.owner) {
+    case "user": {
+      return call.version.publishedBy === undefined
+        ? {}
+        : {
+            [WORKFLOW_ATTRIBUTES.principalKind]: "user",
+            [WORKFLOW_ATTRIBUTES.principal]: call.version.publishedBy,
+          };
+    }
+    case "organization": {
+      return { [WORKFLOW_ATTRIBUTES.principalKind]: "service_principal" };
+    }
+    case undefined: {
+      return {};
+    }
+    default: {
+      const unknown: never = call.version.owner;
+      throw new TypeError(`better-supabase: unknown owner ${String(unknown)}`);
+    }
+  }
+}
+
 function contextOf(call: BuilderStartCall): RequestContext {
   const actor: Actor | undefined =
     call.actor === undefined ? undefined : { id: call.actor, kind: "user" };
@@ -273,9 +337,11 @@ function contextOf(call: BuilderStartCall): RequestContext {
  * The `start` for `createBuilder`: starts the published version as dynamic
  * source when dynamic workflows are on, and through `executor` otherwise.
  * The source is always compiled from the version's graph; a stored
- * compiled form is never run. Runs carry
- * `bs.tenant`, `bs.actor`, `bs.definition`, `bs.version` and `bs.key`, and
- * a repeated key returns the first run.
+ * compiled form is never run. Runs carry `bs.tenant`, `bs.actor`,
+ * `bs.definition`, `bs.version` and `bs.key`, plus `bs.subject`,
+ * `bs.mode` and `bs.trigger_node` when set. A live run also records its
+ * principal: the publisher (`user`), or the app's service principal for an
+ * organization-owned version. A repeated key returns the first run.
  */
 export function graphStarter(options: GraphStarterOptions): BuilderStarter {
   return async (call) => {
@@ -283,11 +349,17 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
     const existing = await runForKey(key, options.world);
     if (existing !== undefined) return existing;
     const graph = call.version.graph ?? { nodes: [], edges: [] };
+    const testing = call.mode === "test";
+    const triggerNode = startNodeOf(graph, call.triggerNode);
     const meta: GraphRunMeta = {
       runKey: key,
       definition: call.definition.id,
       version: call.version.version,
       versionId: call.version.id,
+      triggerNode,
+      ...(call.tenant === undefined ? {} : { tenant: call.tenant }),
+      ...(call.subject === undefined ? {} : { subject: call.subject }),
+      ...(testing ? { mode: "test", stubs: call.stubs ?? {} } : {}),
     };
     const startOptions = {
       attributes: {
@@ -295,6 +367,13 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
         [WORKFLOW_ATTRIBUTES.definition]: call.definition.id,
         [WORKFLOW_ATTRIBUTES.version]: String(call.version.version),
         [WORKFLOW_ATTRIBUTES.key]: key,
+        [WORKFLOW_ATTRIBUTES.triggerNode]: triggerNode,
+        ...(call.subject === undefined
+          ? {}
+          : { [WORKFLOW_ATTRIBUTES.subject]: subjectAttribute(call.subject) }),
+        ...(testing
+          ? { [WORKFLOW_ATTRIBUTES.mode]: "test" }
+          : principalAttributes(call)),
       },
       ...(options.world === undefined ? {} : { world: options.world }),
     };
@@ -322,6 +401,11 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
     if (options.executor === undefined) {
       throw new Error(
         `better-supabase: dynamic workflows are off (${DYNAMIC_WORKFLOWS_ENV}); pass an executor to graphStarter`,
+      );
+    }
+    if (testing && options.executorRunsTests !== true) {
+      throw new Error(
+        "better-supabase: spread graphRunFields(meta) into the executor's runtime and pass executorRunsTests: true to graphStarter to start test runs without dynamic workflows",
       );
     }
     const run = await start(

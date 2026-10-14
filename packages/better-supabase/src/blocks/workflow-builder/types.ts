@@ -9,8 +9,10 @@ import type {
 } from "../../credentials/provider.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type {
+  WorkflowRunMode,
   WorkflowSchedule,
   WorkflowStarter,
+  WorkflowSubject,
 } from "../workflows/workflows.ts";
 import type { WorkflowGraph, WorkflowGraphDiff } from "./graph.ts";
 
@@ -25,6 +27,18 @@ export type WorkflowTriggerKind =
   | "event"
   | "form"
   | "chat";
+
+/**
+ * `tenant`: belongs to one organization. `system`: the app's, with no
+ * tenant; every organization can run it, fork it or opt out of it.
+ */
+export type WorkflowDefinitionScope = "tenant" | "system";
+
+/** Who a definition grant is for: a user id, a team id or an organization role. */
+export type WorkflowGrantPrincipal = "user" | "team" | "role";
+
+/** `edit` implies `run`. */
+export type WorkflowGrantAction = "run" | "edit";
 
 export type WorkflowNodeRunStatus =
   | "running"
@@ -42,10 +56,38 @@ export interface WorkflowDefinition {
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /**
+   * The record types a run can belong to (`run({ subject })`); empty means
+   * runs don't take a subject.
+   */
+  readonly subjectTypes: readonly string[];
+  readonly scope: WorkflowDefinitionScope;
+  /** The definition it was forked from, while that one exists. */
+  readonly forkedFrom: string | undefined;
+  /** The source's published version number when it was forked. */
+  readonly forkedFromVersion: number | undefined;
+  /** Only admins and grant holders may run or edit it; everyone who can read workflows still sees it. */
+  readonly restricted: boolean;
   /** The published version's number (lists only). */
   readonly published?: number | undefined;
   /** Whether a draft is open (lists only). */
   readonly draft?: boolean;
+  /** A fork's source's published version number (lists and `fork`). */
+  readonly upstreamVersion?: number | undefined;
+  /** Whether the source published a newer version since the fork (lists and `fork`). */
+  readonly behind?: boolean;
+  /** Whether the listed tenant opted out of it (lists with a tenant only). */
+  readonly optedOut?: boolean;
+}
+
+export interface WorkflowDefinitionGrant {
+  readonly id: string;
+  readonly definition: string;
+  readonly principalKind: WorkflowGrantPrincipal;
+  readonly principalId: string;
+  readonly action: WorkflowGrantAction;
+  readonly createdBy: string | undefined;
+  readonly createdAt: Temporal.Instant;
 }
 
 export interface WorkflowVersion {
@@ -70,6 +112,11 @@ export interface WorkflowVersion {
   readonly graph?: WorkflowGraph;
   /** What the engine's `compile` returned on publish. */
   readonly compiled?: unknown;
+  /**
+   * The JSON Schema of the input a run takes, as `versions.save` stored it;
+   * set by `get`, `save` and `publish` when the version has one.
+   */
+  readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface WorkflowTrigger {
@@ -141,18 +188,27 @@ export interface WorkflowAlert {
   readonly createdAt: Temporal.Instant;
 }
 
-/** What `start` gets to start a run of a published version. */
+/** What `start` gets to start a run of a published version, or a test run. */
 export interface BuilderStartCall {
   readonly definition: WorkflowDefinition;
-  /** The published version, with its graph and compiled form. */
+  /** The published version (a test run's may be the draft), with its graph and compiled form. */
   readonly version: WorkflowVersion;
   readonly input: unknown;
+  /** The tenant the run belongs to; for a system definition, the one it runs in. */
   readonly tenant: string | undefined;
   readonly actor: string | undefined;
   /** Pass to the engine so a repeated start returns the same run. */
   readonly idempotencyKey: string;
   /** The trigger that started it, when one did. */
   readonly trigger?: WorkflowTrigger;
+  /** The record the run belongs to. */
+  readonly subject?: WorkflowSubject;
+  /** `test` for `test()`: steps return their stubs and don't run. Default `live`. */
+  readonly mode?: WorkflowRunMode;
+  /** The trigger node the run starts at, in a graph with several. */
+  readonly triggerNode?: string;
+  /** A test run's step outputs, by node id. */
+  readonly stubs?: Readonly<Record<string, unknown>>;
 }
 
 /** Starts a run with the engine and returns the engine's run id. */
@@ -215,6 +271,15 @@ export interface DefinitionInput {
   readonly slug: string;
   readonly name: string;
   readonly description?: string;
+  /** The record types its runs can belong to. Left out keeps the stored ones. */
+  readonly subjectTypes?: readonly string[];
+  /**
+   * `system` needs the service role and no tenant. Fixed once created;
+   * left out keeps the stored one (`tenant` for a new definition).
+   */
+  readonly scope?: WorkflowDefinitionScope;
+  /** Changing it needs `workflow.admin`. Left out keeps the stored value. */
+  readonly restricted?: boolean;
 }
 
 export interface TriggerInput {
@@ -261,6 +326,39 @@ export interface RunInput {
   /** Defaults to a fresh key, so every call starts a run. */
   readonly idempotencyKey?: string;
   readonly actor?: string;
+  /**
+   * The record the run belongs to: its type must be one of the
+   * definition's `subjectTypes`, and the caller must be able to read it
+   * when the `subjects` module is installed.
+   */
+  readonly subject?: WorkflowSubject;
+  /** The tenant a system definition runs in; ignored for a tenant's own definition. */
+  readonly tenant?: string;
+}
+
+export interface TestRunInput {
+  readonly definition: string;
+  /** Defaults to the open draft, else the published version. */
+  readonly version?: string;
+  /** Defaults to the graph's only trigger node. */
+  readonly triggerNode?: string;
+  readonly input?: unknown;
+  /**
+   * What each step node returns, by node id. A step without one returns
+   * the example in its `outputSchema` (from the `steps` passed to
+   * `createBuilder`: the first `examples` entry, else `default`), else
+   * `{ stubbed: true }`. An approval node's stub is its decision (default
+   * approved).
+   */
+  readonly stubs?: Readonly<Record<string, unknown>>;
+  readonly subject?: WorkflowSubject;
+}
+
+export interface GrantInput {
+  readonly definition: string;
+  readonly principalKind: WorkflowGrantPrincipal;
+  readonly principalId: string;
+  readonly action: WorkflowGrantAction;
 }
 
 export interface OutboxLikeEvent {
@@ -268,20 +366,64 @@ export interface OutboxLikeEvent {
   readonly type: string;
   readonly payload?: unknown;
   readonly tenant?: string | undefined;
+  readonly actorId?: string | undefined;
+  /** A subject event's record; definitions that list its type run on it. */
+  readonly subjectType?: string | undefined;
+  readonly subjectId?: string | undefined;
+}
+
+export interface VersionSaveOptions {
+  /**
+   * The JSON Schema of the input a run of the version takes. Leave it out
+   * to keep the draft's current one; a new draft starts from the previous
+   * version's.
+   */
+  readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface WorkflowBuilder {
   readonly definitions: {
     save(input: DefinitionInput): AsyncResult<WorkflowDefinition>;
-    list(tenant?: string): AsyncResult<readonly WorkflowDefinition[]>;
+    /**
+     * The tenant's definitions; with a tenant, the system definitions too,
+     * marked `optedOut` when it opted out. `subjectType` keeps the ones
+     * that run on that record type.
+     */
+    list(
+      tenant?: string,
+      filter?: { readonly subjectType?: string },
+    ): AsyncResult<readonly WorkflowDefinition[]>;
     get(id: string): AsyncResult<WorkflowDefinition | undefined>;
     remove(id: string): AsyncResult<boolean>;
+    /**
+     * Copies a system definition's (or the tenant's own) published graph
+     * into a new definition in `tenant` as its draft. The fork doesn't opt
+     * the tenant out of the source; call `optOut` for that.
+     */
+    fork(input: {
+      readonly source: string;
+      readonly tenant: string;
+      readonly slug: string;
+    }): AsyncResult<WorkflowDefinition>;
+    /** Opts a tenant out of a definition, or back in with `optedOut: false` (`workflow.admin`). */
+    optOut(input: {
+      readonly tenant: string;
+      readonly definition: string;
+      readonly optedOut?: boolean;
+    }): AsyncResult<boolean>;
+    readonly grants: {
+      /** Grants run or edit on a restricted definition (`workflow.admin`). */
+      add(input: GrantInput): AsyncResult<boolean>;
+      remove(input: GrantInput): AsyncResult<boolean>;
+      list(definition: string): AsyncResult<readonly WorkflowDefinitionGrant[]>;
+    };
   };
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
     save(
       definition: string,
       graph: WorkflowGraph,
+      options?: VersionSaveOptions,
     ): AsyncResult<WorkflowVersion>;
     /**
      * Compiles the graph with `compile`, then publishes as the caller; the
@@ -311,10 +453,21 @@ export interface WorkflowBuilder {
      */
     runAs(
       version: string | undefined,
+      tenant?: string,
     ): AsyncResult<Readonly<Record<string, unknown>>>;
   };
-  /** Starts a run of the published version: `workflow.run` in its tenant. */
+  /**
+   * Starts a run of the published version: `workflow.run` in its tenant, a
+   * run grant on a restricted definition, and not opted out
+   * (`WORKFLOW_OPTED_OUT`).
+   */
   run(input: RunInput): AsyncResult<string>;
+  /**
+   * Starts a test run (`workflow.edit`, and an edit grant on a restricted
+   * definition): mode `test`, steps return their stubs and never run,
+   * sleeps are skipped, and it fires no alerts or outbox events.
+   */
+  test(input: TestRunInput): AsyncResult<string>;
   readonly triggers: {
     save(input: TriggerInput): AsyncResult<WorkflowTrigger>;
     list(definition: string): AsyncResult<readonly WorkflowTrigger[]>;
