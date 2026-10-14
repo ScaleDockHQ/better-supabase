@@ -117,17 +117,12 @@ describe("buildModel config keys", () => {
   });
 
   it("warns about a bare key two schemas share", async () => {
-    const built = await model(
-      copyTable("tags", { schema: "better_supabase" }),
-      {
-        schemas: BOTH,
-        tables: { tags: { casing: "snake" } },
-      },
-    );
+    const built = await model(copyTable("tags", { schema: "app" }), {
+      schemas: ["public", "app"],
+      tables: { tags: { casing: "snake" } },
+    });
     expect(built.warnings).toEqual([
-      'tables["tags"]: better_supabase.tags and public.tags share the name, so the entry applies to each. Key it `schema.table` to pick one.',
-      expect.stringContaining("better_supabase.my_profile:"),
-      expect.stringContaining("better_supabase.update_my_profile:"),
+      'tables["tags"]: app.tags and public.tags share the name, so the entry applies to each. Key it `schema.table` to pick one.',
     ]);
   });
 });

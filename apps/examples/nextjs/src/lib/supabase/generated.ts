@@ -122,12 +122,12 @@ export type Models = {
       status: "lead" | "active" | "archived";
       primaryContactId: string | null;
       metadata: Json;
-      createdBy: string | null;
       updatedBy: string | null;
       archivedAt: string | null;
       createdAt: string;
       updatedAt: string;
       logoPath: StoragePath<"customer-logos"> | null;
+      createdBy: string | null;
     };
     Insert: {
       id?: string;
@@ -137,12 +137,12 @@ export type Models = {
       status?: "lead" | "active" | "archived";
       primaryContactId?: string | null;
       metadata?: Json;
-      createdBy?: string | null;
       updatedBy?: string | null;
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
+      createdBy?: string | null;
     };
     Update: {
       id?: string;
@@ -152,12 +152,12 @@ export type Models = {
       status?: "lead" | "active" | "archived";
       primaryContactId?: string | null;
       metadata?: Json;
-      createdBy?: string | null;
       updatedBy?: string | null;
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
+      createdBy?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -258,34 +258,34 @@ export type Models = {
       id: bigint;
       organizationId: string;
       customerId: string;
-      kind: "call" | "meeting" | "email";
       body: string;
       attachments: Json | null;
       createdAt: string;
       updatedAt: string;
       embedding: string | null;
+      kind: "call" | "meeting" | "email";
     };
     Insert: {
       id?: never;
       organizationId: string;
       customerId: string;
-      kind?: "call" | "meeting" | "email";
       body: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
       embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Update: {
       id?: never;
       organizationId?: string;
       customerId?: string;
-      kind?: "call" | "meeting" | "email";
       body?: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
       embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };

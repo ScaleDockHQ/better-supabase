@@ -56,12 +56,12 @@ export const customersRow: z.ZodMiniType<RowOf<'customers'>> = z.object({
   status: z.enum(["lead", "active", "archived"]),
   primaryContactId: z.nullable(z.guid()),
   metadata: z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined),
-  createdBy: z.nullable(z.guid()),
   updatedBy: z.nullable(z.guid()),
   archivedAt: z.nullable(z.iso.datetime({ offset: true })),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   logoPath: z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>)),
+  createdBy: z.nullable(z.guid()),
 }).check(z.meta({ title: "Customers", description: "Companies the organization sells to." }));
 export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -71,12 +71,12 @@ export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   status: z.exactOptional(z.enum(["lead", "active", "archived"])),
   primaryContactId: z.exactOptional(z.nullable(z.guid())),
   metadata: z.exactOptional(z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined)),
-  createdBy: z.exactOptional(z.nullable(z.guid())),
   updatedBy: z.exactOptional(z.nullable(z.guid())),
   archivedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
+  createdBy: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers insert", description: "Companies the organization sells to." }));
 export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -86,12 +86,12 @@ export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   status: z.exactOptional(z.enum(["lead", "active", "archived"])),
   primaryContactId: z.exactOptional(z.nullable(z.guid())),
   metadata: z.exactOptional(z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined)),
-  createdBy: z.exactOptional(z.nullable(z.guid())),
   updatedBy: z.exactOptional(z.nullable(z.guid())),
   archivedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
+  createdBy: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers update", description: "Companies the organization sells to." }));
 
 export const locationsRow: z.ZodMiniType<RowOf<'locations'>> = z.object({
@@ -151,32 +151,32 @@ export const notesRow: z.ZodMiniType<RowOf<'notes'>> = z.object({
   id: z.int(),
   organizationId: z.guid(),
   customerId: z.guid(),
-  kind: z.enum(["call", "meeting", "email"]),
   body: z.string(),
   attachments: z.nullable(z.json()),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   embedding: z.nullable(z.string()),
+  kind: z.enum(["call", "meeting", "email"]),
 }).check(z.meta({ title: "Notes" }));
 export const notesInsert: z.ZodMiniType<InsertOf<'notes'>> = z.object({
   organizationId: z.guid(),
   customerId: z.guid(),
-  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
   body: z.string(),
   attachments: z.exactOptional(z.nullable(z.json())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   embedding: z.exactOptional(z.nullable(z.string())),
+  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
 }).check(z.meta({ title: "Notes insert" }));
 export const notesUpdate: z.ZodMiniType<UpdateOf<'notes'>> = z.object({
   organizationId: z.exactOptional(z.guid()),
   customerId: z.exactOptional(z.guid()),
-  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
   body: z.exactOptional(z.string()),
   attachments: z.exactOptional(z.nullable(z.json())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   embedding: z.exactOptional(z.nullable(z.string())),
+  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
 }).check(z.meta({ title: "Notes update" }));
 
 export const organizationsRow: z.ZodMiniType<RowOf<'organizations'>> = z.object({

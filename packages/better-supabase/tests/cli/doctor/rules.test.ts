@@ -44,6 +44,7 @@ function snapshot(
 }
 
 const table = (tables: Mutable<CatalogTable>[], name: string) =>
+  tables.find((entry) => entry.schema === "public" && entry.name === name) ??
   tables.find((entry) => entry.name === name)!;
 
 const toml = (text: string): DoctorContext["configToml"] => ({

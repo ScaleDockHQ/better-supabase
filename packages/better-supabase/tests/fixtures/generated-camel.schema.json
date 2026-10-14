@@ -246,14 +246,6 @@
           "format": "uuid"
         },
         "metadata": {},
-        "createdBy": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid",
-          "readOnly": true
-        },
         "updatedBy": {
           "type": [
             "string",
@@ -285,6 +277,14 @@
             "string",
             "null"
           ]
+        },
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "readOnly": true
         }
       },
       "required": [
@@ -295,12 +295,12 @@
         "status",
         "primaryContactId",
         "metadata",
-        "createdBy",
         "updatedBy",
         "archivedAt",
         "createdAt",
         "updatedAt",
-        "logoPath"
+        "logoPath",
+        "createdBy"
       ],
       "additionalProperties": false
     },
@@ -352,14 +352,6 @@
           "format": "uuid"
         },
         "metadata": {},
-        "createdBy": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid",
-          "readOnly": true
-        },
         "updatedBy": {
           "type": [
             "string",
@@ -391,6 +383,14 @@
             "string",
             "null"
           ]
+        },
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "readOnly": true
         }
       },
       "required": [
@@ -447,14 +447,6 @@
           "format": "uuid"
         },
         "metadata": {},
-        "createdBy": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid",
-          "readOnly": true
-        },
         "updatedBy": {
           "type": [
             "string",
@@ -486,6 +478,14 @@
             "string",
             "null"
           ]
+        },
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "readOnly": true
         }
       },
       "additionalProperties": false
@@ -759,14 +759,6 @@
           "type": "string",
           "format": "uuid"
         },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
-          ]
-        },
         "body": {
           "type": "string"
         },
@@ -786,18 +778,26 @@
             "string",
             "null"
           ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
         }
       },
       "required": [
         "id",
         "organizationId",
         "customerId",
-        "kind",
         "body",
         "attachments",
         "createdAt",
         "updatedAt",
-        "embedding"
+        "embedding",
+        "kind"
       ],
       "additionalProperties": false
     },
@@ -813,14 +813,6 @@
           "type": "string",
           "format": "uuid"
         },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
-          ]
-        },
         "body": {
           "type": "string"
         },
@@ -839,6 +831,14 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
           ]
         }
       },
@@ -861,14 +861,6 @@
           "type": "string",
           "format": "uuid"
         },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
-          ]
-        },
         "body": {
           "type": "string"
         },
@@ -887,6 +879,14 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
           ]
         }
       },
