@@ -87,8 +87,17 @@ export interface CommentEdit {
   readonly mentions?: readonly string[];
 }
 
+/**
+ * Where a timeline entry comes from: `event` for an `activity_entries` row
+ * that `activitySink()` wrote, `audit` for an audit log entry on the
+ * subject's row (with the `audit` and `subjects` modules).
+ */
+export type ActivitySource = "event" | "audit";
+
 export interface ActivityEntry {
+  /** An `activity_entries` id, or the audit entry's id for `source: "audit"`. */
   readonly id: string;
+  readonly source: ActivitySource;
   readonly organizationId: string;
   readonly type: string;
   readonly actorId: string | undefined;
@@ -150,7 +159,10 @@ export interface Comments {
   ): AsyncResult<number>;
   /**
    * The activity feed of a tenant, newest first, or one subject's timeline
-   * with `subject`. Members with `activity.read` see it.
+   * with `subject`. Members with `activity.read` see it. With the `subjects`
+   * module, an entry on a registered subject type needs `can_subject` read,
+   * and a subject's timeline also lists its audit log entries
+   * (`source: "audit"`) when `audit` is installed with its read policy.
    */
   history(
     organizationId: string,
@@ -198,6 +210,7 @@ function activityOf(value: unknown): ActivityEntry {
   const row = recordOf(value, "activity_entries");
   return {
     id: textOf(row["id"]),
+    source: row["source"] === "audit" ? "audit" : "event",
     organizationId: textOf(row["organization_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
@@ -429,7 +442,9 @@ const FACETS: readonly [ActivityFacet, string, string][] = [
  * A cursor-paged list over `activity_entries` (generate types for the
  * `better_supabase` schema to get it in your models), newest first,
  * filtered by type, actor and subject. Members with `activity.read` see
- * their tenants' entries.
+ * their tenants' entries, less those on a registered subject that
+ * `can_subject` doesn't let them read (with the `subjects` module). It
+ * reads the table, so it lists no audit entries; `history()` does.
  */
 export function activityListQuery<
   M extends AnyModels,

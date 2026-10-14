@@ -7,6 +7,7 @@ export {
   activitySink,
   type ActivitySinkOptions,
   type ActivitySort,
+  type ActivitySource,
   type Comment,
   type CommentEdit,
   type Comments,

@@ -172,6 +172,19 @@ describe("createComments", () => {
           data: null,
           occurred_at: "2026-10-06T11:00:00Z",
         },
+        {
+          id: "42",
+          source: "audit",
+          organization_id: "org-1",
+          event_id: null,
+          type: "quotes.updated",
+          actor_id: ADA,
+          subject_type: "quote",
+          subject_id: "q1",
+          summary: null,
+          data: { op: "update", changed: ["total"], table: "public.quotes" },
+          occurred_at: "2026-10-06T10:00:00Z",
+        },
       ],
     });
     const comments = createComments({
@@ -224,12 +237,19 @@ describe("createComments", () => {
       )
       .orThrow();
     expect(history[0]).toMatchObject({
+      source: "event",
       type: "quote.sent",
       actorId: ADA,
       subjectId: "q1",
       data: { total: 10 },
     });
     expect(history[1]).toMatchObject({ actorId: undefined, data: {} });
+    expect(history[2]).toMatchObject({
+      id: "42",
+      source: "audit",
+      type: "quotes.updated",
+      data: { op: "update", changed: ["total"] },
+    });
     expect(fake.calls[3]![2]).toMatchObject({
       subject_type: "quote",
       before: "2026-10-07T00:00:00Z",
