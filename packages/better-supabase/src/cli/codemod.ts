@@ -186,6 +186,44 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       },
     ],
   },
+  "0.9": {
+    name: "0.9",
+    description:
+      "Changes from 0.8 to 0.9 change behaviour, not names: lists support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers and generic problem types (about:blank), for review",
+    review: [
+      {
+        pattern: /\bsupportSessions\s*\(/,
+        message:
+          'Support sessions refuse every start without `authorize` (or the server\'s `authorization.support.authorize`), and a start needs a request approved by a different admin unless `policy.approval` is `"none"`. `authorize: "store"` keeps the store-only check',
+      },
+      {
+        pattern: /\bcanApprove\b/,
+        message:
+          "`authorization.functions.canApprove` is deprecated: set `isApprover` with `{kind}` (`'ai-tool'`), `{subject}` (the tool name, was `{tool}`) and `{tenant}`",
+      },
+      {
+        pattern: /\bcreateWebhooks\s*\(/,
+        message:
+          "Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) instead of `{ type, timestamp, data }`; a `transform` now returns only the event's `data`, and receivers read `data` from the CloudEvent",
+      },
+      {
+        pattern: /\bgatewayOptions\s*\(/,
+        message:
+          "`gatewayOptions` ignores a `user` in its second argument; pass the caller's id as `context.userId`",
+      },
+      {
+        pattern:
+          /bettersupabase\.com\/problems\/(invalid-request|unauthorized|forbidden|not-found|conflict|rate-limited|unexpected)\b|["'](Invalid request|Not found|Too many requests|Unexpected error)["']/,
+        message:
+          'Generic problems use `type: "about:blank"` and the HTTP status phrase as `title` (`Bad Request`, `Not Found`, `Too Many Requests`, `Internal Server Error`); match on `kind` or `code` instead',
+      },
+      {
+        pattern: /\bpublish_webhook_event\s*\(/,
+        message:
+          "`publish_webhook_event` takes `subject` and `read_permission` and delivers only to endpoints whose owner may read the event",
+      },
+    ],
+  },
 };
 
 /** `[start, end)` ranges of code, outside strings, template literals and comments. */

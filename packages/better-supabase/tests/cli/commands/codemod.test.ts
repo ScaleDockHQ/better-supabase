@@ -47,9 +47,9 @@ describe("runCodemod", () => {
       code: 2,
       error: expect.stringContaining("Name a codemod:\n  0.4"),
     });
-    expect(await codemod(["0.9"])).toMatchObject({
+    expect(await codemod(["0.99"])).toMatchObject({
       code: 2,
-      error: expect.stringContaining('Unknown codemod "0.9"'),
+      error: expect.stringContaining('Unknown codemod "0.99"'),
     });
   });
 
