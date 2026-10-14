@@ -68,6 +68,7 @@ const PURE_BARRELS = [
   "blocks/templates",
   "blocks/pipelines",
   "blocks/parties",
+  "blocks/engagements",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",

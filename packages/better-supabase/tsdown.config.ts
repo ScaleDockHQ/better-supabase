@@ -104,6 +104,7 @@ const entries = [
   "blocks/templates/index",
   "blocks/pipelines/index",
   "blocks/parties/index",
+  "blocks/engagements/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

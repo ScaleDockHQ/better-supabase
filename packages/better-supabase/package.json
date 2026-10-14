@@ -767,6 +767,11 @@
       "types": "./dist/blocks/parties/index.d.ts",
       "default": "./dist/blocks/parties/index.js"
     },
+    "./blocks/engagements": {
+      "@better-supabase/source": "./src/blocks/engagements/index.ts",
+      "types": "./dist/blocks/engagements/index.d.ts",
+      "default": "./dist/blocks/engagements/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1482,6 +1487,10 @@
       "./blocks/parties": {
         "types": "./dist/blocks/parties/index.d.ts",
         "default": "./dist/blocks/parties/index.js"
+      },
+      "./blocks/engagements": {
+        "types": "./dist/blocks/engagements/index.d.ts",
+        "default": "./dist/blocks/engagements/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

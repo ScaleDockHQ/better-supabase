@@ -2003,6 +2003,7 @@
       "CredentialEventData",
       "DataExportEventData",
       "DataschemaContext",
+      "EngagementEventData",
       "EventSink",
       "FlagEventData",
       "FormEventData",
@@ -4373,6 +4374,28 @@
       "PartyPage",
       "Person",
       "PersonInput",
+      "RpcClient"
+    ]
+  },
+  "./blocks/engagements": {
+    "values": [
+      "createEngagements",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Engagement",
+      "EngagementInput",
+      "Engagements",
+      "EngagementsOptions",
+      "EngagementSubject",
       "RpcClient"
     ]
   },

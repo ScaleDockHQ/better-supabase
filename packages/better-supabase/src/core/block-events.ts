@@ -358,6 +358,10 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "engagement.logged"
+  | "engagement.updated"
+  | "engagement.completed"
+  | "engagement.deleted"
   | "pipeline.stage_changed"
   | "comment.created"
   | "comment.mentioned"
@@ -587,6 +591,18 @@ export interface PartyEventData {
   readonly mergedId?: string;
   /** For `company.person_*`: the person's role at the company. */
   readonly role?: string | null;
+}
+
+/**
+ * Events from the engagements module. `subjectType` and `subjectId` name
+ * the engagement's main record; `subjects` lists every record it is on.
+ */
+export interface EngagementEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly engagementId: string;
+  /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
+  readonly type: string;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
@@ -887,6 +903,10 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "engagement.logged": EngagementEventData;
+  "engagement.updated": EngagementEventData;
+  "engagement.completed": EngagementEventData;
+  "engagement.deleted": EngagementEventData;
   "company.created": PartyEventData;
   "company.updated": PartyEventData;
   "company.archived": PartyEventData;

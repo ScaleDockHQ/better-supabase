@@ -126,6 +126,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_person_save",
     "after_person_save",
   ],
+  engagements: ["before_engagement_log", "after_engagement_log"],
 };
 
 /** Modules that call their hooks only for configured items. */

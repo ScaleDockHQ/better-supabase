@@ -1,0 +1,88 @@
+---
+title: Engagements
+description: Calls, emails, meetings, notes and tasks logged on one or more records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
+---
+
+`engagements` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can carry engagements.
+
+This block is the logged work, not the system history. The [activity feed](/docs/blocks/comments#activity-feed) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
+
+Reading needs `engagements.read`, and logging needs `engagements.write`. The author and the owner edit an engagement, and `engagements.manage` edits anyone's. Admins get every permission, and members get `engagements.read` and `engagements.write`.
+
+```bash
+better-supabase sql add engagements
+```
+
+The module needs `tenant`, `access` and `subjects`.
+
+```ts
+import { createEngagements } from "better-supabase/blocks/engagements";
+
+const engagements = createEngagements({ transport });
+const deal = { type: "deal", id: dealId };
+
+await engagements
+  .log(
+    organizationId,
+    {
+      type: "call",
+      title: "Discovery call",
+      outcome: "connected",
+      durationSeconds: 900,
+      doneAt: Temporal.Now.instant(),
+    },
+    [deal, { type: "person", id: personId }],
+  )
+  .orThrow();
+
+await engagements
+  .log(
+    organizationId,
+    { type: "task", title: "Send proposal", dueAt: friday },
+    [deal],
+  )
+  .orThrow();
+```
+
+## Log and change
+
+`log(organizationId, input, subjects)` needs a `type` and a `title`. The first record in `subjects` is the engagement's main record, which its events carry. Every record must exist in the organization and be readable by the caller (`ENGAGEMENT_SUBJECT_FORBIDDEN`). The owner defaults to the caller, and assigning it to someone else notifies them when the [notifications](/docs/blocks/notifications) module is installed.
+
+`options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ENGAGEMENT_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the engagement, so a sync can replay.
+
+`update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `remove(id)` deletes it.
+
+## Read
+
+| Method                                         | Returns                                                                                               |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `of(subject, { types, before, limit })`        | A record's engagements, newest first: done ones by when they happened, open ones by when they are due |
+| `next(subject)`                                | The open engagement with the earliest due time, or `undefined`: a record's next step                  |
+| `open(organizationId, { ownerId, dueBefore })` | A member's open engagements, earliest due first; the caller's by default                              |
+
+Each engagement has `overdue`: open and past its due time. Reads run as the caller: an engagement is visible to members who can read one of its records, or to every reader of the organization when it is on none.
+
+## Events
+
+| Event                                                                                   | Data                                                                             |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `engagement.logged`, `engagement.updated`, `engagement.completed`, `engagement.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
+
+## Hooks
+
+The module calls `before_engagement_log(tenant, attrs jsonb, subjects jsonb)` and `after_engagement_log(engagement uuid)`. A `before_` hook raises to refuse the log. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
+
+## Wire it to ReUI
+
+The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day buckets by `doneAt` or `dueAt`; its type tabs pass `types`. The Deal Desk composer calls `log` with the deal and its contact as subjects, and the Forecast Call's "No next step" and "Overdue activity" chips read `next(deal)` and its `overdue`.
+
+## Errors
+
+| Hint                           | Cause                                                      |
+| ------------------------------ | ---------------------------------------------------------- |
+| `ENGAGEMENT_FORBIDDEN`         | the caller lacks `engagements.write`                       |
+| `ENGAGEMENT_TYPE_INVALID`      | not a configured type                                      |
+| `ENGAGEMENT_TITLE_REQUIRED`    | the title is empty                                         |
+| `ENGAGEMENT_SUBJECTS_INVALID`  | `subjects` isn't a list of `{ type, id }`                  |
+| `ENGAGEMENT_SUBJECT_FORBIDDEN` | a record is unknown, in another organization or unreadable |
+| `ENGAGEMENT_NOT_FOUND`         | no engagement the caller can edit                          |

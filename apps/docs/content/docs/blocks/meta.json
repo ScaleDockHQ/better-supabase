@@ -76,6 +76,7 @@
     "templates",
     "pipelines",
     "parties",
+    "engagements",
     "identities",
     "service-principals"
   ]

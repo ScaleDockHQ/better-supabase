@@ -274,6 +274,7 @@ export type {
   CollaborationEventData,
   CommentEventData,
   CommerceEventData,
+  EngagementEventData,
   PartyEventData,
   PipelineEventData,
   PipelineStageEventData,
