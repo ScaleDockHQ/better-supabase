@@ -105,11 +105,11 @@ await webhooks
   .orThrow();
 ```
 
-| Endpoint owner                                         | Gets the event when                                                       |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- |
-| A user (`created_by` is set)                           | The user holds `readPermission` (else `webhooks.read`) in the tenant      |
-| A service principal (`created_by` is null)             | `readPermission` is unset, or `permissions` holds it, `*` or a `prefix.*` |
-| A user who was deleted (`created_by` set to null)      | As a service principal                                                    |
+| Endpoint owner                                    | Gets the event when                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| A user (`created_by` is set)                      | The user holds `readPermission` (else `webhooks.read`) in the tenant      |
+| A service principal (`created_by` is null)        | `readPermission` is unset, or `permissions` holds it, `*` or a `prefix.*` |
+| A user who was deleted (`created_by` set to null) | As a service principal                                                    |
 
 A service endpoint declares what it holds in its `permissions` column, for
 example `{invoices.*}`. The user check asks the
@@ -170,14 +170,14 @@ retry.
 }
 ```
 
-| Attribute     | Value                                                                                |
-| ------------- | ------------------------------------------------------------------------------------ |
-| `source`      | `source`, else `/webhooks` on `appUrl`, else `urn:better-supabase:webhooks`          |
-| `type`        | The event type, after `typePrefix` and a dot when you set one                        |
-| `subject`     | The `subject` given to `publish`, left out without one                               |
-| `time`        | When the event was queued                                                            |
-| `dataschema`  | `dataschema`, a URI or a function of the delivery                                    |
-| `traceparent` | `traceparent(delivery)`, left out when it isn't a valid W3C trace context            |
+| Attribute     | Value                                                                       |
+| ------------- | --------------------------------------------------------------------------- |
+| `source`      | `source`, else `/webhooks` on `appUrl`, else `urn:better-supabase:webhooks` |
+| `type`        | The event type, after `typePrefix` and a dot when you set one               |
+| `subject`     | The `subject` given to `publish`, left out without one                      |
+| `time`        | When the event was queued                                                   |
+| `dataschema`  | `dataschema`, a URI or a function of the delivery                           |
+| `traceparent` | `traceparent(delivery)`, left out when it isn't a valid W3C trace context   |
 
 An endpoint with `batch` set to `true` gets its claimed deliveries in one
 request, as a CloudEvents batch (`application/cloudevents-batch+json`, a JSON

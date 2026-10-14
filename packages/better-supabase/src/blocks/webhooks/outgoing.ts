@@ -77,7 +77,8 @@ const defaultRetryable = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
 
 /** W3C Trace Context, version 00 and the forward-compatible later versions. */
-const TRACEPARENT = /^(?!ff)[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
+const TRACEPARENT =
+  /^(?!ff)[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
 
 function absoluteUri(where: string, value: string): string {
   if (!URL.canParse(value))
@@ -105,7 +106,9 @@ function actorOf(payload: unknown): string | null {
 }
 
 /** A stable `webhook-id` for a batch: the same deliveries give the same id. */
-async function batchId(deliveries: readonly WebhookDelivery[]): Promise<string> {
+async function batchId(
+  deliveries: readonly WebhookDelivery[],
+): Promise<string> {
   const ids = deliveries.map((delivery) => delivery.id).toSorted();
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -352,13 +355,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
           payload: first.payload,
           subject: first.subject,
         };
-        const candidates = deliveries.map(
-          (delivery): WebhookSubscriber => ({
-            principal: delivery.owner ?? delivery.endpointId,
-            kind: delivery.owner ? "user" : "service",
-            delivery,
-          }),
-        );
+        const candidates = deliveries.map((delivery): WebhookSubscriber => ({
+          principal: delivery.owner ?? delivery.endpointId,
+          kind: delivery.owner ? "user" : "service",
+          delivery,
+        }));
         let kept: ReadonlySet<WebhookSubscriber>;
         try {
           kept = new Set(await subscribers(event, candidates));
@@ -465,7 +466,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         (delivery) => delivery.endpointId,
       );
       const queue: (readonly WebhookDelivery[])[] = [
-        ...allowed.filter((delivery) => !delivery.batch).map((delivery) => [delivery]),
+        ...allowed
+          .filter((delivery) => !delivery.batch)
+          .map((delivery) => [delivery]),
         ...batched.values(),
       ];
       await Promise.all(
@@ -570,7 +573,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
               payload: event.data ?? {},
               tenant: typeof tenant === "string" ? tenant : null,
               event_id: event.id,
-              ...(event.subject === undefined ? {} : { subject: event.subject }),
+              ...(event.subject === undefined
+                ? {}
+                : { subject: event.subject }),
             });
           }
         },

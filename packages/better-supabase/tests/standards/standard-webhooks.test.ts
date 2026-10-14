@@ -145,9 +145,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
         body: BODY,
         timestamp: at,
       });
-      expect(
-        (await verify({ headers: signed, body: BODY })).ok,
-      ).toBe(true);
+      expect((await verify({ headers: signed, body: BODY })).ok).toBe(true);
     }
   });
 

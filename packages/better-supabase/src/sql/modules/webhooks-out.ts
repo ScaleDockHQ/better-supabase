@@ -185,9 +185,9 @@ create table if not exists ${n.table("endpoints")} (
   ].join(",\n  ")}
 );
 ${added(n, "endpoints", [
-    ["permissions", "text[]"],
-    ["batch", "boolean not null default false"],
-  ])}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
+  ["permissions", "text[]"],
+  ["batch", "boolean not null default false"],
+])}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
 ${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
       ? `

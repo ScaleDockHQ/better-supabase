@@ -32,7 +32,11 @@ export interface HookNames {
    * expression) in `tenant`: the provider's `idsWithFor` when it has one,
    * else the access contract's `can_user`, else `false`.
    */
-  readonly userMay: (user: string, tenant: string, permission: string) => string;
+  readonly userMay: (
+    user: string,
+    tenant: string,
+    permission: string,
+  ) => string;
   /** The module's view permission, as a SQL literal. */
   readonly viewPermission: string;
 }

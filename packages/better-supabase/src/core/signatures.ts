@@ -122,9 +122,13 @@ export async function replayed(
   try {
     if (!(await options.seen(id, until))) return undefined;
   } catch {
-    return dbError("unexpected", "Could not check the webhook id for a replay", {
-      code: "WEBHOOK_DEDUPE_FAILED",
-    });
+    return dbError(
+      "unexpected",
+      "Could not check the webhook id for a replay",
+      {
+        code: "WEBHOOK_DEDUPE_FAILED",
+      },
+    );
   }
   return dbError("conflict", "Webhook was already received", {
     code: "WEBHOOK_REPLAYED",
