@@ -36,6 +36,21 @@ export const ACCESS_REQUEST_SUBJECT = "access_request";
 /** Requests the time-tracking module files; their subject is a timesheet. */
 export const TIMESHEET_SUBJECT = "timesheet";
 
+/** Tool calls the ai-chat module files; their subject is its approval row, action `run`. */
+export const AI_TOOL_SUBJECT = "ai_tool_approval";
+
+/** Requests the support-sessions module files; their subject is its request, action `start`. */
+export const SUPPORT_REQUEST_SUBJECT = "support_request";
+
+/**
+ * The policy snapshot of a request another module files and decides: one
+ * step that the module's own approver check answers, never the requester.
+ * `expiresIn` is a text SQL expression or `null`.
+ */
+export function linkedPolicy(expiresIn = "null"): string {
+  return `jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', ${expiresIn}, 'run', null)`;
+}
+
 const PAYLOAD = [
   "organizationId",
   "subjectType",
@@ -169,7 +184,27 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const ownSubjects = sqlString(ACCESS_REQUEST_SUBJECT).concat(
     timesheets === undefined ? "" : `, ${sqlString(TIMESHEET_SUBJECT)}`,
   );
-  const readable = (row: string): string =>
+  const aiChat =
+    ctx.installed("ai-chat") && ctx.of("ai-chat").mode !== "custom"
+      ? ctx.of("ai-chat")
+      : undefined;
+  const support =
+    ctx.installed("support-sessions") &&
+    ctx.of("support-sessions").mode !== "custom" &&
+    ctx.of("support-sessions").hasTable("requests")
+      ? ctx.of("support-sessions")
+      : undefined;
+  // Requests their module decides: only the requester, an eligible approver
+  // and the service role read them, never every reader of the tenant.
+  const linked = [
+    ...(aiChat === undefined ? [] : [AI_TOOL_SUBJECT]),
+    ...(support === undefined ? [] : [SUPPORT_REQUEST_SUBJECT]),
+  ];
+  const linkedRow = (column: string): string =>
+    linked.length === 0
+      ? "false"
+      : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
+  const declared = (row: string): string =>
     `(${row}.${c("subjectType")} ${timesheets === undefined ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
       subjects,
       {
@@ -178,6 +213,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         tenant: `${row}.${c("tenant")}`,
       },
     )})`;
+  const readable = (row: string): string =>
+    linked.length === 0
+      ? declared(row)
+      : `(not ${linkedRow(`${row}.${c("subjectType")}`)} and ${declared(row)})`;
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")})`;
   const record = (event: string, row: string, audit: boolean): string =>
@@ -264,6 +303,51 @@ ${queues
   if v_req.${c("subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} then
     perform ${timesheets.fn("approve_timesheet")}(v_req.${c("subjectId")}::uuid);
   end if;`;
+  const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
+  const aiRun =
+    aiChat === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
+    perform ${aiChat.fn("apply_ai_tool_approval")}(v_req.${c("subjectId")}, true, ${lastComment});
+  end if;`;
+  const supportRun =
+    support === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
+    perform ${support.fn("apply_support_approval")}(v_req.${c("subjectId")}::uuid, auth.uid());
+  end if;`;
+  const linkedReject = `${
+    aiChat === undefined
+      ? ""
+      : `
+    if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
+      perform ${aiChat.fn("apply_ai_tool_approval")}(v_req.${c("subjectId")}, false, decide_approval.comment);
+    end if;`
+  }${
+    support === undefined
+      ? ""
+      : `
+    if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
+      perform ${support.fn("close_support_request")}(v_req.${c("subjectId")}::uuid);
+    end if;`
+  }`;
+  const linkedEligible = `${
+    aiChat === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
+    return ${aiChat.fn("ai_tool_approval_approvable")}(v_req.${c("subjectId")});
+  end if;`
+  }${
+    support === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
+    return ${support.fn("support_request_approvable")}(v_req.${c("subjectId")}::uuid);
+  end if;`
+  }`;
   const notifyBody = ctx.installed("notifications")
     ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
@@ -346,7 +430,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_
 ${lockTable(requests, { read: true })}
 drop policy if exists "approval_requests_read" on ${requests};
 create policy "approval_requests_read" on ${requests} for select to authenticated
-  using (${tenantIn(c("tenant"), read)} or ${c("requestedBy")} = (select auth.uid()));
+  using (${linked.length === 0 ? tenantIn(c("tenant"), read) : `(${tenantIn(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid()));
 
 create table if not exists ${decisions} (
   ${d("id")} uuid primary key default gen_random_uuid(),
@@ -414,7 +498,7 @@ begin
     where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = v_req.${c("step")} and x.${d("approver")} = v_me
   ) then
     return false;
-  end if;
+  end if;${linkedEligible}
   v_approvers := v_req.${c("policy")} -> 'steps' -> v_req.${c("step")} -> 'approvers';
   return (coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
     or (v_approvers ->> 'permission' is not null and ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")})
@@ -457,7 +541,7 @@ $$;
 revoke execute on function ${fn("approval_notify")}(uuid, text) from public, anon, authenticated;
 
 -- Runs what the final approval unlocks: the policy's state-machine
--- transition or job, or the access-requests grant.
+-- transition or job, or the grant or decision of the module that filed it.
 create or replace function ${fn("approval_finalize")}(request_id uuid)
 returns void
 language plpgsql
@@ -469,7 +553,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${aiRun}${supportRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -509,7 +593,54 @@ begin
 end;
 $$;
 revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
-
+${
+  linked.length === 0
+    ? ""
+    : `
+-- Closes the pending request for a subject that its own module decided
+-- (decide_ai_tool_approval, approve_support_request) without running the
+-- module again. A request that is no longer pending is left as it is.
+create or replace function ${fn("approval_settle")}(subject_type text, subject_id text, action text, decision text, approver uuid, comment text default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req ${requests}%rowtype;
+begin
+  select * into v_req from ${requests} r
+  where r.${c("subjectType")} = approval_settle.subject_type and r.${c("subjectId")} = approval_settle.subject_id
+    and r.${c("action")} = approval_settle.action and r.${c("status")} = 'pending'
+  for update;
+  if not found then
+    return;
+  end if;
+  ${ctx.hook("before_approval_decide", [
+    ["uuid", `v_req.${c("id")}`],
+    ["text", "approval_settle.decision"],
+  ])}
+  insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}, ${d("comment")})
+  values (v_req.${c("id")}, v_req.${c("tenant")}, v_req.${c("step")}, approval_settle.approver, approval_settle.decision, approval_settle.comment)
+  on conflict do nothing;
+  update ${requests} r set ${c("status")} = approval_settle.decision, ${c("decidedAt")} = now()
+    where r.${c("id")} = v_req.${c("id")} returning * into v_req;
+  if approval_settle.decision = 'approved' then
+    ${record("approval.approved", "v_req", true)}
+  else
+    ${record("approval.rejected", "v_req", true)}
+  end if;
+  perform ${fn("approval_notify")}(v_req.${c("id")}, approval_settle.decision);
+  ${ctx.hook("after_approval_decide", [
+    ["uuid", `v_req.${c("id")}`],
+    ["text", `v_req.${c("status")}`],
+  ])}
+end;
+$$;
+revoke execute on function ${fn("approval_settle")}(text, text, text, text, uuid, text) from public, anon, authenticated;
+`
+}
 create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -569,7 +700,7 @@ begin
     update ${requests} r set ${c("status")} = 'rejected', ${c("decidedAt")} = now()
       where r.${c("id")} = v_req.${c("id")} returning * into v_req;
     ${record("approval.rejected", "v_req", true)}
-    perform ${fn("approval_notify")}(v_req.${c("id")}, 'rejected');
+    perform ${fn("approval_notify")}(v_req.${c("id")}, 'rejected');${linkedReject}
   else
     select count(*) into v_count from ${decisions} x
       where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = v_req.${c("step")} and x.${d("decision")} = 'approved';
@@ -614,7 +745,14 @@ begin
   end if;
   if not ${fn("approval_eligible")}(v_req.${c("id")}) then
     ${fail("APPROVAL_FORBIDDEN", "not an approver for this step")}
-  end if;
+  end if;${
+    linked.length === 0
+      ? ""
+      : `
+  if ${linkedRow(`v_req.${c("subjectType")}`)} then
+    ${fail("APPROVAL_DELEGATE_INVALID", "the module that filed this request decides who approves it", "22023")}
+  end if;`
+  }
   if delegate_approval.to_user is null or delegate_approval.to_user = auth.uid() or delegate_approval.to_user = v_req.${c("requestedBy")} then
     ${fail("APPROVAL_DELEGATE_INVALID", "delegate to another user than yourself or the requester", "22023")}
   end if;
@@ -844,6 +982,8 @@ export const APPROVALS: ModuleDefinition = {
     "state-machine",
     "access-requests",
     "time-tracking",
+    "ai-chat",
+    "support-sessions",
   ],
   target: "schema",
   modes: ["managed", "custom"],

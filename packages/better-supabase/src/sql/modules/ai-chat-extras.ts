@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   canIn,
   raise,
@@ -10,11 +11,13 @@ import {
   userGrant,
   pageSize,
 } from "../shared.ts";
+import { AI_TOOL_SUBJECT, linkedPolicy } from "./approvals.ts";
 import {
   AI_TOOL_APPROVAL,
   type ApproverCheck,
   approverCheck,
 } from "./approver.ts";
+import { READ_ONLY_GUARD } from "./drive-kit.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
 export function approvalJson(names: AiChatNames, row: string): string {
@@ -82,6 +85,10 @@ function approvals(
   const i = names.c.inputs;
   const can = canIn;
   const provider = toolApprover(ctx, names, layout);
+  const linked =
+    ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
+      ? ctx.of("approvals")
+      : undefined;
   const serviceOnly = raise(
     "Only the server records this",
     "42501",
@@ -149,11 +156,87 @@ begin
   if v_row.${a.chat} <> v_chat.${ch.id} then
     ${raise("Approval % belongs to another chat", "23505", "AI_APPROVAL_EXISTS", `v_row.${a.id}`)}
   end if;
-  perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, null, 'approval.requested', jsonb_build_object('approvalId', v_row.${a.id}), false);
+  perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, null, 'approval.requested', jsonb_build_object('approvalId', v_row.${a.id}), false);${
+    linked === undefined
+      ? ""
+      : `
+  if v_row.${a.decision} is null and not exists (
+    select 1 from ${linked.table("requests")} r
+    where r.${linked.col("requests", "subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} and r.${linked.col("requests", "subjectId")} = v_row.${a.id}
+  ) then
+    perform ${linked.fn("open_approval")}(
+      v_chat.${ch.tenant}, ${sqlString(AI_TOOL_SUBJECT)}, v_row.${a.id}, 'run', ${linkedPolicy()}, null,
+      jsonb_build_object('chatId', v_chat.${ch.id}, 'tool', v_row.${a.tool}, 'toolCallId', v_row.${a.toolCall}, 'input', v_row.${a.input})
+    );
+  end if;`
+  }
   return ${approvalJson(names, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("record_ai_tool_approval")}(uuid, jsonb)`)}
+
+-- Records the decision on a waiting tool call, once; ${linked === undefined ? "decide_ai_tool_approval calls it after its own checks" : "decide_ai_tool_approval and the approvals module call it after their own checks"}.
+-- Repeating the same decision returns the row.
+create or replace function ${fn("apply_ai_tool_approval")}(approval_id text, approved boolean, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${t.approvals};
+  v_decision text := case when apply_ai_tool_approval.approved then 'approved' else 'denied' end;
+begin
+  select * into v_row from ${t.approvals} x where x.${a.id} = apply_ai_tool_approval.approval_id for update;
+  if not found then
+    ${raise("No approval %", "P0002", "AI_APPROVAL_NOT_FOUND", "apply_ai_tool_approval.approval_id")}
+  end if;
+  if apply_ai_tool_approval.approved is null then
+    ${raise("Approve or deny", "22023", "AI_APPROVAL_INVALID")}
+  end if;
+  if v_row.${a.decision} is not null then
+    if v_row.${a.decision} = v_decision then
+      return ${approvalJson(names, "v_row")};
+    end if;
+    ${raise("Approval % was already %", "P0001", "AI_APPROVAL_DECIDED", `v_row.${a.id}`, `v_row.${a.decision}`)}
+  end if;
+  update ${t.approvals} x set
+    ${a.decision} = v_decision,
+    ${a.reason} = apply_ai_tool_approval.reason,
+    ${a.decidedBy} = auth.uid(),
+    ${a.decidedAt} = now()
+  where x.${a.id} = v_row.${a.id}
+  returning * into v_row;
+  perform ${fn("ai_chat_notify")}(v_row.${a.chat}, null, 'approval.decided', jsonb_build_object('approvalId', v_row.${a.id}, 'decision', v_decision), false);
+  ${decidedEvent}${
+    linked === undefined
+      ? ""
+      : `
+  perform ${linked.fn("approval_settle")}(${sqlString(AI_TOOL_SUBJECT)}, v_row.${a.id}, 'run',
+    case when apply_ai_tool_approval.approved then 'approved' else 'rejected' end, auth.uid(), apply_ai_tool_approval.reason);`
+  }
+  return ${approvalJson(names, "v_row")};
+end;
+$$;
+revoke execute on function ${fn("apply_ai_tool_approval")}(text, boolean, text) from public, anon, authenticated;
+
+-- Whether the caller may decide the waiting tool call: ${provider === undefined ? "the chat's owner" : `a user the authorization provider's ${provider.template} allows${provider.distinct ? " other than the chat's owner" : ""}`}.
+create or replace function ${fn("ai_tool_approval_approvable")}(approval_id text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t.approvals};
+begin
+  select * into v_row from ${t.approvals} x where x.${a.id} = ai_tool_approval_approvable.approval_id;
+  return found and v_row.${a.decision} is null and coalesce(${approver(names, provider)}, false);
+end;
+$$;
+revoke execute on function ${fn("ai_tool_approval_approvable")}(text) from public, anon, authenticated;
 
 -- Approves or denies a waiting tool call, once; the service role or ${provider === undefined ? "the chat's owner" : `a user the authorization provider's ${provider.template} allows${provider.distinct ? " other than the chat's owner" : ""}`}.
 -- Repeating the same decision returns the row.
@@ -166,31 +249,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row ${t.approvals};
-  v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
+  ${READ_ONLY_GUARD}
   select * into v_row from ${t.approvals} x where x.${a.id} = decide_ai_tool_approval.approval_id for update;
   if not found or not (${SERVICE_CALLER} or ${approver(names, provider)}) then
     ${raise("No approval %", "P0002", "AI_APPROVAL_NOT_FOUND", "decide_ai_tool_approval.approval_id")}
   end if;
-  if decide_ai_tool_approval.approved is null then
-    ${raise("Approve or deny", "22023", "AI_APPROVAL_INVALID")}
-  end if;
-  if v_row.${a.decision} is not null then
-    if v_row.${a.decision} = v_decision then
-      return ${approvalJson(names, "v_row")};
-    end if;
-    ${raise("Approval % was already %", "P0001", "AI_APPROVAL_DECIDED", `v_row.${a.id}`, `v_row.${a.decision}`)}
-  end if;
-  update ${t.approvals} x set
-    ${a.decision} = v_decision,
-    ${a.reason} = decide_ai_tool_approval.reason,
-    ${a.decidedBy} = auth.uid(),
-    ${a.decidedAt} = now()
-  where x.${a.id} = v_row.${a.id}
-  returning * into v_row;
-  perform ${fn("ai_chat_notify")}(v_row.${a.chat}, null, 'approval.decided', jsonb_build_object('approvalId', v_row.${a.id}, 'decision', v_decision), false);
-  ${decidedEvent}
-  return ${approvalJson(names, "v_row")};
+  return ${fn("apply_ai_tool_approval")}(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
 end;
 $$;
 ${userGrant(`${fn("decide_ai_tool_approval")}(text, boolean, text)`)}

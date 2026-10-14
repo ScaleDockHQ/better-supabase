@@ -168,7 +168,7 @@ $$;
 revoke execute on function "better_supabase"."approval_notify"(uuid, text) from public, anon, authenticated;
 
 -- Runs what the final approval unlocks: the policy's state-machine
--- transition or job, or the access-requests grant.
+-- transition or job, or the grant or decision of the module that filed it.
 create or replace function "better_supabase"."approval_finalize"(request_id uuid)
 returns void
 language plpgsql
@@ -642,7 +642,7 @@ grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists "approval_requests_read" on "better_supabase"."approval_requests";
 create policy "approval_requests_read" on "better_supabase"."approval_requests" for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('ai_tool_approval', 'support_request')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -705,6 +705,12 @@ begin
     where x."request_id" = v_req."id" and x."step" = v_req."step" and x."approver" = v_me
   ) then
     return false;
+  end if;
+  if v_req."subject_type" = 'ai_tool_approval' then
+    return "better_supabase"."ai_tool_approval_approvable"(v_req."subject_id");
+  end if;
+  if v_req."subject_type" = 'support_request' then
+    return "better_supabase"."support_request_approvable"(v_req."subject_id"::uuid);
   end if;
   v_approvers := v_req."policy" -> 'steps' -> v_req."step" -> 'approvers';
   return (coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
@@ -803,7 +809,7 @@ $$;
 revoke execute on function "better_supabase"."approval_notify"(uuid, text) from public, anon, authenticated;
 
 -- Runs what the final approval unlocks: the policy's state-machine
--- transition or job, or the access-requests grant.
+-- transition or job, or the grant or decision of the module that filed it.
 create or replace function "better_supabase"."approval_finalize"(request_id uuid)
 returns void
 language plpgsql
@@ -821,6 +827,12 @@ begin
   end if;
   if v_req."subject_type" = 'timesheet' then
     perform "better_supabase"."approve_timesheet"(v_req."subject_id"::uuid);
+  end if;
+  if v_req."subject_type" = 'ai_tool_approval' then
+    perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", true, (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1));
+  end if;
+  if v_req."subject_type" = 'support_request' then
+    perform "better_supabase"."apply_support_approval"(v_req."subject_id"::uuid, auth.uid());
   end if;
   perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
@@ -888,6 +900,75 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
+
+-- Closes the pending request for a subject that its own module decided
+-- (decide_ai_tool_approval, approve_support_request) without running the
+-- module again. A request that is no longer pending is left as it is.
+create or replace function "better_supabase"."approval_settle"(subject_type text, subject_id text, action text, decision text, approver uuid, comment text default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  select * into v_req from "better_supabase"."approval_requests" r
+  where r."subject_type" = approval_settle.subject_type and r."subject_id" = approval_settle.subject_id
+    and r."action" = approval_settle.action and r."status" = 'pending'
+  for update;
+  if not found then
+    return;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", approval_settle.decision;
+    end if;
+  end;
+  insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", approval_settle.approver, approval_settle.decision, approval_settle.comment)
+  on conflict do nothing;
+  update "better_supabase"."approval_requests" r set "status" = approval_settle.decision, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if approval_settle.decision = 'approved' then
+    perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval.approved',
+    category => 'data',
+    target_type => 'approval_request',
+    record_id => v_req."id"::text,
+    summary => 'approved' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    tenant => (v_req."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
+  );
+  else
+    perform "better_supabase".emit_event('approval.rejected', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval.rejected',
+    category => 'data',
+    target_type => 'approval_request',
+    record_id => v_req."id"::text,
+    summary => 'rejected' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    tenant => (v_req."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
+  );
+  end if;
+  perform "better_supabase"."approval_notify"(v_req."id", approval_settle.decision);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+end;
+$$;
+revoke execute on function "better_supabase"."approval_settle"(text, text, text, text, uuid, text) from public, anon, authenticated;
 
 create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
@@ -966,6 +1047,12 @@ begin
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
     perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    if v_req."subject_type" = 'ai_tool_approval' then
+      perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", false, decide_approval.comment);
+    end if;
+    if v_req."subject_type" = 'support_request' then
+      perform "better_supabase"."close_support_request"(v_req."subject_id"::uuid);
+    end if;
   else
     select count(*) into v_count from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'approved';
@@ -1018,6 +1105,9 @@ begin
   end if;
   if not "better_supabase"."approval_eligible"(v_req."id") then
     raise exception 'not an approver for this step' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if v_req."subject_type" in ('ai_tool_approval', 'support_request') then
+    raise exception 'the module that filed this request decides who approves it' using errcode = '22023', hint = 'APPROVAL_DELEGATE_INVALID';
   end if;
   if delegate_approval.to_user is null or delegate_approval.to_user = auth.uid() or delegate_approval.to_user = v_req."requested_by" then
     raise exception 'delegate to another user than yourself or the requester' using errcode = '22023', hint = 'APPROVAL_DELEGATE_INVALID';
@@ -1102,7 +1192,7 @@ begin
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_req."requested_by" = auth.uid() or "better_supabase"."approval_eligible"(v_req."id")
-    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (v_req."subject_type" in ('access_request', 'timesheet') or true))) then
+    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (not v_req."subject_type" in ('ai_tool_approval', 'support_request') and (v_req."subject_type" in ('access_request', 'timesheet') or true)))) then
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object(
@@ -1140,7 +1230,7 @@ begin
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
         when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."subject_type" in ('access_request', 'timesheet') or true))) or "better_supabase"."approval_eligible"(x."id")
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('ai_tool_approval', 'support_request') and (x."subject_type" in ('access_request', 'timesheet') or true)))) or "better_supabase"."approval_eligible"(x."id")
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -1433,7 +1523,7 @@ $$;
 revoke execute on function "app_private"."approval_notify"(uuid, text) from public, anon, authenticated;
 
 -- Runs what the final approval unlocks: the policy's state-machine
--- transition or job, or the access-requests grant.
+-- transition or job, or the grant or decision of the module that filed it.
 create or replace function "app_private"."approval_finalize"(request_id uuid)
 returns void
 language plpgsql
@@ -2010,7 +2100,7 @@ $$;
 revoke execute on function "better_supabase"."approval_notify"(uuid, text) from public, anon, authenticated;
 
 -- Runs what the final approval unlocks: the policy's state-machine
--- transition or job, or the access-requests grant.
+-- transition or job, or the grant or decision of the module that filed it.
 create or replace function "better_supabase"."approval_finalize"(request_id uuid)
 returns void
 language plpgsql

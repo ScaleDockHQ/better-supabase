@@ -203,9 +203,7 @@ declare
   approver uuid;
   v_row "better_supabase"."support_requests";
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   if service then
     approver := approver_id;
     if approver is null then
@@ -226,6 +224,31 @@ begin
   end if;
   if not service and not "better_supabase"."is_platform"('support.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  return "better_supabase"."apply_support_approval"(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; approve_support_request calls it after its own checks.
+create or replace function "better_supabase"."apply_support_approval"(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."support_requests";
+begin
+  select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
+  if not found then
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+  end if;
+  if approver is null then
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  if v_row."admin_id" = approver then
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -268,6 +291,7 @@ begin
   );
 end;
 $$;
+revoke execute on function "better_supabase"."apply_support_approval"(uuid, uuid) from public, anon, authenticated;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -903,6 +927,12 @@ begin
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + '1 hour'::interval, approved_by, case when approved_by is null then null else now() end)
   returning "id" into new_id;
+  if tenant is not null and approved_by is null then
+    perform "better_supabase"."open_approval"(
+      tenant, 'support_request', new_id::text, 'start', jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', '1 hour', 'run', null), coalesce(btrim(reason), ''),
+      jsonb_build_object('adminId', admin, 'targetUserId', target, 'readOnly', coalesce(read_only, true))
+    );
+  end if;
   select jsonb_build_object(
     'id', x."id",
     'admin_id', x."admin_id",
@@ -942,9 +972,7 @@ declare
   approver uuid;
   v_row "better_supabase"."support_requests";
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   if service then
     approver := approver_id;
     if approver is null then
@@ -965,6 +993,31 @@ begin
   end if;
   if not service and not "better_supabase"."is_platform"('support.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  return "better_supabase"."apply_support_approval"(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; approve_support_request and the approvals module call it after their own checks.
+create or replace function "better_supabase"."apply_support_approval"(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."support_requests";
+begin
+  select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
+  if not found then
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+  end if;
+  if approver is null then
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  if v_row."admin_id" = approver then
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -991,6 +1044,7 @@ begin
   update "better_supabase"."support_requests" x set "approved_by" = approver, "approved_at" = now()
   where x."id" = request_id
   returning * into v_row;
+  perform "better_supabase"."approval_settle"('support_request', request_id::text, 'start', 'approved', approver);
   return jsonb_build_object(
     'id', v_row."id",
     'admin_id', v_row."admin_id",
@@ -1007,6 +1061,39 @@ begin
   );
 end;
 $$;
+revoke execute on function "better_supabase"."apply_support_approval"(uuid, uuid) from public, anon, authenticated;
+
+-- Whether the caller may approve the waiting request: never its requester.
+create or replace function "better_supabase"."support_request_approvable"(request_id uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."support_requests";
+begin
+  select * into v_row from "better_supabase"."support_requests" x where x."id" = support_request_approvable.request_id;
+  return found and v_row."approved_by" is null and v_row."session_id" is null
+    and v_row."expires_at" > now()
+    and (select auth.uid()) is not null and v_row."admin_id" <> (select auth.uid())
+    and coalesce("better_supabase"."is_platform"('support.start'), false);
+end;
+$$;
+revoke execute on function "better_supabase"."support_request_approvable"(uuid) from public, anon, authenticated;
+
+-- Closes a waiting request whose approval was rejected, so no start uses it.
+create or replace function "better_supabase"."close_support_request"(request_id uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update "better_supabase"."support_requests" x set "expires_at" = least(x."expires_at", now())
+  where x."id" = $1 and x."approved_by" is null and x."session_id" is null;
+$$;
+revoke execute on function "better_supabase"."close_support_request"(uuid) from public, anon, authenticated;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -1683,9 +1770,7 @@ declare
   approver uuid;
   v_row "app_private"."support_requests";
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   if service then
     approver := approver_id;
     if approver is null then
@@ -1706,6 +1791,31 @@ begin
   end if;
   if not service and not "better_supabase"."is_platform"('support.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  return "app_private"."apply_support_approval"(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; approve_support_request calls it after its own checks.
+create or replace function "app_private"."apply_support_approval"(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."support_requests";
+begin
+  select * into v_row from "app_private"."support_requests" x where x."id" = request_id for update;
+  if not found then
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+  end if;
+  if approver is null then
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  if v_row."admin_id" = approver then
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -1748,6 +1858,7 @@ begin
   );
 end;
 $$;
+revoke execute on function "app_private"."apply_support_approval"(uuid, uuid) from public, anon, authenticated;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -2422,9 +2533,7 @@ declare
   approver uuid;
   v_row "better_supabase"."support_requests";
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   if service then
     approver := approver_id;
     if approver is null then
@@ -2445,6 +2554,31 @@ begin
   end if;
   if not service and not "better_supabase"."is_platform"('support.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  return "better_supabase"."apply_support_approval"(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; approve_support_request calls it after its own checks.
+create or replace function "better_supabase"."apply_support_approval"(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."support_requests";
+begin
+  select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
+  if not found then
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+  end if;
+  if approver is null then
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  if v_row."admin_id" = approver then
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -2487,6 +2621,7 @@ begin
   );
 end;
 $$;
+revoke execute on function "better_supabase"."apply_support_approval"(uuid, uuid) from public, anon, authenticated;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -3244,9 +3379,7 @@ declare
   approver uuid;
   v_row "better_supabase"."support_requests";
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   if service then
     approver := approver_id;
     if approver is null then
@@ -3267,6 +3400,31 @@ begin
   end if;
   if not service and not "better_supabase"."is_platform"('support.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  return "better_supabase"."apply_support_approval"(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; approve_support_request calls it after its own checks.
+create or replace function "better_supabase"."apply_support_approval"(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."support_requests";
+begin
+  select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
+  if not found then
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+  end if;
+  if approver is null then
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+  end if;
+  if v_row."admin_id" = approver then
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -3309,6 +3467,7 @@ begin
   );
 end;
 $$;
+revoke execute on function "better_supabase"."apply_support_approval"(uuid, uuid) from public, anon, authenticated;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.

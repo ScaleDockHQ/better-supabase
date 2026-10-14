@@ -267,6 +267,14 @@ option. `createNext` has no request or approve helper yet: call them on a
 `approve_support_request` as the signed-in admin. A custom store implements
 `request`, `getRequest`, `approve` and `approvedRequest` to support approval.
 
+With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
+module installed, a request for a tenant also files an approval request
+(`subjectType` `support_request`, action `start`), so it shows up in the
+approvals inbox. Approving it there approves the support request, rejecting
+it closes the support request (`SUPPORT_REQUEST_CLOSED`), and
+`approve_support_request` closes the approval request. The approvers stay
+the ones above.
+
 ### The target's claims
 
 The target gets the claims your [custom access token hook](/docs/auth#typed-claims)

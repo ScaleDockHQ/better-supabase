@@ -1186,6 +1186,63 @@ $$;
 revoke execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
+-- Records the decision on a waiting tool call, once; decide_ai_tool_approval calls it after its own checks.
+-- Repeating the same decision returns the row.
+create or replace function "better_supabase"."apply_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+  v_decision text := case when apply_ai_tool_approval.approved then 'approved' else 'denied' end;
+begin
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = apply_ai_tool_approval.approval_id for update;
+  if not found then
+    raise exception 'No approval %', apply_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
+  end if;
+  if apply_ai_tool_approval.approved is null then
+    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
+  end if;
+  if v_row."decision" is not null then
+    if v_row."decision" = v_decision then
+      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+    end if;
+    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
+  end if;
+  update "better_supabase"."ai_tool_approvals" x set
+    "decision" = v_decision,
+    "reason" = apply_ai_tool_approval.reason,
+    "decided_by" = auth.uid(),
+    "decided_at" = now()
+  where x."approval_id" = v_row."approval_id"
+  returning * into v_row;
+  perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
+  null;
+  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."apply_ai_tool_approval"(text, boolean, text) from public, anon, authenticated;
+
+-- Whether the caller may decide the waiting tool call: the chat's owner.
+create or replace function "better_supabase"."ai_tool_approval_approvable"(approval_id text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+begin
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = ai_tool_approval_approvable.approval_id;
+  return found and v_row."decision" is null and coalesce(v_row."owner_id" = (select auth.uid()), false);
+end;
+$$;
+revoke execute on function "better_supabase"."ai_tool_approval_approvable"(text) from public, anon, authenticated;
+
 -- Approves or denies a waiting tool call, once; the service role or the chat's owner.
 -- Repeating the same decision returns the row.
 create or replace function "better_supabase"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
@@ -1197,34 +1254,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."ai_tool_approvals";
-  v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
   end if;
-  if decide_ai_tool_approval.approved is null then
-    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
-  end if;
-  if v_row."decision" is not null then
-    if v_row."decision" = v_decision then
-      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
-    end if;
-    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
-  end if;
-  update "better_supabase"."ai_tool_approvals" x set
-    "decision" = v_decision,
-    "reason" = decide_ai_tool_approval.reason,
-    "decided_by" = auth.uid(),
-    "decided_at" = now()
-  where x."approval_id" = v_row."approval_id"
-  returning * into v_row;
-  perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
-  null;
-  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+  return "better_supabase"."apply_ai_tool_approval"(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
 end;
 $$;
 revoke execute on function "better_supabase"."decide_ai_tool_approval"(text, boolean, text) from public, anon;
@@ -3470,15 +3506,24 @@ begin
     raise exception 'Approval % belongs to another chat', v_row."approval_id" using errcode = '23505', hint = 'AI_APPROVAL_EXISTS';
   end if;
   perform "better_supabase"."ai_chat_notify"(v_chat."id", null, 'approval.requested', jsonb_build_object('approvalId', v_row."approval_id"), false);
+  if v_row."decision" is null and not exists (
+    select 1 from "better_supabase"."approval_requests" r
+    where r."subject_type" = 'ai_tool_approval' and r."subject_id" = v_row."approval_id"
+  ) then
+    perform "better_supabase"."open_approval"(
+      v_chat."organization_id", 'ai_tool_approval', v_row."approval_id", 'run', jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', null, 'run', null), null,
+      jsonb_build_object('chatId', v_chat."id", 'tool', v_row."tool", 'toolCallId', v_row."tool_call_id", 'input', v_row."input")
+    );
+  end if;
   return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
--- Approves or denies a waiting tool call, once; the service role or the chat's owner.
+-- Records the decision on a waiting tool call, once; decide_ai_tool_approval and the approvals module call it after their own checks.
 -- Repeating the same decision returns the row.
-create or replace function "better_supabase"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
+create or replace function "better_supabase"."apply_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3487,16 +3532,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."ai_tool_approvals";
-  v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
+  v_decision text := case when apply_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = apply_ai_tool_approval.approval_id for update;
+  if not found then
+    raise exception 'No approval %', apply_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
-    raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
-  end if;
-  if decide_ai_tool_approval.approved is null then
+  if apply_ai_tool_approval.approved is null then
     raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
   end if;
   if v_row."decision" is not null then
@@ -3507,7 +3549,7 @@ begin
   end if;
   update "better_supabase"."ai_tool_approvals" x set
     "decision" = v_decision,
-    "reason" = decide_ai_tool_approval.reason,
+    "reason" = apply_ai_tool_approval.reason,
     "decided_by" = auth.uid(),
     "decided_at" = now()
   where x."approval_id" = v_row."approval_id"
@@ -3524,7 +3566,48 @@ begin
     metadata => jsonb_build_object('organizationId', (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision),
     idempotency_key => 'ai_tool_approval.decided:' || v_row."approval_id"
   );
+  perform "better_supabase"."approval_settle"('ai_tool_approval', v_row."approval_id", 'run',
+    case when apply_ai_tool_approval.approved then 'approved' else 'rejected' end, auth.uid(), apply_ai_tool_approval.reason);
   return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."apply_ai_tool_approval"(text, boolean, text) from public, anon, authenticated;
+
+-- Whether the caller may decide the waiting tool call: the chat's owner.
+create or replace function "better_supabase"."ai_tool_approval_approvable"(approval_id text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+begin
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = ai_tool_approval_approvable.approval_id;
+  return found and v_row."decision" is null and coalesce(v_row."owner_id" = (select auth.uid()), false);
+end;
+$$;
+revoke execute on function "better_supabase"."ai_tool_approval_approvable"(text) from public, anon, authenticated;
+
+-- Approves or denies a waiting tool call, once; the service role or the chat's owner.
+-- Repeating the same decision returns the row.
+create or replace function "better_supabase"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
+    raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
+  end if;
+  return "better_supabase"."apply_ai_tool_approval"(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
 end;
 $$;
 revoke execute on function "better_supabase"."decide_ai_tool_approval"(text, boolean, text) from public, anon;
@@ -5811,6 +5894,63 @@ $$;
 revoke execute on function "app_private"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "app_private"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
+-- Records the decision on a waiting tool call, once; decide_ai_tool_approval calls it after its own checks.
+-- Repeating the same decision returns the row.
+create or replace function "app_private"."apply_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."ai_tool_approvals";
+  v_decision text := case when apply_ai_tool_approval.approved then 'approved' else 'denied' end;
+begin
+  select * into v_row from "app_private"."ai_tool_approvals" x where x."approval_id" = apply_ai_tool_approval.approval_id for update;
+  if not found then
+    raise exception 'No approval %', apply_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
+  end if;
+  if apply_ai_tool_approval.approved is null then
+    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
+  end if;
+  if v_row."decision" is not null then
+    if v_row."decision" = v_decision then
+      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+    end if;
+    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
+  end if;
+  update "app_private"."ai_tool_approvals" x set
+    "decision" = v_decision,
+    "reason" = apply_ai_tool_approval.reason,
+    "decided_by" = auth.uid(),
+    "decided_at" = now()
+  where x."approval_id" = v_row."approval_id"
+  returning * into v_row;
+  perform "app_private"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
+  null;
+  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."apply_ai_tool_approval"(text, boolean, text) from public, anon, authenticated;
+
+-- Whether the caller may decide the waiting tool call: the chat's owner.
+create or replace function "app_private"."ai_tool_approval_approvable"(approval_id text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."ai_tool_approvals";
+begin
+  select * into v_row from "app_private"."ai_tool_approvals" x where x."approval_id" = ai_tool_approval_approvable.approval_id;
+  return found and v_row."decision" is null and coalesce(v_row."owner_id" = (select auth.uid()), false);
+end;
+$$;
+revoke execute on function "app_private"."ai_tool_approval_approvable"(text) from public, anon, authenticated;
+
 -- Approves or denies a waiting tool call, once; the service role or the chat's owner.
 -- Repeating the same decision returns the row.
 create or replace function "app_private"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
@@ -5822,34 +5962,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "app_private"."ai_tool_approvals";
-  v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   select * into v_row from "app_private"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
   end if;
-  if decide_ai_tool_approval.approved is null then
-    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
-  end if;
-  if v_row."decision" is not null then
-    if v_row."decision" = v_decision then
-      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
-    end if;
-    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
-  end if;
-  update "app_private"."ai_tool_approvals" x set
-    "decision" = v_decision,
-    "reason" = decide_ai_tool_approval.reason,
-    "decided_by" = auth.uid(),
-    "decided_at" = now()
-  where x."approval_id" = v_row."approval_id"
-  returning * into v_row;
-  perform "app_private"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
-  null;
-  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+  return "app_private"."apply_ai_tool_approval"(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
 end;
 $$;
 revoke execute on function "app_private"."decide_ai_tool_approval"(text, boolean, text) from public, anon;
@@ -8101,6 +8220,63 @@ $$;
 revoke execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
+-- Records the decision on a waiting tool call, once; decide_ai_tool_approval calls it after its own checks.
+-- Repeating the same decision returns the row.
+create or replace function "better_supabase"."apply_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+  v_decision text := case when apply_ai_tool_approval.approved then 'approved' else 'denied' end;
+begin
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = apply_ai_tool_approval.approval_id for update;
+  if not found then
+    raise exception 'No approval %', apply_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
+  end if;
+  if apply_ai_tool_approval.approved is null then
+    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
+  end if;
+  if v_row."decision" is not null then
+    if v_row."decision" = v_decision then
+      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+    end if;
+    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
+  end if;
+  update "better_supabase"."ai_tool_approvals" x set
+    "decision" = v_decision,
+    "reason" = apply_ai_tool_approval.reason,
+    "decided_by" = auth.uid(),
+    "decided_at" = now()
+  where x."approval_id" = v_row."approval_id"
+  returning * into v_row;
+  perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
+  null;
+  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."apply_ai_tool_approval"(text, boolean, text) from public, anon, authenticated;
+
+-- Whether the caller may decide the waiting tool call: the chat's owner.
+create or replace function "better_supabase"."ai_tool_approval_approvable"(approval_id text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."ai_tool_approvals";
+begin
+  select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = ai_tool_approval_approvable.approval_id;
+  return found and v_row."decision" is null and coalesce(v_row."owner_id" = (select auth.uid()), false);
+end;
+$$;
+revoke execute on function "better_supabase"."ai_tool_approval_approvable"(text) from public, anon, authenticated;
+
 -- Approves or denies a waiting tool call, once; the service role or the chat's owner.
 -- Repeating the same decision returns the row.
 create or replace function "better_supabase"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
@@ -8112,34 +8288,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."ai_tool_approvals";
-  v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
   end if;
-  if decide_ai_tool_approval.approved is null then
-    raise exception 'Approve or deny' using errcode = '22023', hint = 'AI_APPROVAL_INVALID';
-  end if;
-  if v_row."decision" is not null then
-    if v_row."decision" = v_decision then
-      return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
-    end if;
-    raise exception 'Approval % was already %', v_row."approval_id", v_row."decision" using errcode = 'P0001', hint = 'AI_APPROVAL_DECIDED';
-  end if;
-  update "better_supabase"."ai_tool_approvals" x set
-    "decision" = v_decision,
-    "reason" = decide_ai_tool_approval.reason,
-    "decided_by" = auth.uid(),
-    "decided_at" = now()
-  where x."approval_id" = v_row."approval_id"
-  returning * into v_row;
-  perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
-  null;
-  return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
+  return "better_supabase"."apply_ai_tool_approval"(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
 end;
 $$;
 revoke execute on function "better_supabase"."decide_ai_tool_approval"(text, boolean, text) from public, anon;

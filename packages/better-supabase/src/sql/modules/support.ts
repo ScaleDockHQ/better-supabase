@@ -16,7 +16,10 @@ import {
   OPERATIONS,
   providerPlatformRoles,
 } from "./access-model.ts";
+import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
+import { READ_ONLY_GUARD } from "./drive-kit.ts";
+import { supportApprovalFunctions } from "./support-approvals.ts";
 
 const EVENTS: ModuleEvents = {
   "support.started": {
@@ -301,6 +304,10 @@ function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   );
   const approvalTtl = sqlString(ctx.text("approvalTtl", "1 hour"));
   const requireReason = ctx.flag("requireReason", true);
+  const approvals =
+    ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
+      ? ctx.of("approvals")
+      : undefined;
   return `-- Asks for a support session. Another admin approves it with
 -- approve_support_request before start_support_session accepts it. The
 -- service role passes admin_id, and approved_by for an approval the server's
@@ -366,7 +373,17 @@ begin
   insert into ${requests} (${c("admin")}, ${c("target")}, ${c("reason")}, ${c("tenant")}, ${c("readOnly")}, ${c("metadata")}, ${c("expiresAt")}, ${c("approvedBy")}, ${c("approvedAt")})
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + ${approvalTtl}::interval, approved_by, case when approved_by is null then null else now() end)
-  returning ${c("id")} into new_id;
+  returning ${c("id")} into new_id;${
+    approvals === undefined
+      ? ""
+      : `
+  if tenant is not null and approved_by is null then
+    perform ${approvals.fn("open_approval")}(
+      tenant, ${sqlString(SUPPORT_REQUEST_SUBJECT)}, new_id::text, 'start', ${linkedPolicy(approvalTtl)}, coalesce(btrim(reason), ''),
+      jsonb_build_object('adminId', admin, 'targetUserId', target, 'readOnly', coalesce(read_only, true))
+    );
+  end if;`
+  }
   select ${requestJson(ctx, "x")} into requested from ${requests} x where x.${c("id")} = new_id;
   return requested;
 end;
@@ -393,6 +410,7 @@ declare
   approver uuid;
   v_row ${requests};
 begin
+  ${READ_ONLY_GUARD}
   if service then
     approver := approver_id;
     if approver is null then
@@ -414,6 +432,31 @@ begin
   if not service and not ${approverOf(ctx, layout, "v_row")} then
     ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve this support session")}
   end if;
+  return ${ctx.fn("apply_support_approval")}(request_id, approver);
+end;
+$$;
+
+-- Records the approval of a waiting request, once; ${approvals === undefined ? "approve_support_request calls it after its own checks" : "approve_support_request and the approvals module call it after their own checks"}.
+create or replace function ${ctx.fn("apply_support_approval")}(request_id uuid, approver uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${requests};
+begin
+  select * into v_row from ${requests} x where x.${c("id")} = request_id for update;
+  if not found then
+    ${raise("No support request %", "P0002", "SUPPORT_REQUEST_MISSING", "request_id")}
+  end if;
+  if approver is null then
+    ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve a support session")}
+  end if;
+  if v_row.${c("admin")} = approver then
+    ${fail("SUPPORT_SELF_APPROVAL", "An admin cannot approve their own support session")}
+  end if;
   if v_row.${c("approvedBy")} is not null then
     if v_row.${c("approvedBy")} = approver then
       return ${requestJson(ctx, "v_row")};
@@ -425,10 +468,20 @@ begin
   end if;
   update ${requests} x set ${c("approvedBy")} = approver, ${c("approvedAt")} = now()
   where x.${c("id")} = request_id
-  returning * into v_row;
+  returning * into v_row;${
+    approvals === undefined
+      ? ""
+      : `
+  perform ${approvals.fn("approval_settle")}(${sqlString(SUPPORT_REQUEST_SUBJECT)}, request_id::text, 'start', 'approved', approver);`
+  }
   return ${requestJson(ctx, "v_row")};
 end;
 $$;
+revoke execute on function ${ctx.fn("apply_support_approval")}(uuid, uuid) from public, anon, authenticated;${
+    approvals === undefined
+      ? ""
+      : supportApprovalFunctions(ctx, approverOf(ctx, layout, "v_row"))
+  }
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -942,7 +995,7 @@ export const SUPPORT_SESSIONS: ModuleDefinition = {
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
   requires: ["access", "audit"],
-  integrates: ["invitations"],
+  integrates: ["invitations", "approvals"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 2,

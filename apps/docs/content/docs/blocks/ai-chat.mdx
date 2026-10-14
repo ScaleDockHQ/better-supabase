@@ -116,6 +116,13 @@ that still sets the deprecated `canApprove` is read when `isApprover` is
 unset, and there `approvals.distinctApprover: true` refuses the owner. The server side of the same check is the `approverOf`
 [runtime hook](/docs/extending/authorization-providers#runtime-hooks).
 
+With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
+module installed, every waiting tool call also files an approval request
+(`subjectType` `ai_tool_approval`, action `run`, the call's input in
+`payload`), so the approvals inbox lists it. Approving or rejecting it there
+decides the tool call, and `decide_ai_tool_approval` closes the request. The
+approvers stay the ones above.
+
 ## Durable runs
 
 A run's `engine` is `ai-sdk` for an answer written inside the request and
