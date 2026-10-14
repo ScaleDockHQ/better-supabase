@@ -25,7 +25,7 @@ describe("BS333", () => {
       },
       {
         path: "src/workflows/runtime.ts",
-        text: 'import { compileGraph } from "better-supabase/workflow-sdk/builder";\nconst db = admin();\n',
+        text: 'import { nodeRunReporter } from "better-supabase/workflow-sdk/builder";\nconst db = admin();\n',
       },
       {
         path: "src/workflows/step.ts",
@@ -60,6 +60,10 @@ describe("BS333", () => {
         {
           path: "src/flows.ts",
           text: 'import { createWorkflow } from "better-supabase/blocks/workflows";\nadmin();\n',
+        },
+        {
+          path: "src/builder-server.ts",
+          text: 'import { createBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bs.admin().$client);\n',
         },
       ]),
     ).toEqual([]);

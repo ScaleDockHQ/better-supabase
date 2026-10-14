@@ -2,8 +2,9 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { lineOf } from "./shared.ts";
 
-const BUILDER_EXECUTOR =
-  /["']better-supabase\/(?:blocks\/workflow-builder|workflow-sdk\/builder)["']|\b(?:GraphStepCall|executeGraph|graphStarter|nodeRunReporter)\b/;
+// Only names that execute steps: a file that builds the builder's service
+// transport or starts runs needs the service role legitimately.
+const BUILDER_EXECUTOR = /\b(?:GraphStepCall|executeGraph|nodeRunReporter)\b/;
 const ADMIN_CALL = /\badmin\s*\(/;
 
 function adminInBuilderExecutor(context: DoctorContext): FindingInput[] {

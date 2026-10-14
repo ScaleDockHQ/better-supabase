@@ -900,9 +900,9 @@ every row. Enable RLS and add the policies that scope the table.
 ### BS333
 
 **Warning: `admin()` inside a workflow-builder executor.** A source file that
-runs workflow-builder steps (it imports `better-supabase/blocks/workflow-builder`
-or `better-supabase/workflow-sdk/builder`, or uses `executeGraph`,
-`graphStarter`, `nodeRunReporter` or `GraphStepCall`) calls `admin()`. The steps
+runs workflow-builder steps (it uses `executeGraph`, `nodeRunReporter` or
+`GraphStepCall`) calls `admin()`. A file that only builds the builder's
+`service` transport or starts runs with `graphStarter` isn't reported. The steps
 then run with the service role's rights, so a workflow keeps running after its
 publisher is demoted. Call `builder.versions.runAs(call.version)` in each step
 and query with the claims it returns. See
