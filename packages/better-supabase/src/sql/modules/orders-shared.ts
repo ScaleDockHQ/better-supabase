@@ -24,7 +24,7 @@ export const columns =
     ctx.col(table, column);
 
 /** Order status edges; a state machine on the status column replaces them. */
-export const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
+const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
   pending_payment: ["paid", "cancelled"],
   paid: ["fulfilled", "refunded"],
   fulfilled: ["paid", "completed", "refunded"],
@@ -68,7 +68,7 @@ export function asService(statements: string): string {
 }
 
 /** Whether a `state-machine` machine governs the orders status column. */
-export function machineGoverns(ctx: ModuleContext): boolean {
+function machineGoverns(ctx: ModuleContext): boolean {
   if (!ctx.installed("state-machine")) return false;
   const raw = ctx.of("state-machine").option("machines");
   if (!isRecord(raw)) return false;
@@ -86,7 +86,7 @@ export function machineGoverns(ctx: ModuleContext): boolean {
 }
 
 /** The `number-sequences` format for `entity`, when the app configured one. */
-export function sequenceFormat(
+function sequenceFormat(
   ctx: ModuleContext,
   entity: "order" | "invoice",
 ): string | undefined {

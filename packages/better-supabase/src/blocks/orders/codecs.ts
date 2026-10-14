@@ -42,7 +42,7 @@ export type ReturnStatus = (typeof RETURN_STATUSES)[number];
 export const REFUND_STATUSES = ["pending", "succeeded", "failed"] as const;
 export type OrderRefundStatus = (typeof REFUND_STATUSES)[number];
 
-export const PAYMENT_STATUSES = [
+const PAYMENT_STATUSES = [
   "requires_action",
   "processing",
   "authorized",
