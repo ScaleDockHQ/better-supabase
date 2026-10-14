@@ -9,11 +9,9 @@ import type { AdvisorSource } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
-  type ModuleFile,
   moduleFileVersion,
   type ModuleLayout,
   moduleVersion,
-  renderModules,
   sameModuleFile,
   SQL_MODULES,
 } from "../../sql/index.ts";
@@ -22,20 +20,16 @@ import { byCodePoint } from "../compare.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { sameText } from "../io.ts";
-import { moduleLayoutFor } from "../sql-layout.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { advisorRule } from "./advisor-rules.ts";
-import {
-  accessModule,
-  AUTHORIZATION_RULES,
-  entitlementsModule,
-} from "./authorization.ts";
+import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
+import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
@@ -45,7 +39,6 @@ import {
   catalogOf,
   exposed,
   lineOf,
-  permissionCatalogKeys,
   policyObject,
   qualified,
   tableObject,
@@ -153,72 +146,17 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
 
-interface ModuleFileState {
-  readonly file: ModuleFile;
-  readonly current: string | undefined;
-  /** The file's `@bs-module` version (1 without one) is below the module's. */
-  readonly behind: boolean;
-}
-
-/** The `sql.modules` files as this release renders them, next to what is on disk. */
-async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
-  if (context.config.sql.moduleNames.length === 0) return [];
-  // BS411 reports a provider access model the provider can't back; the module
-  // can't render without it, so there is nothing to compare.
-  const access = accessModule(context);
-  if (access.kind === "invalid") return [];
-  const readSets = context.readSets;
-  const skipped = readSets !== undefined && "skipped" in readSets;
-  let rendered: ModuleFile[];
-  try {
-    rendered = renderModules(
-      context.config.sql.moduleNames,
-      await moduleLayoutFor(context.config, {
-        names: context.config.sql.moduleNames,
-        testsDir: context.config.sql.testsDir,
-        readSets: skipped ? [] : readSets,
-        entitlementsProvider: entitlementsModule(context),
-        accessProvider: access.kind === "provider" ? access.access : undefined,
-        permissionCatalog: permissionCatalogKeys(context),
-      }),
-    );
-  } catch {
-    // A config `sql sync` refuses (such as api-keys scopes "catalog" without
-    // a catalog) has no files to compare; `sql sync` reports why.
-    return [];
-  }
-  const files = rendered.filter(
-    (file) => !(skipped && file.module === "read-sets"),
-  );
-  return Promise.all(
-    files.map(async (file) => {
-      const current = await readFile(
-        resolve(context.config.root, file.path),
-        "utf8",
-      ).catch(() => undefined);
-      const version = moduleFileVersion(file.contents)?.version ?? 1;
-      return {
-        file,
-        current,
-        behind:
-          current !== undefined &&
-          (moduleFileVersion(current)?.version ?? 1) < version,
-      };
-    }),
-  );
-}
-
 async function moduleVersionsBehind(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const findings: FindingInput[] = [];
   const upgrade = "Run `better-supabase sql upgrade`";
-  for (const { file, current, behind } of await moduleFiles(context)) {
-    if (!behind || current === undefined) continue;
+  for (const { file, path, installed, behind } of await moduleFiles(context)) {
+    if (!behind || installed === undefined) continue;
     findings.push({
-      message: `${file.path} has ${file.module} version ${String(moduleFileVersion(current)?.version ?? 1)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
-      target: file.path,
-      location: { file: file.path, line: 1 },
+      message: `${path} has ${file.module} version ${String(installed)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
+      target: path,
+      location: { file: path, line: 1 },
     });
   }
   const db = context.database;
@@ -713,22 +651,29 @@ const OWN_RULES: readonly Rule[] = [
       "A module listed in `sql.modules` differs from the version in this release. Same check as `sql sync --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
-      for (const { file, current, behind } of await moduleFiles(context)) {
+      const workflow = workflowOf(context);
+      for (const { file, path, current, behind } of await moduleFiles(
+        context,
+      )) {
         if (behind || sameModuleFile(current, file.contents)) continue;
+        const migrated = workflow === "migrations" && file.kind !== "test";
         const edited =
-          current === undefined
+          current === undefined || migrated
             ? ""
             : ` If you edited it, move the change to \`sql.modules.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
         const next =
-          file.kind === "data"
+          file.kind === "data" && !migrated
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
-            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(workflowOf(context))}\`.`;
+            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(workflow)}\`.`;
+        const subject = migrated
+          ? `${file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
+          : `${path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}`;
         stale.push({
-          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. ${next}${edited}`,
-          target: file.path,
+          message: `${subject}. ${next}${edited}`,
+          target: path,
           ...(current === undefined
             ? {}
-            : { location: { file: file.path, line: 1 } }),
+            : { location: { file: path, line: 1 } }),
         });
       }
       return stale;

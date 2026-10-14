@@ -1,0 +1,165 @@
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleFile } from "../../sql/index.ts";
+
+import { moduleSchemaExtensions } from "../../sql/index.ts";
+import { writeIfChanged } from "../io.ts";
+import { migrationsDir } from "../sql-layout.ts";
+import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
+import { stampAfter } from "./migrations.ts";
+
+/** The migration the migrations workflow writes the SQL modules into. */
+export const MODULES_SUFFIX = "_better_supabase_modules.sql";
+
+/** The migration `gen` writes the read-sets module into under the migrations workflow. */
+export const READ_SETS_SUFFIX = "_better_supabase_read_sets.sql";
+
+const UPGRADE_START = "-- @bs-upgrade-start";
+const UPGRADE_END = "-- @bs-upgrade-end";
+
+/** Whether the project runs the migrations workflow, with no declarative schemas. */
+export async function writesMigrations(
+  config: ResolvedConfig,
+): Promise<boolean> {
+  return (
+    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
+  );
+}
+
+/** What goes into one module migration. */
+export interface ModuleMigrationParts {
+  readonly files: readonly ModuleFile[];
+  /** `sql upgrade` steps, already commented, that run before the schema bodies. */
+  readonly upgrade?: readonly string[];
+  /** The `realtime.policies` file. */
+  readonly topics?: string;
+}
+
+/**
+ * One migration that holds, in order, the extensions, the upgrade steps,
+ * each module's schema body with its `@bs-module` header, the realtime topic
+ * policies and the data statements. Every statement is re-runnable, so a
+ * later migration carries all of them, not only the changes.
+ */
+export function renderModuleMigration(parts: ModuleMigrationParts): string {
+  const schema = parts.files.filter((file) => file.kind === "schema");
+  const data = parts.files.filter((file) => file.kind === "data");
+  const modules = [...new Set(schema.map((file) => file.module))];
+  const extensions = moduleSchemaExtensions(parts.files);
+  const upgrade = parts.upgrade ?? [];
+  const sections = [
+    [
+      `-- better-supabase sql: ${modules.length > 0 ? `the SQL modules ${modules.join(", ")}` : "the realtime topic policies"}, in one migration (sql.workflow: 'migrations').`,
+      "-- Managed by `better-supabase sql`, which writes a new migration when they change.",
+      "-- Change them through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.",
+    ].join("\n"),
+    ...(extensions.length > 0
+      ? [extensions.map((extension) => extension.statement).join("\n")]
+      : []),
+    ...(upgrade.length > 0
+      ? [[UPGRADE_START, ...upgrade, UPGRADE_END].join("\n\n")]
+      : []),
+    ...schema.map((file) => file.contents.trim()),
+    ...(parts.topics === undefined ? [] : [parts.topics.trim()]),
+    ...data.map((file) => file.contents.trim()),
+  ];
+  return `${sections.join("\n\n")}\n`;
+}
+
+/** The migration without its upgrade steps and package versions, which a later one doesn't repeat. */
+function comparable(text: string): string {
+  return text
+    .replaceAll("\r\n", "\n")
+    .replace(
+      new RegExp(`\\n\\n${UPGRADE_START}\\n[\\s\\S]*?\\n${UPGRADE_END}`),
+      "",
+    )
+    .replaceAll(
+      /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?$/gm,
+      "$1",
+    );
+}
+
+/** Whether two module migrations hold the same modules. */
+export const sameModuleMigration = (
+  current: string | undefined,
+  expected: string,
+): boolean =>
+  current !== undefined && comparable(current) === comparable(expected);
+
+/** Whether a module migration holds `contents` (one module's file) unchanged. */
+export const migrationHolds = (text: string, contents: string): boolean =>
+  comparable(text).includes(comparable(contents.trim()));
+
+/** The newest migration that ends in `suffix`, with its text. */
+export async function latestMigration(
+  config: ResolvedConfig,
+  suffix: string,
+): Promise<{ readonly path: string; readonly text: string } | undefined> {
+  const dir = migrationsDir(config);
+  const names: string[] = await readdir(resolve(config.root, dir)).catch(
+    () => [],
+  );
+  const latest = names.toSorted().findLast((name) => name.endsWith(suffix));
+  if (latest === undefined) return undefined;
+  return {
+    path: `${dir}/${latest}`,
+    text: await readFile(resolve(config.root, dir, latest), "utf8"),
+  };
+}
+
+const MODULE_MARKERS = /^-- @bs-module ([a-z0-9-]+)@(\d+)\b/gm;
+
+/** The modules and versions a module migration installs, from its `@bs-module` lines. */
+export function migrationModules(text: string): ReadonlyMap<string, number> {
+  return new Map(
+    [...text.matchAll(MODULE_MARKERS)].map((match) => [
+      match[1]!,
+      Number(match[2]),
+    ]),
+  );
+}
+
+/**
+ * Writes `contents` as a new migration ending in `suffix`, unless the newest
+ * one already holds the same statements. `force` writes it anyway, for
+ * upgrade steps that have to run once.
+ */
+export async function writeLatestMigration(
+  config: ResolvedConfig,
+  suffix: string,
+  contents: string,
+  options: {
+    readonly now: Date;
+    readonly dryRun: boolean;
+    readonly force?: boolean;
+  },
+): Promise<{
+  readonly path: string;
+  readonly wrote: boolean;
+  readonly line: string;
+}> {
+  const latest = await latestMigration(config, suffix);
+  if (
+    options.force !== true &&
+    latest !== undefined &&
+    sameModuleMigration(latest.text, contents)
+  ) {
+    return {
+      path: latest.path,
+      wrote: false,
+      line: `Kept    ${latest.path} (it has these statements)`,
+    };
+  }
+  const dir = migrationsDir(config);
+  const names: string[] = await readdir(resolve(config.root, dir)).catch(
+    () => [],
+  );
+  const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
+  if (options.dryRun)
+    return { path, wrote: false, line: `Would write ${path}` };
+  await writeIfChanged(resolve(config.root, path), contents);
+  return { path, wrote: true, line: `Wrote ${path}` };
+}

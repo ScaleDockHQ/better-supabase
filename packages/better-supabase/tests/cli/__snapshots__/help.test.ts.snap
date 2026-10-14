@@ -136,17 +136,18 @@ USAGE better-supabase init [OPTIONS]
 
 OPTIONS
 
-    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                                
-  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react                
-           --package=<dir>    Workspace package to write to, relative to --cwd                                                               
-                    --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                                 
-                   --force    Overwrite files that exist                                                                                     
-                 --dry-run    Show what would be written                                                                                     
-               --cwd=<dir>    Project directory                                                                                              
-           --config=<file>    Config file, relative to --cwd                                                                                 
-              --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-                    --json    Print one JSON document on stdout; errors as Problem Details                                                   
-                 -y, --yes    Ask nothing; use the flags and the defaults                                                                    
+                  --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                                
+                --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react                
+                         --package=<dir>    Workspace package to write to, relative to --cwd                                                               
+  --workflow=<pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations                            
+                                  --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                                 
+                                 --force    Overwrite files that exist                                                                                     
+                               --dry-run    Show what would be written                                                                                     
+                             --cwd=<dir>    Project directory                                                                                              
+                         --config=<file>    Config file, relative to --cwd                                                                                 
+                            --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+                                  --json    Print one JSON document on stdout; errors as Problem Details                                                   
+                               -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 

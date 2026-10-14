@@ -6,6 +6,12 @@ import type { CommandResult } from "../io.ts";
 import type { SqlFlags } from "./args.ts";
 
 import { moduleFilePaths, SQL_MODULES } from "../../sql/index.ts";
+import {
+  latestMigration,
+  migrationModules,
+  MODULES_SUFFIX,
+  writesMigrations,
+} from "./module-migration.ts";
 import { layout } from "./providers.ts";
 
 export async function listModules(
@@ -14,10 +20,18 @@ export async function listModules(
 ): Promise<CommandResult> {
   const sqlLayout = await layout(config, args);
   const files = moduleFilePaths(Object.keys(SQL_MODULES), sqlLayout);
+  const migrated = (await writesMigrations(config))
+    ? migrationModules(
+        (await latestMigration(config, MODULES_SUFFIX))?.text ?? "",
+      )
+    : undefined;
   const lines = Object.values(SQL_MODULES).map((module) => {
     const path = files.get(module.name);
     const installed =
-      path !== undefined && existsSync(resolve(config.root, path));
+      path !== undefined &&
+      (migrated === undefined
+        ? existsSync(resolve(config.root, path))
+        : migrated.has(module.name));
     const tracked = config.sql.moduleNames.includes(module.name);
     const mark =
       path === undefined ? "◇" : installed ? (tracked ? "●" : "○") : " ";

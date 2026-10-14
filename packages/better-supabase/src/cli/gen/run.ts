@@ -23,6 +23,14 @@ import {
   writeIfChanged,
 } from "../io.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { migrationsDir } from "../sql-layout.ts";
+import {
+  latestMigration,
+  READ_SETS_SUFFIX,
+  sameModuleMigration,
+  writeLatestMigration,
+  writesMigrations,
+} from "../sql/module-migration.ts";
 import { type Paint } from "../style.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
@@ -94,8 +102,11 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const { files, warnings } = await render(config, snapshot);
+  // Under the migrations workflow the read sets go into a migration, which
+  // the manifest never lists: a later run must not remove it.
+  const migrations = !options.isolated && (await writesMigrations(config));
   const pathsOf = (readSets: ModuleFile | undefined): string[] =>
-    [...files, ...(readSets ? [readSets] : [])].map((file) =>
+    [...files, ...(readSets && !migrations ? [readSets] : [])].map((file) =>
       manifestPath(config.root, file.path),
     );
   const notice = (await generationNotices(snapshot, warnings))
@@ -129,7 +140,20 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         : undefined;
       if (!sameText(current, file.contents)) compare(file, current);
     }
-    if (readSets) {
+    if (readSets && migrations) {
+      const latest = await latestMigration(config, READ_SETS_SUFFIX);
+      if (!sameModuleMigration(latest?.text, readSets.contents)) {
+        compare(
+          {
+            path:
+              latest?.path ??
+              `${migrationsDir(config)}/<stamp>${READ_SETS_SUFFIX}`,
+            contents: readSets.contents,
+          },
+          latest?.text,
+        );
+      }
+    } else if (readSets) {
       const path = resolve(config.root, readSets.path);
       const current = existsSync(path)
         ? await readFile(path, "utf8")
@@ -164,7 +188,15 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   }
   // Read-set modules import the generated module, so they load after it is written.
   const readSets = await readSetsOf();
-  if (
+  if (readSets && migrations) {
+    const migration = await writeLatestMigration(
+      config,
+      READ_SETS_SUFFIX,
+      readSets.contents,
+      { now: new Date(), dryRun: false },
+    );
+    if (migration.wrote) written.push(migration.path);
+  } else if (
     readSets &&
     (await writeIfChanged(
       resolve(config.root, readSets.path),

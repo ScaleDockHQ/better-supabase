@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 
-import type { IntegrationName } from "../config/index.ts";
+import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
 import type { Framework } from "./project.ts";
 
 import { INTEGRATIONS } from "./names.ts";
@@ -134,6 +134,7 @@ export function baseFiles(
   casing: "camel" | "snake",
   lib: boolean = true,
   integrations: readonly Integration[] = [],
+  workflow: SqlWorkflow = "pg-delta",
 ): TemplateFile[] {
   const config: TemplateFile = {
     path: "better-supabase.config.ts",
@@ -145,7 +146,7 @@ export default defineConfig({
     integrations.length > 0
       ? `\n  integrations: [${integrations.map((name) => `'${name}'`).join(", ")}],`
       : ""
-  }
+  }${workflow === "pg-delta" ? "" : `\n  sql: { workflow: '${workflow}' },`}
   // \`better-supabase gen\` runs every task this file sets up: types, then
   // sql, spec, seed and scaffold when they are configured. Pin the list with:
   // gen: { tasks: ['types', 'sql', 'spec'] },
