@@ -225,9 +225,39 @@ ${readable("recipe_scheduling.bookings")}`,
   }),
 };
 
+export const commerce: Recipe = {
+  name: "commerce",
+  schema: "recipe_commerce",
+  // Products, carts and orders are module tables; the app adds none.
+  tables: "",
+  config: defineConfig({
+    sql: {
+      modules: {
+        organizations: {},
+        outbox: {},
+        notifications: {},
+        catalog: {},
+        inventory: {},
+        imports: {},
+        "number-sequences": {
+          options: {
+            entities: {
+              order: { period: "none", format: "SO-{n:4}" },
+              invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
+            },
+          },
+        },
+        orders: {},
+        promotions: {},
+      },
+    },
+  }),
+};
+
 export const RECIPES: readonly Recipe[] = [
   crm,
   projectManagement,
   drive,
   scheduling,
+  commerce,
 ];

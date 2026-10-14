@@ -128,6 +128,8 @@ expose the module schema itself.
 | [Commerce](/docs/blocks/commerce)                           | `better-supabase/blocks/commerce`                                                                                                  | none                                   |
 | [Catalog](/docs/blocks/catalog)                             | `better-supabase/blocks/catalog`                                                                                                   | `catalog`                              |
 | [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                                                                                 | `inventory`                            |
+| [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                                                                    | `orders`                               |
+| [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                                                                                | `promotions`                           |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -221,6 +223,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `rank`               | `access`, `subjects`                      | `jobs`                                                                     |
 | `catalog`            | `tenant`, `access`                        | `outbox`, `state-machine`, `inventory`                                     |
 | `inventory`          | `tenant`, `access`, `catalog`             | `outbox`                                                                   |
+| `orders`             | `tenant`, `access`, `catalog`             | `outbox`, `inventory`, `promotions`, `number-sequences`, `state-machine`   |
+| `promotions`         | `tenant`, `access`, `catalog`, `orders`   | `outbox`                                                                   |
 | `ensure-rls`         | none                                      | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

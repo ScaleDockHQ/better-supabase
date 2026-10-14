@@ -30,7 +30,10 @@ export function notificationsFor(s: Session) {
  * `watching` hands the watcher handler the rows written after it was called,
  * as `consume` would.
  */
-export async function watching(s: Session) {
+export async function watching(
+  s: Session,
+  types: Readonly<Record<string, keyof typeof NOTIFICATION_TYPES>> = WATCHED,
+) {
   await s.client.query("reset role");
   const [latest] = await s.rows<{ after: string }>(
     "select coalesce(max(position), 0)::text as after from better_supabase.outbox_events",
@@ -60,7 +63,7 @@ export async function watching(s: Session) {
         createdAt: Temporal.Instant.from(row.created_at),
       }));
       await s.service();
-      await watcherHandler(notificationsFor(s), { types: WATCHED })(events);
+      await watcherHandler(notificationsFor(s), { types })(events);
       return events.length;
     },
   };

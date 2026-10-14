@@ -16,6 +16,16 @@ const SUBJECT_EVENTS = [
   "subject.viewed",
   "reminder.sent",
   "stock.reorder_point_reached",
+  "order.placed",
+  "order.paid",
+  "order.cancelled",
+  "order.fulfilled",
+  "order.completed",
+  "order.refunded",
+  "fulfillment.shipped",
+  "fulfillment.delivered",
+  "return.requested",
+  "return.received",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;

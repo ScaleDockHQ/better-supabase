@@ -53,6 +53,8 @@
     "rank",
     "commerce",
     "catalog",
-    "inventory"
+    "inventory",
+    "orders",
+    "promotions"
   ]
 }
