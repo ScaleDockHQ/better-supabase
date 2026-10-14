@@ -35,7 +35,7 @@ function ticketOf(
  * queued runs with that client's scopes, never the user's full rights.
  * An invalid `act` chain or malformed delegation is `forbidden`.
  */
-export function recordContext(
+function recordContext(
   context: RequestContext | undefined,
   options: WrapOptions = {},
 ): Result<JobContext | undefined> {

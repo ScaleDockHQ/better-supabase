@@ -73,7 +73,7 @@ export interface BuilderSql {
 }
 
 /** The steps the provider's `workflow.node.<step>` operations name, with their permission. */
-export function nodeOperationsOf(
+function nodeOperationsOf(
   operations: OperationTable | undefined,
 ): Readonly<Record<string, string>> {
   const steps: Record<string, string> = {};

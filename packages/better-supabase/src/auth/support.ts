@@ -186,7 +186,7 @@ interface SupportRequestRow {
 }
 
 /** A request from the jsonb the `support-sessions` request functions return. */
-export function supportRequestFromRow(
+function supportRequestFromRow(
   row: SupportRequestRow,
   namespace?: typeof Temporal,
 ): SupportRequest {

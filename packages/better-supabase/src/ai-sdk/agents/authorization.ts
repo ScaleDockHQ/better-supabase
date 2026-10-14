@@ -119,7 +119,7 @@ export type AgentToolAuthorizer = (
 ) => boolean | PromiseLike<boolean>;
 
 /** The id `authorizeModel` gets: the string itself, or the model's `modelId`. */
-export function modelIdOf(model: LanguageModel): string {
+function modelIdOf(model: LanguageModel): string {
   return typeof model === "string" ? model : model.modelId;
 }
 

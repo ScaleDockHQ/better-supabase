@@ -58,7 +58,7 @@ export interface SupportPolicy {
   readonly approval?: "distinct" | "none";
 }
 
-export type { SupportAuthorizeInput, SupportDecision };
+export type { SupportAuthorizeInput };
 
 export interface SupportOptions {
   readonly store: SupportSessionStore;
