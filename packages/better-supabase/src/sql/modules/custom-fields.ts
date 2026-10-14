@@ -8,7 +8,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "custom_field.saved": {
@@ -95,14 +95,11 @@ function build(ctx: ModuleContext): string {
   const ranked = !inline && ctx.has("definitions", "rank");
   const rank = ranked ? ctx.col("definitions", "rank") : "";
   const values = ctx.table("values");
-  const manage = ctx.permission(
-    "manage",
-    MODULE_PERMISSIONS["custom-fields"].manage,
-  );
-  const read = ctx.permission("read", MODULE_PERMISSIONS["custom-fields"].read);
+  const manage = ctx.permission("manage", OPERATIONS["custom-fields.manage"]);
+  const read = ctx.permission("read", OPERATIONS["custom-fields.read"]);
   const sensitive = ctx.permission(
     "sensitive",
-    MODULE_PERMISSIONS["custom-fields"].sensitive,
+    OPERATIONS["custom-fields.sensitive"],
   );
   const tables = ctx.manages
     ? `${

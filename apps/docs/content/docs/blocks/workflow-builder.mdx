@@ -166,7 +166,9 @@ A published version runs with its publisher's rights, never more.
 
 Each `step` node needs a permission. The provider's operations table answers
 first: an entry `workflow.node.<step>` (such as `workflow.node.crm.lookup`)
-names the permission. Without one, the step needs the module's `run` key,
+names the permission. Next comes the step's own `operation`, set on the
+step in `steps` (such as `invoices.void`): the provider's entry for it, or
+the operation name itself as the key. Without either, the step needs the module's `run` key,
 after the rename in `sql.modules.workflow-builder.permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
 one of them in the tenant can't publish the version

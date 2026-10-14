@@ -16,6 +16,9 @@ export function builderPublisherSql(s: BuilderSql): string {
     cv,
     permission,
     nodeOperations,
+    operationKeys,
+    l,
+    cl,
     userHolds,
     callable,
   } = s;
@@ -23,17 +26,23 @@ export function builderPublisherSql(s: BuilderSql): string {
     `raise exception ${message}
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';`;
   return `-- The permissions the step nodes of graph need, sorted and distinct: the
--- provider's workflow.node.<step> operation, else workflow.run. Trigger,
--- sleep, approval and condition nodes need none.
+-- provider's workflow.node.<step> operation, else the operation the library
+-- step names (the provider's key for it, else the name itself), else
+-- workflow.run. Trigger, sleep, approval and condition nodes need none.
 create or replace function ${fn("workflow_graph_permissions")}(graph jsonb)
 returns text[]
 language sql
-immutable
+stable
 set search_path = ''
 as $$
   select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])
   from (
-    select coalesce(${nodeOperations} ->> (n.value ->> 'step'), ${permission("run")}) as p
+    select coalesce(
+      ${nodeOperations} ->> (n.value ->> 'step'),
+      (select coalesce(${operationKeys} ->> s.${cl("operation")}, s.${cl("operation")})
+        from ${l} s where s.${cl("name")} = n.value ->> 'step'),
+      ${permission("run")}
+    ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
         then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end

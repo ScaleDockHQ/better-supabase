@@ -13,7 +13,7 @@ import {
   sha256Hex,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "share_link.created": {
@@ -113,10 +113,7 @@ function build(ctx: ModuleContext): string {
   const links = ctx.table("links");
   const views = ctx.table("views");
   const state = ctx.table("state");
-  const create = ctx.permission(
-    "create",
-    MODULE_PERMISSIONS["share-links"].create,
-  );
+  const create = ctx.permission("create", OPERATIONS["share-links.create"]);
   const pinned = ctx.has("links", "versionId");
   const tables = ctx.manages
     ? `create table if not exists ${links} (

@@ -17,7 +17,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { TIMESHEET_SUBJECT } from "./approvals.ts";
 
@@ -131,7 +131,7 @@ function timesheetPolicy(ctx: ModuleContext): string {
         approvers: {
           permission: ctx.permissionKey(
             "approve",
-            MODULE_PERMISSIONS["time-tracking"].approve,
+            OPERATIONS["time-tracking.approve"],
           ),
         },
       },
@@ -161,7 +161,7 @@ function build(ctx: ModuleContext): string {
   const ar = approvals.table("requests");
   const a = (column: string): string => approvals.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS["time-tracking"];
+  const permissions = moduleOperations("time-tracking");
   const read = ctx.permission("read", permissions.read);
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);

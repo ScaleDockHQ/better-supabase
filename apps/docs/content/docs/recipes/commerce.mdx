@@ -8,8 +8,8 @@ once they sign in. The catalog prices the cart, promotions take their
 discount, inventory reserves the stock, and the order gets a gapless order
 number and, once paid, an invoice number. The people watching the order
 hear when it is paid and when it ships. Revenue, average order value and
-units sold chart from paid orders, and a large refund waits for an admin to
-approve it.
+units sold chart from paid orders, and a large refund or a large discount
+waits for an admin to approve it.
 
 ## Tables
 
@@ -17,14 +17,17 @@ The catalog, stock, carts, orders and promotions are module tables, so the
 app adds none of its own. Orders are subjects of type `order`: their events
 carry `subjectType: "order"` and the order id, so `watcherHandler` and
 `notifications.subscribe` work on them like on any app row. Registering
-`order` in `subjects` lets approvals file requests on orders.
+`order` and `promotion` in `subjects` let approvals file requests on orders
+and promotions.
 
-Two pieces of app SQL read the module tables, so they go in a schema file
+Three pieces of app SQL read the module tables, so they go in a schema file
 that runs after the modules. Order lines carry no time, so units sold reads
 them through a view that joins each line to its order's `paid_at`. The
 `after_refund_create` hook runs in the transaction that records a refund
 and refuses one above 50.00 unless the order's latest `refund` request was
-approved:
+approved. `before_promotion_activate` runs whenever a promotion ends up
+active and refuses a percentage above 30 unless the promotion's latest
+`activate` request was approved:
 
 ```sql title="supabase/schemas/commerce.sql"
 create schema store;
@@ -53,6 +56,23 @@ begin
 end;
 $$;
 revoke execute on function public.after_refund_create(uuid) from public, anon, authenticated;
+
+create function public.before_promotion_activate(promotion uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from better_supabase.promotions p
+    where p.id = promotion and p.kind = 'percentage' and p.percent > 30
+  ) and not better_supabase.is_approved('promotion', promotion::text, 'activate') then
+    raise exception 'a discount above 30 percent needs an approved activate request'
+      using errcode = '42501', hint = 'PROMOTION_APPROVAL_REQUIRED';
+  end if;
+end;
+$$;
+revoke execute on function public.before_promotion_activate(uuid) from public, anon, authenticated;
 ```
 
 ## Config
@@ -87,6 +107,12 @@ export default defineConfig({
       tenant: "tenant_id",
       title: "number",
     },
+    promotion: {
+      table: "better_supabase.promotions",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "name",
+    },
   },
   sql: {
     modules: {
@@ -111,6 +137,9 @@ export default defineConfig({
         options: {
           policies: {
             order: { refund: { steps: [{ approvers: { role: "admin" } }] } },
+            promotion: {
+              activate: { steps: [{ approvers: { role: "admin" } }] },
+            },
           },
         },
       },
@@ -253,6 +282,37 @@ if (!refund.ok && refund.error.hint === "REFUND_APPROVAL_REQUIRED") {
 Once the request is approved, the same `orders.refund(order.id)` call
 succeeds.
 
+### Approve a large discount
+
+A promotion above 30 percent can't go live on its own. Save it inactive,
+file an `activate` request, and turn it on once an admin approves it:
+
+```ts
+const draft = await promotions
+  .savePromotion(organizationId, {
+    name: "Clearance",
+    discount: { kind: "percentage", percent: "50" },
+    active: false,
+  })
+  .orThrow();
+await approvals
+  .request({
+    organizationId,
+    subjectType: "promotion",
+    subjectId: draft.id,
+    action: "activate",
+    reason,
+  })
+  .orThrow();
+// After approvals.approve(requestId):
+await promotions.setPromotionActive(draft.id, true).orThrow();
+```
+
+Saving it active, or activating it before the approval, fails with
+`PROMOTION_APPROVAL_REQUIRED`. The hook also runs on every save that leaves a
+promotion live, so an edit can't take an unapproved promotion above 30
+percent.
+
 </Steps>
 
 ## Metrics
@@ -306,8 +366,8 @@ such as a marketing sink, instead of to watchers.
 
 ## Not included yet
 
-Approval for large discounts, product search and saved views for the order
-grid come with their blocks, but the recipe doesn't wire them yet.
+Product search and saved views for the order grid come with their blocks,
+but the recipe doesn't wire them yet.
 
 ## With ReUI
 

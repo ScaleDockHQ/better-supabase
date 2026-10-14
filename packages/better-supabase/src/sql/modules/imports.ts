@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "import.completed": {
@@ -44,7 +44,7 @@ const NAMES: ModuleNames = {
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const runs = ctx.table("runs");
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.imports.manage);
+  const manage = ctx.permission("manage", OPERATIONS["imports.manage"]);
   const tables = ctx.manages
     ? `create table if not exists ${runs} (
   ${ctx.col("runs", "id")} uuid primary key default gen_random_uuid(),

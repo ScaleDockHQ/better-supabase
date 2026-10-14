@@ -24,6 +24,7 @@ import {
   rolesOf,
   tenantScope,
 } from "./access-model.ts";
+import { operationsSql } from "./access-operations.ts";
 import { roleNameOf } from "./tenant.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
@@ -891,6 +892,7 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 ${delegationSql(ctx, layout)}
+${operationsSql(ctx, layout)}
 ${body}
 
 -- The access contract. Policies and SQL modules call these, never a model's
@@ -956,6 +958,7 @@ ${[
   "permission_matches(text, text)",
   "scope_permissions(text)",
   "cap_allows(text)",
+  "operation_permission(text)",
   `can(text, ${id}, text)`,
   "tenant_ids_with(text)",
   "is_platform(text)",

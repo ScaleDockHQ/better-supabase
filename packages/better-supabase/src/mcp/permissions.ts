@@ -35,18 +35,20 @@ export function missingRole(
 }
 
 /**
- * The permission a tool needs: the provider's `mcp.tool.<name>` operation
- * first, then the tool's own `permission`.
+ * The permission a tool needs: the provider's entry for the tool's
+ * `operation` (default `mcp.tool.<name>`) first, then the tool's own
+ * `permission`.
  */
 export function toolPermission(
   operations: OperationTable | undefined,
   name: string,
   declared: unknown,
+  operation: string = `${OPERATION_PREFIXES.mcpTool}${name}`,
 ): unknown {
   return (
     operationPermission(
       operations,
-      `${OPERATION_PREFIXES.mcpTool}${name}`,
+      operation,
       typeof declared === "string" ? declared : undefined,
     ) ?? declared
   );

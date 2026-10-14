@@ -15,7 +15,12 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import {
+  accessModel,
+  OPERATIONS,
+  moduleOperations,
+  roleNames,
+} from "./access-model.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
   organizationAttributes,
@@ -443,7 +448,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false)${platformOverride(ctx, "updatePlatform")} then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", OPERATIONS["organizations.update"])}), false)${platformOverride(ctx, "updatePlatform")} then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to update the organization")}
   end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
   ${ctx.hook("before_organization_update", [
@@ -524,7 +529,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", OPERATIONS["organizations.delete"])}), false)${platformOverride(ctx, "deletePlatform")} then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
   end if;
   perform ${ctx.of("data-lifecycle").fn("request_organization_deletion")}(organization);
@@ -563,7 +568,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", OPERATIONS["organizations.delete"])}), false)${platformOverride(ctx, "deletePlatform")} then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
   end if;
   ${action}
@@ -747,7 +752,7 @@ revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, au
 
 function members(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
-  const p = MODULE_PERMISSIONS.organizations;
+  const p = moduleOperations("organizations");
   const can = (action: keyof typeof p) =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission(action, p[action])}), false))`;
   const active = `

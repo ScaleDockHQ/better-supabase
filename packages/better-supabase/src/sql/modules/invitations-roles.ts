@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   accessModel,
-  MODULE_PERMISSIONS,
+  OPERATIONS,
   providerPlatformRoles,
   roleNames,
   roleScopeIs,
@@ -161,10 +161,7 @@ create trigger ${trigger} before insert or update of ${platform.role} on ${platf
 }
 
 export const invitePlatform = (ctx: ModuleContext): string =>
-  ctx.permission(
-    "invitePlatform",
-    MODULE_PERMISSIONS.invitations.invitePlatform,
-  );
+  ctx.permission("invitePlatform", OPERATIONS["invitations.invitePlatform"]);
 
 /**
  * `invitee_role` as the tenant table stores it, within the tenant in the

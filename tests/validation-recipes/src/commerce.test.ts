@@ -322,4 +322,61 @@ describe.skipIf(!live)("commerce recipe", () => {
       expect(rest.amount.amount).toBe(order.total.amount - 1000n);
     });
   }, 30_000);
+
+  it("holds a large discount until an admin approves it", async () => {
+    await withRecipe(pool, commerce, async (s) => {
+      const owner = await s.user("owner");
+      const finance = await s.user("finance");
+      const organizationId = await s.organization(owner);
+      await s.service();
+      await s.client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
+        [organizationId, finance.id],
+      );
+      const transport = sqlTransport(s.sql);
+      const promotions = createPromotions({ transport });
+      const approvals = createApprovals({ transport });
+
+      await s.as(owner);
+      const small = await promotions.savePromotion(organizationId, {
+        name: "Spring",
+        discount: { kind: "percentage", percent: "20" },
+      });
+      expect(small.ok).toBe(true);
+      const refused = await promotions.savePromotion(organizationId, {
+        name: "Clearance",
+        discount: { kind: "percentage", percent: "50" },
+      });
+      expect(refused.ok ? undefined : refused.error.hint).toBe(
+        "PROMOTION_APPROVAL_REQUIRED",
+      );
+      const draft = await promotions
+        .savePromotion(organizationId, {
+          name: "Clearance",
+          discount: { kind: "percentage", percent: "50" },
+          active: false,
+        })
+        .orThrow();
+      const blocked = await promotions.setPromotionActive(draft.id, true);
+      expect(blocked.ok ? undefined : blocked.error.hint).toBe(
+        "PROMOTION_APPROVAL_REQUIRED",
+      );
+
+      const request = await approvals
+        .request({
+          organizationId,
+          subjectType: "promotion",
+          subjectId: draft.id,
+          action: "activate",
+          reason: "End of season",
+        })
+        .orThrow();
+      await s.as(finance);
+      await approvals.approve(request.id).orThrow();
+      await s.as(owner);
+      expect(
+        await promotions.setPromotionActive(draft.id, true).orThrow(),
+      ).toBe(true);
+    });
+  }, 30_000);
 });

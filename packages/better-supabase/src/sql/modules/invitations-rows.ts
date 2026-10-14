@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { organizationMissing, SERVICE_CALLER } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import {
   invitePlatform,
   platformAssignment,
@@ -317,7 +317,7 @@ begin
     ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
   end if;
   tenant := current_invite.${c("tenant")};
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", OPERATIONS["invitations.invite"])}), false) then
     ${fail("INVITATION_FORBIDDEN", "Not allowed to invite members")}
   end if;
   if better_supabase.tenant_disabled(tenant) or ${organizationMissing(ctx, "tenant")} then

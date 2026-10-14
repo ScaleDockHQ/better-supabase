@@ -22,7 +22,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const UUID_TEXT =
@@ -103,9 +103,9 @@ function build(ctx: ModuleContext): string {
   const u = (column: string): string => ctx.col("updates", column);
   const s = (column: string): string => ctx.col("snapshots", column);
   const fn = (name: string): string => ctx.fn(name);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.documents.read);
-  const write = ctx.permission("write", MODULE_PERMISSIONS.documents.write);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.documents.manage);
+  const read = ctx.permission("read", OPERATIONS["documents.read"]);
+  const write = ctx.permission("write", OPERATIONS["documents.write"]);
+  const manage = ctx.permission("manage", OPERATIONS["documents.manage"]);
   const subjects = subjectsOption(ctx);
   const topic = documentsTopic(ctx);
   const maxBytes = ctx.number("maxUpdateBytes", 1_048_576);

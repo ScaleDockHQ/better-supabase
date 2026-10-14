@@ -165,6 +165,16 @@ describe("agentToolOperation", () => {
       permission: undefined,
     });
   });
+
+  it("looks up the tool's own operation in place of ai.tool.<name>", () => {
+    const operations = {
+      "invoices.void": { permission: "billing.manage" },
+      "ai.tool.void": { permission: "ignored" },
+    };
+    expect(
+      agentToolOperation("void", operations, {}, { void: "invoices.void" }),
+    ).toEqual({ operation: "invoices.void", permission: "billing.manage" });
+  });
 });
 
 describe("createAgentRuntime authorizeModel", () => {

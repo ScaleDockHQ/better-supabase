@@ -26,7 +26,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -286,13 +286,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const versions = ctx.table("versions");
   const c = (column: string): string => ctx.col("versions", column);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.versions.read);
-  const create = ctx.permission("create", MODULE_PERMISSIONS.versions.create);
-  const restore = ctx.permission(
-    "restore",
-    MODULE_PERMISSIONS.versions.restore,
-  );
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.versions.manage);
+  const read = ctx.permission("read", OPERATIONS["versions.read"]);
+  const create = ctx.permission("create", OPERATIONS["versions.create"]);
+  const restore = ctx.permission("restore", OPERATIONS["versions.restore"]);
+  const manage = ctx.permission("manage", OPERATIONS["versions.manage"]);
   const list = versioned(ctx);
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const keep = ctx.number("keep", 50);

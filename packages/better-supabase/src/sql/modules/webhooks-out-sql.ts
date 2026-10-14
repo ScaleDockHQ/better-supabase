@@ -4,7 +4,7 @@ import type { ModuleLayout } from "../module-types.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, serviceGrant } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 export interface HookNames {
   readonly table: (table: string) => string;
@@ -157,7 +157,7 @@ export function hookNames(
     );
   }
   const access = ctx.installed("access");
-  const permissions = MODULE_PERMISSIONS["webhooks-out"];
+  const permissions = moduleOperations("webhooks-out");
   const values = statusValues(ctx);
   return {
     table: (table) => ctx.table(table),

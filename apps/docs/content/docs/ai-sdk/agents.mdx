@@ -120,6 +120,10 @@ needs the caller to hold that permission: a tool with no permission, a
 That includes `search_knowledge`: give it a permission, or `false` when
 the knowledge block's own access rules are enough.
 
+`toolOperations` names another operation for a tool, such as
+`{ void_invoice: "invoices.void" }`, so an AI tool and an MCP tool that do
+the same thing check one entry in the provider's table.
+
 ```ts
 const runtime = createAgentRuntime({
   agent,

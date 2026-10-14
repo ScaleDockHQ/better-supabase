@@ -22,7 +22,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "object.uploaded": {
@@ -218,7 +218,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const metadata = ctx.has("attachments", "metadata");
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS.attachments;
+  const permissions = moduleOperations("attachments");
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
   const subjects = subjectsOption(

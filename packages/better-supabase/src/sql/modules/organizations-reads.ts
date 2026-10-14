@@ -1,7 +1,7 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
-import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
+import { OPERATIONS, modulePermission } from "./access-model.ts";
 
 /** The keys `list_my_organizations` returns, which no attribute may shadow. */
 const MEMBERSHIP_KEYS: readonly string[] = [
@@ -146,7 +146,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx.of("invitations"), "view", MODULE_PERMISSIONS.invitations.view)}), false) then
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx.of("invitations"), "view", OPERATIONS["invitations.view"])}), false) then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list invitations")}
   end if;
   return query

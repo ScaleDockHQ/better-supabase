@@ -13,7 +13,7 @@ import {
 } from "../shared.ts";
 import {
   hasPlatformRoles,
-  MODULE_PERMISSIONS,
+  OPERATIONS,
   providerPlatformRoles,
 } from "./access-model.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
@@ -162,7 +162,7 @@ grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
 create policy bs_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)})));
+  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -233,7 +233,7 @@ grant select on ${requests} to service_role;
 drop policy if exists bs_support_requests_read on ${requests};
 create policy bs_support_requests_read on ${requests} for select to authenticated
   using (${c("admin")} = (select auth.uid())
-    or (select ${isPlatform}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)})));
+    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${requests} to authenticated;
 `;
 }
@@ -257,7 +257,7 @@ function approverOf(
   });
   if (check) return `coalesce((${check.sql}), false)`;
   const isPlatform = ctx.of("access").fn("is_platform");
-  return `${isPlatform}(${ctx.permission("approve", MODULE_PERMISSIONS["support-sessions"].start)})`;
+  return `${isPlatform}(${ctx.permission("approve", OPERATIONS["support-sessions.start"])})`;
 }
 
 /**
@@ -297,7 +297,7 @@ function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const isPlatform = ctx.of("access").fn("is_platform");
   const startPermission = ctx.permission(
     "start",
-    MODULE_PERMISSIONS["support-sessions"].start,
+    OPERATIONS["support-sessions.start"],
   );
   const approvalTtl = sqlString(ctx.text("approvalTtl", "1 hour"));
   const requireReason = ctx.flag("requireReason", true);
@@ -588,7 +588,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", MODULE_PERMISSIONS["support-sessions"].start)}) then
+      or not ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])}) then
       ${fail("SUPPORT_FORBIDDEN", "Not allowed to start a support session")}
     end if;
   end if;
@@ -700,7 +700,7 @@ begin
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", MODULE_PERMISSIONS["support-sessions"].revoke)}))
+      or ${isPlatform}(${ctx.permission("revoke", OPERATIONS["support-sessions.revoke"])}))
   returning ${sessionJson(ctx, "s")} into ended;
   if not service then
     ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
@@ -794,7 +794,7 @@ as $$
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
     and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
-      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", MODULE_PERMISSIONS["support-sessions"].start)})
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])})
     end
 $$;
 
@@ -814,7 +814,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", MODULE_PERMISSIONS["support-sessions"].view)}))
+      or ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null

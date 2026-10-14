@@ -83,7 +83,11 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_refund_create",
     "after_refund_create",
   ],
-  promotions: ["before_promotion_save", "after_promotion_save"],
+  promotions: [
+    "before_promotion_save",
+    "after_promotion_save",
+    "before_promotion_activate",
+  ],
   forms: [
     "before_form_publish",
     "after_form_publish",

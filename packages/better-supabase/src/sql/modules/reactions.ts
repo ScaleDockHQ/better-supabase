@@ -19,7 +19,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const PAYLOAD = [
   "organizationId",
@@ -152,9 +152,9 @@ function build(ctx: ModuleContext): string {
   const emojiTable = ctx.table("emoji");
   const c = (column: string): string => ctx.col("reactions", column);
   const e = (column: string): string => ctx.col("emoji", column);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.reactions.read);
-  const create = ctx.permission("create", MODULE_PERMISSIONS.reactions.create);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.reactions.manage);
+  const read = ctx.permission("read", OPERATIONS["reactions.read"]);
+  const create = ctx.permission("create", OPERATIONS["reactions.create"]);
+  const manage = ctx.permission("manage", OPERATIONS["reactions.manage"]);
   const topic = topicOf(ctx);
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);

@@ -170,12 +170,17 @@ ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_id;
   end if;
+  if coalesce((data ->> 'active')::boolean, true) then
+    ${ctx.hook("before_promotion_activate", [["uuid", "v_id"]])}
+  end if;
   ${ctx.hook("after_promotion_save", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id);
 end;
 $$;
 ${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb)`)}
 
+-- before_promotion_activate(promotion) runs after the write, so it reads
+-- the promotion as it will be; raising refuses the activation.
 create or replace function ${fn("set_promotion_active")}(promotion uuid, active boolean)
 returns boolean
 language plpgsql
@@ -192,6 +197,9 @@ begin
   ${guard(names, "v_tenant")}
   update ${promotions} x set ${p("active")} = set_promotion_active.active, ${p("updatedAt")} = now()
   where x.${p("id")} = set_promotion_active.promotion;
+  if set_promotion_active.active then
+    ${ctx.hook("before_promotion_activate", [["uuid", "set_promotion_active.promotion"]])}
+  end if;
   return true;
 end;
 $$;

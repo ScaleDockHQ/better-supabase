@@ -18,7 +18,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { DURATION } from "./approvals-policies.ts";
 import { formSchemaFunctions } from "./forms-schema.ts";
 
@@ -196,10 +196,10 @@ function build(ctx: ModuleContext): string {
   const v = (column: string): string => ctx.col("versions", column);
   const s = (column: string): string => ctx.col("submissions", column);
   const fn = (name: string): string => ctx.fn(name);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.forms.read);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.forms.manage);
-  const submit = ctx.permission("submit", MODULE_PERMISSIONS.forms.submit);
-  const review = ctx.permission("review", MODULE_PERMISSIONS.forms.review);
+  const read = ctx.permission("read", OPERATIONS["forms.read"]);
+  const manage = ctx.permission("manage", OPERATIONS["forms.manage"]);
+  const submit = ctx.permission("submit", OPERATIONS["forms.submit"]);
+  const review = ctx.permission("review", OPERATIONS["forms.review"]);
   const subjects = subjectsOption(ctx);
   const handlers = handlersOf(ctx);
   const limit = publicLimitOf(ctx);

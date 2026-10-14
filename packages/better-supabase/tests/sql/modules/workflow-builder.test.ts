@@ -102,7 +102,7 @@ describe("workflow-builder module", () => {
     );
   });
 
-  it("resolves step permissions from the provider's operations, then the renamed module key", () => {
+  it("resolves step permissions from the provider's node operations, then the step's operation, then the renamed module key", () => {
     const permissionsFn = (sql: string) =>
       sql.slice(
         sql.indexOf('"workflow_graph_permissions"(graph jsonb)'),
@@ -111,9 +111,12 @@ describe("workflow-builder module", () => {
           sql.indexOf('"workflow_graph_permissions"(graph jsonb)'),
         ),
       );
-    expect(permissionsFn(moduleBody("workflow-builder", {})!)).toContain(
-      `coalesce('{}'::jsonb ->> (n.value ->> 'step'), 'workflow.run')`,
+    const plain = permissionsFn(moduleBody("workflow-builder", {})!);
+    expect(plain).toContain(`'{}'::jsonb ->> (n.value ->> 'step'),`);
+    expect(plain).toContain(
+      `(select coalesce('{}'::jsonb ->> s."operation", s."operation")`,
     );
+    expect(plain).toContain(`'workflow.run'\n    ) as p`);
     const layout = {
       modules: {
         "workflow-builder": { permissions: { run: "automations.run" } },
@@ -125,13 +128,18 @@ describe("workflow-builder module", () => {
           "workflow.node.": { permission: "ignored" },
           "workflow.node.email.send": { permission: "" },
           "mcp.tool.search": { permission: "search.run" },
+          "invoices.void": { permission: "billing.manage" },
         },
       },
     };
     const sql = permissionsFn(moduleBody("workflow-builder", layout)!);
     expect(sql).toContain(
-      `coalesce('{"crm.lookup":"crm.read"}'::jsonb ->> (n.value ->> 'step'), 'automations.run')`,
+      `'{"crm.lookup":"crm.read"}'::jsonb ->> (n.value ->> 'step'),`,
     );
+    expect(sql).toContain(
+      `coalesce('{"invoices.void":"billing.manage"}'::jsonb ->> s."operation", s."operation")`,
+    );
+    expect(sql).toContain(`'automations.run'\n    ) as p`);
     expect(sql).not.toContain("search.run");
   });
 

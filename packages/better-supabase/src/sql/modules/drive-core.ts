@@ -13,7 +13,7 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { CONFLICTS, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 
 /** The tree, grants and sharing: the drive module. */
@@ -229,8 +229,8 @@ $$;
 revoke execute on function ${fn("drive_subtree")}(uuid) from public, anon, authenticated;
 
 -- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${MODULE_PERMISSIONS.drive.read}`}. ${MODULE_PERMISSIONS.drive.manage} is ${roles.top} everywhere. Grants
--- need ${MODULE_PERMISSIONS.drive.read} in the node's organization too.
+-- ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${OPERATIONS["drive.read"]}`}. ${OPERATIONS["drive.manage"]} is ${roles.top} everywhere. Grants
+-- need ${OPERATIONS["drive.read"]} in the node's organization too.
 create or replace function ${fn("drive_role")}(node uuid)
 returns text
 language plpgsql
@@ -376,7 +376,7 @@ end;
 $$;
 revoke execute on function ${fn("drive_free_name")}(${ctx.idType}, uuid, text, uuid, text) from public, anon, authenticated;
 
--- Whether the caller may create an item in parent: ${MODULE_PERMISSIONS.drive.create} at the
+-- Whether the caller may create an item in parent: ${OPERATIONS["drive.create"]} at the
 -- root, the write role in a folder.
 create or replace function ${fn("drive_check_parent")}(tenant ${ctx.idType}, parent uuid)
 returns void
@@ -630,7 +630,7 @@ ${userGrant(`${fn("drive_rename")}(uuid, text, text)`)}
 
 -- Moves a node into parent (null for the root) at rank, after the last
 -- item by default. Moving to the root needs the share role and
--- ${MODULE_PERMISSIONS.drive.create}, and keeps the mover's role as a grant.
+-- ${OPERATIONS["drive.create"]}, and keeps the mover's role as a grant.
 create or replace function ${fn("drive_move")}(node uuid, parent uuid, rank text default null, conflict text default null)
 returns jsonb
 language plpgsql

@@ -22,5 +22,6 @@ export {
   type AgentToolCallContext,
   agentToolOperation,
   type AgentToolOperation,
+  type AgentToolOperations,
   type AgentToolPermissions,
 } from "./authorization.ts";

@@ -14,7 +14,7 @@ import {
   schemaPreamble,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 /** The layouts a saved view can open in. */
 export const SAVED_VIEW_KINDS = [
@@ -89,11 +89,8 @@ function build(ctx: ModuleContext): string {
   const isDefault = c("isDefault");
   const createdAt = c("createdAt");
   const updatedAt = c("updatedAt");
-  const read = ctx.permission("read", MODULE_PERMISSIONS["saved-views"].read);
-  const share = ctx.permission(
-    "share",
-    MODULE_PERMISSIONS["saved-views"].share,
-  );
+  const read = ctx.permission("read", OPERATIONS["saved-views.read"]);
+  const share = ctx.permission("share", OPERATIONS["saved-views.share"]);
   const teams = ctx.installed("teams")
     ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
     : "";

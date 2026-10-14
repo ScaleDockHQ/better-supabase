@@ -96,6 +96,18 @@ as $$
   from (select auth.jwt() as jwt) as token
 $$;
 
+-- The permission key an operation (<module>.<action>, or a name in
+-- authorization.operations) checks, after renames and the provider's table.
+-- Null for an operation nobody declared, which callers refuse.
+create or replace function better_supabase.operation_permission(op text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select null::text
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -317,6 +329,8 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.operation_permission(text) from public;
+grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -469,6 +483,176 @@ as $$
   from (select auth.jwt() as jwt) as token
 $$;
 
+-- The permission key an operation (<module>.<action>, or a name in
+-- authorization.operations) checks, after renames and the provider's table.
+-- Null for an operation nobody declared, which callers refuse.
+create or replace function better_supabase.operation_permission(op text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case op
+    when 'access-requests.create' then 'access_requests.create'
+    when 'access-requests.manage' then 'access_requests.manage'
+    when 'access-requests.read' then 'access_requests.read'
+    when 'agents.create' then 'ai.create'
+    when 'agents.moderate' then 'ai.moderate'
+    when 'agents.publish' then 'ai.share'
+    when 'agents.read' then 'ai.read'
+    when 'ai-chat.admin' then 'ai_chat.admin'
+    when 'ai-chat.create' then 'ai_chat.create'
+    when 'ai-chat.moderate' then 'ai_chat.moderate'
+    when 'ai-chat.read' then 'ai_chat.read'
+    when 'ai-chat.share' then 'ai_chat.share'
+    when 'ai-files.manage' then 'ai.admin'
+    when 'ai-files.upload' then 'ai.create'
+    when 'ai-providers.manage' then 'ai.admin'
+    when 'ai-providers.use' then 'ai.create'
+    when 'ai-tasks.create' then 'ai.create'
+    when 'ai-tasks.manage' then 'ai.admin'
+    when 'announcements.manage' then 'announcements.manage'
+    when 'api-keys.manage' then 'api_keys.manage'
+    when 'api-keys.own' then 'api_keys.own'
+    when 'approvals.manage' then 'approvals.manage'
+    when 'approvals.read' then 'approvals.read'
+    when 'approvals.request' then 'approvals.request'
+    when 'attachments.manage' then 'attachments.manage'
+    when 'attachments.read' then 'attachments.read'
+    when 'attachments.upload' then 'attachments.upload'
+    when 'audit.revert' then 'audit.revert'
+    when 'audit.view' then 'audit.read'
+    when 'audit.viewAll' then 'audit.read'
+    when 'billing.manage' then 'billing.manage'
+    when 'billing.read' then 'billing.read'
+    when 'billing.viewAll' then 'billing.read'
+    when 'bookings.create' then 'bookings.create'
+    when 'bookings.manage' then 'bookings.manage'
+    when 'bookings.read' then 'bookings.read'
+    when 'bulk.run' then 'bulk.run'
+    when 'calendar.manage' then 'calendar.manage'
+    when 'calendar.read' then 'calendar.read'
+    when 'calendar.write' then 'calendar.write'
+    when 'catalog.manage' then 'catalog.manage'
+    when 'catalog.read' then 'catalog.read'
+    when 'comments.activity' then 'activity.read'
+    when 'comments.create' then 'comments.create'
+    when 'comments.moderate' then 'comments.moderate'
+    when 'comments.read' then 'comments.read'
+    when 'connectors.manage' then 'ai.admin'
+    when 'connectors.read' then 'ai.read'
+    when 'connectors.use' then 'ai.create'
+    when 'custom-fields.manage' then 'custom_fields.manage'
+    when 'custom-fields.read' then 'custom_fields.read'
+    when 'custom-fields.sensitive' then 'custom_fields.sensitive.read'
+    when 'data-lifecycle.cancelDelete' then 'organization.delete'
+    when 'data-lifecycle.delete' then 'organization.delete'
+    when 'data-lifecycle.export' then 'organization.export'
+    when 'documents.manage' then 'documents.manage'
+    when 'documents.read' then 'documents.read'
+    when 'documents.write' then 'documents.write'
+    when 'drive.create' then 'drive.create'
+    when 'drive.manage' then 'drive.manage'
+    when 'drive.read' then 'drive.read'
+    when 'flags.manage' then 'flags.manage'
+    when 'forms.manage' then 'forms.manage'
+    when 'forms.read' then 'forms.read'
+    when 'forms.review' then 'forms.review'
+    when 'forms.submit' then 'forms.submit'
+    when 'imports.manage' then 'imports.manage'
+    when 'inbox.assign' then 'inbox.assign'
+    when 'inbox.manage' then 'inbox.manage'
+    when 'inbox.read' then 'inbox.read'
+    when 'inbox.reply' then 'inbox.reply'
+    when 'inventory.manage' then 'inventory.manage'
+    when 'inventory.purchase' then 'inventory.purchase'
+    when 'inventory.read' then 'inventory.read'
+    when 'inventory.reserve' then 'inventory.reserve'
+    when 'invitations.invite' then 'members.invite'
+    when 'invitations.invitePlatform' then 'platform.invite'
+    when 'invitations.revoke' then 'members.invite'
+    when 'invitations.view' then 'members.invite'
+    when 'knowledge.manage' then 'ai.admin'
+    when 'knowledge.read' then 'ai.read'
+    when 'knowledge.write' then 'ai.create'
+    when 'memory.manage' then 'ai.admin'
+    when 'memory.read' then 'ai.read'
+    when 'metrics.manage' then 'metrics.manage'
+    when 'metrics.read' then 'metrics.read'
+    when 'notifications.read' then 'notifications.read'
+    when 'notifications.send' then 'notifications.send'
+    when 'number-sequences.assign' then 'number_sequences.assign'
+    when 'onboarding.complete' then 'onboarding.complete'
+    when 'onboarding.read' then 'onboarding.read'
+    when 'orders.manage' then 'orders.manage'
+    when 'orders.read' then 'orders.read'
+    when 'organizations.delete' then 'organization.delete'
+    when 'organizations.removeMember' then 'members.remove'
+    when 'organizations.suspendMember' then 'members.remove'
+    when 'organizations.transferOwnership' then 'organization.transfer_ownership'
+    when 'organizations.update' then 'organization.update'
+    when 'organizations.updateRole' then 'members.update_role'
+    when 'promotions.manage' then 'promotions.manage'
+    when 'promotions.read' then 'promotions.read'
+    when 'reactions.create' then 'reactions.create'
+    when 'reactions.manage' then 'reactions.manage'
+    when 'reactions.read' then 'reactions.read'
+    when 'relations.manage' then 'relations.manage'
+    when 'relations.read' then 'relations.read'
+    when 'reminders.manage' then 'reminders.manage'
+    when 'reminders.read' then 'reminders.read'
+    when 'saved-views.read' then 'views.read'
+    when 'saved-views.share' then 'views.share'
+    when 'search.read' then 'search.read'
+    when 'settings.platform' then 'settings.manage'
+    when 'settings.read' then 'settings.read'
+    when 'settings.update' then 'settings.update'
+    when 'share-links.create' then 'share_links.create'
+    when 'share-links.read' then 'share_links.read'
+    when 'signatures.manage' then 'signatures.manage'
+    when 'signatures.read' then 'signatures.read'
+    when 'signatures.request' then 'signatures.request'
+    when 'sso.manage' then 'sso.manage'
+    when 'support-sessions.revoke' then 'support.revoke'
+    when 'support-sessions.start' then 'support.start'
+    when 'support-sessions.view' then 'support.read'
+    when 'tags.manage' then 'tags.manage'
+    when 'tags.read' then 'tags.read'
+    when 'teams.manage' then 'teams.manage'
+    when 'teams.read' then 'teams.read'
+    when 'time-tracking.approve' then 'time_tracking.approve'
+    when 'time-tracking.manage' then 'time_tracking.manage'
+    when 'time-tracking.read' then 'time_tracking.read'
+    when 'time-tracking.track' then 'time_tracking.track'
+    when 'trash.create' then 'trash.create'
+    when 'trash.manage' then 'trash.manage'
+    when 'trash.read' then 'trash.read'
+    when 'trash.restore' then 'trash.restore'
+    when 'usage.read' then 'usage.read'
+    when 'usage.record' then 'usage.record'
+    when 'versions.create' then 'versions.create'
+    when 'versions.manage' then 'versions.manage'
+    when 'versions.read' then 'versions.read'
+    when 'versions.restore' then 'versions.restore'
+    when 'waitlist.invite' then 'members.invite'
+    when 'waitlist.manage' then 'waitlist.manage'
+    when 'webhooks-in.create' then 'webhooks.manage'
+    when 'webhooks-in.delete' then 'webhooks.manage'
+    when 'webhooks-in.update' then 'webhooks.manage'
+    when 'webhooks-in.view' then 'webhooks.read'
+    when 'webhooks-out.manage' then 'webhooks.manage'
+    when 'webhooks-out.view' then 'webhooks.read'
+    when 'workflow-builder.admin' then 'workflow.admin'
+    when 'workflow-builder.edit' then 'workflow.edit'
+    when 'workflow-builder.publish' then 'workflow.publish'
+    when 'workflow-builder.read' then 'workflow.read'
+    when 'workflow-builder.run' then 'workflow.run'
+    when 'workflows.admin' then 'workflow.admin'
+    when 'workflows.read' then 'workflow.read'
+    when 'workflows.run' then 'workflow.run'
+  end
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -690,6 +874,8 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.operation_permission(text) from public;
+grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -843,6 +1029,18 @@ as $$
   from (select auth.jwt() as jwt) as token
 $$;
 
+-- The permission key an operation (<module>.<action>, or a name in
+-- authorization.operations) checks, after renames and the provider's table.
+-- Null for an operation nobody declared, which callers refuse.
+create or replace function better_supabase.operation_permission(op text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select null::text
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -1064,6 +1262,8 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.operation_permission(text) from public;
+grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -1215,6 +1415,18 @@ as $$
   from (select auth.jwt() as jwt) as token
 $$;
 
+-- The permission key an operation (<module>.<action>, or a name in
+-- authorization.operations) checks, after renames and the provider's table.
+-- Null for an operation nobody declared, which callers refuse.
+create or replace function better_supabase.operation_permission(op text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select null::text
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -1436,6 +1648,8 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.operation_permission(text) from public;
+grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;
@@ -1530,6 +1744,15 @@ set search_path = ''
 as $$ select "better_supabase"."cap_allows"($1) $$;
 revoke execute on function "api"."cap_allows"(text) from public;
 grant execute on function "api"."cap_allows"(text) to anon, authenticated, service_role;
+
+create or replace function "api"."operation_permission"(op text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."operation_permission"($1) $$;
+revoke execute on function "api"."operation_permission"(text) from public;
+grant execute on function "api"."operation_permission"(text) to anon, authenticated, service_role;
 
 create or replace function "api"."can"(scope text, scope_id uuid, permission text)
 returns boolean
@@ -1753,6 +1976,18 @@ as $$
   from (select auth.jwt() as jwt) as token
 $$;
 
+-- The permission key an operation (<module>.<action>, or a name in
+-- authorization.operations) checks, after renames and the provider's table.
+-- Null for an operation nobody declared, which callers refuse.
+create or replace function better_supabase.operation_permission(op text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select null::text
+$$;
+
 -- The roles model (modules.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
@@ -1974,6 +2209,8 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.operation_permission(text) from public;
+grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;
 grant execute on function better_supabase.can(text, uuid, text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.tenant_ids_with(text) from public;

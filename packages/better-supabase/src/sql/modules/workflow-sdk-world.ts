@@ -3,7 +3,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import {
   WORLD_POSTGRES_DDL,
   WORLD_POSTGRES_VERSION,
@@ -48,7 +48,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const workflows = ctx.of("workflows");
   const record = workflows.fn("record_workflow_run");
-  const runKey = workflows.permission("run", MODULE_PERMISSIONS.workflows.run);
+  const runKey = workflows.permission("run", OPERATIONS["workflows.run"]);
   const claimJobs = ctx.of("jobs").fn("claim_jobs");
   const id = ctx.idType;
   const queue = sqlString(deliveryQueueOf(ctx));

@@ -16,7 +16,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 /** The actions every install knows, each backed by the block that owns it. */
 export const BULK_ACTIONS = {
@@ -162,7 +162,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const runs = ctx.table("runs");
   const c = (name: string): string => ctx.col("runs", name);
-  const run = ctx.permission("run", MODULE_PERMISSIONS.bulk.run);
+  const run = ctx.permission("run", OPERATIONS["bulk.run"]);
   const limit = ctx.number("limit", DEFAULT_LIMIT);
   if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) {
     throw new TypeError(

@@ -106,6 +106,17 @@ describe("toolPermission", () => {
     expect(toolPermission({}, "export", ref)).toBe(ref);
     expect(toolPermission(operations, "export", ref)).toBe("reports.export");
   });
+
+  it("looks up the tool's own operation in place of mcp.tool.<name>", () => {
+    const operations = {
+      "invoices.void": { permission: "billing.manage" },
+      "mcp.tool.void": { permission: "ignored" },
+    };
+    expect(toolPermission(operations, "void", "x", "invoices.void")).toBe(
+      "billing.manage",
+    );
+    expect(toolPermission({}, "void", "x", "invoices.void")).toBe("x");
+  });
 });
 
 describe("checkTool", () => {

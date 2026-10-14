@@ -3,7 +3,7 @@ import type { ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, fail } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import { accessModel, OPERATIONS } from "./access-model.ts";
 import {
   channelDefaults,
   permissionAudience,
@@ -40,14 +40,8 @@ export function notifyNames(
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
     has: (table, logical) => ctx.hasTable(table) && ctx.has(table, logical),
-    sendPermission: ctx.permission(
-      "send",
-      MODULE_PERMISSIONS.notifications.send,
-    ),
-    readPermission: ctx.permission(
-      "read",
-      MODULE_PERMISSIONS.notifications.read,
-    ),
+    sendPermission: ctx.permission("send", OPERATIONS["notifications.send"]),
+    readPermission: ctx.permission("read", OPERATIONS["notifications.read"]),
   };
 }
 

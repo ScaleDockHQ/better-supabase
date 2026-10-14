@@ -14,7 +14,7 @@ import {
   tenantIn,
   lockTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
 import {
@@ -434,7 +434,7 @@ function sandboxIdleAfter(ctx: ModuleContext): number {
 }
 
 function namesOf(ctx: ModuleContext): AiChatNames {
-  const permissions = MODULE_PERMISSIONS["ai-chat"];
+  const permissions = moduleOperations("ai-chat");
   const topic = topicOption(ctx, "topic", "ai-chat");
   const listTopic = topicOption(ctx, "listTopic", "ai-chats");
   if (topic === listTopic) {

@@ -17,7 +17,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import { accessModel, moduleOperations } from "./access-model.ts";
 import {
   METER,
   isMeterTable,
@@ -95,7 +95,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const hc = (logical: string): string => ctx.col("history", logical);
   const keepHistory = ctx.flag("history", false);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS.usage;
+  const permissions = moduleOperations("usage");
   const canRead = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission("read", permissions.read))})`;
   const readPolicy = (tenant: string): string =>

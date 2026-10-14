@@ -115,6 +115,7 @@ const NAMES: ModuleNames = {
         inputSchema: "input_schema",
         outputSchema: "output_schema",
         credentialKind: "credential_kind",
+        operation: "operation",
         updatedAt: "updated_at",
       },
     },
@@ -337,6 +338,8 @@ create table if not exists ${l} (
   ${cl("credentialKind")} text,
   ${cl("updatedAt")} timestamptz not null default now()
 );
+alter table ${l} add column if not exists ${cl("operation")} text
+  check (length(${cl("operation")}) between 1 and 200);
 alter table ${l} enable row level security;
 ${revokeTable(l)}
 grant select on ${l} to authenticated;

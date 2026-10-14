@@ -15,7 +15,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import { accessModel, moduleOperations, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
 import { type ScimSqlNames, scimSql } from "./sso-scim-sql.ts";
 import { roleNameOf } from "./tenant.ts";
@@ -229,7 +229,7 @@ function build(ctx: ModuleContext): string {
   const cu = (c: string): string => ctx.col("scimUsers", c);
   const cg = (c: string): string => ctx.col("scimGroups", c);
   const cm = (c: string): string => ctx.col("scimMembers", c);
-  const permissions = MODULE_PERMISSIONS.sso;
+  const permissions = moduleOperations("sso");
   const key = ctx.permission("manage", permissions.manage);
   const can = (tenant: string): string => ctx.can("tenant", tenant, key);
   const actorCan = (tenant: string, actor: string): string =>

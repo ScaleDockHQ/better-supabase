@@ -8,7 +8,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, fail, lockTable } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import { accessModel, moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
   "api_key.created": {
@@ -111,7 +111,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS["api-keys"];
+  const permissions = moduleOperations("api-keys");
   const can = (tenant: string, action: "manage" | "own"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const allowed = allowedScopes(ctx, layout);

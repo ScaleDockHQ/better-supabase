@@ -8,7 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
@@ -545,8 +545,8 @@ ${policy("refunds", ofOrder("refunds"))}
 function namesOf(ctx: ModuleContext): OrdersNames {
   return {
     fn: (name) => ctx.fn(name),
-    manage: ctx.permission("manage", MODULE_PERMISSIONS.orders.manage),
-    read: ctx.permission("read", MODULE_PERMISSIONS.orders.read),
+    manage: ctx.permission("manage", OPERATIONS["orders.manage"]),
+    read: ctx.permission("read", OPERATIONS["orders.read"]),
   };
 }
 

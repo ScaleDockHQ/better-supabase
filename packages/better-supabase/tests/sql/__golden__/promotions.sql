@@ -252,6 +252,16 @@ begin
       "updated_at" = now()
     where x."id" = v_id;
   end if;
+  if coalesce((data ->> 'active')::boolean, true) then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_promotion_save"(uuid)');
   begin
@@ -266,6 +276,8 @@ $$;
 revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
+-- before_promotion_activate(promotion) runs after the write, so it reads
+-- the promotion as it will be; raising refuses the activation.
 create or replace function "better_supabase"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean
 language plpgsql
@@ -287,6 +299,16 @@ begin
   end if;
   update "better_supabase"."promotions" x set "active" = set_promotion_active.active, "updated_at" = now()
   where x."id" = set_promotion_active.promotion;
+  if set_promotion_active.active then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using set_promotion_active.promotion;
+    end if;
+  end;
+  end if;
   return true;
 end;
 $$;
@@ -1056,6 +1078,16 @@ begin
       "updated_at" = now()
     where x."id" = v_id;
   end if;
+  if coalesce((data ->> 'active')::boolean, true) then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_promotion_save"(uuid)');
   begin
@@ -1070,6 +1102,8 @@ $$;
 revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
+-- before_promotion_activate(promotion) runs after the write, so it reads
+-- the promotion as it will be; raising refuses the activation.
 create or replace function "better_supabase"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean
 language plpgsql
@@ -1091,6 +1125,16 @@ begin
   end if;
   update "better_supabase"."promotions" x set "active" = set_promotion_active.active, "updated_at" = now()
   where x."id" = set_promotion_active.promotion;
+  if set_promotion_active.active then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using set_promotion_active.promotion;
+    end if;
+  end;
+  end if;
   return true;
 end;
 $$;
@@ -1862,6 +1906,16 @@ begin
       "updated_at" = now()
     where x."id" = v_id;
   end if;
+  if coalesce((data ->> 'active')::boolean, true) then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_promotion_save"(uuid)');
   begin
@@ -1876,6 +1930,8 @@ $$;
 revoke execute on function "app_private"."save_promotion"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "app_private"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
+-- before_promotion_activate(promotion) runs after the write, so it reads
+-- the promotion as it will be; raising refuses the activation.
 create or replace function "app_private"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean
 language plpgsql
@@ -1897,6 +1953,16 @@ begin
   end if;
   update "app_private"."promotions" x set "active" = set_promotion_active.active, "updated_at" = now()
   where x."id" = set_promotion_active.promotion;
+  if set_promotion_active.active then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using set_promotion_active.promotion;
+    end if;
+  end;
+  end if;
   return true;
 end;
 $$;
@@ -2666,6 +2732,16 @@ begin
       "updated_at" = now()
     where x."id" = v_id;
   end if;
+  if coalesce((data ->> 'active')::boolean, true) then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_promotion_save"(uuid)');
   begin
@@ -2680,6 +2756,8 @@ $$;
 revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
+-- before_promotion_activate(promotion) runs after the write, so it reads
+-- the promotion as it will be; raising refuses the activation.
 create or replace function "better_supabase"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean
 language plpgsql
@@ -2701,6 +2779,16 @@ begin
   end if;
   update "better_supabase"."promotions" x set "active" = set_promotion_active.active, "updated_at" = now()
   where x."id" = set_promotion_active.promotion;
+  if set_promotion_active.active then
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_promotion_activate"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using set_promotion_active.promotion;
+    end if;
+  end;
+  end if;
   return true;
 end;
 $$;

@@ -54,6 +54,9 @@ export function agentRunContext(
  */
 export type AgentToolPermissions = Readonly<Record<string, string | false>>;
 
+/** The provider operation each tool checks, in place of `ai.tool.<name>`. */
+export type AgentToolOperations = Readonly<Record<string, string>>;
+
 /** The operation an AI tool is, with what the provider says about it. */
 export interface AgentToolOperation {
   /** `ai.tool.<name>`. */
@@ -66,15 +69,19 @@ export interface AgentToolOperation {
 }
 
 /**
- * The operation of the tool `name`: the provider's `ai.tool.<name>` entry
- * first, then the tool's own permission from `permissions`.
+ * The operation of the tool `name`: the provider's entry for the tool's
+ * operation (from `toolOperations`, default `ai.tool.<name>`) first, then
+ * the tool's own permission from `permissions`.
  */
 export function agentToolOperation(
   name: string,
   operations?: OperationTable,
   permissions: AgentToolPermissions = {},
+  toolOperations: AgentToolOperations = {},
 ): AgentToolOperation {
-  const operation = `${OPERATION_PREFIXES.aiTool}${name}`;
+  const operation =
+    (Object.hasOwn(toolOperations, name) ? toolOperations[name] : undefined) ??
+    `${OPERATION_PREFIXES.aiTool}${name}`;
   const own = Object.hasOwn(permissions, name) ? permissions[name] : undefined;
   const permission =
     operationPermission(

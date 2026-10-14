@@ -12,7 +12,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
@@ -105,7 +105,7 @@ function build(ctx: ModuleContext): string {
   const keys = ctx.table("keys");
   const batches = ctx.table("batches");
   const items = ctx.table("items");
-  const permissions = MODULE_PERMISSIONS["ai-providers"];
+  const permissions = moduleOperations("ai-providers");
   const use = ctx.permission("use", permissions.use);
   const manage = ctx.permission("manage", permissions.manage);
   const pollEvery = ctx.number("pollEvery", 60);

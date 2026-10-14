@@ -8,7 +8,7 @@ import type {
 import { sqlString } from "../../core/template.ts";
 import { rankAfter } from "../rank-sql.ts";
 import { activeMembership, columnsObject, fail } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import { trashTypes } from "./trash.ts";
 
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -290,9 +290,9 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
   const n = (column: string): string => ctx.col("nodes", column);
   const g = (column: string): string => ctx.col("grants", column);
   const fn = (name: string): string => ctx.fn(name);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.drive.read);
-  const create = ctx.permission("create", MODULE_PERMISSIONS.drive.create);
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.drive.manage);
+  const read = ctx.permission("read", OPERATIONS["drive.read"]);
+  const create = ctx.permission("create", OPERATIONS["drive.create"]);
+  const manage = ctx.permission("manage", OPERATIONS["drive.manage"]);
   const roles = driveRoles(ctx);
   const type = driveSubjectType(ctx);
   const typeLit = sqlString(type);

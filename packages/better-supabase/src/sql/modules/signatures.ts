@@ -18,7 +18,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -134,12 +134,9 @@ function build(ctx: ModuleContext): string {
   const vt = versionsModule.table("versions");
   const v = (column: string): string => versionsModule.col("versions", column);
   const fn = (name: string): string => ctx.fn(name);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.signatures.read);
-  const request = ctx.permission(
-    "request",
-    MODULE_PERMISSIONS.signatures.request,
-  );
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.signatures.manage);
+  const read = ctx.permission("read", OPERATIONS["signatures.read"]);
+  const request = ctx.permission("request", OPERATIONS["signatures.request"]);
+  const manage = ctx.permission("manage", OPERATIONS["signatures.manage"]);
   const subjects = subjectsOption(ctx);
   const members = ctx.of("tenant");
   const approvals =

@@ -22,7 +22,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import {
   type ApprovalPolicy,
   approvalPolicies,
@@ -149,12 +149,9 @@ function build(ctx: ModuleContext): string {
   const decisions = ctx.table("decisions");
   const c = (column: string): string => ctx.col("requests", column);
   const d = (column: string): string => ctx.col("decisions", column);
-  const read = ctx.permission("read", MODULE_PERMISSIONS.approvals.read);
-  const request = ctx.permission(
-    "request",
-    MODULE_PERMISSIONS.approvals.request,
-  );
-  const manage = ctx.permission("manage", MODULE_PERMISSIONS.approvals.manage);
+  const read = ctx.permission("read", OPERATIONS["approvals.read"]);
+  const request = ctx.permission("request", OPERATIONS["approvals.request"]);
+  const manage = ctx.permission("manage", OPERATIONS["approvals.manage"]);
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
   const subjects = subjectsOption(ctx);

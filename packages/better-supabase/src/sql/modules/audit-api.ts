@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, userGrant, raise } from "../shared.ts";
-import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
+import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
 
@@ -240,13 +240,9 @@ export function reveal(ctx: ModuleContext, restricted: boolean): string {
   const r = (logical: string) => ctx.col("restricted", logical);
   const key = ctx.permission(
     "reveal",
-    ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view),
+    ctx.permissionKey("view", OPERATIONS["audit.view"]),
   );
-  const viewAll = modulePermission(
-    ctx,
-    "viewAll",
-    MODULE_PERMISSIONS.audit.viewAll,
-  );
+  const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
   const fields = (
     [
       ["old", "old"],

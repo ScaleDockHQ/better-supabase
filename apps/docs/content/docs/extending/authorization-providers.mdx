@@ -248,6 +248,13 @@ operations: {
 },
 ```
 
+An MCP tool's `operation`, an agent's `toolOperations` and a
+workflow-builder step's `operation` name an entry in place of the prefixed
+one. Under the access module, `better_supabase.operation_permission(op)`
+answers the key of any operation in SQL: the installed modules' operations
+(`<module>.<action>`, such as `audit.view`) after renames, with this table
+over them, and `null` for a name nobody declared.
+
 Each `permission` must be in `permissions` when the provider lists them; the
 conformance block checks it. `meta.risk` and `meta.effects` describe the
 operation for approval prompts and tool listings.

@@ -14,7 +14,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
   options: ["checklists"],
@@ -129,7 +129,7 @@ function build(ctx: ModuleContext): string {
   const p = ctx.table("progress");
   const c = (logical: string): string => ctx.col("progress", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const permissions = MODULE_PERMISSIONS.onboarding;
+  const permissions = moduleOperations("onboarding");
   const can = (tenant: string, action: "read" | "complete"): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission(action, permissions[action]))})`;
   const steps = checklistSteps(ctx);

@@ -35,7 +35,11 @@ const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  hooks: ["before_promotion_save", "after_promotion_save"],
+  hooks: [
+    "before_promotion_save",
+    "after_promotion_save",
+    "before_promotion_activate",
+  ],
   tables: {
     promotions: {
       name: "promotions",

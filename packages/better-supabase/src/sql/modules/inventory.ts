@@ -8,7 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { fail, lockTable, schemaPreamble } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { OPERATIONS } from "./access-model.ts";
 import {
   purchaseOrderFunctions,
   transferFunctions,
@@ -464,10 +464,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const names: InventoryNames = {
     fn: (name) => ctx.fn(name),
-    manage: ctx.permission("manage", MODULE_PERMISSIONS.inventory.manage),
-    read: ctx.permission("read", MODULE_PERMISSIONS.inventory.read),
-    reserve: ctx.permission("reserve", MODULE_PERMISSIONS.inventory.reserve),
-    purchase: ctx.permission("purchase", MODULE_PERMISSIONS.inventory.purchase),
+    manage: ctx.permission("manage", OPERATIONS["inventory.manage"]),
+    read: ctx.permission("read", OPERATIONS["inventory.read"]),
+    reserve: ctx.permission("reserve", OPERATIONS["inventory.reserve"]),
+    purchase: ctx.permission("purchase", OPERATIONS["inventory.purchase"]),
   };
   return `${schemaPreamble(ctx)}
 -- Stock per catalog variant and location: an append-only movement ledger,

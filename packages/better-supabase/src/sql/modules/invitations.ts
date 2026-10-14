@@ -13,7 +13,7 @@ import {
 } from "../shared.ts";
 import {
   accessModel,
-  MODULE_PERMISSIONS,
+  OPERATIONS,
   modulePermission,
   roleNames,
   tenantScope,
@@ -182,7 +182,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with(${modulePermission(ctx, "view", MODULE_PERMISSIONS.invitations.view)});
+  return query select better_supabase.tenant_ids_with(${modulePermission(ctx, "view", OPERATIONS["invitations.view"])});
 end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
@@ -364,7 +364,7 @@ begin
   if tenant is null then
     ${platformInvite(ctx, p)}
   end if;
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", OPERATIONS["invitations.invite"])}), false) then
     ${fail("INVITATION_FORBIDDEN", "Not allowed to invite members")}
   end if;
   if better_supabase.tenant_disabled(tenant) or ${organizationMissing(ctx, "tenant")} then
@@ -446,7 +446,7 @@ $$;
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
-  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${modulePermission(ctx, "revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
+  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${modulePermission(ctx, "revoke", OPERATIONS["invitations.revoke"])}), false)`;
 }
 
 function close(ctx: ModuleContext): string {
@@ -636,7 +636,7 @@ function accept(
   const model = accessModel(ctx);
   const invitePermission = ctx.permission(
     "invite",
-    MODULE_PERMISSIONS.invitations.invite,
+    OPERATIONS["invitations.invite"],
   );
   const storedRole = `invite.${t.col("role")}`;
   const role = roleValue(ctx, storedRole, `invite.${t.col("tenant")}`);

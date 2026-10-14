@@ -109,6 +109,13 @@ export interface WorkflowStepInfo {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   /** The credential kind the step resolves, when it needs one. */
   readonly credentialKind?: string | undefined;
+  /**
+   * The operation a node of this step checks at publish, in place of
+   * `workflow.run`: the provider's entry for it, else the name itself as
+   * the permission key. The provider's `workflow.node.<step>` entry still
+   * takes precedence.
+   */
+  readonly operation?: string | undefined;
 }
 
 export interface WorkflowNodeRun {
