@@ -132,6 +132,8 @@ expose the module schema itself.
 | [Search](/docs/blocks/search)                               | `better-supabase/blocks/search`, `better-supabase/blocks/search/react`                                                             | `search`                               |
 | [Metrics](/docs/blocks/metrics)                             | `better-supabase/blocks/metrics`                                                                                                   | `metrics`                              |
 | [Commerce](/docs/blocks/commerce)                           | `better-supabase/blocks/commerce`                                                                                                  | none                                   |
+| [Calendar](/docs/blocks/calendar)                           | `better-supabase/blocks/calendar`, `better-supabase/blocks/calendar/react`                                                         | `calendar`                             |
+| [Bookings](/docs/blocks/bookings)                           | `better-supabase/blocks/bookings`, `better-supabase/blocks/bookings/react`                                                         | `bookings`                             |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -228,6 +230,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `bulk`               | `tenant`, `access`                        | `jobs`, `outbox`, `tags`, `state-machine`, `relations`                     |
 | `search`             | `tenant`, `access`, `subjects`            | `share-links`, `vector-search`                                             |
 | `metrics`            | `tenant`, `access`                        | `usage`, `jobs`                                                            |
+| `calendar`           | `tenant`, `access`                        | `share-links`, `reminders`, `outbox`                                       |
+| `bookings`           | `tenant`, `access`                        | `jobs`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox`     |
 | `ensure-rls`         | none                                      | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

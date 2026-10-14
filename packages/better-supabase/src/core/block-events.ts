@@ -383,6 +383,16 @@ export interface SaasEventData {
   readonly failed?: number;
 }
 
+/** Events from the calendar and bookings blocks. */
+export interface SchedulingEventData {
+  readonly organizationId?: string | null;
+  readonly id?: string;
+  readonly name?: string;
+  readonly calendarId?: string;
+  readonly resourceId?: string;
+  readonly serviceId?: string | null;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -521,6 +531,14 @@ export interface BlockEventMap {
   "subject.linked": SaasSubjectEventData;
   "subject.unlinked": SaasSubjectEventData;
   "bulk_run.completed": SaasEventData;
+  "calendar.created": SchedulingEventData;
+  "calendar_event.created": SchedulingEventData;
+  "calendar_event.updated": SchedulingEventData;
+  "calendar_event.deleted": SchedulingEventData;
+  "booking.reserved": SchedulingEventData;
+  "booking.confirmed": SchedulingEventData;
+  "booking.cancelled": SchedulingEventData;
+  "booking.expired": SchedulingEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -1954,6 +1954,7 @@
       "RowEventData",
       "SaasEventData",
       "SaasSubjectEventData",
+      "SchedulingEventData",
       "ScimEventData",
       "SettingEventData",
       "SsoProviderEventData",
@@ -3715,6 +3716,90 @@
       "TaxRates",
       "TaxReverseInput",
       "TaxTransaction"
+    ]
+  },
+  "./blocks/calendar": {
+    "values": [
+      "calendarEventOf",
+      "createCalendar",
+      "expandOccurrences",
+      "fromEventCalendarUpdate",
+      "parseIcs",
+      "seriesOf",
+      "splitRule",
+      "toEventCalendarEvents",
+      "toEventCalendarResources",
+      "toIcs"
+    ],
+    "types": [
+      "AttendeeResponse",
+      "AttendeeRole",
+      "Calendar",
+      "CalendarAttendee",
+      "CalendarEvent",
+      "CalendarEventInput",
+      "CalendarEventStatus",
+      "CalendarImport",
+      "CalendarInfo",
+      "CalendarOccurrence",
+      "CalendarOptions",
+      "EventCalendarEvent",
+      "EventCalendarOptions",
+      "EventCalendarResource",
+      "IcsEvent",
+      "IcsSource",
+      "OccurrenceMove",
+      "OccurrenceOptions",
+      "OccurrenceRange",
+      "ParsedIcs",
+      "SavedCalendarEvent",
+      "SplitRules",
+      "ToIcsOptions"
+    ]
+  },
+  "./blocks/calendar/react": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "CalendarState",
+      "UseCalendarOptions"
+    ]
+  },
+  "./blocks/bookings": {
+    "values": [
+      "BOOKING_EXPIRE_QUEUE",
+      "bookingOf",
+      "createBookings",
+      "slotsByDay",
+      "toEventCalendarBookings"
+    ],
+    "types": [
+      "Booking",
+      "BookingCustomer",
+      "BookingDuration",
+      "BookingEventOptions",
+      "BookingExceptionInput",
+      "BookingExpirePayload",
+      "BookingRange",
+      "BookingResourceInput",
+      "Bookings",
+      "BookingServiceInput",
+      "BookingSlot",
+      "BookingsOptions",
+      "BookingStatus",
+      "PlacedBooking",
+      "PublicBookingService",
+      "WeeklyHours"
+    ]
+  },
+  "./blocks/bookings/react": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsState",
+      "UseAvailableSlotsOptions"
     ]
   },
   "./blocks/announcements/react": {

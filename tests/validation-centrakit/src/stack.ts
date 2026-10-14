@@ -165,6 +165,10 @@ export async function withCentraKit(
   const session = new Session(client);
   try {
     await client.query("begin");
+    // validation-recipes installs blocks on the same database; concurrent installs deadlock.
+    await client.query(
+      "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
+    );
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(
         `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at, raw_user_meta_data)

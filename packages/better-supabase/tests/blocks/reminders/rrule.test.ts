@@ -137,3 +137,65 @@ describe("expandRule", () => {
     expect(days(found)).toEqual(["1997-09-15", "1997-10-15"]);
   });
 });
+
+describe("expandRule with a window", () => {
+  const amsterdam = (text: string): Temporal.ZonedDateTime =>
+    Temporal.ZonedDateTime.from(`${text}[Europe/Amsterdam]`);
+
+  it.each([
+    "FREQ=DAILY;INTERVAL=3",
+    "FREQ=WEEKLY;BYDAY=MO,TH",
+    "FREQ=WEEKLY;INTERVAL=2;BYDAY=FR;WKST=SU",
+    "FREQ=MONTHLY;BYMONTHDAY=31",
+    "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+    "FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+  ])("matches the full expansion inside the window for %s", (rrule) => {
+    const dtstart = amsterdam("2024-01-05T09:00:00+01:00");
+    const from = Temporal.Instant.from("2026-02-10T00:00:00Z");
+    const until = Temporal.Instant.from("2026-06-01T00:00:00Z");
+    const all = expandRule({ dtstart, rrule, limit: 366 * 4 }).filter(
+      (when) =>
+        Temporal.Instant.compare(when.toInstant(), from) >= 0 &&
+        Temporal.Instant.compare(when.toInstant(), until) < 0,
+    );
+    const windowed = expandRule({ dtstart, rrule, window: { from, until } });
+    expect(windowed.map(String)).toEqual(all.map(String));
+  });
+
+  it("keeps the wall-clock time across DST", () => {
+    const found = expandRule({
+      dtstart: amsterdam("2026-03-23T09:00:00+01:00"),
+      rrule: "FREQ=WEEKLY",
+      window: {
+        from: Temporal.Instant.from("2026-03-20T00:00:00Z"),
+        until: Temporal.Instant.from("2026-04-10T00:00:00Z"),
+      },
+    });
+    expect(found.map((when) => when.hour)).toEqual([9, 9, 9]);
+    expect(found[1]?.offset).toBe("+02:00");
+  });
+
+  it("counts COUNT from dtstart, not from the window", () => {
+    const found = expandRule({
+      dtstart: utc("2026-01-01T09:00:00Z"),
+      rrule: "FREQ=DAILY;COUNT=10",
+      window: {
+        from: Temporal.Instant.from("2026-01-08T00:00:00Z"),
+        until: Temporal.Instant.from("2026-02-01T00:00:00Z"),
+      },
+    });
+    expect(days(found)).toEqual(["2026-01-08", "2026-01-09", "2026-01-10"]);
+  });
+
+  it("skips ahead for a long-running daily series", () => {
+    const found = expandRule({
+      dtstart: utc("2000-01-01T09:00:00Z"),
+      rrule: "FREQ=DAILY",
+      window: {
+        from: Temporal.Instant.from("2030-01-01T00:00:00Z"),
+        until: Temporal.Instant.from("2030-01-03T00:00:00Z"),
+      },
+    });
+    expect(days(found)).toEqual(["2030-01-01", "2030-01-02"]);
+  });
+});

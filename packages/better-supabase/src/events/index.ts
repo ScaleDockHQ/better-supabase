@@ -283,6 +283,7 @@ export type {
   PushDeviceEventData,
   SaasEventData,
   SaasSubjectEventData,
+  SchedulingEventData,
   ScimEventData,
   SettingEventData,
   SsoProviderEventData,

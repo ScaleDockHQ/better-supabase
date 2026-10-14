@@ -23,6 +23,13 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   tags: ["before_tag_apply", "after_tag_apply"],
   search: ["before_search_document_index", "after_search_document_index"],
   metrics: ["before_metric_rollup", "after_metric_rollup"],
+  calendar: ["before_calendar_event_save", "after_calendar_event_save"],
+  bookings: [
+    "before_booking_reserve",
+    "after_booking_reserve",
+    "after_booking_confirm",
+    "after_booking_cancel",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

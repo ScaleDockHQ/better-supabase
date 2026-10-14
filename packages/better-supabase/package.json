@@ -664,6 +664,28 @@
       "types": "./dist/blocks/commerce/index.d.ts",
       "default": "./dist/blocks/commerce/index.js"
     },
+    "./blocks/calendar": {
+      "@better-supabase/source": "./src/blocks/calendar/index.ts",
+      "types": "./dist/blocks/calendar/index.d.ts",
+      "default": "./dist/blocks/calendar/index.js"
+    },
+    "./blocks/calendar/react": {
+      "@better-supabase/source": "./src/blocks/calendar/react/index.ts",
+      "types": "./dist/blocks/calendar/react/index.d.ts",
+      "react-server": "./dist/blocks/calendar/react/server.js",
+      "default": "./dist/blocks/calendar/react/index.js"
+    },
+    "./blocks/bookings": {
+      "@better-supabase/source": "./src/blocks/bookings/index.ts",
+      "types": "./dist/blocks/bookings/index.d.ts",
+      "default": "./dist/blocks/bookings/index.js"
+    },
+    "./blocks/bookings/react": {
+      "@better-supabase/source": "./src/blocks/bookings/react/index.ts",
+      "types": "./dist/blocks/bookings/react/index.d.ts",
+      "react-server": "./dist/blocks/bookings/react/server.js",
+      "default": "./dist/blocks/bookings/react/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1270,6 +1292,24 @@
       "./blocks/commerce": {
         "types": "./dist/blocks/commerce/index.d.ts",
         "default": "./dist/blocks/commerce/index.js"
+      },
+      "./blocks/calendar": {
+        "types": "./dist/blocks/calendar/index.d.ts",
+        "default": "./dist/blocks/calendar/index.js"
+      },
+      "./blocks/calendar/react": {
+        "types": "./dist/blocks/calendar/react/index.d.ts",
+        "react-server": "./dist/blocks/calendar/react/server.js",
+        "default": "./dist/blocks/calendar/react/index.js"
+      },
+      "./blocks/bookings": {
+        "types": "./dist/blocks/bookings/index.d.ts",
+        "default": "./dist/blocks/bookings/index.js"
+      },
+      "./blocks/bookings/react": {
+        "types": "./dist/blocks/bookings/react/index.d.ts",
+        "react-server": "./dist/blocks/bookings/react/server.js",
+        "default": "./dist/blocks/bookings/react/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
