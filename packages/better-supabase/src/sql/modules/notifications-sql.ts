@@ -4,13 +4,20 @@ import type { ModuleLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, fail } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
-import { permissionAudience } from "./notifications-audience.ts";
+import {
+  channelDefaults,
+  permissionAudience,
+} from "./notifications-audience.ts";
 import {
   changedJson,
   integerMutations,
   itemJson,
 } from "./notifications-items.ts";
 import { readers } from "./notifications-readers.ts";
+import {
+  claimSuppression,
+  suppressionFunctions,
+} from "./notifications-suppressions.ts";
 import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
@@ -45,28 +52,6 @@ export function notifyNames(
 }
 
 const NAME = /^[a-z][a-z0-9_]*$/;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
-function channelDefaults(ctx: ModuleContext, channel: string): string {
-  const value = ctx.option("channelDefaults") ?? {};
-  if (!isRecord(value)) {
-    throw new TypeError(
-      "sql.modules.notifications.options.channelDefaults must map channel names to booleans",
-    );
-  }
-  const cases = Object.entries(value).map(([channel, enabled]) => {
-    if (!NAME.test(channel) || typeof enabled !== "boolean") {
-      throw new TypeError(
-        `sql.modules.notifications.options.channelDefaults.${channel} must be a boolean`,
-      );
-    }
-    return `when ${sqlString(channel)} then ${String(enabled)}`;
-  });
-  return `case ${channel} ${[...cases, "when 'in_app' then true"].join(" ")} else false end`;
-}
 
 /**
  * The (member, channel) pairs that want this notification, in one query:
@@ -888,6 +873,7 @@ function delivery(ctx: ModuleContext, n: NotifyNames): string {
   );
   const retries = n.has("deliveries", "attempts");
   const backoff = n.has("deliveries", "nextAttemptAt");
+  const suppression = claimSuppression(ctx, n);
   if (backoff)
     set.push(
       `${d("nextAttemptAt")} = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, ${retries ? `greatest(d.${d("attempts")}, 1) - 1` : "0"})))) else d.${d("nextAttemptAt")} end`,
@@ -951,12 +937,12 @@ begin${lostLease}
     'attempts', ${retries ? `l.${d("attempts")}` : "1"},
     'user_id', rc.${r("user")},
     'email', u.email,
-    'notification', ${itemJson(n)}
+    'notification', ${itemJson(n)}${suppression.field}
   )), '[]') into claimed
   from leased l
   join ${n.table("recipients")} rc on rc.${r("id")} = l.${d("recipient")}
   join ${n.table("events")} ev on ev.${n.col("events", "id")} = rc.${r("event")}
-  left join auth.users u on u.id = rc.${r("user")};
+  left join auth.users u on u.id = rc.${r("user")}${suppression.join};
   return claimed;
 end;
 $$;
@@ -1030,6 +1016,7 @@ export function functions(
     settings(ctx, n),
     readers(ctx, n),
     delivery(ctx, n),
+    suppressionFunctions(ctx, n),
     purge(ctx, n),
   ].join("\n");
 }

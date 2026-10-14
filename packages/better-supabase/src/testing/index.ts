@@ -54,6 +54,11 @@ export { testAdapter } from "./adapter.ts";
 export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 export { testAuthorizationProvider } from "./authorization-provider.ts";
 export { testAuthorizationHooks } from "./authorization-hooks.ts";
+export {
+  type ReceivedDelivery,
+  testDeliveryTransport,
+  type TestDeliveryTransportOptions,
+} from "./delivery-transport.ts";
 export { staticAuthorizer, testAuthorizer } from "./authorizer.ts";
 export { testDocumentFormat } from "./document-format.ts";
 export type { TestDocumentFormatOptions } from "./document-format.ts";

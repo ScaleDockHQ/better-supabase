@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
+import { sqlString } from "../../core/template.ts";
 import { fail } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 
@@ -114,4 +115,28 @@ function audienceAppend(
   if ${named} is not null then
     v_recipients := v_recipients || coalesce(array(select u from ${call} as t(u)), '{}');
   end if;`;
+}
+
+const NAME = /^[a-z][a-z0-9_]*$/;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
+export function channelDefaults(ctx: ModuleContext, channel: string): string {
+  const value = ctx.option("channelDefaults") ?? {};
+  if (!isRecord(value)) {
+    throw new TypeError(
+      "sql.modules.notifications.options.channelDefaults must map channel names to booleans",
+    );
+  }
+  const cases = Object.entries(value).map(([channel, enabled]) => {
+    if (!NAME.test(channel) || typeof enabled !== "boolean") {
+      throw new TypeError(
+        `sql.modules.notifications.options.channelDefaults.${channel} must be a boolean`,
+      );
+    }
+    return `when ${sqlString(channel)} then ${String(enabled)}`;
+  });
+  return `case ${channel} ${[...cases, "when 'in_app' then true"].join(" ")} else false end`;
 }

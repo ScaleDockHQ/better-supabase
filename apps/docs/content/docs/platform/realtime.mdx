@@ -86,6 +86,41 @@ access: { receive: "board.view", scope: "organization", sql },
 `receive` or `send` key the provider doesn't mark `sqlComplete: true`, for
 topics in the config and for generated topic policies in your SQL files.
 
+### Instance permission
+
+`permission` checks a permission on the one instance a topic is about, with
+the instance id taken from a topic segment:
+
+```ts
+export const post = defineTopic(
+  "organization:{organizationId}:posts:{postId}",
+  {
+    permission: "posts.read",
+  },
+);
+```
+
+Joining and sending then also need `posts.read` on the post in the last
+segment. The check adds to the tenant and owner checks.
+
+| Field      | Default                                  |
+| ---------- | ---------------------------------------- |
+| `key`      | Required; the string form sets only this |
+| `param`    | The template's last placeholder          |
+| `resource` | The part of `key` before the first `.`   |
+| `scope`    | `tenant`                                 |
+
+`param` must be a whole segment. With an
+[authorization provider](/docs/extending/authorization-providers), the policy
+calls its `permitted` template with `{permission}`, `{id}` (the instance
+segment), `{tenant}` (the tenant segment, or `null` without one),
+`{resource}` and `{scope}`; a `null` answer denies. `better-supabase sql sync`
+passes the config's `authorization.functions`; anywhere else pass them to
+`topic.sql({ functions })`. Without `permitted`, the policy falls back to the
+[access contract](/docs/blocks/access): the caller needs the permission in
+the tenant of the topic (`tenant_ids_with`), so the check can't tell one
+instance from another, and a topic without a tenant segment throws.
+
 ### Writing the policies to a file
 
 `realtime.policies` keeps the generated policies in a schema file:
@@ -280,6 +315,42 @@ await notifications
 The payload is validated first (a `validation` error on failure) and sent over
 HTTP without joining the channel. Policy denials come back as `unauthorized`
 or `forbidden`.
+
+### Fan-out
+
+`topic.fanOut(client, options)` sends one event to a topic per subscriber,
+after a `SubscriberPolicy` has decided who may read it:
+
+```ts
+const result = await inbox
+  .fanOut(admin, {
+    subscribers: members.map((id) => ({ principal: id })),
+    values: (subscriber) => ({ userId: subscriber.principal }),
+    event: "created",
+    payload: { id, title },
+    source: {
+      type: "post.created",
+      tenant,
+      actorId,
+      payload: { id },
+      subject: `post/${id}`,
+    },
+    server: { authorization },
+  })
+  .orThrow();
+// { sent, skipped, failed }
+```
+
+The policy is `options.policy`, then the topic's `subscribers` option, then
+the server's `authorization.delivery.subscribers`
+([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)).
+Without any, every subscriber gets the event. The policy receives `source`
+and the subscribers, and can narrow the list but never widen it: a
+subscriber it returns that wasn't passed in is ignored. Subscribers it leaves
+out come back in `skipped`. A policy that throws sends to no one and returns
+a `forbidden` error with the hint `REALTIME_SUBSCRIBER_POLICY_FAILED`. Sends
+run one at a time; a failed send lands in `failed` with its error and the
+rest continue.
 
 ## Presence
 

@@ -324,33 +324,39 @@ from a job.
 ## Email, push and other channels
 
 Every channel except `in_app` gets a `pending` delivery row per recipient.
-Pass a `NotificationChannel` per channel and call `deliver()` from a cron
-route or a job, with a service connection:
+Pass `email` for mail and a `NotificationChannel` for any other channel,
+then call `deliver()` from a cron route or a job, with a service connection:
 
 ```ts title="app/api/notifications/deliver/route.ts"
 import "server-only";
 
 import {
   createNotifications,
+  resendTransport,
   sqlTransport,
 } from "better-supabase/blocks/notifications";
 
+import { env } from "@/env";
 import { types } from "@/lib/notifications";
+import { unsubscribeUrl } from "@/lib/unsubscribe";
 
 const notifications = createNotifications({
   transport: sqlTransport(postgres.admin),
   types,
+  email: {
+    transport: resendTransport({ apiKey: env.RESEND_API_KEY }),
+    from: "Acme <notifications@acme.com>",
+    unsubscribe: (message) => ({
+      url: unsubscribeUrl(message.userId, message.notification.type),
+    }),
+  },
   channels: [
     {
       apiVersion: 1,
-      name: "email",
-      send: async ({ email, text, notification }) => {
-        if (!email) return { status: "skipped" };
-        const { id } = await resend.emails.send({
-          to: email,
-          subject: text?.title ?? notification.type,
-        });
-        return { provider: "resend", providerMessageId: id };
+      name: "push",
+      send: async ({ userId, text }) => {
+        const id = await push.send(userId, text?.title ?? "");
+        return { provider: "web-push", providerMessageId: id };
       },
     },
   ],
@@ -372,6 +378,186 @@ worker died while it held the last attempt. `testNotificationChannel` from
 Run `purge()` (`purge_notifications(older_than, batch)` in SQL) from a
 scheduled job to delete notifications older than 90 days with their
 recipients and deliveries, 10,000 per call.
+
+### Email
+
+`email` adds a channel named `email` that sends through a
+`DeliveryTransport`: `{ apiVersion: 1, channel: "email", provider, send(message, { idempotencyKey }) }`.
+The idempotency key is the delivery id, so a retried delivery reaches the
+provider under the same key and sends one email. Passing `email` next to a
+channel named `email` throws.
+
+| Option        | Use                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| `transport`   | The `DeliveryTransport` that sends the mail                                                              |
+| `from`        | The sender, e.g. `Acme <notifications@acme.com>`                                                         |
+| `replyTo`     | An optional reply address                                                                                |
+| `compose`     | `(message) => ({ subject, text?, html?, replyTo?, category? })`; defaults to the rendered title and body |
+| `unsubscribe` | `(message) => ({ url?, mailto? })`: your signed unsubscribe link for notification mail                   |
+
+A recipient without an email address is skipped. Without `compose`, the
+block needs `render`, and a notification it can't render fails its delivery.
+
+`resendTransport({ apiKey })` posts to `https://api.resend.com/emails` with
+`fetch` and the delivery id in the `Idempotency-Key` header. Read the key
+from your own environment; the block never reads one. A failed call throws a
+`ResendError` with Resend's HTTP status and error name, and the delivery
+retries. `baseUrl` and `fetch` replace the endpoint and the client, e.g. in
+tests.
+
+#### Headers per category
+
+`compose` returns a `category`, `notification` by default. The channel sets
+the headers from it with `mailHeaders(category, unsubscribe)`:
+
+| Header                                              | `notification` | `security` | `approval` |
+| --------------------------------------------------- | -------------- | ---------- | ---------- |
+| `Auto-Submitted: auto-generated` (RFC 3834)         | Yes            | Yes        | Yes        |
+| `List-Unsubscribe` (RFC 2369)                       | Yes            | No         | No         |
+| `List-Unsubscribe-Post: List-Unsubscribe=One-Click` | With a URL     | No         | No         |
+
+`List-Unsubscribe` lists the `url` and the `mailto` target that
+`unsubscribe` returns. RFC 8058 one-click needs an `https` URL, so the
+`List-Unsubscribe-Post` header appears only with one. A URL that isn't
+`https`, or an address that doesn't start with `mailto:`, throws. Security
+and approval mail never carries an unsubscribe header, and the channel
+doesn't call `unsubscribe` for it. The unsubscribe endpoint is yours: it
+receives a `POST` with `List-Unsubscribe=One-Click` in the body and turns the
+type off through `setPreference`.
+
+#### Audience
+
+`audience` is a `SubscriberPolicy` that every recipient passes before
+`deliver` sends to them. Without it, `deliver` uses the server's
+`authorization.delivery.audience` ([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)):
+
+```ts
+const notifications = createNotifications({
+  transport: sqlTransport(postgres.admin),
+  types,
+  email,
+  server: { authorization },
+});
+```
+
+The policy runs once per notification for the claimed recipients, after
+suppressed addresses are left out and before any send. It receives
+`{ type, tenant, actorId, payload, subject }` and the recipients as
+`{ principal: userId, kind: "user" }`. A recipient it leaves out is
+`skipped` with the error `audience`. It can narrow the list but never widen
+it: a principal that wasn't passed in is ignored. A policy that throws, or
+returns something other than a list, sends to no one; the deliveries stay
+`pending` with `audience check failed: …` and retry.
+
+#### Suppressions
+
+`notification_suppressions` holds the addresses a channel must not send to:
+one row per channel and lowercase address, with a `reason` (`bounce`,
+`complaint` or `manual`), the user it belongs to, the provider and its event
+id. `deliver` skips a suppressed address before the audience check and any
+send, and records the delivery as `skipped` with the error
+`suppressed: <reason>`.
+
+RLS lets users read their own rows; only the service role writes them.
+
+| Method                          | SQL                                         | Who           |
+| ------------------------------- | ------------------------------------------- | ------------- |
+| `suppress({ address, reason })` | `suppress_notification_address`             | service role  |
+| `unsuppress(address, channel?)` | `unsuppress_notification_address`           | service role  |
+| `suppressions({ limit? })`      | `list_notification_suppressions(max_items)` | the user, RLS |
+
+`suppress` returns `true` for a new row and `false` when the address was
+already suppressed; the first reason stays. `unsuppress` returns whether a
+row was removed.
+
+`resendWebhook` writes the suppressions from Resend's bounce and complaint
+events. It verifies the Svix signature (`svix-id`, `svix-timestamp`,
+`svix-signature`, or the `webhook-` names) with the endpoint's signing
+secret, and answers 204:
+
+```ts title="app/api/webhooks/resend/route.ts"
+import "server-only";
+
+import {
+  createNotifications,
+  resendWebhook,
+  sqlTransport,
+} from "better-supabase/blocks/notifications";
+
+import { env } from "@/env";
+import { types } from "@/lib/notifications";
+
+export const POST = resendWebhook({
+  secret: env.RESEND_WEBHOOK_SECRET,
+  notifications: createNotifications({
+    transport: sqlTransport(postgres.admin),
+    types,
+  }),
+});
+```
+
+| Resend event                                 | Suppression                |
+| -------------------------------------------- | -------------------------- |
+| `email.bounced`, bounce type not `Transient` | `bounce`, per recipient    |
+| `email.complained`                           | `complaint`, per recipient |
+| Anything else, or a `Transient` bounce       | None                       |
+
+A bad signature answers 401, a body over `maxBodyBytes` (256 KiB) 413, and a
+method other than `POST` 405. A failed write answers with its problem, so
+Resend retries the event. Pass `seen` to refuse a replayed message id, and
+an array of secrets while rotating. `resendSuppressions(event, id)` maps an
+event without the handler, e.g. from a queue.
+
+#### Other providers
+
+A transport for another provider is an object with `send`. Postmark, Amazon
+SES and SMTP have no built-in transport; these sketches put the same pieces
+on each provider's API. Each one passes `testDeliveryTransport` from
+`better-supabase/testing`.
+
+```ts title="lib/postmark-transport.ts"
+import type { DeliveryTransport } from "better-supabase/blocks/notifications";
+
+export const postmark = (token: string): DeliveryTransport => ({
+  apiVersion: 1,
+  channel: "email",
+  provider: "postmark",
+  async send(message, { idempotencyKey }) {
+    const response = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-postmark-server-token": token,
+      },
+      body: JSON.stringify({
+        From: message.from,
+        To: message.to,
+        Subject: message.subject,
+        TextBody: message.text,
+        HtmlBody: message.html,
+        MessageStream:
+          message.category === "notification" ? "broadcast" : "outbound",
+        Headers: [
+          ...Object.entries(message.headers),
+          ["X-Delivery-Id", idempotencyKey],
+        ].map(([Name, Value]) => ({ Name, Value })),
+      }),
+    });
+    if (!response.ok) throw new Error(`Postmark answered ${response.status}`);
+    const { MessageID }: { MessageID: string } = await response.json();
+    return { providerMessageId: MessageID };
+  },
+});
+```
+
+Postmark has no idempotency key, so the sketch sends the delivery id as a
+header to deduplicate on. For Amazon SES, call `SendEmail` of the SES v2 API
+with `@aws-sdk/client-sesv2` and pass the headers in
+`Content.Simple.Headers`; SES has no idempotency key either. For SMTP, send
+with `nodemailer` from a Node.js runtime, with the headers in `headers` and
+the delivery id as the `Message-ID` local part, so a retry repeats the same
+id. Point the provider's bounce and complaint notifications at a route that
+calls `notifications.suppress` with the service connection.
 
 ## From outbox events
 
@@ -452,6 +638,7 @@ events come from a relay or a broker rather than from the outbox itself.
 | `before_notification_send` hook | A SQL function that gets the notification as `jsonb` and raises to refuse it                                                             |
 | `after_notify` hook             | A SQL function that runs in the same transaction after the rows are written                                                              |
 | `hooks` option                  | Refuses, rewrites or observes any method in TypeScript, e.g. quiet hours on `send`; see [Extending blocks](/docs/extending/blocks#hooks) |
+| `audience` option               | Narrows who `deliver` sends to; see [Audience](#audience)                                                                                |
 | `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`                                                                 |
 | `notification.*` block events   | `created`, `delivered` and `failed` on `betterSupabase.events`                                                                           |
 | `notifications.send` permission | Rename it with `sql.modules.notifications.permissions.send`                                                                              |
@@ -460,9 +647,11 @@ events come from a relay or a broker rather than from the outbox itself.
 
 The managed tables are `notification_events` (with `type`, `data` and
 `actor_id`), `notification_recipients` (keyed on `user_id`),
-`notification_deliveries`, `notification_subscriptions` and
-`notification_preferences`, keyed on `organization_id`. Adopt yours and
-rename what differs; map columns and tables you don't have to `null`:
+`notification_deliveries`, `notification_subscriptions`,
+`notification_preferences`, keyed on `organization_id`, and
+`notification_suppressions`. Adopt yours and rename what differs; map
+columns and tables you don't have to `null`. An adopted module honours
+suppressions only when `tables.suppressions` names your table:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -507,3 +696,5 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`  |
 | `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know          |
 | `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |
+| `NOTIFICATION_SUPPRESSION_ADDRESS` | `suppress` without an address                                       |
+| `NOTIFICATION_SUPPRESSION_REASON`  | A suppression reason other than `bounce`, `complaint` or `manual`   |

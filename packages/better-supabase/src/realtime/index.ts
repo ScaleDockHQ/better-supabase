@@ -18,6 +18,7 @@ export type {
   TopicMessage,
   TopicOptions,
   TopicPayload,
+  TopicPermission,
   TopicSqlOptions,
   TopicSubscribeOptions,
   TopicSubscription,
@@ -28,6 +29,7 @@ export type {
 } from "./topic.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { AccessPolicySql, AccessTopicPolicy } from "../schema/types.ts";
+export type { FanOutResult, TopicFanOutOptions } from "./fan-out.ts";
 export { liveCount, liveQuery, liveTopic } from "./live.ts";
 export type {
   CountRunner,

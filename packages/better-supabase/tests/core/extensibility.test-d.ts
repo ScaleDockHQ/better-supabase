@@ -9,7 +9,10 @@ import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
-import type { NotificationChannel } from "../../src/blocks/notifications/index.ts";
+import type {
+  DeliveryTransport,
+  NotificationChannel,
+} from "../../src/blocks/notifications/index.ts";
 import type {
   InvitationSent,
   InviteRequest,
@@ -63,6 +66,7 @@ import type {
   OpenApiDocuments,
   OpenApiVersion,
 } from "../../src/openapi/types.ts";
+import type { AuthorizationHooks } from "../../src/server/index.ts";
 import type {
   ServerContext,
   SupportSessionStore,
@@ -145,6 +149,8 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<DeliveryTransport["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<AuthorizationHooks["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();

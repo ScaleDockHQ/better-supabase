@@ -7,6 +7,10 @@ import {
 } from "@supabase/supabase-js";
 
 import type { AuthorizationFunctions } from "../config/authorization.ts";
+import type {
+  Subscriber as FanOutSubscriber,
+  SubscriberPolicy,
+} from "../core/contracts/authorization-hooks.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type {
   AnyFunctions,
@@ -16,6 +20,7 @@ import type {
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type { FanOutResult, TopicFanOutOptions } from "./fan-out.ts";
 
 import { accessCheck, resolveProviderSql } from "../core/access-sql.ts";
 import { tenantClaimPaths } from "../core/claims.ts";
@@ -34,8 +39,10 @@ import {
 import { toApp } from "../schema/casing.ts";
 import { refreshRealtimeAuth } from "./auth.ts";
 import { joinTopic, type Subscriber } from "./channels.ts";
+import { fanOutTopic } from "./fan-out.ts";
 import {
   eventSql,
+  topicPermissionSql,
   triggerValueSql,
   type AnyTriggerValue,
 } from "./topic-sql.ts";
@@ -80,6 +87,20 @@ export interface TopicOptions<
    * authorization provider doesn't mark `sqlComplete: true`.
    */
   readonly access?: AccessTopicPolicy;
+  /**
+   * A permission on the instance the topic is about, such as
+   * `'posts.read'` on `org:{organizationId}:posts:{postId}`: every receiver
+   * and sender must hold it on that instance. With an authorization
+   * provider, `sql({ functions })` checks it with the provider's `permitted`
+   * template; without one, with the access contract's tenant check.
+   */
+  readonly permission?: string | TopicPermission;
+  /**
+   * Narrows `fanOut` to the subscribers that may read the event. Defaults
+   * to `server.authorization.delivery.subscribers` when `fanOut` gets the
+   * server.
+   */
+  readonly subscribers?: SubscriberPolicy;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /**
@@ -88,6 +109,17 @@ export interface TopicOptions<
    * this client tracks and the ones it receives. Defaults to `false`.
    */
   readonly presence?: R;
+}
+
+/** A topic's instance permission. */
+export interface TopicPermission {
+  readonly key: string;
+  /** The placeholder holding the instance id, as a whole segment. Defaults to the last one. */
+  readonly param?: string;
+  /** `{resource}` in the `permitted` template. Defaults to the key up to its first `.`. */
+  readonly resource?: string;
+  /** `{scope}` in the `permitted` template. Defaults to `tenant`. */
+  readonly scope?: string;
 }
 
 export interface TopicMessage {
@@ -276,7 +308,10 @@ export interface RowChange<R> {
 
 /** Options for `topic.sql()`. */
 export interface TopicSqlOptions {
-  /** The provider's templates, for an access policy with `sql: "provider"`. */
+  /**
+   * The provider's templates, for an access policy with `sql: "provider"`
+   * and for `permission` (its `permitted` template).
+   */
   readonly functions?: AuthorizationFunctions;
 }
 
@@ -330,6 +365,15 @@ export interface Topic<
     event: K,
     payload: TopicPayload<E, K>,
   ): AsyncResult<void>;
+  /**
+   * Sends one event to each subscriber's own topic (such as
+   * `notifications:{userId}`) after the subscriber policy narrows them.
+   * A policy that throws sends to no one and returns a `forbidden` error.
+   */
+  fanOut<S extends FanOutSubscriber, K extends TopicEvent<E>>(
+    client: RealtimeClient,
+    options: TopicFanOutOptions<P, E, K, S>,
+  ): AsyncResult<FanOutResult<S>>;
 }
 
 const VALUE = /^[\w.@+=-]+$/;
@@ -460,10 +504,35 @@ export function defineTopic<
     );
   }
 
+  const permission =
+    typeof options.permission === "string"
+      ? { key: options.permission }
+      : options.permission;
+  const permissionTarget = (() => {
+    if (permission === undefined) return;
+    const key = permission.key;
+    if (key === "")
+      throw new TypeError(`defineTopic(${template}): the permission is empty`);
+    const param = permission.param ?? parsed.params.at(-1);
+    if (param === undefined) {
+      throw new TypeError(
+        `defineTopic(${template}): permission "${key}" needs a placeholder for the instance id`,
+      );
+    }
+    return {
+      key,
+      idSegment: segment(param, "permission"),
+      tenantSegment:
+        tenantParam === undefined ? undefined : parsed.segmentOf(tenantParam),
+      resource: permission.resource ?? key.split(".")[0] ?? key,
+      scope: permission.scope ?? "tenant",
+    };
+  })();
+
   const topicOf = (values: TemplateValues<P>): string => parsed.build(values);
 
   // SAFETY: the template parser returns the parameter names written in P.
-  return {
+  const api: Topic<P, E, R> = {
     template,
     name,
     params: parsed.params as TemplateParams<P>[],
@@ -479,12 +548,21 @@ export function defineTopic<
       const extensions = hasPresence
         ? "('broadcast', 'presence')"
         : "('broadcast')";
+      const permissionCheck =
+        permissionTarget === undefined
+          ? undefined
+          : topicPermissionSql({
+              where: `defineTopic(${template})`,
+              ...permissionTarget,
+              permitted: sqlOptions?.functions?.permitted,
+            });
       const condition = (extra: string | undefined) =>
         [
           `(select realtime.topic()) ~ ${sqlString(parsed.sqlPattern)}`,
           `realtime.messages.extension in ${extensions}`,
           ...checks,
           ...(extra === undefined ? [] : [extra]),
+          ...(permissionCheck === undefined ? [] : [permissionCheck]),
         ].join("\n    and ");
       const lines = [`-- better-supabase: topic ${template}`];
       const policies: [string, string, "using" | "with check", string][] = [
@@ -815,7 +893,18 @@ export function defineTopic<
         }
       });
     },
+    fanOut(client, fanOutOptions) {
+      return fanOutTopic(options.subscribers, fanOutOptions, (subscriber) =>
+        api.send(
+          client,
+          fanOutOptions.values(subscriber),
+          fanOutOptions.event,
+          fanOutOptions.payload,
+        ),
+      );
+    },
   };
+  return api;
 }
 
 /**
