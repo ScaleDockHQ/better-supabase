@@ -239,7 +239,6 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `imports`            | `tenant`, `access`, `jobs`                | `attachments`, `outbox`                                                                                  |
 | `subjects`           | `access`                                  | none                                                                                                     |
 | `rank`               | `access`, `subjects`                      | `jobs`                                                                                                   |
-| `identities`         | none                                      | `inbox`                                                                                                  |
 | `saved-views`        | `tenant`, `access`                        | `outbox`, `teams`                                                                                        |
 | `relations`          | `tenant`, `access`                        | `outbox`                                                                                                 |
 | `bulk`               | `tenant`, `access`                        | `jobs`, `outbox`, `tags`, `state-machine`, `relations`, `trash`                                          |
@@ -262,6 +261,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `forms`              | `tenant`, `access`, `jsonb-schemas`       | `custom-fields`, `share-links`, `rate-limit`, `outbox`, `audit`                                          |
 | `signatures`         | `tenant`, `access`, `versions`            | `approvals`, `attachments`, `outbox`, `audit`                                                            |
 | `time-tracking`      | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                                        |
+| `identities`         | none                                      | `inbox`                                                                                                  |
 | `ensure-rls`         | none                                      | none                                                                                                     |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
