@@ -208,11 +208,11 @@ begin
   if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  update ${teams}
-  set ${name} = coalesce(update_team.name, ${name}),
-      ${description} = coalesce(update_team.description, ${description}),
+  update ${teams} as t
+  set ${name} = coalesce(update_team.name, t.${name}),
+      ${description} = coalesce(update_team.description, t.${description}),
       ${updatedAt} = now()
-  where ${id} = update_team.team;
+  where t.${id} = update_team.team;
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
   return jsonb_build_object('id', update_team.team);
 end;
