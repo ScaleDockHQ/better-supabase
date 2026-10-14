@@ -12,7 +12,7 @@ HTTP/1.1 409 Conflict
 Content-Type: application/problem+json
 
 {
-  "type": "https://bettersupabase.com/problems/conflict",
+  "type": "about:blank",
   "title": "Conflict",
   "status": 409,
   "kind": "conflict",
@@ -34,6 +34,16 @@ if (!result.ok)
 const error = fromProblem(await response.json()); // back to a DbError
 ```
 
+Errors that mean no more than their HTTP status use `"type": "about:blank"`
+with the status phrase as the title, as RFC 9457 section 4.2.1 asks. These
+are `invalid_request` (Bad Request), `unauthorized`, `forbidden`,
+`not_found` (Not Found), `conflict`, `rate_limited` (Too Many Requests) and
+`unexpected` (Internal Server Error), each at its default status. Every
+other kind, and a generic kind sent with another status, gets
+`https://bettersupabase.com/problems/<kind>` with dashes, such as
+`https://bettersupabase.com/problems/quota-exceeded`. Branch on `kind` or
+`code` rather than on `type`.
+
 Kind-specific details become extension members next to `code`: `constraint`
 and `columns` for conflicts, `column` for `not_null`, and `required` (`aal1` or
 `aal2`) when a guard's [`aal`](/docs/auth/mfa-sso) rejects the session,
@@ -52,7 +62,7 @@ the pending approval when the authorizer gives one:
 
 ```json
 {
-  "type": "https://bettersupabase.com/problems/forbidden",
+  "type": "about:blank",
   "title": "Forbidden",
   "status": 403,
   "kind": "forbidden",

@@ -3,6 +3,7 @@ import {
   type DbErrorKind,
   type DbErrorKinds,
   dbError,
+  statusOf,
   type ValidationIssue,
 } from "./errors.ts";
 
@@ -38,11 +39,28 @@ export interface ProblemDetails {
   readonly maxAffected?: number;
 }
 
+/** The `type` prefix of kinds that mean more than their HTTP status. */
 export const PROBLEM_TYPE_BASE = "https://bettersupabase.com/problems/";
 export const PROBLEM_CONTENT_TYPE = "application/problem+json";
+/** RFC 9457 section 4.2.1: a problem that means only its HTTP status. */
+const PROBLEM_TYPE_BLANK = "about:blank";
+
+/**
+ * Kinds that say nothing beyond their HTTP status. At their default status
+ * they use `about:blank` with the status phrase as `title`.
+ */
+const GENERIC: Partial<Record<DbErrorKind, string>> = {
+  invalid_request: "Bad Request",
+  unauthorized: "Unauthorized",
+  forbidden: "Forbidden",
+  not_found: "Not Found",
+  conflict: "Conflict",
+  rate_limited: "Too Many Requests",
+  unexpected: "Internal Server Error",
+};
 
 const TITLES: { readonly [K in DbErrorKind]: string } = {
-  not_found: "Not found",
+  not_found: "Not Found",
   unauthorized: "Unauthorized",
   forbidden: "Forbidden",
   conflict: "Conflict",
@@ -57,16 +75,34 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   serialization: "Concurrent update, retry",
   network: "Database unreachable",
   aborted: "Aborted",
-  invalid_request: "Invalid request",
+  invalid_request: "Bad Request",
   validation: "Validation failed",
   multiple_rows: "More than one row matched",
   stale: "Row changed since it was read",
   max_affected: "Too many rows affected",
-  rate_limited: "Too many requests",
+  rate_limited: "Too Many Requests",
   quota_exceeded: "Quota exceeded",
   unsupported: "Not supported by this executor",
-  unexpected: "Unexpected error",
+  unexpected: "Internal Server Error",
 };
+
+/**
+ * The `type` and `title` of a problem: `about:blank` and the status phrase
+ * for a generic kind at its default status, otherwise the kind's URI under
+ * `PROBLEM_TYPE_BASE`.
+ */
+export function problemType(
+  kind: DbErrorKind,
+  status: number = statusOf(kind),
+): { readonly type: string; readonly title: string } {
+  const phrase = GENERIC[kind];
+  if (phrase !== undefined && status === statusOf(kind))
+    return { type: PROBLEM_TYPE_BLANK, title: phrase };
+  return {
+    type: `${PROBLEM_TYPE_BASE}${kind.replaceAll("_", "-")}`,
+    title: TITLES[kind],
+  };
+}
 
 /** Kinds whose message may contain internals (SQL, hostnames), hidden unless `expose` is set. */
 const INTERNAL = new Set<DbErrorKind>([
@@ -112,8 +148,7 @@ export function toProblem(
   options: ProblemOptions = {},
 ): ProblemDetails {
   const problem: Record<string, unknown> = {
-    type: `${PROBLEM_TYPE_BASE}${error.kind.replaceAll("_", "-")}`,
-    title: TITLES[error.kind],
+    ...problemType(error.kind, error.status),
     status: error.status,
     kind: error.kind,
   };

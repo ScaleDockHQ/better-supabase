@@ -1,4 +1,8 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  AuthorizationHooks,
+  SubscriberPolicy,
+} from "../../core/contracts/authorization-hooks.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
@@ -54,6 +58,15 @@ export interface OutboxOptions extends BlockTemporalOptions {
   readonly source: string;
   /** Prepended to each type with a dot when relaying, e.g. `com.example`. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * Decides, per event, whether a consumer gets it. The consumer is the
+   * subscriber `{ principal: <consumer name>, kind: "service" }`. An event
+   * it leaves out is skipped and the cursor moves past it; a throw counts
+   * as a failed attempt. Defaults to `authorization.delivery.subscribers`.
+   */
+  readonly subscribers?: SubscriberPolicy;
+  /** `server.authorization`, for its `delivery.subscribers` policy. */
+  readonly authorization?: Pick<AuthorizationHooks, "delivery">;
 }
 
 export interface RegisterOptions {
@@ -82,7 +95,10 @@ export interface RelayOptions {
 }
 
 export interface RelayResult {
+  /** Events handed to the sink or handler. */
   readonly delivered: number;
+  /** Events the `subscribers` policy kept from the consumer, when there were any. */
+  readonly refused?: number;
   /**
    * Set when the sink threw: the consumer backs off and retries the batch
    * one event at a time.
@@ -346,6 +362,34 @@ export function createOutbox(
     (events) =>
       sink.send(events.map((event) => outboxCloudEvent(event, options)));
 
+  const subscribers =
+    options.subscribers ?? options.authorization?.delivery?.subscribers;
+
+  /** The events `subscribers` lets `consumer` have; all of them without a policy. */
+  async function permitted(
+    consumer: string,
+    events: readonly OutboxEvent[],
+  ): Promise<readonly OutboxEvent[]> {
+    if (!subscribers) return events;
+    const allowed = await Promise.all(
+      events.map(async (event) => {
+        const subscriber = { principal: consumer, kind: "service" as const };
+        const kept = await subscribers(
+          {
+            type: event.type,
+            tenant: event.tenant,
+            actorId: event.actorId,
+            payload: event.payload,
+            subject: event.subject,
+          },
+          [subscriber],
+        );
+        return kept.includes(subscriber);
+      }),
+    );
+    return events.filter((_, index) => allowed[index]);
+  }
+
   async function relay(
     consumer: string,
     handler: OutboxHandler,
@@ -356,6 +400,14 @@ export function createOutbox(
     const batch = relayOptions.batch ?? 100;
     const lease = relayOptions.lease ?? "1 minute";
     let delivered = 0;
+    let refused = 0;
+    const done = (
+      result: Omit<RelayResult, "delivered" | "refused">,
+    ): RelayResult => ({
+      delivered,
+      ...(refused > 0 ? { refused } : {}),
+      ...result,
+    });
     while (!spent.expired()) {
       let events: readonly OutboxEvent[];
       try {
@@ -363,15 +415,17 @@ export function createOutbox(
           await call("outbox_claim", [consumer, owner, batch, lease]),
         );
       } catch (cause) {
-        return { delivered, error: asDbError(cause) };
+        return done({ error: asDbError(cause) });
       }
       const last = events.at(-1);
       if (last === undefined) {
         await call("outbox_ack", [consumer, owner, null]).catch(() => null);
         break;
       }
+      let handed: readonly OutboxEvent[];
       try {
-        await handler(events);
+        handed = await permitted(consumer, events);
+        if (handed.length > 0) await handler(handed);
       } catch (cause) {
         const error = toDbError(cause);
         const state = await call("outbox_fail", [
@@ -383,18 +437,19 @@ export function createOutbox(
           relayOptions.maxBackoff ?? "10 minutes",
         ]).catch(() => null);
         return state === "dead"
-          ? { delivered, error, deadLettered: 1 }
-          : { delivered, error };
+          ? done({ error, deadLettered: 1 })
+          : done({ error });
       }
       try {
         await call("outbox_ack", [consumer, owner, last.position]);
       } catch (cause) {
-        return { delivered, error: asDbError(cause) };
+        return done({ error: asDbError(cause) });
       }
-      delivered += events.length;
+      delivered += handed.length;
+      refused += events.length - handed.length;
       if (events.length < batch) break;
     }
-    return { delivered };
+    return done({});
   }
 
   return {

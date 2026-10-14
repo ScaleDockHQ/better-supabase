@@ -6,7 +6,7 @@ import type {
 } from "./model.ts";
 import type { ErrorResponse } from "./resource.ts";
 
-import { PROBLEM_CONTENT_TYPE, PROBLEM_TYPE_BASE } from "../core/problem.ts";
+import { PROBLEM_CONTENT_TYPE, problemType } from "../core/problem.ts";
 import { schemaRef } from "./schemas.ts";
 
 /** JSON Schema for RFC 9457 Problem Details as better-supabase sends them. */
@@ -17,7 +17,7 @@ export const PROBLEM_SCHEMA: Record<string, unknown> = {
     type: {
       type: "string",
       format: "uri-reference",
-      examples: [`${PROBLEM_TYPE_BASE}not-found`],
+      examples: [problemType("not_found").type],
     },
     title: { type: "string" },
     status: { type: "integer", minimum: 100, maximum: 599 },
@@ -82,8 +82,7 @@ export const PERMISSION_DENIED = "PermissionDenied";
 
 const problem = (code: string, detail: string, extra: JsonSchema = {}) => ({
   value: {
-    type: `${PROBLEM_TYPE_BASE}forbidden`,
-    title: "Forbidden",
+    ...problemType("forbidden"),
     status: 403,
     kind: "forbidden",
     code,
