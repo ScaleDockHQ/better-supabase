@@ -2020,6 +2020,8 @@
       "OrganizationDeletionEventData",
       "OrganizationDomainEventData",
       "OrganizationEventData",
+      "PipelineEventData",
+      "PipelineStageEventData",
       "PushDeviceEventData",
       "RowEventData",
       "SaasEventData",
@@ -4314,6 +4316,35 @@
       "TemplateVersion",
       "TemplateWorkflow",
       "TemplateWorkflowInput"
+    ]
+  },
+  "./blocks/pipelines": {
+    "values": [
+      "createPipelines",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Pipeline",
+      "PipelineColumn",
+      "PipelineHealth",
+      "PipelineInput",
+      "PipelineOutcome",
+      "Pipelines",
+      "PipelinesOptions",
+      "PipelineStage",
+      "PipelineStageInput",
+      "PipelineStats",
+      "PipelineTotal",
+      "PipelineTransition",
+      "RpcClient"
     ]
   },
   "./blocks/reactions/react": {

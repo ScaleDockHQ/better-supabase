@@ -56,6 +56,7 @@ import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PGTAP } from "./modules/pgtap.ts";
+import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
@@ -214,6 +215,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
       built(TEMPLATES),
+      built(PIPELINES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

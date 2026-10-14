@@ -1,7 +1,7 @@
 {
   ".": 65753,
   "./config": 19984,
-  "./cli": 476464,
+  "./cli": 476611,
   "./client": 23370,
   "./client/native": 22759,
   "./react": 25757,
@@ -67,7 +67,7 @@
   "./blocks/workflow-builder": 55581,
   "./blocks/workflow-builder/react": 70138,
   "./workflow-sdk": 18491,
-  "./workflow-sdk/world": 34832,
+  "./workflow-sdk/world": 34863,
   "./eve": 25898,
   "./workflow-sdk/builder": 26970,
   "./streams": 35294,
@@ -139,6 +139,7 @@
   "./blocks/forms/react": 4749,
   "./blocks/time-tracking": 39556,
   "./blocks/templates": 40087,
+  "./blocks/pipelines": 37983,
   "./blocks/reactions/react": 52181,
   "./blocks/catalog": 42373,
   "./blocks/inventory": 36549,
@@ -158,11 +159,11 @@
   "./plugins/tenant": 9404,
   "./plugins/actor": 6307,
   "./plugins/validation": 11120,
-  "./sql": 631311,
+  "./sql": 642228,
   "./testing": 169625,
   "./expo-sqlite": 29571,
   "./tanstack-db": 1437,
   "./tanstack-db/supabase": 1693,
   "./blocks/push": 35246,
-  "better-supabase CLI (startup)": 13818
+  "better-supabase CLI (startup)": 13816
 }

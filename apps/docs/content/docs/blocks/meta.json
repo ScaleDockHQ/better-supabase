@@ -74,6 +74,7 @@
     "forms",
     "time-tracking",
     "templates",
+    "pipelines",
     "identities",
     "service-principals"
   ]

@@ -102,6 +102,7 @@ const entries = [
   "blocks/forms/react/server",
   "blocks/time-tracking/index",
   "blocks/templates/index",
+  "blocks/pipelines/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",
