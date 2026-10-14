@@ -16,10 +16,7 @@ import {
   tenantIn,
   userGrant,
 } from "../shared.ts";
-import {
-  registeredIdMatches,
-  registeredSubjects,
-} from "../subject-registry.ts";
+import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
 
 /** The engagement types `options.types` falls back to. */
@@ -89,32 +86,6 @@ function types(ctx: ModuleContext): readonly string[] {
     );
   }
   return list;
-}
-
-/**
- * SQL that is true when the subject `type`/`id` is a registered record in
- * tenant `tenant` the caller can read.
- */
-function subjectInTenant(
-  ctx: ModuleContext,
-  type: string,
-  id: string,
-  tenant: string,
-): string {
-  const subjects = registeredSubjects(ctx.subjects).filter(
-    (subject) => subject.tenant !== undefined,
-  );
-  if (subjects.length === 0) return "false";
-  const canSubject = ctx.of("subjects").fn("can_subject");
-  return `(case ${type}
-${subjects
-  .map(
-    (subject) =>
-      `      when ${sqlString(subject.type)} then exists (select 1 from ${subject.qualified} s where ${registeredIdMatches(subject, id)} and s.${subject.tenant ?? ""}::text = ${tenant}::text)`,
-  )
-  .join("\n")}
-      else false
-    end and ${canSubject}(${type}, ${id}, 'read'))`;
 }
 
 function build(ctx: ModuleContext): string {

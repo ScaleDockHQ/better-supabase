@@ -784,7 +784,28 @@ begin
   if v_id is not null then
     return v_id;
   end if;
-  raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  case default_pipeline.subject_type
+    when 'deal' then
+      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
+      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
+      on conflict do nothing
+      returning "id" into v_id;
+      if v_id is null then
+        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
+      end if;
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
+      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
+      from (values
+          ('qualified', 'Qualified', 'open', 'open', 20::smallint, '8'),
+          ('discovery', 'Discovery', 'open', 'open', 35::smallint, 'G'),
+          ('proposal', 'Proposal', 'open', 'open', 55::smallint, 'O'),
+          ('negotiation', 'Negotiation', 'open', 'open', 75::smallint, 'W'),
+          ('closed_won', 'Closed won', 'won', 'success', 100::smallint, 'e'),
+          ('closed_lost', 'Closed lost', 'lost', 'failure', 0::smallint, 'm')
+      ) x(key, name, category, outcome, probability, rank);
+    else
+      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  end case;
   return v_id;
 end;
 $$;
@@ -792,6 +813,137 @@ revoke execute on function "better_supabase"."default_pipeline"(uuid, text, text
 grant execute on function "better_supabase"."default_pipeline"(uuid, text, text) to service_role;
 
 
+create or replace function better_supabase.bs_pipeline_deal()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_category text;
+  v_outcome text;
+  v_stage_name text;
+  v_claims text;
+begin
+  if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
+  -- The owner watches the record; a level they already chose stays.
+  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    values (new."tenant_id", new."owner_user_id", 'deal', new."id"::text, 'participating')
+    on conflict do nothing;
+  end if;
+    return new;
+  end if;
+  if new."pipeline_id" is null then
+    if new."stage_id" is not null then
+      select s."pipeline_id" into new."pipeline_id" from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
+    else
+      new."pipeline_id" := "better_supabase"."default_pipeline"(new."tenant_id", 'deal', null);
+    end if;
+  end if;
+  if new."stage_id" is null then
+    select s."id" into new."stage_id" from "better_supabase"."pipeline_stages" s
+    where s."pipeline_id" = new."pipeline_id" and s."outcome" = 'open' and s."archived_at" is null
+    order by s."rank" collate "C"
+    limit 1;
+  end if;
+  select s."category", s."outcome", s."name"
+    into v_category, v_outcome, v_stage_name
+  from "better_supabase"."pipeline_stages" s
+  join "better_supabase"."pipelines" p on p."id" = s."pipeline_id"
+  where s."id" = new."stage_id"
+    and s."pipeline_id" = new."pipeline_id"
+    and s."archived_at" is null
+    and p."archived_at" is null
+    and p."tenant_id"::text = new."tenant_id"::text
+    and p."subject_type" = 'deal'
+    and p."scope_id" is not distinct from null;
+  if not found then
+    raise exception 'the stage is not an active stage of this record''s pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_INVALID';
+  end if;
+  if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
+    if tg_op = 'UPDATE' and old."stage_id" is not null
+      and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
+      and not exists (
+        select 1 from "better_supabase"."pipeline_transitions" x
+        where x."from_stage_id" = old."stage_id" and x."to_stage_id" = new."stage_id"
+      ) then
+      raise exception 'that stage change is not allowed in this pipeline' using errcode = '22023', hint = 'PIPELINE_TRANSITION_INVALID';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_pipeline_stage_change"(text, text, uuid, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid, $4::uuid)', v_hook::oid::regproc)
+        using 'deal', new."id"::text, case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id";
+    end if;
+  end;
+    new."stage_entered_at" := now();
+    update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
+    where "subject_type" = 'deal' and "subject_id" = new."id"::text and "exited_at" is null;
+    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
+    values (new."tenant_id", 'deal', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, new."amount", new."currency", auth.uid());
+    if tg_op = 'UPDATE' then
+      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'deal', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
+    end if;
+    if tg_op = 'UPDATE' then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
+        'type', 'pipeline.stage_changed',
+        'tenant', new."tenant_id",
+        'actor', auth.uid(),
+        'subject_type', 'deal',
+        'subject_id', new."id"::text,
+        'summary', v_stage_name,
+        'key', 'pipeline.stage_changed:' || new."id"::text || ':' || new."stage_id"::text || ':' || extract(epoch from now())::text,
+        'data', jsonb_build_object('pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'outcome', v_outcome)
+      ));
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_change"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using 'deal', new."id"::text, new."stage_id";
+    end if;
+  end;
+  end if;
+  -- The owner watches the record; a level they already chose stays.
+  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    values (new."tenant_id", new."owner_user_id", 'deal', new."id"::text, 'participating')
+    on conflict do nothing;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists bs_pipeline_deal on "better_supabase"."deals";
+create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bs_pipeline_deal();
+
+create or replace function better_supabase.bs_pipeline_status_deal()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+begin
+  select case s."category" when 'open' then 'open' when 'won' then 'won' when 'lost' then 'lost' end into v_status
+  from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
+  if v_status is not null and v_status is distinct from new."outcome"::text then
+    update "better_supabase"."deals" r set "outcome" = (jsonb_populate_record(null::"better_supabase"."deals", jsonb_build_object('outcome', v_status)))."outcome"
+    where r."id" = new."id";
+  end if;
+  return null;
+end;
+$$;
+drop trigger if exists bs_pipeline_status_deal on "better_supabase"."deals";
+create trigger bs_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bs_pipeline_status_deal();
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
@@ -811,7 +963,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (save_pipeline.subject_type = any ('{deal}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -914,7 +1066,13 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  v_used := false;
+  case v_subject_type
+    when 'deal' then
+      perform 1 from "better_supabase"."deals" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
+      v_used := found;
+    else
+      v_used := false;
+  end case;
   if v_used then
     raise exception 'records are still in this pipeline; move them first' using errcode = '23503', hint = 'PIPELINE_IN_USE';
   end if;
@@ -963,7 +1121,16 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  case v_subject_type
+    when 'deal' then
+      v_outcome := case save_pipeline_stage.category
+      when 'open' then 'open'
+      when 'won' then 'success'
+      when 'lost' then 'failure'
+    end;
+    else
+      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  end case;
   if v_outcome is null then
     raise exception 'this subject type has no such category' using errcode = '22023', hint = 'PIPELINE_CATEGORY_UNKNOWN';
   end if;
@@ -989,7 +1156,13 @@ begin
     else
       -- A stage holding records keeps its outcome, so won stays won.
       if exists (select 1 from "better_supabase"."pipeline_stages" x where x."id" = v_stage and x."outcome" <> v_outcome) then
-        v_used := false;
+        case v_subject_type
+    when 'deal' then
+      perform 1 from "better_supabase"."deals" r where r."stage_id" = v_stage limit 1;
+      v_used := found;
+    else
+      v_used := false;
+  end case;
         if v_used then
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
@@ -1089,7 +1262,13 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  v_used := false;
+  case v_subject_type
+    when 'deal' then
+      perform 1 from "better_supabase"."deals" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
+      v_used := found;
+    else
+      v_used := false;
+  end case;
   if v_used then
     raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
@@ -1172,7 +1351,37 @@ security invoker
 set search_path = ''
 as $$
 begin
-  raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  case pipeline_board.subject_type
+    when 'deal' then
+      return (
+        with rows as (
+          select r."stage_id" as stage_id, r."currency"::text as currency, r."amount"::bigint as amount,
+            r."amount" * coalesce(r."probability", st."probability", 0) / 100.0 as weighted
+          from "better_supabase"."deals" r
+          join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
+          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
+        ),
+        counts as (select stage_id, count(*) as n from rows group by stage_id),
+        sums as (
+          select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
+          from (select stage_id, currency, sum(amount) as amount, sum(weighted) as weighted from rows where currency is not null group by stage_id, currency) x
+          group by stage_id
+        )
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
+          'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
+          'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
+          'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
+          'totals', coalesce(m.totals, '[]'::jsonb)
+        ) order by st."rank" collate "C"), '[]'::jsonb)
+        from "better_supabase"."pipeline_stages" st
+        left join counts n on n.stage_id = st."id"
+        left join sums m on m.stage_id = st."id"
+        where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
+      );
+    else
+      raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."pipeline_board"(text, uuid, uuid) from public, anon;

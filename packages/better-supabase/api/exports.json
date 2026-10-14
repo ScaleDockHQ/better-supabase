@@ -2003,6 +2003,7 @@
       "CredentialEventData",
       "DataExportEventData",
       "DataschemaContext",
+      "DealEventData",
       "EngagementEventData",
       "EventSink",
       "FlagEventData",
@@ -4396,6 +4397,39 @@
       "Engagements",
       "EngagementsOptions",
       "EngagementSubject",
+      "RpcClient"
+    ]
+  },
+  "./blocks/deals": {
+    "values": [
+      "createDeals",
+      "dbTransport",
+      "dealsSubjects",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Deal",
+      "DealChange",
+      "DealChangeResult",
+      "DealContact",
+      "DealField",
+      "DealForecast",
+      "DealHealth",
+      "DealInput",
+      "DealLineInput",
+      "DealOutcome",
+      "DealParty",
+      "Deals",
+      "DealsOptions",
+      "DealTotals",
+      "ForecastCategory",
       "RpcClient"
     ]
   },

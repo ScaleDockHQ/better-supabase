@@ -105,6 +105,7 @@ const entries = [
   "blocks/pipelines/index",
   "blocks/parties/index",
   "blocks/engagements/index",
+  "blocks/deals/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

@@ -30,6 +30,7 @@ import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
@@ -220,6 +221,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(PIPELINES),
       built(PARTIES),
       built(ENGAGEMENTS),
+      built(DEALS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -358,6 +358,12 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "deal.created"
+  | "deal.updated"
+  | "deal.closed"
+  | "deal.reopened"
+  | "deal.archived"
+  | "deal.deleted"
   | "engagement.logged"
   | "engagement.updated"
   | "engagement.completed"
@@ -603,6 +609,21 @@ export interface EngagementEventData extends SubjectEventData {
   /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
   readonly type: string;
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/** Events from the deals module. Amounts are minor units as text. */
+export interface DealEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly dealId: string;
+  readonly name: string;
+  readonly amount?: string;
+  readonly currency?: string;
+  /** For `deal.closed`: `won` or `lost`. */
+  readonly outcome?: string;
+  /** For `deal.closed` as lost: why. */
+  readonly reason?: string | null;
+  /** For `deal.updated`: the fields the batch changed. */
+  readonly fields?: readonly string[];
 }
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
@@ -903,6 +924,12 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "deal.created": DealEventData;
+  "deal.updated": DealEventData;
+  "deal.closed": DealEventData;
+  "deal.reopened": DealEventData;
+  "deal.archived": DealEventData;
+  "deal.deleted": DealEventData;
   "engagement.logged": EngagementEventData;
   "engagement.updated": EngagementEventData;
   "engagement.completed": EngagementEventData;
