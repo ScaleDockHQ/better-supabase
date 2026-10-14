@@ -19,7 +19,7 @@ const isOperationModule = (name: string): name is OperationModule =>
  * module's `OPERATIONS` after `sql.modules.<name>.permissions` renames, with
  * the provider's `authorization.operations` over them.
  */
-export function operationKeys(
+function operationKeys(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ): ReadonlyMap<string, string> {
