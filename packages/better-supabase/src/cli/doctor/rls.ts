@@ -261,7 +261,8 @@ function readTables(
  * Columns that decide who may read other rows, by `schema.table`: the
  * columns of the tables policy helpers read that their bodies mention
  * (qualified, or bare when the body reads one table), and the manifest's
- * `decidingColumns`.
+ * `decidingColumns`. A subject's `deletedAt` column only hides rows, so it
+ * counts only when the manifest lists it.
  */
 function grantColumns(
   context: DoctorContext,
@@ -277,10 +278,20 @@ function grantColumns(
     byColumn.set(column, created);
     return created;
   };
+  const softDeleted = new Set(
+    Object.values(context.config.subjects).flatMap((subject) =>
+      subject.deletedAt === undefined
+        ? []
+        : [
+            `${subject.table.includes(".") ? subject.table : `public.${subject.table}`}.${subject.deletedAt}`,
+          ],
+    ),
+  );
   for (const [helper, body] of policyHelpers(context)) {
     const read = readTables(body, tables);
     for (const { table, names } of read) {
       for (const column of table.columns) {
+        if (softDeleted.has(`${qualified(table)}.${column.name}`)) continue;
         const col = `"?${escape(column.name)}"?(?![\\w"(])`;
         const qualifiedColumn = new RegExp(
           `(?<![\\w"])(?:${names.map((name) => `"?${escape(name)}"?`).join("|")})\\s*\\.\\s*${col}`,
@@ -512,7 +523,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, and a tenant column every write policy pins to `current_tenant_id()`, don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to `current_tenant_id()`, and a subject's `deletedAt` column in `config.subjects` (it only hides rows) don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

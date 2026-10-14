@@ -367,6 +367,41 @@ describe("doctor rules", () => {
       );
     });
 
+    it("leaves out a subject's deletedAt column unless the provider lists it", async () => {
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [...memberships.policies, updatePolicy];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+      const subjects = {
+        membership: { table: "better_supabase.memberships", deletedAt: "role" },
+      };
+      const softDelete = {
+        config: resolveConfig({ subjects }, "/project"),
+      };
+      const findings = await runRules(context(snap, softDelete), only);
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, user_id.",
+      );
+
+      const listed = {
+        config: resolveConfig(
+          {
+            subjects,
+            authorization: withProvider({
+              decidingColumns: ["better_supabase.memberships.role"],
+            }),
+          },
+          "/project",
+        ),
+      };
+      const kept = await runRules(context(snap, listed), only);
+      expect(kept[0]?.message).toContain(
+        "authenticated may update org_id, role, user_id",
+      );
+    });
+
     it("flags a column-level grant on a grant column", async () => {
       const snap = withTable("memberships", (memberships) => {
         memberships.policies = [...memberships.policies, updatePolicy];
