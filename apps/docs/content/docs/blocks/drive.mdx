@@ -1,0 +1,184 @@
+---
+title: Drive
+description: Folders and files on the attachments module. Access is granted to users or teams and inherited down the tree, storage policies enforce it on the objects too, and versions, trash and share-links add revisions, a bin, stars, recent items and folder links.
+---
+
+`drive` keeps a tree of folders and files per organization. A file is a node that points at an [attachment](/docs/blocks/attachments), so uploads, scanning and signed downloads work as they do there. Access is granted on a node to a user, a team or an organization role and applies to everything under it: a viewer on `Projects` can read `Projects/Launch/plan.pdf`. The same check runs in the drive functions, in the policies on the attachment rows and in restrictive policies on `storage.objects`, so a signed URL never opens a file the caller can't read.
+
+```bash
+better-supabase sql add drive
+```
+
+`drive` installs `drive-files` with it, which adds what needs the attachments module: uploads and revisions, the storage policies, the bin, stars, recent items, folder links and the purge. Install [versions](/docs/blocks/versions), [trash](/docs/blocks/trash), [share-links](/docs/blocks/share-links) and [teams](/docs/blocks/teams) for revisions, the bin, stars and links, and team grants.
+
+```ts
+import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
+
+const drive = createDrive({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+});
+
+const projects = await drive
+  .createFolder(organizationId, { name: "Projects" })
+  .orThrow();
+const upload = await drive
+  .upload(organizationId, {
+    parentId: projects.id,
+    name: file.name,
+    mimeType: file.type,
+    size: file.size,
+  })
+  .orThrow();
+await supabase.storage
+  .from(upload.attachment.bucket)
+  .uploadToSignedUrl(upload.attachment.path, upload.token, file);
+await drive.commit(upload.node.id, upload.attachment.id).orThrow();
+
+await drive.share(projects.id, { type: "team", id: designTeam }, "editor");
+await drive.share(projects.id, { type: "role", id: memberRoleId }, "viewer");
+const { signedUrl } = await drive.download(upload.node.id).orThrow();
+```
+
+## Access
+
+Each node has a role for the caller: the highest role granted on the node or any folder above it, or `null` when nothing is granted. Members with `drive.manage` have the top role on every node in the organization, and the service role always does. Reading anything needs `drive.read`, and creating a node at the root needs `drive.create`.
+
+| Role     | What it allows                                                     |
+| -------- | ------------------------------------------------------------------ |
+| `viewer` | List, open and download the node and everything under it           |
+| `editor` | Create, upload, rename, move, trash and restore revisions under it |
+| `owner`  | Share and unshare, and everything an editor can do                 |
+
+The creator of a node gets the top role on it. Grants with an `expiresAt` stop applying after that time. `drive_role(node)` and `drive_can(node, role)` are SQL functions, so your own policies can use them too.
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    drive: {
+      options: {
+        roles: ["viewer", "commenter", "editor", "owner"],
+        writeRole: "editor",
+        shareRole: "owner",
+        conflict: "rename",
+      },
+    },
+  },
+},
+```
+
+| Option         | Default                         | What it does                                                                           |
+| -------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| `roles`        | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role          |
+| `writeRole`    | `editor`, else the top role     | The role that may create, rename, move and trash                                       |
+| `shareRole`    | the top role                    | The role that may share and unshare                                                    |
+| `memberRole`   | none                            | A role every member of the organization has on every node                              |
+| `conflict`     | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
+| `subjectType`  | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
+| `extraColumns` | none                            | Columns on the node table that `fields` reads and writes                               |
+
+Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
+
+## Files and revisions
+
+`upload` creates the file node and a pending attachment, then signs an upload URL. After the upload, `commit` makes the attachment the file's content. `uploadRevision` uploads new content for an existing file the same way; with versions installed, each commit saves a revision, `revisions(id)` lists them and `restoreRevision(id, revisionId)` makes an old one current again.
+
+`download(id)` signs a download URL for the current content. With `requireScan` (the default, as in attachments), a file that isn't scanned clean yet can't be downloaded.
+
+## The bin
+
+With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive.node_purged` with the object paths. Run `prune()` from the service role to delete the purged objects from storage:
+
+```ts
+const drive = createDrive({ transport: serviceTransport, storage });
+await drive.prune({ maxObjects: 500 }).orThrow();
+```
+
+## Stars, recent items and links
+
+With share-links installed, `star(id)` and `star(id, false)` mark a node for the caller, `open(id)` records that the caller opened it, and `starred` and `recent` list them. A share link on a folder opens it and the nodes under it: `link(token)` returns the folder and its children, and `link(token, { nodeId })` returns one node under it with its stored object.
+
+## With ReUI
+
+`driveTree(nodes)` shapes the nodes you loaded for a tree view such as the [ReUI](https://reui.io) file tree on headless-tree: it returns `rootItemId`, `getItem`, `getChildren` and `isFolder`. `fileTypeCategory(mimeType, name)` and `nodeType(node)` name a file's kind (`image`, `pdf`, `spreadsheet`, `code` and others) to pick its icon.
+
+```tsx
+import { driveTree, nodeType } from "better-supabase/blocks/drive";
+
+const data = driveTree(await drive.list(organizationId).orThrow());
+const tree = useTree({
+  rootItemId: data.rootItemId,
+  getItemName: (item) => data.name(item.getId()),
+  isItemFolder: (item) => data.isFolder(item.getId()),
+  dataLoader: { getItem: data.getItem, getChildren: data.getChildren },
+  features: [syncDataLoaderFeature],
+});
+```
+
+Load a folder's children with `list(organizationId, { parentId })` as it opens, and build the tree again from all the nodes loaded so far.
+
+## Comments and attachments on nodes
+
+`driveSubject()` describes the node table as a subject, so the [subject registry](/docs/blocks/sql#subject-registry) lets comments, reactions and other blocks attach to nodes with the drive's read and write rules:
+
+```ts title="better-supabase.config.ts"
+import { driveSubject } from "better-supabase/blocks/drive";
+
+export default defineConfig({
+  subjects: { drive_node: driveSubject() },
+});
+```
+
+## Adopt
+
+`mode: "adopt"` runs the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+
+```ts title="better-supabase.config.ts"
+drive: {
+  mode: "adopt",
+  tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
+  columns: {
+    nodes: { tenant: "organization_id", attachment: null, path: null, rank: null, deletedAt: null },
+    grants: {
+      tenant: "organization_id",
+      node: "file_node_id",
+      principalType: null,
+      principalId: null,
+      expiresAt: null,
+      createdBy: null,
+    },
+  },
+  options: { roles: ["viewer", "commenter", "editor"] },
+},
+```
+
+## Errors
+
+| Hint                         | When                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `DRIVE_NOT_FOUND`            | The node doesn't exist, or the caller may not read it                     |
+| `DRIVE_FORBIDDEN`            | The caller's role on the node doesn't allow the change                    |
+| `DRIVE_NAME_CONFLICT`        | The folder already has a node with that name and `conflict` is `fail`     |
+| `DRIVE_NAME_INVALID`         | The name isn't 1 to 255 characters, or holds a `/` or a control character |
+| `DRIVE_CONFLICT_INVALID`     | `conflict` isn't `fail`, `rename` or `replace`                            |
+| `DRIVE_PARENT_NOT_FOUND`     | The parent folder doesn't exist in the organization                       |
+| `DRIVE_PARENT_NOT_FOLDER`    | The parent is a file                                                      |
+| `DRIVE_PARENT_TRASHED`       | `restore` names a node whose folder is still in the bin                   |
+| `DRIVE_MOVE_CYCLE`           | The move puts a folder inside itself                                      |
+| `DRIVE_RANK_INVALID`         | The rank isn't a rank key                                                 |
+| `DRIVE_ROLE_UNKNOWN`         | The role isn't one of `options.roles`                                     |
+| `DRIVE_PRINCIPAL_INVALID`    | The principal type isn't `user`, `team` or `role`, or the id is missing   |
+| `DRIVE_PRINCIPAL_NOT_FOUND`  | The user isn't a member, or the team or role isn't in the organization    |
+| `DRIVE_NOT_A_FILE`           | A file call names a folder                                                |
+| `DRIVE_ATTACHMENT_NOT_FOUND` | `commit` names an upload that doesn't belong to the file                  |
+| `DRIVE_REVISION_NOT_FOUND`   | The revision doesn't belong to the file                                   |
+| `DRIVE_LINK_NOT_FOUND`       | The link is unknown, expired or revoked, or the node isn't under it       |
+| `DRIVE_STORAGE_CLIENT`       | A file call ran on a client created without `storage`                     |
+
+A support session is read-only: every write raises `ACTOR_READ_ONLY`.
+
+## Events and hooks
+
+The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared` and `drive.node_purged`; the [events page](/docs/extending/events) lists their payloads. Sharing and unsharing also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.

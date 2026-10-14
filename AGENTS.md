@@ -318,6 +318,7 @@ standard or sets how the repo works.
 - 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
 - 0021: rows are ordered by base-62 fractional rank keys (`rank_between`, `rankBetween`); `move()` runs as the caller.
 - 0022: Yjs documents are an update log and a snapshot in Postgres, compacted in JavaScript; `yjs` is an optional peer of `better-supabase/yjs`.
+- 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
 
 ## Pre-release pins
 
