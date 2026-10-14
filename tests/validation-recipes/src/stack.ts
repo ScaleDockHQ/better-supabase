@@ -237,11 +237,31 @@ export async function withRecipe(
 ): Promise<void> {
   const client = await pool.connect();
   try {
-    await client.query("begin");
-    await client.query(migration(recipe));
+    await install(client, migration(recipe));
     await body(new Session(client));
   } finally {
     await client.query("rollback");
     client.release();
+  }
+}
+
+/**
+ * Other suites install modules on the same stack at the same time, and
+ * Postgres resolves a deadlock between two installs by aborting one of
+ * them. The aborted install starts over.
+ */
+async function install(client: PoolClient, sql: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    await client.query("begin");
+    try {
+      await client.query(sql);
+      return;
+    } catch (error) {
+      await client.query("rollback");
+      if (!(error instanceof DatabaseError) || error.code !== "40P01") {
+        throw error;
+      }
+      if (attempt === 5) throw error;
+    }
   }
 }
