@@ -1,6 +1,6 @@
 ---
 title: From 0.8 to 0.9
-description: What to change when upgrading to better-supabase 0.9, which routes permission checks through the authorization provider, keeps delegation in jobs, approves support sessions by a second admin and sends CloudEvents webhooks.
+description: What to change when upgrading to better-supabase 0.9, which routes permission checks through the authorization provider, caps delegated tokens, runs workflows as their publisher, approves support sessions by a second admin and sends CloudEvents webhooks.
 ---
 
 0.9 closes places where work ran with more rights than the caller had: jobs
@@ -12,9 +12,12 @@ to subscribers. Most changes are behaviour, not names, so
 pnpm better-supabase codemod 0.9 --dry-run
 ```
 
-Then run `better-supabase sql sync` and create a migration: `support-sessions`,
-`webhooks-out`, `workflow-builder`, `notifications` and `actor` changed, and
-`identities` is new.
+Then run `better-supabase sql sync` and create a migration. Every installed
+module file changes, because the read-only check each one carries now knows
+the agent actor. Beyond that, `access`, `tenant`, `subjects`, `support-sessions`,
+`webhooks-out`, `workflow-builder`, `notifications`, `actor`, `approvals`,
+`ai-chat`, `share-links`, `versions`, `promotions` and `time-tracking` changed,
+and `identities` and `service-principals` are new.
 
 ## Access model
 
@@ -40,26 +43,105 @@ every module that waits for an approval reads:
 0.9 still reads `canApprove` when `isApprover` is unset; doctor BS415 warns
 while a provider sets it.
 
+Under the provider model, `member_organization_ids()`,
+`has_organization_role()` and `organization_member_role()` take membership
+from the provider's `memberIds` and `memberIdsFor` templates, so a user the
+provider no longer lists stops counting as a member even while a
+memberships row remains. Their role arguments still compare role names the
+provider may not use. Doctor [BS334](/docs/cli/doctor#bs334) lists your own
+policies and functions that call them; replace each with
+`better_supabase.tenant_ids_with('<permission>')` or `member_can()`, which
+the delegation cap below also narrows.
+
+### Delegated tokens are narrowed everywhere
+
+A token that carries a `client_id`, or an RFC 8693 `act` chain that is not a
+support or impersonation session, is now narrowed
+inside `member_can`, `member_can_while_deleting`, `platform_can` and
+`tenant_ids_with`, in every access model: a permission passes only when one
+of the token's scopes maps to it. In 0.8 only the policies that called
+`token_scope_allows` narrowed it. Map each scope your OAuth clients and MCP
+servers grant to the permission keys it covers, or those clients lose
+access to every key whose name differs from a scope:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    access: {
+      scopes: { "posts:write": ["posts.*"], "mcp:admin": ["*"] },
+    },
+  },
+},
+```
+
+`authorization.delegation.scopes` is the provider's form of the same map, and
+a provider that maps scopes at runtime sets the `delegation.permissions`
+hook. The `token_scope_allows` checks you added to write policies can stay,
+but the cap already covers them. `forContext(context, { permissions })` caps
+the work to a list of keys the same way. See
+[Delegated tokens](/docs/blocks/access#delegated-tokens).
+
+### One operations table
+
+Every action a module checks is now an operation named `<module>.<action>`
+(such as `audit.view`), and `better_supabase.operation_permission(op)`
+answers its permission key in SQL, after your renames in
+`sql.modules.<module>.permissions` and with the provider's `operations` over
+them. An MCP tool's `operation`, an agent's `toolOperations` and a
+workflow-builder step's `operation` name an entry in place of the prefixed
+`mcp.tool.<name>`, `ai.tool.<name>` or `workflow.run`. The permission keys
+themselves don't change, so this needs no edit unless you want a tool to
+share an operation with the module it wraps. See
+[Operations](/docs/extending/authorization-providers).
+
 ## Jobs and workflows
 
 A job or workflow queued by an OAuth or MCP client now carries the client's
 `client_id`, `scope`, `authorization_details` and `act` chain, and
 `forContext` runs it with those claims. A job that used to run with the
-user's full rights now runs with the client's scope. Add
-`better_supabase.token_scope_allows('<scope>')` to the write policies a
-delegated client must not pass. An invalid `act` chain is refused with
+user's full rights now runs with the client's scope, which the delegation
+cap applies to every permission check. An invalid `act` chain is refused with
 `forbidden` instead of being dropped. `claimsFor` can no longer set the four
 delegation claims. `delay` must be a whole number of seconds. See
 [Jobs](/docs/blocks/jobs).
 
 Published workflow-builder versions record who published them and the
 permissions their nodes need. A publisher must hold every one of those
-permissions, and each step runs with the publisher's current claims through
+permissions, or the publish returns `WORKFLOW_PUBLISHER_FORBIDDEN` with the
+missing keys in `permissions`, and each step runs with the publisher's current claims through
 `versions.runAs`. A demoted or removed publisher fails the step instead of
 falling back to the service role. Versions published before 0.9 have no
 publisher and fail with `WORKFLOW_PUBLISHER_REVOKED` until someone publishes
-them again. Organisation-owned versions need a service principal. See
+them again. See
 [Workflow builder](/docs/blocks/workflow-builder#publisher-rights).
+
+A version an organization owns (published by the service, with no member as
+publisher) runs as the organization's default
+[service principal](/docs/blocks/service-principals), capped to the
+permissions the version stored. Create one with `default: true` before you
+publish such versions, or set an `automation.runAs` hook; without either,
+their steps fail.
+
+Code workflows started by an event or a schedule need `runAs`, the publisher
+the run starts as and the permission keys its steps may use. A schedule
+start without it throws. The run's context is the publisher's, capped to
+those keys, and the event's actor or the schedule's creator is only recorded
+as `bs.trigger`. Admission requests keep running as their actor:
+
+```ts
+await workflows.schedules
+  .tick({
+    start: workflowStarter(
+      { weeklyDigest },
+      { runAs: { publisher: automationUserId, permissions: ["digest.send"] } },
+    ),
+  })
+  .orThrow();
+```
+
+`startOnEvent` takes the same `runAs`, which can also be a function of the
+event or the start call for a publisher per tenant. See
+[Event and schedule starts run as a publisher](/docs/blocks/workflow-sdk#event-and-schedule-starts-run-as-a-publisher).
 
 ## Support sessions
 
@@ -102,6 +184,69 @@ Generic problems use `type: "about:blank"` and the HTTP status phrase as
 
 Match problems on `kind` or `code`, which did not change. See
 [Problems](/docs/auth/problems).
+
+## Delivery fails closed
+
+Under an authorization provider without `delivery.subscribers` or
+`delivery.audience`, webhooks, notifications and reminders now deliver an
+event about a [registered subject](/docs/blocks/sql#subject-registry) only to
+the users and service principals who may read it
+(`can_subject_for(user, type, id, 'read')`). In 0.8 every subscriber got it.
+A share link never counts. Events without a subject, or about a type the
+registry doesn't list, keep the 0.8 checks.
+
+Realtime `fanOut` goes further: under a server with authorization hooks and
+no subscriber policy, an event with a `subject` goes to no one and returns
+`forbidden` with the hint `REALTIME_SUBSCRIBER_POLICY_REQUIRED`. Pass the
+subject's readers as the policy:
+
+```ts
+import { subjectReaders } from "better-supabase/realtime";
+
+await inbox
+  .fanOut(admin, {
+    ...options,
+    policy: subjectReaders(sqlTransport(postgres.admin)),
+  })
+  .orThrow();
+```
+
+See [Realtime](/docs/platform/realtime) and
+[Outgoing webhooks](/docs/blocks/webhooks-out).
+
+## Agent actors
+
+An RFC 8693 `act` level may now be `{ kind: "agent", sub, tools }`, which
+`agentClaims(claims, { agent, tools })` from `better-supabase/server` builds.
+In 0.8 an unknown `kind` made the chain invalid. An agent writes with the
+user's row level security unless its level sets `read_only: true`, and a
+token that carries a `scope` limits it like an OAuth client. Pass
+`agentClaims(claims, run.act)` to `asUser` or `forContext` in agent tools so
+the audit log names the agent. A level with `kind: "agent"` whose `tools` is
+not a list of names is refused. See
+[Impersonation](/docs/auth/impersonation).
+
+## Blocks
+
+`create_share_link` takes a fifth argument, `version_id`, that pins the link
+to a version of its subject and must belong to it. Calls with four arguments
+still work, but grants or revokes your SQL wrote on the four-argument
+signature `create_share_link(uuid, text, text, text)` no longer exist after
+the sync: write them for `(uuid, text, text, text, uuid)`.
+`shareLinks.resolve(token)` returns `versionId`. See
+[Share links](/docs/blocks/share-links).
+
+`promotions` calls `before_promotion_activate(promotion uuid)` when you
+define it, after every write that leaves a promotion active, including an
+edit to one that already is. A function of that name that you wrote for
+another purpose now runs on each such save; rename it. See
+[Promotions](/docs/blocks/promotions#hooks).
+
+With `config.subjects` set and no `subjects` option on `comments`, comments
+now accept only the registered subject types and require that the caller can
+read the subject row. In 0.8 a comment could name any type. Register the
+types you comment on, or give `comments` its own `subjects`. See
+[Comments](/docs/blocks/comments#subjects).
 
 ## AI SDK and notifications
 
