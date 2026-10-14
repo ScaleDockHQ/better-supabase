@@ -832,6 +832,28 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       expect((await sql(["sync", "--check"], more)).code).toBe(0);
     });
 
+    it("keeps the pgTAP files in sql.testsDir and checks them", async () => {
+      const config = migrations(["pgtap"]);
+      await sql(["sync"], config);
+      const tests = await readdir(join(root, "supabase/tests"), {
+        recursive: true,
+      });
+      const file = tests.find((name) => name.endsWith(".sql"));
+      expect(file).toBeDefined();
+      expect((await sql(["sync", "--check"], config)).code).toBe(0);
+      await writeFile(join(root, "supabase/tests", file!), "-- edited\n");
+      const check = await sql(["sync", "--check"], config);
+      expect(check.code).toBe(1);
+      expect(check.error).toContain(`supabase/tests/${file!}`);
+    });
+
+    it("upgrades nothing before the first module migration", async () => {
+      expect(await sql(["upgrade", "--check"], migrations(["mfa"]))).toEqual({
+        code: 0,
+        output: "SQL modules are at their current versions.",
+      });
+    });
+
     it("reports a missing module migration in sync --check", async () => {
       const check = await sql(["sync", "--check"], migrations(["mfa"]));
       expect(check.code).toBe(1);

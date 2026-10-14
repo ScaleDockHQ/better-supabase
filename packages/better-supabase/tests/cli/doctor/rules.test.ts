@@ -638,6 +638,25 @@ describe("generated and module files (BS303, BS304)", () => {
     ]);
   });
 
+  it("still checks the pgTAP files under the migrations workflow", async () => {
+    const ctx = rooted({ sql: { workflow: "migrations", modules: ["pgtap"] } });
+    const files = renderModules(["pgtap"], moduleLayout(ctx.config));
+    const test = files.find((file) => file.kind === "test");
+    expect(test).toBeDefined();
+    await write(
+      "supabase/migrations/20200101000000_better_supabase_modules.sql",
+      files
+        .filter((file) => file.kind !== "test")
+        .map((file) => file.contents)
+        .join("\n"),
+    );
+    expect((await run("BS304", ctx)).map((finding) => finding.target)).toEqual([
+      test!.path,
+    ]);
+    await write(test!.path, test!.contents);
+    expect(await run("BS304", ctx)).toEqual([]);
+  });
+
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ sql: { modules: ["tenant"] } });
     const files = renderModules(["tenant"], moduleLayout(ctx.config));
