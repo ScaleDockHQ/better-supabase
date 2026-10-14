@@ -631,6 +631,7 @@ export const CATALOG: ModuleDefinition = {
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.",
   requires: ["tenant", "access"],
+  before: "search",
   integrates: ["outbox", "state-machine", "inventory"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

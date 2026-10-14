@@ -69,7 +69,8 @@ export interface SqlModule {
   /**
    * A module this one renders and is numbered ahead of, for a module that
    * owns a subject table the `case` checks of `comments` or `attachments`
-   * name. The file takes the number before it, so later files keep theirs.
+   * name, or that `search` puts its index trigger on. The file takes the
+   * number before it, so later files keep theirs.
    */
   readonly before?: string;
   /** What it needs instead when an authorization provider supplies memberships. */
