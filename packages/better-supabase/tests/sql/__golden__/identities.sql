@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_67_identities.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
@@ -310,7 +310,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_67_identities.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -323,7 +323,7 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_67_identities.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
@@ -635,7 +635,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_67_identities.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -648,7 +648,7 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_67_identities.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
@@ -962,7 +962,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_67_identities.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -975,7 +975,7 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_67_identities.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
@@ -1372,7 +1372,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_67_identities.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bs-module-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
