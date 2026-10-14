@@ -67,7 +67,13 @@ The trigger sheet adds a manual, webhook, schedule or event trigger.
 Webhook calls arrive on `/api/workflows/hooks/[token]`; the token's SHA-256
 is all the table keeps. `/api/workflows/tick` runs every minute from a cron
 and starts due schedules and queued admission requests through
-`triggers.starter`.
+`triggers.starter`. A schedule of a sample code workflow starts with
+`workflowStarter(scheduledWorkflows, { runAs })`, where `runAs` names the
+organization's owner as the publisher, so the member who created the
+schedule lends it no rights; an app would usually name a
+[service principal](/docs/blocks/service-principals) there. Admission
+requests start without `runAs` and run as the member who queued them. See
+[Event and schedule starts run as a publisher](/docs/blocks/workflow-sdk#event-and-schedule-starts-run-as-a-publisher).
 
 Every step of a published version runs with its publisher's rights,
 capped to the permissions its nodes needed at publish, through
