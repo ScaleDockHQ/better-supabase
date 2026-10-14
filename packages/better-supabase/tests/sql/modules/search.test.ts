@@ -81,7 +81,9 @@ describe("search module", () => {
       },
       ["vector-search", "search"],
     );
-    expect(sql).toContain(`"embedding" "extensions".vector(384)`);
+    expect(sql).toContain(
+      `alter table "better_supabase"."search_documents" add column if not exists "embedding" "extensions".vector(384);`,
+    );
     expect(sql).toContain("vector_hits as materialized");
     expect(sql).toContain("coalesce(1.0 / (60 + t.rank), 0)");
     expect(sql).toContain("search_set_embedding");

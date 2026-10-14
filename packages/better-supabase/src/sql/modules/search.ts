@@ -463,10 +463,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   ${c("body")} text,
   ${c("url")} text,
   ${c("tsv")} tsvector not null,
-  ${c("contentHash")} text not null,${vector ? `\n  ${c("embedding")} ${vector}.vector(${String(dimensions)}),` : ""}
+  ${c("contentHash")} text not null,
   ${c("updatedAt")} timestamptz not null default now(),
   primary key (${c("subjectType")}, ${c("subjectId")})
-);
+);${vector ? `\n-- Also for an index created before embeddings were turned on.\nalter table ${docs} add column if not exists ${c("embedding")} ${vector}.vector(${String(dimensions)});` : ""}
 ${lockTable(docs, { read: true })}
 create index if not exists search_documents_tsv_idx on ${docs} using gin (${c("tsv")});
 create index if not exists search_documents_title_trgm_idx on ${docs} using gin (${c("titleSearch")} extensions.gin_trgm_ops);
