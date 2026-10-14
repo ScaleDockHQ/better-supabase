@@ -1,0 +1,198 @@
+---
+title: Commerce
+description: A store with a catalog imported from CSV, stock, carts on anonymous sign-ins, promotion codes, checkout, invoices and shipping.
+---
+
+A visitor fills a cart before signing in, applies a code and checks out
+once they sign in. The catalog prices the cart, promotions take their
+discount, inventory reserves the stock, and the order gets a gapless order
+number and, once paid, an invoice number. The people watching the order
+hear when it is paid and when it ships.
+
+## Tables
+
+The catalog, stock, carts, orders and promotions are module tables, so the
+app adds none of its own. Orders are subjects of type `order`: their events
+carry `subjectType: "order"` and the order id, so `watcherHandler` and
+`notifications.subscribe` work on them like on any app row.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  sql: {
+    modules: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      catalog: {},
+      inventory: {},
+      imports: {},
+      "number-sequences": {
+        options: {
+          entities: {
+            order: { period: "none", format: "SO-{n:4}" },
+            invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
+          },
+        },
+      },
+      orders: {},
+      promotions: {},
+    },
+  },
+});
+```
+
+`orders` needs `catalog`, and `promotions` needs `orders`; `sql add` adds
+them when the config leaves them out. Name `inventory` yourself: without it
+orders reserve no stock. The `order` and `invoice` entities give the order
+and invoice numbers.
+
+## The blocks
+
+`orders` takes the payment and tax providers. The service transport merges
+carts and records payment events; everything else runs as the caller, so
+the policies apply:
+
+```ts title="lib/store.ts"
+import { fixedRates, stripePayments } from "better-supabase/blocks/commerce";
+import { createOrders } from "better-supabase/blocks/orders";
+import { createPromotions } from "better-supabase/blocks/promotions";
+
+export const orders = createOrders({
+  transport,
+  service,
+  payments: stripePayments({
+    stripe: { secretKey: env.STRIPE_SECRET_KEY },
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  }),
+  tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
+});
+export const promotions = createPromotions({ transport });
+```
+
+## Importing the catalog
+
+An import reads the product CSV and writes each batch through the catalog
+block, so a product gets the same checks as one made in the admin. The row
+key is the SKU, so a rerun skips what already imported:
+
+```ts title="lib/imports/products.ts"
+import { defineImport } from "better-supabase/blocks/imports";
+import { money } from "better-supabase/blocks/commerce";
+
+export const products = defineImport({
+  kind: "products",
+  columns: productRow,
+  key: (row) => row.sku,
+  async insert(batch, { organizationId }) {
+    for (const row of batch) {
+      const product = await catalog
+        .createProduct(organizationId, { title: row.title })
+        .orThrow();
+      await catalog.setProductStatus(product.id, "active").orThrow();
+      const variant = await catalog
+        .createVariant(product.id, { sku: row.sku })
+        .orThrow();
+      await catalog
+        .setPrice(variant.id, { amount: money(BigInt(row.price), "EUR") })
+        .orThrow();
+    }
+  },
+});
+```
+
+## From cart to shipment
+
+<Steps>
+
+### Shop anonymously
+
+The storefront signs the visitor in with `supabase.auth.signInAnonymously()`,
+then keeps their cart:
+
+```ts
+const cart = await orders
+  .createCart(organizationId, { currency: "EUR" })
+  .orThrow();
+await orders.addToCart(cart.id, variantId, 2).orThrow();
+await promotions.applyCode(cart.id, "WELCOME10").orThrow();
+```
+
+### Merge on sign-in
+
+When the visitor signs in to an account, the auth callback route moves the
+anonymous user's cart to the account. A cart the account already had in the
+same currency takes the lines, adding up quantities, and the promotion
+codes:
+
+```ts title="app/auth/callback/route.ts"
+await orders.mergeCarts(anonymousUserId, user.id).orThrow();
+```
+
+### Check out
+
+`priceCart` shows the discount and any problem that blocks checkout, such
+as a code that no longer applies. `checkout` places the order, reserves the
+stock, redeems the promotions and creates the payment with an idempotency
+key, so a retry returns the same order and payment. Once the payment
+succeeds, the reservations turn into `sale` movements and the order gets
+its invoice number:
+
+```ts
+const { order, payment } = await orders.checkout(cart.id).orThrow();
+```
+
+### Ship
+
+Staff create and ship a fulfillment:
+
+```ts
+const fulfillment = await orders.createFulfillment(order.id).orThrow();
+await orders.shipFulfillment(fulfillment.id, { carrier: "PostNL" }).orThrow();
+```
+
+</Steps>
+
+## Event flow
+
+| What happens         | Call                            | Event                 | Watchers get    |
+| -------------------- | ------------------------------- | --------------------- | --------------- |
+| The order is paid    | `orders.checkout(cartId)`       | `order.paid`          | `order.paid`    |
+| A code is redeemed   | `orders.checkout(cartId)`       | `promotion.redeemed`  |                 |
+| The order ships      | `orders.shipFulfillment(id)`    | `fulfillment.shipped` | `order.shipped` |
+| The catalog imported | `runImport(products, csv, ...)` | `import.completed`    |                 |
+
+```ts title="app/api/cron/watchers/route.ts"
+const watchers = watcherHandler(notifications, {
+  types: {
+    "order.paid": "order.paid",
+    "fulfillment.shipped": "order.shipped",
+  },
+});
+```
+
+`promotion.redeemed` has no subject, so it goes to a consumer of its own,
+such as a marketing sink, instead of to watchers.
+
+## Not included yet
+
+Revenue, average order value and units sold come with the metrics block, as
+metric definitions over `order.paid`. Approval steps for refunds above an
+amount or for large discounts come with the approvals block. Product search
+and saved views for the order grid come with their blocks too.
+
+## With ReUI
+
+- Product grid and product detail for the storefront, from the catalog's
+  products, variants and prices.
+- Shopping cart and coupon for the cart, from `priceCart` and
+  `promotions.applyCode`.
+- `checkout-2` for checkout, with the payment's `clientSecret`.
+- Receipt for the order page, with the order and invoice numbers.
+- The inventory blocks for stock levels, from `inventory`.
+
+Pro ecommerce blocks are licensed per user; copy them from
+[reui.io](https://reui.io).

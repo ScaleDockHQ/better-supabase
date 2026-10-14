@@ -180,6 +180,7 @@
   "plugins/timestamps",
   "plugins/validation",
   "recipes",
+  "recipes/commerce",
   "recipes/crm",
   "recipes/drive",
   "recipes/project-management",
