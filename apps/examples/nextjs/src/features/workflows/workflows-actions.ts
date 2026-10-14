@@ -136,7 +136,10 @@ export const cancelRun = bs.action(
   },
 );
 
-/** Creates or replaces a schedule that starts a sample workflow as its creator. */
+/**
+ * Creates or replaces a schedule that starts a sample workflow. The tick
+ * route starts it as the organization's owner, not as its creator.
+ */
 export const createSchedule = bs.action(
   {
     input: v.object({
@@ -151,17 +154,13 @@ export const createSchedule = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to schedule"));
     }
-    const context = workflowContext(contextOf(auth.user.id, tenant));
     const created = await blocks(supabase).workflows.schedules.create({
       name,
       workflow,
       cron,
       tenant,
-      // The argument list `workflowStarter` passes to the workflow.
-      input:
-        workflow === "onboarding-drip"
-          ? [context]
-          : [context, "A scheduled document."],
+      // The arguments after the run's context, which the tick route prepends.
+      input: workflow === "onboarding-drip" ? [] : ["A scheduled document."],
     });
     if (!created.ok) return created;
     refresh();
