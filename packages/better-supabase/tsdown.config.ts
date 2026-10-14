@@ -78,6 +78,7 @@ const entries = [
   "blocks/forms/index",
   "blocks/forms/react/index",
   "blocks/forms/react/server",
+  "blocks/time-tracking/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "ai-sdk/index",

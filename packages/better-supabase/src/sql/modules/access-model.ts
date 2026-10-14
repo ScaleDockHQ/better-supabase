@@ -44,6 +44,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "documents.*",
     "forms.*",
     "signatures.*",
+    "time_tracking.*",
   ],
   member: [
     "organization.read",
@@ -87,6 +88,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "forms.submit",
     "signatures.read",
     "signatures.request",
+    "time_tracking.track",
   ],
   viewer: ["organization.read"],
 };
@@ -258,6 +260,12 @@ export const MODULE_PERMISSIONS = {
     request: "signatures.request",
     manage: "signatures.manage",
   },
+  "time-tracking": {
+    read: "time_tracking.read",
+    track: "time_tracking.track",
+    approve: "time_tracking.approve",
+    manage: "time_tracking.manage",
+  },
 } as const;
 
 /**
@@ -386,6 +394,12 @@ export const MODULE_PERMISSION_SCOPES: {
     review: "tenant",
   },
   signatures: { read: "tenant", request: "tenant", manage: "tenant" },
+  "time-tracking": {
+    read: "tenant",
+    track: "tenant",
+    approve: "tenant",
+    manage: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

@@ -54,6 +54,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_signature_sign",
     "after_signature_sign",
   ],
+  "time-tracking": [
+    "before_time_entry_save",
+    "after_time_entry_save",
+    "before_timesheet_submit",
+    "after_timesheet_submit",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

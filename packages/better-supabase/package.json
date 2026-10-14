@@ -657,6 +657,11 @@
       "react-server": "./dist/blocks/forms/react/server.js",
       "default": "./dist/blocks/forms/react/index.js"
     },
+    "./blocks/time-tracking": {
+      "@better-supabase/source": "./src/blocks/time-tracking/index.ts",
+      "types": "./dist/blocks/time-tracking/index.d.ts",
+      "default": "./dist/blocks/time-tracking/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1263,6 +1268,10 @@
         "types": "./dist/blocks/forms/react/index.d.ts",
         "react-server": "./dist/blocks/forms/react/server.js",
         "default": "./dist/blocks/forms/react/index.js"
+      },
+      "./blocks/time-tracking": {
+        "types": "./dist/blocks/time-tracking/index.d.ts",
+        "default": "./dist/blocks/time-tracking/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

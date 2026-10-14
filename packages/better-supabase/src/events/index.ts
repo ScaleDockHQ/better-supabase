@@ -293,6 +293,8 @@ export type {
   StorageObjectEventData,
   SubjectEventData,
   SubjectEventType,
+  TimeEntryEventData,
+  TimesheetEventData,
   WorkflowEventData,
   WorkflowRunEventData,
   BlockEvent,

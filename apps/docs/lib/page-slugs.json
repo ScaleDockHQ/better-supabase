@@ -70,6 +70,7 @@
   "blocks/streams",
   "blocks/tags",
   "blocks/teams",
+  "blocks/time-tracking",
   "blocks/trash",
   "blocks/usage",
   "blocks/vector-search",

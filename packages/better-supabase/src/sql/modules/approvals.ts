@@ -32,6 +32,9 @@ import {
 /** Requests the access-requests module files; their subject is its row. */
 export const ACCESS_REQUEST_SUBJECT = "access_request";
 
+/** Requests the time-tracking module files; their subject is a timesheet. */
+export const TIMESHEET_SUBJECT = "timesheet";
+
 const PAYLOAD = [
   "organizationId",
   "subjectType",
@@ -156,8 +159,15 @@ function build(ctx: ModuleContext): string {
   validateRuns(ctx, policies);
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
+  const timesheets =
+    ctx.installed("time-tracking") && ctx.of("time-tracking").mode !== "custom"
+      ? ctx.of("time-tracking")
+      : undefined;
+  const ownSubjects = sqlString(ACCESS_REQUEST_SUBJECT).concat(
+    timesheets === undefined ? "" : `, ${sqlString(TIMESHEET_SUBJECT)}`,
+  );
   const readable = (row: string): string =>
-    `(${row}.${c("subjectType")} = ${sqlString(ACCESS_REQUEST_SUBJECT)} or ${subjectReadable(
+    `(${row}.${c("subjectType")} ${timesheets === undefined ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
       subjects,
       {
         type: `${row}.${c("subjectType")}`,
@@ -244,6 +254,13 @@ ${queues
     perform ${ctx.of("access-requests").fn("grant_access_request")}(v_req.${c("subjectId")}::uuid);
   end if;`
     : "";
+  const timesheetRun =
+    timesheets === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} then
+    perform ${timesheets.fn("approve_timesheet")}(v_req.${c("subjectId")}::uuid);
+  end if;`;
   const notifyBody = ctx.installed("notifications")
     ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
@@ -438,7 +455,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -812,6 +829,7 @@ export const APPROVALS: ModuleDefinition = {
     "teams",
     "state-machine",
     "access-requests",
+    "time-tracking",
   ],
   target: "schema",
   modes: ["managed", "custom"],

@@ -1964,6 +1964,8 @@
       "SubjectEventData",
       "SubjectEventType",
       "SupportEventData",
+      "TimeEntryEventData",
+      "TimesheetEventData",
       "WaitlistEventData",
       "WebhookEventData",
       "WorkflowEventData",
@@ -3670,6 +3672,35 @@
     "types": [
       "QuestionnaireView",
       "UseQuestionnaireOptions"
+    ]
+  },
+  "./blocks/time-tracking": {
+    "values": [
+      "createTimeTracking",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport",
+      "toWeeklyGrid"
+    ],
+    "types": [
+      "BlockTransport",
+      "LogTimeInput",
+      "TimeEntry",
+      "TimeEntryFields",
+      "TimeEntryListOptions",
+      "TimeEntryPatch",
+      "Timesheet",
+      "TimesheetDetail",
+      "TimesheetListOptions",
+      "TimesheetStatus",
+      "TimesheetTotals",
+      "TimeTracking",
+      "TimeTrackingOptions",
+      "WeeklyGrid",
+      "WeeklyGridDay",
+      "WeeklyGridEntry",
+      "WeeklyGridOptions",
+      "WeeklyGridRow"
     ]
   },
   "./blocks/reactions/react": {

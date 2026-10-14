@@ -57,6 +57,7 @@
     "approvals",
     "access-requests",
     "documents",
-    "forms"
+    "forms",
+    "time-tracking"
   ]
 }

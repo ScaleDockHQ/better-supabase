@@ -485,6 +485,35 @@ export interface SignatureEventData extends SubjectEventData {
   readonly method?: string;
 }
 
+/**
+ * Time entry events from the time-tracking module. `subjectType` and
+ * `subjectId` are null for time not tracked on a record.
+ */
+export interface TimeEntryEventData {
+  readonly organizationId: string;
+  /** The time entry. */
+  readonly id: string;
+  readonly userId: string;
+  readonly subjectType: string | null;
+  readonly subjectId: string | null;
+  /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
+  readonly seconds?: number | null;
+  readonly billable?: boolean;
+  /** The hourly rate, when the entry has one. */
+  readonly rate?: number | null;
+}
+
+/** Timesheet events from the time-tracking module. */
+export interface TimesheetEventData {
+  readonly organizationId: string;
+  /** The timesheet. */
+  readonly id: string;
+  readonly userId: string;
+  /** The Monday the week starts on, as `YYYY-MM-DD`. */
+  readonly week: string;
+  readonly approvalId: string | null;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -646,6 +675,13 @@ export interface BlockEventMap {
   "signature.completed": SignatureEventData;
   "signature.declined": SignatureEventData;
   "signature.cancelled": SignatureEventData;
+  "time_entry.started": TimeEntryEventData;
+  "time_entry.recorded": TimeEntryEventData;
+  "time_entry.updated": TimeEntryEventData;
+  "time_entry.deleted": TimeEntryEventData;
+  "timesheet.submitted": TimesheetEventData;
+  "timesheet.approved": TimesheetEventData;
+  "timesheet.reopened": TimesheetEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;
