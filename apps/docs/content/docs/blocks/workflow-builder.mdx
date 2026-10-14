@@ -13,33 +13,37 @@ node, so the canvas shows a run as it happens.
 better-supabase sql add workflow-builder   # adds workflows, tenant and access as well
 ```
 
-| Table                     | Holds                                                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `workflow_definitions`    | One row per workflow: `tenant_id`, `slug`, `name`, `description`                                                 |
-| `workflow_versions`       | Numbered versions of a definition: `graph`, `compiled`, `status` (`draft`, `published`, `archived`), publisher   |
-| `workflow_triggers`       | What starts a definition: `kind` (`manual`, `webhook`, `schedule`, `event`, `form`, `chat`), `config`, `enabled` |
-| `workflow_webhook_tokens` | The SHA-256 of each webhook trigger's token; only the service role reads it                                      |
-| `workflow_credentials`    | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                      |
-| `workflow_step_library`   | The steps your deployment provides, which the canvas offers as its palette                                       |
-| `workflow_node_runs`      | The status, attempts, output and error of each node of a run                                                     |
-| `workflow_alerts`         | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                              |
-| `workflow_alert_fires`    | Which alert fired for which run, so each fires once; only the service role reads it                              |
+| Table                        | Holds                                                                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workflow_definitions`       | One row per workflow: `tenant_id`, `slug`, `name`, `description`, `subject_types`, `scope`, `forked_from`, `forked_from_version`, `restricted` |
+| `workflow_opt_outs`          | The organizations that opted out of a definition, usually a system one                                                                         |
+| `workflow_definition_grants` | Who may run or edit a restricted definition: a user, a team or an organization role                                                            |
+| `workflow_versions`          | Numbered versions of a definition: `graph`, `compiled`, `status` (`draft`, `published`, `archived`), publisher                                 |
+| `workflow_triggers`          | What starts a definition: `kind` (`manual`, `webhook`, `schedule`, `event`, `form`, `chat`), `config`, `enabled`                               |
+| `workflow_webhook_tokens`    | The SHA-256 of each webhook trigger's token; only the service role reads it                                                                    |
+| `workflow_credentials`       | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                                                    |
+| `workflow_step_library`      | The steps your deployment provides, which the canvas offers as its palette                                                                     |
+| `workflow_node_runs`         | The status, attempts, output and error of each node of a run                                                                                   |
+| `workflow_alerts`            | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                                                            |
+| `workflow_alert_fires`       | Which alert fired for which run, so each fires once; only the service role reads it                                                            |
 
-| Permission         | Lets                                                          | Default roles   |
-| ------------------ | ------------------------------------------------------------- | --------------- |
-| `workflow.read`    | members read the tenant's definitions, versions and node runs | none by default |
-| `workflow.run`     | members start a published version                             | none by default |
-| `workflow.edit`    | members create definitions and save drafts                    | none by default |
-| `workflow.publish` | members publish a version                                     | none by default |
-| `workflow.admin`   | members manage triggers, credentials and alerts               | none by default |
+| Permission         | Lets                                                                                        | Default roles   |
+| ------------------ | ------------------------------------------------------------------------------------------- | --------------- |
+| `workflow.read`    | members read the tenant's definitions, versions and node runs, and the system definitions   | none by default |
+| `workflow.run`     | members start a published version                                                           | none by default |
+| `workflow.edit`    | members create definitions, save drafts, fork and start test runs                           | none by default |
+| `workflow.publish` | members publish a version                                                                   | none by default |
+| `workflow.admin`   | members manage triggers, credentials, alerts, opt-outs and grants, and restrict definitions | none by default |
 
 Grant the keys to your roles in `sql.modules.access.roles`.
 
 ## Graphs
 
-A graph is a list of nodes and the edges between them. It has one
-`trigger` node, and the other nodes run in dependency order once the trigger
-reaches them.
+A graph is a list of nodes and the edges between them. It has at least one
+`trigger` node. A run starts at one of them, and the other nodes run in
+dependency order once that trigger reaches them; the triggers it didn't
+start at never run. A trigger picks its node with `config.node`, and a
+graph with one trigger node starts there.
 
 ```ts
 import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
@@ -78,21 +82,20 @@ const graph: WorkflowGraph = {
 };
 ```
 
-| Kind        | Does                                                                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `trigger`   | Passes the run's input on                                                                                                                |
-| `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                        |
-| `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                        |
-| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch     |
-| `condition` | Tests `config.path` (under `input` or `results`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
+| Kind        | Does                                                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trigger`   | Passes the run's input on                                                                                                                           |
+| `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                                   |
+| `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                                   |
+| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch                |
+| `condition` | Tests `config.path` (under `input`, `results` or `subject`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
 
 An edge without a `branch` runs its target when its source ran. From a
 condition or an approval, `branch: "true"` or `"false"` picks the outcome
 it follows. A node runs when one of its incoming edges is active, so two
 branches can join again.
 
-`validateGraph(graph, steps)` returns the errors: a missing or second
-trigger, a cycle, an edge to an unknown node, a step outside the library or
+`validateGraph(graph, steps)` returns the errors: no trigger, a cycle, an edge to an unknown node, a step outside the library or
 an invalid condition. The database runs the same checks when it saves a
 draft and when it publishes one. `diffGraphs(from, to)` lists the nodes and
 edges that were added, removed or changed.
@@ -147,6 +150,123 @@ the service role (`WORKFLOW_COMPILED_FORBIDDEN`), so a member with
 `workflow.publish` can't store code for the server to run. `run` starts the published version through
 `start` with a fresh idempotency key unless you pass one, and returns the
 engine's run id. The run appears in `workflow_runs` like any other run.
+
+`versions.save(definition, graph, { inputSchema })` stores the JSON Schema
+of the input a run takes on the version (`input_schema`). A later save
+without it keeps the schema, and a fork copies it. The builder doesn't
+check `run` inputs against it; a [template](/docs/blocks/templates) checks
+the inputs it attaches against the published version's schema.
+
+## Runs on a record
+
+A definition lists the record types its runs can belong to in
+`subjectTypes`. Pass a `subject` to `run`, and the run is stored with it,
+so the record's page can list its runs (`workflows.runs.list({ subject })`)
+and conditions can read `subject.type` and `subject.id`:
+
+```ts
+await builder.definitions
+  .save({
+    tenant: organizationId,
+    slug: "deal-review",
+    name: "Deal review",
+    subjectTypes: ["deal"],
+  })
+  .orThrow();
+
+const runId = await builder
+  .run({ definition: id, subject: { type: "deal", id: dealId } })
+  .orThrow();
+const forDeals = await builder.definitions
+  .list(organizationId, { subjectType: "deal" })
+  .orThrow();
+```
+
+`workflow_subject_start_target` refuses a type the definition doesn't list
+(`WORKFLOW_SUBJECT_TYPE`). With the [subjects](/docs/blocks/sql#subject-registry)
+module installed, the caller must also be able to read the record
+(`can_subject`); it runs as the caller, so the record's RLS applies. An
+event trigger attaches the event's record (`subjectType` and `subjectId` on
+the event or in its payload) when the definition lists its type. Each step
+gets the subject in `call.subject`.
+
+## Test runs
+
+`test` starts a run of the open draft (or the version you pass) without
+running any step: each step node returns its stub, sleeps are skipped, and
+an approval node takes its stub as the decision (approved without one). It
+needs `workflow.edit`. A step without a stub returns the example in its
+library `outputSchema` (its first `examples` entry, else `default`), else
+`{ stubbed: true }`.
+
+```ts
+const runId = await builder
+  .test({
+    definition: id,
+    triggerNode: "start",
+    input: { email: "a@example.com" },
+    stubs: { lookup: { plan: "pro" }, review: { approved: false } },
+  })
+  .orThrow();
+```
+
+The run records `mode: "test"`: it writes no outbox events, fires no
+alerts, and run lists leave it out by default. With dynamic workflows the
+compiled source handles test runs itself. A static executor must spread
+`graphRunFields(meta)` into its runtime and you pass
+`executorRunsTests: true` to `graphStarter`; otherwise `graphStarter`
+refuses test runs, because an executor that ignores the stubs would run
+real steps.
+
+## System workflows, forks and opt-outs
+
+A definition with `scope: "system"` belongs to the app, not to one
+organization. Only the service role creates one, with no tenant, and the
+scope can't change afterwards. Every organization whose members hold
+`workflow.read` sees it in `definitions.list(tenant)`, and its runs belong
+to the organization they run in: pass `tenant` to `run`. A system
+version is organization-owned, so its steps run as that organization's
+service principal (`versions.runAs(call.version, call.tenant)`).
+
+```ts
+const mine = await builder.definitions
+  .fork({ source: systemId, tenant: organizationId, slug: "onboarding" })
+  .orThrow();
+await builder.definitions
+  .optOut({ tenant: organizationId, definition: systemId })
+  .orThrow();
+```
+
+`fork` copies the source's published graph into a new definition in the
+tenant as its draft, and records `forkedFrom` and `forkedFromVersion`.
+Lists then return `upstreamVersion` and `behind`, so the canvas can say
+when the source published something newer. A fork doesn't opt the
+organization out of the source; call `optOut` for that. An opted-out
+organization's starts fail with `WORKFLOW_OPTED_OUT`, its event triggers
+skip the definition, and a schedule tick moves the schedule on without a
+run. `optOut` with `optedOut: false` opts back in.
+
+## Restricting a definition
+
+A definition with `restricted: true` can be run, edited and published only
+by members with `workflow.admin` and by holders of a grant; every member
+with `workflow.read` still sees it. An `edit` grant includes `run`.
+
+```ts
+await builder.definitions.save({ ...input, restricted: true }).orThrow();
+await builder.definitions.grants
+  .add({
+    definition: id,
+    principalKind: "team",
+    principalId: teamId,
+    action: "edit",
+  })
+  .orThrow();
+```
+
+A grant names a user id, a team id (a member of the team, with the
+[teams](/docs/blocks/teams) module installed) or an organization role.
+Changing `restricted` and managing grants need `workflow.admin`.
 
 `steps.sync()` writes `steps` to the library (service role). Run it at
 deploy time or on start-up, so the palette and the database's checks know
@@ -367,19 +487,24 @@ match a definition on their `bs.definition` attribute, which
 
 ## Functions
 
-| Function                                                                                                         | Granted to                      | Does                                             |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------ |
-| `save_workflow_definition`, `workflow_definitions_list`, `workflow_definition_get`, `remove_workflow_definition` | `authenticated`, `service_role` | Definitions                                      |
-| `save_workflow_draft(definition, graph)`, `publish_workflow_version(version, compiled)`                          | `authenticated`, `service_role` | Drafts and publishing                            |
-| `workflow_versions_list`, `workflow_version_get`, `validate_workflow_graph`                                      | `authenticated`, `service_role` | Versions and graph checks                        |
-| `workflow_start_target(definition)`                                                                              | `authenticated`, `service_role` | The published version a `workflow.run` may start |
-| `workflow_graph_permissions(graph)`                                                                              | `authenticated`, `service_role` | The permissions a graph's steps need             |
-| `workflow_run_principal(version)`                                                                                | `service_role`                  | Whom a published version's steps run as          |
-| `save_workflow_trigger`, `workflow_triggers_list`, `remove_workflow_trigger`, `rotate_workflow_webhook_token`    | `authenticated`, `service_role` | Triggers                                         |
-| `workflow_webhook_target(token)`, `workflow_event_targets(type, tenant)`                                         | `service_role`                  | What a webhook or an event starts                |
-| `save_workflow_credential`, `workflow_credentials_list`, `remove_workflow_credential`                            | `authenticated`, `service_role` | Credentials                                      |
-| `workflow_credential_get(id)`                                                                                    | `service_role`                  | A credential's ref, for `resolve`                |
-| `sync_workflow_steps(steps)`, `workflow_steps_list()`                                                            | `service_role`, `authenticated` | The step library                                 |
-| `record_workflow_node_run(...)`, `workflow_node_runs_list(run)`                                                  | `service_role`, `authenticated` | Node status                                      |
-| `save_workflow_alert`, `workflow_alerts_list`, `remove_workflow_alert`                                           | `authenticated`, `service_role` | Alerts                                           |
-| `check_workflow_alerts(batch)`                                                                                   | `service_role`                  | Fires the slow alerts that are due               |
+| Function                                                                                                                                               | Granted to                      | Does                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- | ------------------------------------------------ |
+| `save_workflow_definition(tenant, slug, name, description, subject_types, scope, restricted)`, `workflow_definition_get`, `remove_workflow_definition` | `authenticated`, `service_role` | Definitions                                      |
+| `workflow_definitions_list(tenant, subject_type)`                                                                                                      | `authenticated`, `service_role` | The tenant's definitions and the system ones     |
+| `fork_workflow_definition(source, tenant, slug)`, `set_workflow_opt_out(tenant, definition, opted_out)`                                                | `authenticated`, `service_role` | Forks and opt-outs                               |
+| `set_workflow_definition_grant(definition, principal_kind, principal_id, action, granted)`, `workflow_definition_grants_list(definition)`              | `authenticated`, `service_role` | Grants on restricted definitions                 |
+| `save_workflow_draft(definition, graph)`, `publish_workflow_version(version, compiled)`                                                                | `authenticated`, `service_role` | Drafts and publishing                            |
+| `workflow_versions_list`, `workflow_version_get`, `validate_workflow_graph`                                                                            | `authenticated`, `service_role` | Versions and graph checks                        |
+| `workflow_start_target(definition, tenant)`                                                                                                            | `authenticated`, `service_role` | The published version a `workflow.run` may start |
+| `workflow_subject_start_target(definition, subject_type, subject_id, tenant)`                                                                          | `authenticated`, `service_role` | The same, for a run on a record                  |
+| `start_test_run(definition, version, trigger_node, input, stubs)`                                                                                      | `authenticated`, `service_role` | What a test run starts from                      |
+| `workflow_graph_permissions(graph)`                                                                                                                    | `authenticated`, `service_role` | The permissions a graph's steps need             |
+| `workflow_run_principal(version, tenant)`                                                                                                              | `service_role`                  | Whom a published version's steps run as          |
+| `save_workflow_trigger`, `workflow_triggers_list`, `remove_workflow_trigger`, `rotate_workflow_webhook_token`                                          | `authenticated`, `service_role` | Triggers                                         |
+| `workflow_webhook_target(token)`, `workflow_event_targets(type, tenant)`                                                                               | `service_role`                  | What a webhook or an event starts                |
+| `save_workflow_credential`, `workflow_credentials_list`, `remove_workflow_credential`                                                                  | `authenticated`, `service_role` | Credentials                                      |
+| `workflow_credential_get(id)`                                                                                                                          | `service_role`                  | A credential's ref, for `resolve`                |
+| `sync_workflow_steps(steps)`, `workflow_steps_list()`                                                                                                  | `service_role`, `authenticated` | The step library                                 |
+| `record_workflow_node_run(...)`, `workflow_node_runs_list(run)`                                                                                        | `service_role`, `authenticated` | Node status                                      |
+| `save_workflow_alert`, `workflow_alerts_list`, `remove_workflow_alert`                                                                                 | `authenticated`, `service_role` | Alerts                                           |
+| `check_workflow_alerts(batch)`                                                                                                                         | `service_role`                  | Fires the slow alerts that are due               |

@@ -101,6 +101,7 @@ const entries = [
   "blocks/forms/react/index",
   "blocks/forms/react/server",
   "blocks/time-tracking/index",
+  "blocks/templates/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

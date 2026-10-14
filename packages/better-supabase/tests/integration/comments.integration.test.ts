@@ -732,4 +732,134 @@ describe.skipIf(!live)("comments", () => {
       await s.close();
     }
   });
+
+  it("filters activity through can_subject, adds audit entries and makes participants follow", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_activity_quotes (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           owner_id uuid,
+           total integer not null default 0
+         );
+         alter table public.bs_test_activity_quotes enable row level security;
+         grant select, update on public.bs_test_activity_quotes to authenticated;
+         create policy "read" on public.bs_test_activity_quotes for select to authenticated
+           using (better_supabase.has_organization_role(organization_id)
+             and (owner_id is null or owner_id = (select auth.uid())));`,
+      );
+      await s.install(
+        ["organizations", "notifications", "audit", "comments", "subjects"],
+        {
+          subjects: { quote: { table: "bs_test_activity_quotes" } },
+          modules: { audit: { options: { readPolicy: true } } },
+        },
+      );
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { admin, member });
+      await s.rows(
+        "select better_supabase.audit('public.bs_test_activity_quotes')",
+      );
+      const [open, mine] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_activity_quotes (organization_id, owner_id) values ($1, null), ($1, $2) returning id",
+        [organization, owner.id],
+      );
+      const entry = (event: string, type: string, subject: string) => ({
+        event_id: event,
+        organization_id: organization,
+        type,
+        subject_type: type.split(".")[0],
+        subject_id: subject,
+        occurred_at: "2026-10-06T10:00:00Z",
+      });
+      await s.rows("select better_supabase.record_activity($1)", [
+        {
+          entries: [
+            entry("a1", "quote.sent", open!.id),
+            entry("a2", "quote.sent", mine!.id),
+            entry("a3", "task.created", "t1"),
+          ],
+        },
+      ]);
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      await s.asRole(admin);
+      const timeline = await comments
+        .history(organization, { type: "quote", id: open!.id })
+        .orThrow();
+      expect(
+        timeline
+          .map((item) => `${item.source} ${item.type}`)
+          .toSorted((a, b) => a.localeCompare(b)),
+      ).toEqual(["audit bs_test_activity_quotes.created", "event quote.sent"]);
+      const audited = timeline.find((item) => item.source === "audit");
+      expect(audited).toMatchObject({
+        organizationId: organization,
+        subjectType: "quote",
+        subjectId: open!.id,
+        data: { op: "insert", table: "public.bs_test_activity_quotes" },
+      });
+      expect(
+        await comments
+          .history(organization, { type: "quote", id: mine!.id })
+          .orThrow(),
+      ).toEqual([]);
+      const feed = await comments.history(organization).orThrow();
+      const byText = (
+        a: string | null | undefined,
+        b: string | null | undefined,
+      ): number => (a ?? "").localeCompare(b ?? "");
+      expect(feed.map((item) => item.subjectId).toSorted(byText)).toEqual(
+        [open!.id, "t1"].toSorted(byText),
+      );
+      expect(feed.every((item) => item.source === "event")).toBe(true);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.activity_entries)",
+        ),
+      ).toBe(2);
+
+      await s.asRole(member);
+      expect(
+        (
+          await comments
+            .history(organization, { type: "quote", id: open!.id })
+            .orThrow()
+        ).map((item) => item.source),
+      ).toEqual(["event"]);
+
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.notification_subscriptions (organization_id, user_id, subject_type, subject_id, level)
+         values ($1, $2, 'quote', $3, 'ignore')`,
+        [organization, admin.id, open!.id],
+      );
+      await s.asRole(member);
+      await comments
+        .create({
+          organizationId: organization,
+          subjectType: "quote",
+          subjectId: open!.id,
+          body: `@[Owner](${owner.id}) @[Admin](${admin.id})`,
+        })
+        .orThrow();
+      await s.service();
+      const levels = await s.rows<{ user_id: string; level: string }>(
+        `select user_id, level from better_supabase.notification_subscriptions
+         where subject_type = 'quote' and subject_id = $1 order by level, user_id`,
+        [open!.id],
+      );
+      expect(levels).toEqual([
+        { user_id: admin.id, level: "ignore" },
+        ...[member.id, owner.id]
+          .toSorted()
+          .map((id) => ({ user_id: id, level: "participating" })),
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
 });

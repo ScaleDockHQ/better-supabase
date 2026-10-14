@@ -247,6 +247,15 @@ comment's `mentions` keep the group id as written.
 its own mention notifications. The outbox still gets `comment.mentioned`,
 so that app can send from the event.
 
+### Following a thread
+
+With the notifications module installed, the author of a new comment and
+every user it mentions (after group expansion) follow the subject: the
+trigger adds a `participating` row to `notification_subscriptions` for each
+of them. A user who already has a row for the subject keeps it, so someone
+who chose `ignore` stays unsubscribed. An edit adds only the newly mentioned
+users. `options.follow: false` turns this off.
+
 ## Reactions
 
 With the [reactions](/docs/blocks/reactions) module installed, a comment is
@@ -301,6 +310,33 @@ const timeline = await comments
   .history(organizationId, { type: "quote", id: quoteId }, { limit: 20 })
   .orThrow();
 ```
+
+Each entry carries a `source`: `event` for a row of `activity_entries`, or
+`audit` for an audit log entry (see below).
+
+### Visibility per record
+
+With the `subjects` module of the
+[subject registry](/docs/blocks/sql#subject-registry) installed, the feed only
+shows a caller the entries on records they can read. The read policy on
+`activity_entries` checks `can_subject(subject_type, subject_id, 'read')` row
+by row for every subject type in the registry, so the tenant feed, the
+subject timeline and `activityListQuery` all leave out entries on records the
+caller can't read, and entries on a deleted record. `list_activity` returns
+an empty timeline for a subject the caller can't read. Entries without a
+subject, or on a type the registry doesn't list, keep the tenant check alone.
+
+### Audit entries in a timeline
+
+With the [audit](/docs/blocks/audit) module installed with
+`options.readPolicy: true`, a subject's timeline also returns the audit log
+entries for the subject's row: the entries whose table is the type's
+registry table and whose record id is the subject id. The audit read policy
+gates them, so only callers who hold `audit.read` (by default `admin` and
+`owner`) see them. An audit entry has `source: "audit"`, the audit entry id
+as `id`, no `eventId`, the audit event type as `type` (`audit.<op>` when it
+has none), and `op`, `changed` and `table` in `data`. The tenant feed and
+`activityListQuery` list no audit entries.
 
 Or read the feed with `activityListQuery`, a cursor-paged
 [list query](/docs/platform/list) filtered by type, actor and

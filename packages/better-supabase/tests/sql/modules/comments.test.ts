@@ -259,4 +259,85 @@ describe("comments module", () => {
       }),
     ).toThrow(/subjects\.task\.label must be SQL on the subject row \{row\}/);
   });
+
+  it("makes the author and new mentions follow the subject with notifications", () => {
+    const sql = sqlOf(["organizations", "notifications", "comments"]);
+    expect(sql).toContain(
+      `insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+  select distinct new."organization_id", f.x, new."subject_type", new."subject_id", 'participating'
+  from unnest(case when tg_op = 'INSERT' then array[new."author_id"] else '{}'::uuid[] end || v_new) f(x)
+  where f.x is not null
+  on conflict do nothing;`,
+    );
+    const quiet = sqlOf(["organizations", "notifications", "comments"], {
+      notify: false,
+      follow: false,
+    });
+    expect(quiet).not.toContain("notification_subscriptions");
+    expect(sqlOf(["comments"])).not.toContain("notification_subscriptions");
+  });
+
+  describe("activity with the subject registry", () => {
+    const registry = {
+      quote: { table: "sales.quotes", permissions: { read: "quotes.read" } },
+      note: { table: "notes" },
+    };
+    const render = (
+      names: readonly string[],
+      audit: Readonly<Record<string, unknown>> = {},
+    ): string =>
+      renderModules(names, {
+        subjects: registry,
+        modules: { audit: { options: audit } },
+      })
+        .filter((file) => file.module === "comments")
+        .map((file) => file.contents)
+        .join("\n");
+
+    it("keeps the tenant check alone without the subjects module", () => {
+      const sql = render(["comments"]);
+      expect(sql).not.toContain('"activity_subject_readable"("subject_type"');
+      expect(sql).toContain(
+        `drop function if exists "better_supabase"."activity_subject_readable"(text, text);`,
+      );
+      expect(sql).toContain(`'source', 'event'`);
+      expect(sql).not.toContain("audit_events");
+    });
+
+    it("checks can_subject per row and once for a subject's timeline", () => {
+      const sql = render(["comments", "subjects"]);
+      expect(sql).toContain(
+        `return coalesce("better_supabase"."can_subject"(subject_type, subject_id, 'read'), false);`,
+      );
+      expect(sql).toContain(
+        `or not ("subject_type" = any ('{quote,note}'::text[]))
+      or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));`,
+      );
+      expect(sql).toContain(
+        `if list_activity.subject_id is not null and list_activity.subject_type = any ('{quote,note}'::text[])
+    and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
+    return '[]'::jsonb;`,
+      );
+      expect(sql).not.toContain("audit_events");
+    });
+
+    it("joins the subject's audit entries when the audit read policy is on", () => {
+      expect(render(["audit", "comments", "subjects"])).not.toContain(
+        "audit_events",
+      );
+      const sql = render(["access", "audit", "comments", "subjects"], {
+        readPolicy: true,
+      });
+      expect(sql).toContain(
+        `      when 'quote' then 'sales.quotes'\n      when 'note' then 'public.notes'`,
+      );
+      expect(sql).toContain(`from "better_supabase"."audit_events" l`);
+      expect(sql).toContain(`and l."table_name" = v_table`);
+      expect(sql).toContain(`and l."record_id" = list_activity.subject_id`);
+      expect(sql).toContain(
+        `'type', coalesce(l."event_type", 'audit.' || l."op")`,
+      );
+      expect(sql).toContain(`'source', 'audit'`);
+    });
+  });
 });

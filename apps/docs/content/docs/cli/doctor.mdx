@@ -416,11 +416,14 @@ those columns and a policy lets them write the row: a member who can update
 their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
 
-Two columns don't count: a single-column primary key, whose uniqueness stops
-a write from taking over another row, and a tenant column that every policy
+Three columns don't count: a single-column primary key, whose uniqueness stops
+a write from taking over another row, a tenant column that every policy
 for the write pins to `better_supabase.current_tenant_id()` without an `or`,
-so a write can only name the tenant the caller already acts in. A column the
-provider lists in `decidingColumns` always counts.
+so a write can only name the tenant the caller already acts in, and a
+subject's `deletedAt` column in `config.subjects`. `can_subject` filters
+soft-deleted rows out of a check that the row's own policies already pass, so
+clearing the column only shows a row again to someone who could already write
+it. A column the provider lists in `decidingColumns` always counts.
 
 A table-level grant counts even after a column-level revoke, because
 Postgres checks the table grant first. A grant to `public` counts for both

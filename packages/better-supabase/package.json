@@ -752,6 +752,11 @@
       "types": "./dist/blocks/time-tracking/index.d.ts",
       "default": "./dist/blocks/time-tracking/index.js"
     },
+    "./blocks/templates": {
+      "@better-supabase/source": "./src/blocks/templates/index.ts",
+      "types": "./dist/blocks/templates/index.d.ts",
+      "default": "./dist/blocks/templates/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1455,6 +1460,10 @@
       "./blocks/time-tracking": {
         "types": "./dist/blocks/time-tracking/index.d.ts",
         "default": "./dist/blocks/time-tracking/index.js"
+      },
+      "./blocks/templates": {
+        "types": "./dist/blocks/templates/index.d.ts",
+        "default": "./dist/blocks/templates/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

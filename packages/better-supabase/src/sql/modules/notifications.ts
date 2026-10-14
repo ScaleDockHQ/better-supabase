@@ -1,3 +1,4 @@
+import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -20,6 +21,30 @@ import {
   suppressionContract,
   suppressionsTable,
 } from "./notifications-suppressions.ts";
+import {
+  keepsTemplateKey,
+  trackingContract,
+  trackingTables,
+} from "./notifications-tracking.ts";
+
+/** What `record_delivery_event` writes for each provider event. */
+const DELIVERY_PAYLOAD = [
+  "notificationId",
+  "organizationId",
+  "type",
+  "channel",
+  "deliveryId",
+  "provider",
+  "providerEventId",
+  "subjectType",
+  "subjectId",
+] as const satisfies readonly (keyof NotificationDeliveryEventData)[];
+
+const DELIVERY_EVENT = {
+  subject: "notifications",
+  payload: DELIVERY_PAYLOAD,
+  retries: true,
+};
 
 const EVENTS: ModuleEvents = {
   "notification.created": {
@@ -27,6 +52,12 @@ const EVENTS: ModuleEvents = {
     payload: ["notificationId", "organizationId", "type", "recipientIds"],
     retries: true,
   },
+  "notification.delivered": DELIVERY_EVENT,
+  "notification.opened": DELIVERY_EVENT,
+  "notification.clicked": DELIVERY_EVENT,
+  "notification.bounced": DELIVERY_EVENT,
+  "notification.complained": DELIVERY_EVENT,
+  "notification.delayed": DELIVERY_EVENT,
 };
 
 const NAMES: ModuleNames = {
@@ -106,6 +137,9 @@ const NAMES: ModuleNames = {
         attemptedAt: "attempted_at",
         nextAttemptAt: "next_attempt_at",
         deliveredAt: "delivered_at",
+        providerStatus: "provider_status",
+        providerStatusAt: "provider_status_at",
+        templateKey: "template_key",
         createdAt: "created_at",
       },
       optional: [
@@ -116,7 +150,27 @@ const NAMES: ModuleNames = {
         "attempts",
         "nextAttemptAt",
         "deliveredAt",
+        "providerStatus",
+        "providerStatusAt",
+        "templateKey",
       ],
+      optionalTable: true,
+    },
+    deliveryEvents: {
+      name: "notification_delivery_events",
+      lifecycle: { tenant: "tenant" },
+      columns: {
+        id: "id",
+        delivery: "delivery_id",
+        tenant: "organization_id",
+        kind: "kind",
+        provider: "provider",
+        providerEventId: "provider_event_id",
+        occurredAt: "occurred_at",
+        detail: "detail",
+        createdAt: "created_at",
+      },
+      optional: ["tenant", "provider"],
       optionalTable: true,
     },
     subscriptions: {
@@ -372,7 +426,7 @@ grant all on ${n.table(table)} to service_role;${policy(
       })`,
     )}`);
   }
-  parts.push(suppressionsTable(ctx, n));
+  parts.push(suppressionsTable(ctx, n), trackingTables(ctx, n));
   return parts.join("\n");
 }
 
@@ -625,12 +679,20 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       },
       {
         name: "complete_notification_delivery",
-        args: ["uuid", "text", "text", "text", "text", "integer"],
+        args: [
+          "uuid",
+          "text",
+          "text",
+          "text",
+          "text",
+          "integer",
+          ...(keepsTemplateKey(ctx) ? ["text"] : []),
+        ],
         returns: "text",
       },
     );
   }
-  fns.push(...suppressionContract(ctx));
+  fns.push(...suppressionContract(ctx), ...trackingContract(ctx));
   return fns;
 }
 
@@ -644,7 +706,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 5,
+  version: 6,
   names: NAMES,
   contract,
   upgrades: [
@@ -676,6 +738,12 @@ export const NOTIFICATIONS: ModuleDefinition = {
       from: 4,
       description:
         "notification_suppressions holds addresses a channel no longer sends to after a bounce or a complaint; claim_notification_deliveries returns each delivery's suppression, and suppress_notification_address, unsuppress_notification_address and list_notification_suppressions are new.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "notification_delivery_events stores what a provider reports about a sent message; deliveries gain provider_status, provider_status_at and template_key; record_delivery_event and list_subject_deliveries are new, complete_notification_delivery takes template_key, and notification.delivered, opened, clicked, bounced, complained and delayed carry the subject.",
       sql: () => "",
     },
   ],

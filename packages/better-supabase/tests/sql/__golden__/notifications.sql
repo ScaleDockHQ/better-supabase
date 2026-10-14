@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@5 managed
+-- @bs-module notifications@6 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -193,6 +193,37 @@ grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
 drop policy if exists "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions";
 create policy "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "template_key" text;
+create index if not exists notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
+
+create table if not exists "better_supabase"."notification_delivery_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
+  "organization_id" uuid,
+  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "provider" text,
+  "provider_event_id" text unique,
+  "occurred_at" timestamptz not null default now(),
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
+alter table "better_supabase"."notification_delivery_events" enable row level security;
+revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+grant select on "better_supabase"."notification_delivery_events" to authenticated;
+grant all on "better_supabase"."notification_delivery_events" to service_role;
+drop policy if exists "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
+create policy "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -778,6 +809,7 @@ grant execute on function "better_supabase"."list_notification_preferences"(uuid
 
 drop function if exists "better_supabase"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "better_supabase"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -831,8 +863,9 @@ $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead. template_key
+-- names the template the channel composed, for list_subject_deliveries.
+create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language plpgsql
 security definer
@@ -856,6 +889,7 @@ begin
     "provider" = coalesce(complete_notification_delivery.provider, d."provider"),
     "provider_message_id" = coalesce(complete_notification_delivery.provider_message_id, d."provider_message_id"),
     "error" = complete_notification_delivery.error,
+    "template_key" = coalesce(complete_notification_delivery.template_key, d."template_key"),
     "delivered_at" = case when v_status = 'sent' then now() else d."delivered_at" end,
     "attempted_at" = case when v_status = 'pending' then null else d."attempted_at" end,
     "next_attempt_at" = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, greatest(d."attempts", 1) - 1)))) else d."next_attempt_at" end
@@ -865,8 +899,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
-revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -943,6 +977,130 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_notification_suppressions"(integer) from public, anon;
 grant execute on function "better_supabase"."list_notification_suppressions"(integer) to authenticated, service_role;
+
+-- Records what a provider reported about a sent message (a webhook): finds
+-- the delivery by the provider's message id, stores the event once per
+-- provider event id, moves provider_status forward, suppresses the
+-- recipient's address on a bounce or a complaint (unless suppress is
+-- false), and writes notification.<kind>. Null when no delivery matches.
+create or replace function "better_supabase"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_kind text := record_delivery_event.kind;
+  v_at timestamptz := coalesce(record_delivery_event.occurred_at, now());
+  v_delivery uuid;
+  v_channel text;
+  v_user uuid;
+  v_event uuid;
+  v_type text;
+  v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_row uuid;
+  v_email text;
+begin
+  if v_kind is null or not (v_kind = any(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[])) then
+    raise exception 'kind must be delayed, delivered, opened, clicked, bounced, complained' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_EVENT_KIND';
+  end if;
+  if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
+    raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
+  end if;
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+    coalesce(ev."subject_type", 'notification'),
+    coalesce(ev."subject_id", ev."id"::text)
+  into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
+  from "better_supabase"."notification_deliveries" d
+  join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+  where d."provider_message_id" = record_delivery_event.provider_message_id
+    and (record_delivery_event.provider is null or d."provider" = record_delivery_event.provider)
+  order by d."created_at" desc
+  limit 1;
+  if v_delivery is null then
+    return null;
+  end if;
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
+  on conflict ("provider_event_id") do nothing
+  returning "id" into v_row;
+  if v_row is not null then
+    update "better_supabase"."notification_deliveries" d
+    set "provider_status" = v_kind, "provider_status_at" = v_at
+    where d."id" = v_delivery
+      and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
+    if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
+      select u.email into v_email from auth.users u where u.id = v_user;
+      if v_email is not null and btrim(v_email) <> '' then
+        perform "better_supabase"."suppress_notification_address"(
+          v_email,
+          case when v_kind = 'bounced' then 'bounce' else 'complaint' end,
+          v_channel,
+          record_delivery_event.provider,
+          record_delivery_event.provider_event_id,
+          coalesce(record_delivery_event.detail, '{}')
+        );
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'delivery_id', v_delivery,
+    'notification_id', v_event,
+    'tenant', v_tenant,
+    'type', v_type,
+    'channel', v_channel,
+    'user_id', v_user,
+    'subject_type', v_subject_type,
+    'subject_id', v_subject_id,
+    'kind', v_kind,
+    'provider_status', (select d."provider_status" from "better_supabase"."notification_deliveries" d where d."id" = v_delivery),
+    'recorded', v_row is not null
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+-- The deliveries of the notifications about one record, newest first, each
+-- with its provider events: for a record's "emails sent" panel. The service
+-- reads every tenant's; a member needs the send permission in tenant.
+create or replace function "better_supabase"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Not allowed to read this record''s deliveries' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+    from (
+      select jsonb_build_object('id', d."id", 'notification_id', ev."id", 'type', ev."type", 'channel', d."channel", 'user_id', rc."user_id", 'status', d."status", 'provider_message_id', d."provider_message_id", 'created_at', d."created_at", 'provider', d."provider", 'provider_status', d."provider_status", 'provider_status_at', d."provider_status_at", 'template_key', d."template_key", 'error', d."error", 'attempts', d."attempts", 'delivered_at', d."delivered_at", 'events', (
+        select coalesce(jsonb_agg(jsonb_build_object('kind', de."kind", 'occurred_at', de."occurred_at", 'detail', de."detail") order by de."occurred_at", de."created_at"), '[]')
+        from "better_supabase"."notification_delivery_events" de where de."delivery_id" = d."id"
+      )) as item,
+        d."created_at" as created_at, d."id" as id
+      from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where ev."subject_type" = list_subject_deliveries.subject_type
+        and ev."subject_id" = list_subject_deliveries.subject_id
+        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+      order by d."created_at" desc, d."id" desc
+      limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
+    ) x
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) to service_role;
 
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
@@ -1025,13 +1183,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'managed')
+values ('notifications', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@5 managed
+-- @bs-module notifications@6 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1224,6 +1382,37 @@ grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
 drop policy if exists "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions";
 create policy "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "template_key" text;
+create index if not exists notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
+
+create table if not exists "better_supabase"."notification_delivery_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
+  "organization_id" uuid,
+  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "provider" text,
+  "provider_event_id" text unique,
+  "occurred_at" timestamptz not null default now(),
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
+alter table "better_supabase"."notification_delivery_events" enable row level security;
+revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+grant select on "better_supabase"."notification_delivery_events" to authenticated;
+grant all on "better_supabase"."notification_delivery_events" to service_role;
+drop policy if exists "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
+create policy "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -1867,6 +2056,7 @@ grant execute on function "better_supabase"."list_notification_preferences"(uuid
 
 drop function if exists "better_supabase"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "better_supabase"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -1920,8 +2110,9 @@ $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead. template_key
+-- names the template the channel composed, for list_subject_deliveries.
+create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language plpgsql
 security definer
@@ -1945,6 +2136,7 @@ begin
     "provider" = coalesce(complete_notification_delivery.provider, d."provider"),
     "provider_message_id" = coalesce(complete_notification_delivery.provider_message_id, d."provider_message_id"),
     "error" = complete_notification_delivery.error,
+    "template_key" = coalesce(complete_notification_delivery.template_key, d."template_key"),
     "delivered_at" = case when v_status = 'sent' then now() else d."delivered_at" end,
     "attempted_at" = case when v_status = 'pending' then null else d."attempted_at" end,
     "next_attempt_at" = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, greatest(d."attempts", 1) - 1)))) else d."next_attempt_at" end
@@ -1954,8 +2146,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
-revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -2032,6 +2224,143 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_notification_suppressions"(integer) from public, anon;
 grant execute on function "better_supabase"."list_notification_suppressions"(integer) to authenticated, service_role;
+
+-- Records what a provider reported about a sent message (a webhook): finds
+-- the delivery by the provider's message id, stores the event once per
+-- provider event id, moves provider_status forward, suppresses the
+-- recipient's address on a bounce or a complaint (unless suppress is
+-- false), and writes notification.<kind>. Null when no delivery matches.
+create or replace function "better_supabase"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_kind text := record_delivery_event.kind;
+  v_at timestamptz := coalesce(record_delivery_event.occurred_at, now());
+  v_delivery uuid;
+  v_channel text;
+  v_user uuid;
+  v_event uuid;
+  v_type text;
+  v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_row uuid;
+  v_email text;
+begin
+  if v_kind is null or not (v_kind = any(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[])) then
+    raise exception 'kind must be delayed, delivered, opened, clicked, bounced, complained' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_EVENT_KIND';
+  end if;
+  if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
+    raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
+  end if;
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+    coalesce(ev."subject_type", 'notification'),
+    coalesce(ev."subject_id", ev."id"::text)
+  into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
+  from "better_supabase"."notification_deliveries" d
+  join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+  where d."provider_message_id" = record_delivery_event.provider_message_id
+    and (record_delivery_event.provider is null or d."provider" = record_delivery_event.provider)
+  order by d."created_at" desc
+  limit 1;
+  if v_delivery is null then
+    return null;
+  end if;
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
+  on conflict ("provider_event_id") do nothing
+  returning "id" into v_row;
+  if v_row is not null then
+    update "better_supabase"."notification_deliveries" d
+    set "provider_status" = v_kind, "provider_status_at" = v_at
+    where d."id" = v_delivery
+      and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
+    if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
+      select u.email into v_email from auth.users u where u.id = v_user;
+      if v_email is not null and btrim(v_email) <> '' then
+        perform "better_supabase"."suppress_notification_address"(
+          v_email,
+          case when v_kind = 'bounced' then 'bounce' else 'complaint' end,
+          v_channel,
+          record_delivery_event.provider,
+          record_delivery_event.provider_event_id,
+          coalesce(record_delivery_event.detail, '{}')
+        );
+      end if;
+    end if;
+    if v_kind = 'delayed' then
+      perform "better_supabase".emit_event('notification.delayed', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.delayed:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'delivered' then
+      perform "better_supabase".emit_event('notification.delivered', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.delivered:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'opened' then
+      perform "better_supabase".emit_event('notification.opened', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.opened:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'clicked' then
+      perform "better_supabase".emit_event('notification.clicked', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.clicked:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'bounced' then
+      perform "better_supabase".emit_event('notification.bounced', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.bounced:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'complained' then
+      perform "better_supabase".emit_event('notification.complained', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.complained:' || v_row::text, 'better-supabase/notifications');
+    end if;
+  end if;
+  return jsonb_build_object(
+    'delivery_id', v_delivery,
+    'notification_id', v_event,
+    'tenant', v_tenant,
+    'type', v_type,
+    'channel', v_channel,
+    'user_id', v_user,
+    'subject_type', v_subject_type,
+    'subject_id', v_subject_id,
+    'kind', v_kind,
+    'provider_status', (select d."provider_status" from "better_supabase"."notification_deliveries" d where d."id" = v_delivery),
+    'recorded', v_row is not null
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+-- The deliveries of the notifications about one record, newest first, each
+-- with its provider events: for a record's "emails sent" panel. The service
+-- reads every tenant's; a member needs the send permission in tenant.
+create or replace function "better_supabase"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) or (list_subject_deliveries.tenant is not null and coalesce(better_supabase.member_can(auth.uid(), list_subject_deliveries.tenant, 'notifications.send'), false))) then
+    raise exception 'Not allowed to read this record''s deliveries' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+    from (
+      select jsonb_build_object('id', d."id", 'notification_id', ev."id", 'type', ev."type", 'channel', d."channel", 'user_id', rc."user_id", 'status', d."status", 'provider_message_id', d."provider_message_id", 'created_at', d."created_at", 'provider', d."provider", 'provider_status', d."provider_status", 'provider_status_at', d."provider_status_at", 'template_key', d."template_key", 'error', d."error", 'attempts', d."attempts", 'delivered_at', d."delivered_at", 'events', (
+        select coalesce(jsonb_agg(jsonb_build_object('kind', de."kind", 'occurred_at', de."occurred_at", 'detail', de."detail") order by de."occurred_at", de."created_at"), '[]')
+        from "better_supabase"."notification_delivery_events" de where de."delivery_id" = d."id"
+      )) as item,
+        d."created_at" as created_at, d."id" as id
+      from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where ev."subject_type" = list_subject_deliveries.subject_type
+        and ev."subject_id" = list_subject_deliveries.subject_id
+        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+      order by d."created_at" desc, d."id" desc
+      limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
+    ) x
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) to authenticated, service_role;
 
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
@@ -2114,13 +2443,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'managed')
+values ('notifications', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@5 managed
+-- @bs-module notifications@6 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -2315,6 +2644,37 @@ grant select on "app_private"."notification_suppressions" to authenticated;
 grant all on "app_private"."notification_suppressions" to service_role;
 drop policy if exists "bs_notification_suppressions_read" on "app_private"."notification_suppressions";
 create policy "bs_notification_suppressions_read" on "app_private"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+
+alter table "app_private"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "app_private"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
+alter table "app_private"."notification_deliveries" add column if not exists "template_key" text;
+create index if not exists notification_deliveries_provider_message_idx on "app_private"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
+
+create table if not exists "app_private"."notification_delivery_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "app_private"."notification_deliveries" ("id") on delete cascade,
+  "organization_id" uuid,
+  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "provider" text,
+  "provider_event_id" text unique,
+  "occurred_at" timestamptz not null default now(),
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_delivery_events_delivery_idx on "app_private"."notification_delivery_events" ("delivery_id", "occurred_at");
+alter table "app_private"."notification_delivery_events" enable row level security;
+revoke all on "app_private"."notification_delivery_events" from anon, authenticated;
+grant select on "app_private"."notification_delivery_events" to authenticated;
+grant all on "app_private"."notification_delivery_events" to service_role;
+drop policy if exists "bs_notification_delivery_events_read" on "app_private"."notification_delivery_events";
+create policy "bs_notification_delivery_events_read" on "app_private"."notification_delivery_events" for select to authenticated using (
+  exists (
+    select 1 from "app_private"."notification_deliveries" d
+    join "app_private"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "app_private"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -2900,6 +3260,7 @@ grant execute on function "app_private"."list_notification_preferences"(uuid) to
 
 drop function if exists "app_private"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "app_private"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "app_private"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -2953,8 +3314,9 @@ $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function "app_private"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead. template_key
+-- names the template the channel composed, for list_subject_deliveries.
+create or replace function "app_private"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language plpgsql
 security definer
@@ -2978,6 +3340,7 @@ begin
     "provider" = coalesce(complete_notification_delivery.provider, d."provider"),
     "provider_message_id" = coalesce(complete_notification_delivery.provider_message_id, d."provider_message_id"),
     "error" = complete_notification_delivery.error,
+    "template_key" = coalesce(complete_notification_delivery.template_key, d."template_key"),
     "delivered_at" = case when v_status = 'sent' then now() else d."delivered_at" end,
     "attempted_at" = case when v_status = 'pending' then null else d."attempted_at" end,
     "next_attempt_at" = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, greatest(d."attempts", 1) - 1)))) else d."next_attempt_at" end
@@ -2987,8 +3350,8 @@ end;
 $$;
 revoke execute on function "app_private"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "app_private"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
-revoke execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+revoke execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -3065,6 +3428,130 @@ as $$
 $$;
 revoke execute on function "app_private"."list_notification_suppressions"(integer) from public, anon;
 grant execute on function "app_private"."list_notification_suppressions"(integer) to authenticated, service_role;
+
+-- Records what a provider reported about a sent message (a webhook): finds
+-- the delivery by the provider's message id, stores the event once per
+-- provider event id, moves provider_status forward, suppresses the
+-- recipient's address on a bounce or a complaint (unless suppress is
+-- false), and writes notification.<kind>. Null when no delivery matches.
+create or replace function "app_private"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_kind text := record_delivery_event.kind;
+  v_at timestamptz := coalesce(record_delivery_event.occurred_at, now());
+  v_delivery uuid;
+  v_channel text;
+  v_user uuid;
+  v_event uuid;
+  v_type text;
+  v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_row uuid;
+  v_email text;
+begin
+  if v_kind is null or not (v_kind = any(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[])) then
+    raise exception 'kind must be delayed, delivered, opened, clicked, bounced, complained' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_EVENT_KIND';
+  end if;
+  if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
+    raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
+  end if;
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+    coalesce(ev."subject_type", 'notification'),
+    coalesce(ev."subject_id", ev."id"::text)
+  into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
+  from "app_private"."notification_deliveries" d
+  join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "app_private"."notification_events" ev on ev."id" = rc."event_id"
+  where d."provider_message_id" = record_delivery_event.provider_message_id
+    and (record_delivery_event.provider is null or d."provider" = record_delivery_event.provider)
+  order by d."created_at" desc
+  limit 1;
+  if v_delivery is null then
+    return null;
+  end if;
+  insert into "app_private"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
+  on conflict ("provider_event_id") do nothing
+  returning "id" into v_row;
+  if v_row is not null then
+    update "app_private"."notification_deliveries" d
+    set "provider_status" = v_kind, "provider_status_at" = v_at
+    where d."id" = v_delivery
+      and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
+    if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
+      select u.email into v_email from auth.users u where u.id = v_user;
+      if v_email is not null and btrim(v_email) <> '' then
+        perform "app_private"."suppress_notification_address"(
+          v_email,
+          case when v_kind = 'bounced' then 'bounce' else 'complaint' end,
+          v_channel,
+          record_delivery_event.provider,
+          record_delivery_event.provider_event_id,
+          coalesce(record_delivery_event.detail, '{}')
+        );
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'delivery_id', v_delivery,
+    'notification_id', v_event,
+    'tenant', v_tenant,
+    'type', v_type,
+    'channel', v_channel,
+    'user_id', v_user,
+    'subject_type', v_subject_type,
+    'subject_id', v_subject_id,
+    'kind', v_kind,
+    'provider_status', (select d."provider_status" from "app_private"."notification_deliveries" d where d."id" = v_delivery),
+    'recorded', v_row is not null
+  );
+end;
+$$;
+revoke execute on function "app_private"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "app_private"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+-- The deliveries of the notifications about one record, newest first, each
+-- with its provider events: for a record's "emails sent" panel. The service
+-- reads every tenant's; a member needs the send permission in tenant.
+create or replace function "app_private"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Not allowed to read this record''s deliveries' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+    from (
+      select jsonb_build_object('id', d."id", 'notification_id', ev."id", 'type', ev."type", 'channel', d."channel", 'user_id', rc."user_id", 'status', d."status", 'provider_message_id', d."provider_message_id", 'created_at', d."created_at", 'provider', d."provider", 'provider_status', d."provider_status", 'provider_status_at', d."provider_status_at", 'template_key', d."template_key", 'error', d."error", 'attempts', d."attempts", 'delivered_at', d."delivered_at", 'events', (
+        select coalesce(jsonb_agg(jsonb_build_object('kind', de."kind", 'occurred_at', de."occurred_at", 'detail', de."detail") order by de."occurred_at", de."created_at"), '[]')
+        from "app_private"."notification_delivery_events" de where de."delivery_id" = d."id"
+      )) as item,
+        d."created_at" as created_at, d."id" as id
+      from "app_private"."notification_deliveries" d
+      join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "app_private"."notification_events" ev on ev."id" = rc."event_id"
+      where ev."subject_type" = list_subject_deliveries.subject_type
+        and ev."subject_id" = list_subject_deliveries.subject_id
+        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+      order by d."created_at" desc, d."id" desc
+      limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
+    ) x
+  );
+end;
+$$;
+revoke execute on function "app_private"."list_subject_deliveries"(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function "app_private"."list_subject_deliveries"(text, text, uuid, integer) to service_role;
 
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
@@ -3147,13 +3634,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'managed')
+values ('notifications', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@5 managed
+-- @bs-module notifications@6 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -3347,6 +3834,37 @@ grant all on "better_supabase"."notification_suppressions" to service_role;
 drop policy if exists "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions";
 create policy "bs_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
 
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "template_key" text;
+create index if not exists notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
+
+create table if not exists "better_supabase"."notification_delivery_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
+  "organization_id" uuid,
+  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "provider" text,
+  "provider_event_id" text unique,
+  "occurred_at" timestamptz not null default now(),
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
+alter table "better_supabase"."notification_delivery_events" enable row level security;
+revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+grant select on "better_supabase"."notification_delivery_events" to authenticated;
+grant all on "better_supabase"."notification_delivery_events" to service_role;
+drop policy if exists "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
+create policy "bs_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -3931,6 +4449,7 @@ grant execute on function "better_supabase"."list_notification_preferences"(uuid
 
 drop function if exists "better_supabase"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "better_supabase"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -3984,8 +4503,9 @@ $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead. template_key
+-- names the template the channel composed, for list_subject_deliveries.
+create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language plpgsql
 security definer
@@ -4009,6 +4529,7 @@ begin
     "provider" = coalesce(complete_notification_delivery.provider, d."provider"),
     "provider_message_id" = coalesce(complete_notification_delivery.provider_message_id, d."provider_message_id"),
     "error" = complete_notification_delivery.error,
+    "template_key" = coalesce(complete_notification_delivery.template_key, d."template_key"),
     "delivered_at" = case when v_status = 'sent' then now() else d."delivered_at" end,
     "attempted_at" = case when v_status = 'pending' then null else d."attempted_at" end,
     "next_attempt_at" = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, greatest(d."attempts", 1) - 1)))) else d."next_attempt_at" end
@@ -4018,8 +4539,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
-revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -4097,6 +4618,130 @@ $$;
 revoke execute on function "better_supabase"."list_notification_suppressions"(integer) from public, anon;
 grant execute on function "better_supabase"."list_notification_suppressions"(integer) to authenticated, service_role;
 
+-- Records what a provider reported about a sent message (a webhook): finds
+-- the delivery by the provider's message id, stores the event once per
+-- provider event id, moves provider_status forward, suppresses the
+-- recipient's address on a bounce or a complaint (unless suppress is
+-- false), and writes notification.<kind>. Null when no delivery matches.
+create or replace function "better_supabase"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_kind text := record_delivery_event.kind;
+  v_at timestamptz := coalesce(record_delivery_event.occurred_at, now());
+  v_delivery uuid;
+  v_channel text;
+  v_user uuid;
+  v_event uuid;
+  v_type text;
+  v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_row uuid;
+  v_email text;
+begin
+  if v_kind is null or not (v_kind = any(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[])) then
+    raise exception 'kind must be delayed, delivered, opened, clicked, bounced, complained' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_EVENT_KIND';
+  end if;
+  if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
+    raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
+  end if;
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+    coalesce(ev."subject_type", 'notification'),
+    coalesce(ev."subject_id", ev."id"::text)
+  into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
+  from "better_supabase"."notification_deliveries" d
+  join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+  where d."provider_message_id" = record_delivery_event.provider_message_id
+    and (record_delivery_event.provider is null or d."provider" = record_delivery_event.provider)
+  order by d."created_at" desc
+  limit 1;
+  if v_delivery is null then
+    return null;
+  end if;
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
+  on conflict ("provider_event_id") do nothing
+  returning "id" into v_row;
+  if v_row is not null then
+    update "better_supabase"."notification_deliveries" d
+    set "provider_status" = v_kind, "provider_status_at" = v_at
+    where d."id" = v_delivery
+      and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
+    if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
+      select u.email into v_email from auth.users u where u.id = v_user;
+      if v_email is not null and btrim(v_email) <> '' then
+        perform "better_supabase"."suppress_notification_address"(
+          v_email,
+          case when v_kind = 'bounced' then 'bounce' else 'complaint' end,
+          v_channel,
+          record_delivery_event.provider,
+          record_delivery_event.provider_event_id,
+          coalesce(record_delivery_event.detail, '{}')
+        );
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'delivery_id', v_delivery,
+    'notification_id', v_event,
+    'tenant', v_tenant,
+    'type', v_type,
+    'channel', v_channel,
+    'user_id', v_user,
+    'subject_type', v_subject_type,
+    'subject_id', v_subject_id,
+    'kind', v_kind,
+    'provider_status', (select d."provider_status" from "better_supabase"."notification_deliveries" d where d."id" = v_delivery),
+    'recorded', v_row is not null
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+-- The deliveries of the notifications about one record, newest first, each
+-- with its provider events: for a record's "emails sent" panel. The service
+-- reads every tenant's; a member needs the send permission in tenant.
+create or replace function "better_supabase"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Not allowed to read this record''s deliveries' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+    from (
+      select jsonb_build_object('id', d."id", 'notification_id', ev."id", 'type', ev."type", 'channel', d."channel", 'user_id', rc."user_id", 'status', d."status", 'provider_message_id', d."provider_message_id", 'created_at', d."created_at", 'provider', d."provider", 'provider_status', d."provider_status", 'provider_status_at', d."provider_status_at", 'template_key', d."template_key", 'error', d."error", 'attempts', d."attempts", 'delivered_at', d."delivered_at", 'events', (
+        select coalesce(jsonb_agg(jsonb_build_object('kind', de."kind", 'occurred_at', de."occurred_at", 'detail', de."detail") order by de."occurred_at", de."created_at"), '[]')
+        from "better_supabase"."notification_delivery_events" de where de."delivery_id" = d."id"
+      )) as item,
+        d."created_at" as created_at, d."id" as id
+      from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where ev."subject_type" = list_subject_deliveries.subject_type
+        and ev."subject_id" = list_subject_deliveries.subject_id
+        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+      order by d."created_at" desc, d."id" desc
+      limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
+    ) x
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) to service_role;
+
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
 -- less than batch.
@@ -4172,6 +4817,7 @@ drop function if exists "api"."resolve_notifications"(text, text, text, uuid);
 drop function if exists "api"."set_notification_subscription"(text, text, text, uuid, uuid);
 drop function if exists "api"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "api"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "api"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -4335,14 +4981,14 @@ as $$ select "better_supabase"."claim_notification_deliveries"($1, $2, $3, $4) $
 revoke execute on function "api"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "api"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 
-create or replace function "api"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+create or replace function "api"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."complete_notification_delivery"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+as $$ select "better_supabase"."complete_notification_delivery"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
 create or replace function "api"."suppress_notification_address"(address text, reason text, channel text default 'email', provider text default null, provider_event_id text default null, detail jsonb default '{}')
 returns boolean
@@ -4370,6 +5016,24 @@ set search_path = ''
 as $$ select "better_supabase"."list_notification_suppressions"($1) $$;
 revoke execute on function "api"."list_notification_suppressions"(integer) from public, anon;
 grant execute on function "api"."list_notification_suppressions"(integer) to authenticated, service_role;
+
+create or replace function "api"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_delivery_event"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "api"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+create or replace function "api"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_subject_deliveries"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_subject_deliveries"(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function "api"."list_subject_deliveries"(text, text, uuid, integer) to service_role;
 
 create or replace function "api"."purge_notifications"(older_than interval default '90 days', batch integer default 10000)
 returns integer
@@ -4401,13 +5065,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'managed')
+values ('notifications', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@5 adopt
+-- @bs-module notifications@6 adopt
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -5032,6 +5696,7 @@ grant execute on function "better_supabase"."list_notification_preferences"(uuid
 
 drop function if exists "better_supabase"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);
+drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "better_supabase"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -5121,6 +5786,7 @@ revoke execute on function "better_supabase"."complete_notification_delivery"(uu
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
 
 
+
 -- Deletes up to batch notifications older than older_than, with their
 -- recipients and deliveries, and returns how many. Run it until it returns
 -- less than batch.
@@ -5202,6 +5868,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 5, 'adopt')
+values ('notifications', 6, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

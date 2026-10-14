@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module workflow-builder@1 managed
+-- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,13 +57,92 @@ create table if not exists "better_supabase"."workflow_definitions" (
   constraint workflow_definitions_tenant_slug_key unique nulls not distinct ("tenant_id", "slug")
 );
 create index if not exists workflow_definitions_created_by_idx on "better_supabase"."workflow_definitions" ("created_by");
+-- subject_types: the record types a run of the definition may belong to.
+-- scope: a system definition has no tenant, every member with
+-- workflow.read reads it, only the service role saves and publishes it, and
+-- it runs in a tenant until the tenant opts out (workflow_opt_outs).
+-- forked_from: the definition and version a fork copied.
+-- restricted: running or editing it also needs a workflow_definition_grants
+-- row (or workflow.admin).
+alter table "better_supabase"."workflow_definitions" add column if not exists "subject_types" text[] not null default '{}';
+alter table "better_supabase"."workflow_definitions" add column if not exists "scope" text not null default 'tenant'
+  check ("scope" in ('tenant', 'system'));
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "better_supabase"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_system_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 02e502e1' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_system_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check" check ("scope" = 'tenant' or "tenant_id" is null);
+    comment on constraint "workflow_definitions_system_check" on "better_supabase"."workflow_definitions" is 'better-supabase check 02e502e1';
+  end if;
+end;
+$$;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_subject_types_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check bdb3cf6a' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_subject_types_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check" check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
+    comment on constraint "workflow_definitions_subject_types_check" on "better_supabase"."workflow_definitions" is 'better-supabase check bdb3cf6a';
+  end if;
+end;
+$$;
+create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
 create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
+
+-- The tenants that opted out of a definition, usually a system one: its
+-- triggers and starts skip them (WORKFLOW_OPTED_OUT).
+create table if not exists "better_supabase"."workflow_opt_outs" (
+  "tenant_id" uuid not null,
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "definition_id")
+);
+create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
+create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
+alter table "better_supabase"."workflow_opt_outs" enable row level security;
+revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+grant select on "better_supabase"."workflow_opt_outs" to authenticated;
+grant all on "better_supabase"."workflow_opt_outs" to service_role;
+drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+
+-- Who may run or edit a restricted definition: a user, a team or an
+-- organization role. An edit grant also runs it.
+create table if not exists "better_supabase"."workflow_definition_grants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
+  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "action" text not null check ("action" in ('run', 'edit')),
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
+);
+create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
+create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
+alter table "better_supabase"."workflow_definition_grants" enable row level security;
+revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+grant select on "better_supabase"."workflow_definition_grants" to authenticated;
+grant all on "better_supabase"."workflow_definition_grants" to service_role;
+drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+  using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -84,6 +163,10 @@ create table if not exists "better_supabase"."workflow_versions" (
 alter table "better_supabase"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
 alter table "better_supabase"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+-- input_schema: the JSON Schema of the input a run of the version takes, as
+-- the editor saved it; callers such as template attachments check against it.
+alter table "better_supabase"."workflow_versions" add column if not exists "input_schema" jsonb
+  check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
 create index if not exists workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
 create unique index if not exists workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
@@ -262,8 +345,8 @@ begin
       v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
     end if;
   end loop;
-  if v_triggers <> 1 then
-    v_errors := array_append(v_errors, 'A graph has exactly one trigger node');
+  if v_triggers < 1 then
+    v_errors := array_append(v_errors, 'A graph has at least one trigger node');
   end if;
   for v_edge in select value from jsonb_array_elements(v_edges) loop
     if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
@@ -277,12 +360,20 @@ revoke execute on function "better_supabase"."validate_workflow_graph"(jsonb) fr
 grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
 -- Creates a definition, or renames the one with the same tenant and slug:
--- the service role or workflow.edit in tenant.
+-- the service role or workflow.edit in tenant (and an edit grant on a
+-- restricted one). subject_types and restricted keep their value when null;
+-- only workflow.admin changes restricted. A system definition (scope
+-- 'system') has no tenant and only the service role saves it; the scope of
+-- a saved definition never changes.
+drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
-  description text default null
+  description text default null,
+  subject_types text[] default null,
+  scope text default null,
+  restricted boolean default null
 )
 returns jsonb
 language plpgsql
@@ -292,38 +383,89 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
+  v_scope text := coalesce(scope, 'tenant');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if v_scope not in ('tenant', 'system') then
+    raise exception 'scope is tenant or system' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and tenant is not null then
+    raise exception 'A system workflow has no tenant' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role saves a system workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  insert into "better_supabase"."workflow_definitions" as x ("tenant_id", "slug", "name", "description", "created_by")
-  values (tenant, slug, name, description, (select auth.uid()))
-  on conflict on constraint workflow_definitions_tenant_slug_key do update set
-    "name" = excluded."name",
-    "description" = excluded."description",
-    "updated_at" = now()
-  returning * into v_row;
+  select * into v_row from "better_supabase"."workflow_definitions" x
+  where x."tenant_id" is not distinct from tenant and x."slug" = slug
+  for update;
+  if found then
+    if scope is not null and scope <> v_row."scope" then
+      raise exception 'A workflow''s scope never changes' using errcode = '22023', hint = 'WORKFLOW_SCOPE_FIXED';
+    end if;
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."id"), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+      raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    update "better_supabase"."workflow_definitions" x set
+      "name" = name,
+      "description" = description,
+      "subject_types" = coalesce(subject_types, x."subject_types"),
+      "restricted" = coalesce(restricted, x."restricted"),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  else
+    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "scope", "restricted", "created_by")
+    values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
+    returning * into v_row;
+  end if;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
     'slug', v_row."slug",
     'name', v_row."name",
     'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
--- published version and whether it has a draft.
-create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null)
+-- published version and whether it has a draft. With tenant, the tenant's
+-- definitions and the system ones, each with optedOut; with subject_type,
+-- only the definitions that run on it. A fork has upstreamVersion (its
+-- source's published version) and behind (whether that is newer than the
+-- version it copied).
+drop function if exists "better_supabase"."workflow_definitions_list"(uuid);
+create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
 stable
@@ -336,18 +478,34 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
   ) || jsonb_build_object(
       'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
-      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft')
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', u.version,
+      'behind', coalesce(u.version > x."forked_from_version", false),
+      'optedOut', case when workflow_definitions_list.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = workflow_definitions_list.tenant and oo."definition_id" = x."id") end
     ) order by x."name"), '[]'::jsonb)
   from "better_supabase"."workflow_definitions" x
-  where workflow_definitions_list.tenant is null or x."tenant_id" = workflow_definitions_list.tenant;
+  left join lateral (
+    select y."version" as version from "better_supabase"."workflow_versions" y
+    where y."definition_id" = x."forked_from" and y."status" = 'published'
+  ) u on true
+  where (workflow_definitions_list.tenant is null
+      or x."tenant_id" = workflow_definitions_list.tenant
+      or x."scope" = 'system')
+    and (workflow_definitions_list.subject_type is null
+      or workflow_definitions_list.subject_type = any (x."subject_types"));
 $$;
-revoke execute on function "better_supabase"."workflow_definitions_list"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_definitions_list"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_definitions_list"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -361,6 +519,11 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -391,8 +554,11 @@ revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
--- numbered after the last version. workflow.edit in its tenant.
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb)
+-- numbered after the last version. workflow.edit in its tenant, and an edit
+-- grant on a restricted definition. A null input_schema keeps the draft's
+-- current one.
+drop function if exists "better_supabase"."save_workflow_draft"(uuid, jsonb);
+create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -410,21 +576,36 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if jsonb_typeof(graph) <> 'object' then
     raise exception 'A graph is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
-  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null
+  if input_schema is not null and jsonb_typeof(input_schema) <> 'object' then
+    raise exception 'An input schema is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null,
+    "input_schema" = coalesce(input_schema, x."input_schema")
   where x."definition_id" = definition and x."status" = 'draft'
   returning * into v_row;
   if not found then
-    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "created_by")
+    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
     values (
       definition,
       coalesce((select max(y."version") from "better_supabase"."workflow_versions" y where y."definition_id" = definition), 0) + 1,
       graph,
+      coalesce(input_schema, (select y."input_schema" from "better_supabase"."workflow_versions" y
+        where y."definition_id" = definition order by y."version" desc limit 1)),
       (select auth.uid())
     )
     returning * into v_row;
@@ -442,12 +623,13 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -482,8 +664,11 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
 -- organization-owned version returns publisher null, for the app's service
--- principal. The trigger that started the run never changes the answer.
-create or replace function "better_supabase"."workflow_run_principal"(version uuid)
+-- principal. A system definition has no tenant, so pass the
+-- tenant its run belongs to; a tenant definition ignores tenant. The
+-- trigger that started the run never changes the answer.
+drop function if exists "better_supabase"."workflow_run_principal"(uuid);
+create or replace function "better_supabase"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -503,7 +688,8 @@ begin
   if v_row."status" = 'draft' then
     raise exception 'This workflow version was never published' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
+  select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant
+  from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
   if v_row."owner_kind" is null then
     raise exception 'This workflow version was published before publishers were recorded; publish it again'
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
@@ -529,10 +715,11 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_run_principal"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_run_principal"(uuid) to service_role;
+revoke execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) to service_role;
 
--- Publishes a version: workflow.publish in its tenant, a graph
+-- Publishes a version: workflow.publish in its tenant (and an edit grant on
+-- a restricted definition; a system one only the service role), a graph
 -- validate_workflow_graph accepts, and every permission its steps need
 -- (workflow_graph_permissions), which are stored with the publisher. The
 -- service role publishes for the organization. The version published
@@ -561,7 +748,16 @@ begin
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."definition_id"), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."definition_id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not publish this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if compiled is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -585,7 +781,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
   end if;
   v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
@@ -628,7 +825,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
@@ -677,15 +875,20 @@ as $$
     'owner', x."owner_kind",
     'permissions', to_jsonb(x."permissions"),
     'graph', x."graph",
-    'compiled', x."compiled"
+    'compiled', x."compiled",
+    'inputSchema', x."input_schema"
   ) from "better_supabase"."workflow_versions" x where x."id" = workflow_version_get.version;
 $$;
 revoke execute on function "better_supabase"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_version_get"(uuid) to authenticated, service_role;
 
--- What a run of definition starts from: its tenant and its published
--- version. workflow.run in its tenant, or the service role.
-create or replace function "better_supabase"."workflow_start_target"(definition uuid)
+-- What a run of definition starts from: the tenant it runs in and the
+-- published version. workflow.run in that tenant (and a run grant on a
+-- restricted definition), or the service role. A system definition runs in
+-- tenant, which it needs; a tenant that opted out of the definition gets
+-- WORKFLOW_OPTED_OUT.
+drop function if exists "better_supabase"."workflow_start_target"(uuid);
+create or replace function "better_supabase"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -696,13 +899,30 @@ as $$
 declare
   v_def "better_supabase"."workflow_definitions"%rowtype;
   v_row "better_supabase"."workflow_versions"%rowtype;
+  v_tenant uuid;
 begin
   select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.run'), false))) then
+  v_tenant := case when v_def."scope" = 'system' then tenant else v_def."tenant_id" end;
+  if v_def."scope" = 'system' and v_tenant is null then
+    raise exception 'Pass the tenant a system workflow runs in' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('run', 'edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not run this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_tenant is not null and exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = v_tenant and oo."definition_id" = definition) then
+    raise exception 'This organization opted out of this workflow' using errcode = 'P0001', hint = 'WORKFLOW_OPTED_OUT';
   end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."definition_id" = definition and x."status" = 'published';
   if not found then
@@ -714,6 +934,11 @@ begin
     'slug', v_def."slug",
     'name', v_def."name",
     'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -729,12 +954,334 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
-  ));
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ), 'tenant', v_tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_start_target"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_start_target"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_start_target"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_start_target"(uuid, uuid) to authenticated, service_role;
+
+-- workflow_start_target for a run that belongs to a record: the definition
+-- must list subject_type in subject_types. Security invoker, so the
+-- record check runs under the caller's RLS; returns the target with the
+-- subject.
+create or replace function "better_supabase"."workflow_subject_start_target"(
+  definition uuid,
+  subject_type text,
+  subject_id text,
+  tenant uuid default null
+)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_types text[];
+begin
+  if subject_type is null or subject_id is null or length(subject_type) not between 1 and 100 or length(subject_id) not between 1 and 200 then
+    raise exception 'A subject has a type of 1 to 100 and an id of 1 to 200 characters' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_INVALID';
+  end if;
+  select x."subject_types" into v_types from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (subject_type = any (v_types)) then
+    raise exception 'This workflow doesn''t run on that subject type' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_TYPE';
+  end if;
+  return "better_supabase"."workflow_start_target"(definition, tenant)
+    || jsonb_build_object('subject', jsonb_build_object('type', subject_type, 'id', subject_id));
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- What a test run of definition starts from: version (default its draft,
+-- else its published version), the trigger node it starts at (default the
+-- graph's only trigger) and the stubs its steps return. workflow.edit in its
+-- tenant (and an edit grant on a restricted definition). The run records
+-- mode test: its steps don't run, and it fires no alerts and writes no
+-- outbox events.
+create or replace function "better_supabase"."start_test_run"(
+  definition uuid,
+  version uuid default null,
+  trigger_node text default null,
+  input jsonb default null,
+  stubs jsonb default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_def "better_supabase"."workflow_definitions"%rowtype;
+  v_row "better_supabase"."workflow_versions"%rowtype;
+  v_errors jsonb;
+  v_triggers text[];
+  v_node text := trigger_node;
+begin
+  select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_def."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
+    raise exception 'You may not test this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if stubs is not null and jsonb_typeof(stubs) <> 'object' then
+    raise exception 'stubs is an object keyed by node id' using errcode = '22023', hint = 'WORKFLOW_STUBS_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."workflow_versions" x
+  where x."definition_id" = definition
+    and (case when version is null then x."status" in ('draft', 'published') else x."id" = version end)
+  order by x."status" = 'draft' desc
+  limit 1;
+  if not found then
+    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
+  if jsonb_array_length(v_errors) > 0 then
+    raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
+      using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  select array_agg(n.value ->> 'id') into v_triggers
+  from jsonb_array_elements(v_row."graph" -> 'nodes') n
+  where n.value ->> 'kind' = 'trigger';
+  if v_node is null and cardinality(v_triggers) = 1 then
+    v_node := v_triggers[1];
+  end if;
+  if v_node is null or not (v_node = any (v_triggers)) then
+    raise exception 'Pass trigger_node, the id of one of the graph''s trigger nodes' using errcode = '22023', hint = 'WORKFLOW_TRIGGER_NODE';
+  end if;
+  return jsonb_build_object(
+    'definition', jsonb_build_object(
+    'id', v_def."id",
+    'tenant', v_def."tenant_id",
+    'slug', v_def."slug",
+    'name', v_def."name",
+    'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
+    'createdBy', v_def."created_by",
+    'createdAt', v_def."created_at",
+    'updatedAt', v_def."updated_at"
+  ),
+    'version', jsonb_build_object(
+    'id', v_row."id",
+    'definition', v_row."definition_id",
+    'version', v_row."version",
+    'status', v_row."status",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
+    'graph', v_row."graph",
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ),
+    'tenant', v_def."tenant_id",
+    'triggerNode', v_node,
+    'input', coalesce(input, '{}'::jsonb),
+    'stubs', coalesce(stubs, '{}'::jsonb)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) to authenticated, service_role;
+
+-- Copies the published graph of source (a system definition, or one in
+-- tenant) into a new definition in tenant with slug, as its draft, and
+-- records the version it copied. workflow.edit in tenant (and an edit grant
+-- on a restricted source).
+create or replace function "better_supabase"."fork_workflow_definition"(source uuid, tenant uuid, slug text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_src "better_supabase"."workflow_definitions"%rowtype;
+  v_version "better_supabase"."workflow_versions"%rowtype;
+  v_row "better_supabase"."workflow_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."workflow_definitions" x where x."id" = source;
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from tenant) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+    raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_src."scope" = 'tenant' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = source), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = source
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+    raise exception 'You may not fork this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  select * into v_version from "better_supabase"."workflow_versions" x where x."definition_id" = source and x."status" = 'published';
+  if not found then
+    raise exception 'This workflow has no published version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+  end if;
+  insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "forked_from", "forked_from_version", "created_by")
+  values (tenant, slug, v_src."name", v_src."description", v_src."subject_types", v_src."id", v_version."version", (select auth.uid()))
+  returning * into v_row;
+  insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
+  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()));
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'slug', v_row."slug",
+    'name', v_row."name",
+    'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  ) || jsonb_build_object('draft', true, 'upstreamVersion', v_version."version", 'behind', false);
+end;
+$$;
+revoke execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) to authenticated, service_role;
+
+-- Opts tenant out of definition (a system definition, or one in tenant), or
+-- back in with opted_out false: workflow.admin in tenant. Returns whether
+-- the tenant is opted out.
+create or replace function "better_supabase"."set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if tenant is null then
+    raise exception 'Pass the tenant that opts out' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."workflow_definitions" x
+    where x."id" = definition and (x."scope" = 'system' or x."tenant_id" = tenant)
+  ) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if coalesce(opted_out, true) then
+    insert into "better_supabase"."workflow_opt_outs" ("tenant_id", "definition_id", "created_by")
+    values (tenant, definition, (select auth.uid()))
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."workflow_opt_outs" x where x."tenant_id" = tenant and x."definition_id" = definition;
+  end if;
+  return coalesce(opted_out, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) to authenticated, service_role;
+
+-- Grants (or with granted false, revokes) action (run or edit) on a
+-- definition to a user, a team or an organization role: workflow.admin in
+-- its tenant. Grants only matter while the definition is restricted.
+create or replace function "better_supabase"."set_workflow_definition_grant"(
+  definition uuid,
+  principal_kind text,
+  principal_id text,
+  action text,
+  granted boolean default true
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage access to this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if principal_kind is null or principal_kind not in ('user', 'team', 'role') then
+    raise exception 'principal_kind is user, team or role' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if action is null or action not in ('run', 'edit') then
+    raise exception 'action is run or edit' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if coalesce(granted, true) then
+    insert into "better_supabase"."workflow_definition_grants" ("definition_id", "principal_kind", "principal_id", "action", "created_by")
+    values (definition, principal_kind, principal_id, action, (select auth.uid()))
+    on conflict on constraint workflow_definition_grants_key do nothing;
+  else
+    delete from "better_supabase"."workflow_definition_grants" x
+    where x."definition_id" = definition and x."principal_kind" = principal_kind
+      and x."principal_id" = principal_id and x."action" = action;
+  end if;
+  return coalesce(granted, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."workflow_definition_grants_list"(definition uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'definition', x."definition_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'action', x."action",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at"
+  ) order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."workflow_definition_grants" x where x."definition_id" = workflow_definition_grants_list.definition;
+$$;
+revoke execute on function "better_supabase"."workflow_definition_grants_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function "better_supabase"."save_workflow_trigger"(
@@ -761,7 +1308,16 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if trigger is null then
@@ -831,7 +1387,17 @@ begin
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = y."id"), false)
+      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = y."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = y."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ));
   return found;
 end;
 $$;
@@ -849,19 +1415,29 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant uuid;
+  v_definition uuid;
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select y."tenant_id", x."kind" into v_tenant, v_kind
+  select y."tenant_id", y."id", x."kind" into v_tenant, v_definition, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
   if not found then
     raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_kind <> 'webhook' then
@@ -903,14 +1479,17 @@ revoke execute on function "better_supabase"."workflow_webhook_target"(text) fro
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
 -- The enabled event triggers listening for type (config.type) in tenant,
--- with their definitions (service role; the outbox consumer calls it).
+-- with the tenant the run belongs to and the subject types their definition
+-- runs on (service role; the outbox consumer calls it). System definitions
+-- listen in every tenant; a tenant that opted out of one is left out.
 create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'trigger', jsonb_build_object(
     'id', x."id",
     'definition', x."definition_id",
     'kind', x."kind",
@@ -918,12 +1497,22 @@ as $$
     'enabled', x."enabled",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
-  ), 'tenant', y."tenant_id") order by x."created_at"), '[]'::jsonb)
+  ),
+    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
+    'subjectTypes', to_jsonb(y."subject_types")
+  ) order by x."created_at"), '[]'::jsonb)
   from "better_supabase"."workflow_triggers" x
   join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."kind" = 'event' and x."enabled"
     and x."config" ->> 'type' = workflow_event_targets.type
-    and y."tenant_id" is not distinct from workflow_event_targets.tenant;
+    and (
+      y."tenant_id" is not distinct from workflow_event_targets.tenant
+      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
+    )
+    and not exists (
+      select 1 from "better_supabase"."workflow_opt_outs" z
+      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
+    );
 $$;
 revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
@@ -1280,7 +1869,7 @@ revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from 
 grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bs.definition
--- attribute) when the run fails.
+-- attribute) when a live run fails; test runs fire none.
 create or replace function "better_supabase"."workflow_runs_alert"()
 returns trigger
 language plpgsql
@@ -1292,7 +1881,7 @@ declare
   v_alert "better_supabase"."workflow_alerts"%rowtype;
   v_fired integer := 0;
 begin
-  if new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
+  if new."mode" = 'test' or new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -1332,6 +1921,7 @@ begin
     select x."id" as alert, y."id" as run from "better_supabase"."workflow_alerts" x
     join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
+      and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
       and y."created_at" < now() - x."threshold"
       and not exists (select 1 from "better_supabase"."workflow_alert_fires" z where z."alert_id" = x."id" and z."run_id" = y."id")
@@ -1374,13 +1964,13 @@ grant select on better_supabase.modules to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-builder', 1, 'managed')
+values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module workflow-builder@1 managed
+-- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1437,13 +2027,92 @@ create table if not exists "better_supabase"."workflow_definitions" (
   constraint workflow_definitions_tenant_slug_key unique nulls not distinct ("tenant_id", "slug")
 );
 create index if not exists workflow_definitions_created_by_idx on "better_supabase"."workflow_definitions" ("created_by");
+-- subject_types: the record types a run of the definition may belong to.
+-- scope: a system definition has no tenant, every member with
+-- workflow.read reads it, only the service role saves and publishes it, and
+-- it runs in a tenant until the tenant opts out (workflow_opt_outs).
+-- forked_from: the definition and version a fork copied.
+-- restricted: running or editing it also needs a workflow_definition_grants
+-- row (or workflow.admin).
+alter table "better_supabase"."workflow_definitions" add column if not exists "subject_types" text[] not null default '{}';
+alter table "better_supabase"."workflow_definitions" add column if not exists "scope" text not null default 'tenant'
+  check ("scope" in ('tenant', 'system'));
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "better_supabase"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_system_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 02e502e1' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_system_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check" check ("scope" = 'tenant' or "tenant_id" is null);
+    comment on constraint "workflow_definitions_system_check" on "better_supabase"."workflow_definitions" is 'better-supabase check 02e502e1';
+  end if;
+end;
+$$;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_subject_types_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check bdb3cf6a' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_subject_types_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check" check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
+    comment on constraint "workflow_definitions_subject_types_check" on "better_supabase"."workflow_definitions" is 'better-supabase check bdb3cf6a';
+  end if;
+end;
+$$;
+create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
 create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
+
+-- The tenants that opted out of a definition, usually a system one: its
+-- triggers and starts skip them (WORKFLOW_OPTED_OUT).
+create table if not exists "better_supabase"."workflow_opt_outs" (
+  "tenant_id" uuid not null,
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "definition_id")
+);
+create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
+create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
+alter table "better_supabase"."workflow_opt_outs" enable row level security;
+revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+grant select on "better_supabase"."workflow_opt_outs" to authenticated;
+grant all on "better_supabase"."workflow_opt_outs" to service_role;
+drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+
+-- Who may run or edit a restricted definition: a user, a team or an
+-- organization role. An edit grant also runs it.
+create table if not exists "better_supabase"."workflow_definition_grants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
+  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "action" text not null check ("action" in ('run', 'edit')),
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
+);
+create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
+create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
+alter table "better_supabase"."workflow_definition_grants" enable row level security;
+revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+grant select on "better_supabase"."workflow_definition_grants" to authenticated;
+grant all on "better_supabase"."workflow_definition_grants" to service_role;
+drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+  using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1464,6 +2133,10 @@ create table if not exists "better_supabase"."workflow_versions" (
 alter table "better_supabase"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
 alter table "better_supabase"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+-- input_schema: the JSON Schema of the input a run of the version takes, as
+-- the editor saved it; callers such as template attachments check against it.
+alter table "better_supabase"."workflow_versions" add column if not exists "input_schema" jsonb
+  check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
 create index if not exists workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
 create unique index if not exists workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
@@ -1642,8 +2315,8 @@ begin
       v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
     end if;
   end loop;
-  if v_triggers <> 1 then
-    v_errors := array_append(v_errors, 'A graph has exactly one trigger node');
+  if v_triggers < 1 then
+    v_errors := array_append(v_errors, 'A graph has at least one trigger node');
   end if;
   for v_edge in select value from jsonb_array_elements(v_edges) loop
     if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
@@ -1657,12 +2330,20 @@ revoke execute on function "better_supabase"."validate_workflow_graph"(jsonb) fr
 grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
 -- Creates a definition, or renames the one with the same tenant and slug:
--- the service role or workflow.edit in tenant.
+-- the service role or workflow.edit in tenant (and an edit grant on a
+-- restricted one). subject_types and restricted keep their value when null;
+-- only workflow.admin changes restricted. A system definition (scope
+-- 'system') has no tenant and only the service role saves it; the scope of
+-- a saved definition never changes.
+drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
-  description text default null
+  description text default null,
+  subject_types text[] default null,
+  scope text default null,
+  restricted boolean default null
 )
 returns jsonb
 language plpgsql
@@ -1672,38 +2353,90 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
+  v_scope text := coalesce(scope, 'tenant');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if v_scope not in ('tenant', 'system') then
+    raise exception 'scope is tenant or system' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and tenant is not null then
+    raise exception 'A system workflow has no tenant' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role saves a system workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  insert into "better_supabase"."workflow_definitions" as x ("tenant_id", "slug", "name", "description", "created_by")
-  values (tenant, slug, name, description, (select auth.uid()))
-  on conflict on constraint workflow_definitions_tenant_slug_key do update set
-    "name" = excluded."name",
-    "description" = excluded."description",
-    "updated_at" = now()
-  returning * into v_row;
+  select * into v_row from "better_supabase"."workflow_definitions" x
+  where x."tenant_id" is not distinct from tenant and x."slug" = slug
+  for update;
+  if found then
+    if scope is not null and scope <> v_row."scope" then
+      raise exception 'A workflow''s scope never changes' using errcode = '22023', hint = 'WORKFLOW_SCOPE_FIXED';
+    end if;
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."id"), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+      raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    update "better_supabase"."workflow_definitions" x set
+      "name" = name,
+      "description" = description,
+      "subject_types" = coalesce(subject_types, x."subject_types"),
+      "restricted" = coalesce(restricted, x."restricted"),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  else
+    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "scope", "restricted", "created_by")
+    values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
+    returning * into v_row;
+  end if;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
     'slug', v_row."slug",
     'name', v_row."name",
     'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
--- published version and whether it has a draft.
-create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null)
+-- published version and whether it has a draft. With tenant, the tenant's
+-- definitions and the system ones, each with optedOut; with subject_type,
+-- only the definitions that run on it. A fork has upstreamVersion (its
+-- source's published version) and behind (whether that is newer than the
+-- version it copied).
+drop function if exists "better_supabase"."workflow_definitions_list"(uuid);
+create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
 stable
@@ -1716,18 +2449,34 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
   ) || jsonb_build_object(
       'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
-      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft')
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', u.version,
+      'behind', coalesce(u.version > x."forked_from_version", false),
+      'optedOut', case when workflow_definitions_list.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = workflow_definitions_list.tenant and oo."definition_id" = x."id") end
     ) order by x."name"), '[]'::jsonb)
   from "better_supabase"."workflow_definitions" x
-  where workflow_definitions_list.tenant is null or x."tenant_id" = workflow_definitions_list.tenant;
+  left join lateral (
+    select y."version" as version from "better_supabase"."workflow_versions" y
+    where y."definition_id" = x."forked_from" and y."status" = 'published'
+  ) u on true
+  where (workflow_definitions_list.tenant is null
+      or x."tenant_id" = workflow_definitions_list.tenant
+      or x."scope" = 'system')
+    and (workflow_definitions_list.subject_type is null
+      or workflow_definitions_list.subject_type = any (x."subject_types"));
 $$;
-revoke execute on function "better_supabase"."workflow_definitions_list"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_definitions_list"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_definitions_list"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -1741,6 +2490,11 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -1771,8 +2525,11 @@ revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
--- numbered after the last version. workflow.edit in its tenant.
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb)
+-- numbered after the last version. workflow.edit in its tenant, and an edit
+-- grant on a restricted definition. A null input_schema keeps the draft's
+-- current one.
+drop function if exists "better_supabase"."save_workflow_draft"(uuid, jsonb);
+create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1790,21 +2547,37 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if jsonb_typeof(graph) <> 'object' then
     raise exception 'A graph is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
-  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null
+  if input_schema is not null and jsonb_typeof(input_schema) <> 'object' then
+    raise exception 'An input schema is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null,
+    "input_schema" = coalesce(input_schema, x."input_schema")
   where x."definition_id" = definition and x."status" = 'draft'
   returning * into v_row;
   if not found then
-    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "created_by")
+    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
     values (
       definition,
       coalesce((select max(y."version") from "better_supabase"."workflow_versions" y where y."definition_id" = definition), 0) + 1,
       graph,
+      coalesce(input_schema, (select y."input_schema" from "better_supabase"."workflow_versions" y
+        where y."definition_id" = definition order by y."version" desc limit 1)),
       (select auth.uid())
     )
     returning * into v_row;
@@ -1822,12 +2595,13 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -1863,8 +2637,11 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
 -- organization-owned version runs as the tenant's default service
 -- principal, which needs every stored permission through its role; without
--- one it raises WORKFLOW_PUBLISHER_REVOKED. The trigger that started the run never changes the answer.
-create or replace function "better_supabase"."workflow_run_principal"(version uuid)
+-- one it raises WORKFLOW_PUBLISHER_REVOKED. A system definition has no tenant, so pass the
+-- tenant its run belongs to; a tenant definition ignores tenant. The
+-- trigger that started the run never changes the answer.
+drop function if exists "better_supabase"."workflow_run_principal"(uuid);
+create or replace function "better_supabase"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -1884,7 +2661,8 @@ begin
   if v_row."status" = 'draft' then
     raise exception 'This workflow version was never published' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
+  select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant
+  from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
   if v_row."owner_kind" is null then
     raise exception 'This workflow version was published before publishers were recorded; publish it again'
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
@@ -1924,10 +2702,11 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_run_principal"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_run_principal"(uuid) to service_role;
+revoke execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) to service_role;
 
--- Publishes a version: workflow.publish in its tenant, a graph
+-- Publishes a version: workflow.publish in its tenant (and an edit grant on
+-- a restricted definition; a system one only the service role), a graph
 -- validate_workflow_graph accepts, and every permission its steps need
 -- (workflow_graph_permissions), which are stored with the publisher. The
 -- service role publishes for the organization. The version published
@@ -1956,7 +2735,17 @@ begin
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."definition_id"), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."definition_id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not publish this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if compiled is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -1980,7 +2769,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
   end if;
   v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
@@ -2032,7 +2822,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
@@ -2081,15 +2872,20 @@ as $$
     'owner', x."owner_kind",
     'permissions', to_jsonb(x."permissions"),
     'graph', x."graph",
-    'compiled', x."compiled"
+    'compiled', x."compiled",
+    'inputSchema', x."input_schema"
   ) from "better_supabase"."workflow_versions" x where x."id" = workflow_version_get.version;
 $$;
 revoke execute on function "better_supabase"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_version_get"(uuid) to authenticated, service_role;
 
--- What a run of definition starts from: its tenant and its published
--- version. workflow.run in its tenant, or the service role.
-create or replace function "better_supabase"."workflow_start_target"(definition uuid)
+-- What a run of definition starts from: the tenant it runs in and the
+-- published version. workflow.run in that tenant (and a run grant on a
+-- restricted definition), or the service role. A system definition runs in
+-- tenant, which it needs; a tenant that opted out of the definition gets
+-- WORKFLOW_OPTED_OUT.
+drop function if exists "better_supabase"."workflow_start_target"(uuid);
+create or replace function "better_supabase"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -2100,13 +2896,31 @@ as $$
 declare
   v_def "better_supabase"."workflow_definitions"%rowtype;
   v_row "better_supabase"."workflow_versions"%rowtype;
+  v_tenant uuid;
 begin
   select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.run'), false))) then
+  v_tenant := case when v_def."scope" = 'system' then tenant else v_def."tenant_id" end;
+  if v_def."scope" = 'system' and v_tenant is null then
+    raise exception 'Pass the tenant a system workflow runs in' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('run', 'edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not run this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_tenant is not null and exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = v_tenant and oo."definition_id" = definition) then
+    raise exception 'This organization opted out of this workflow' using errcode = 'P0001', hint = 'WORKFLOW_OPTED_OUT';
   end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."definition_id" = definition and x."status" = 'published';
   if not found then
@@ -2118,6 +2932,11 @@ begin
     'slug', v_def."slug",
     'name', v_def."name",
     'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -2133,12 +2952,339 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
-  ));
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ), 'tenant', v_tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_start_target"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_start_target"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_start_target"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_start_target"(uuid, uuid) to authenticated, service_role;
+
+-- workflow_start_target for a run that belongs to a record: the definition
+-- must list subject_type in subject_types, and the caller must be able to read the record (can_subject). Security invoker, so the
+-- record check runs under the caller's RLS; returns the target with the
+-- subject.
+create or replace function "better_supabase"."workflow_subject_start_target"(
+  definition uuid,
+  subject_type text,
+  subject_id text,
+  tenant uuid default null
+)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_types text[];
+begin
+  if subject_type is null or subject_id is null or length(subject_type) not between 1 and 100 or length(subject_id) not between 1 and 200 then
+    raise exception 'A subject has a type of 1 to 100 and an id of 1 to 200 characters' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_INVALID';
+  end if;
+  select x."subject_types" into v_types from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (subject_type = any (v_types)) then
+    raise exception 'This workflow doesn''t run on that subject type' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_TYPE';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce("better_supabase"."can_subject"(subject_type, subject_id, 'read'), false) then
+    raise exception 'You may not run a workflow on this record' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  return "better_supabase"."workflow_start_target"(definition, tenant)
+    || jsonb_build_object('subject', jsonb_build_object('type', subject_type, 'id', subject_id));
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- What a test run of definition starts from: version (default its draft,
+-- else its published version), the trigger node it starts at (default the
+-- graph's only trigger) and the stubs its steps return. workflow.edit in its
+-- tenant (and an edit grant on a restricted definition). The run records
+-- mode test: its steps don't run, and it fires no alerts and writes no
+-- outbox events.
+create or replace function "better_supabase"."start_test_run"(
+  definition uuid,
+  version uuid default null,
+  trigger_node text default null,
+  input jsonb default null,
+  stubs jsonb default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_def "better_supabase"."workflow_definitions"%rowtype;
+  v_row "better_supabase"."workflow_versions"%rowtype;
+  v_errors jsonb;
+  v_triggers text[];
+  v_node text := trigger_node;
+begin
+  select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_def."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
+    raise exception 'You may not test this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if stubs is not null and jsonb_typeof(stubs) <> 'object' then
+    raise exception 'stubs is an object keyed by node id' using errcode = '22023', hint = 'WORKFLOW_STUBS_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."workflow_versions" x
+  where x."definition_id" = definition
+    and (case when version is null then x."status" in ('draft', 'published') else x."id" = version end)
+  order by x."status" = 'draft' desc
+  limit 1;
+  if not found then
+    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
+  if jsonb_array_length(v_errors) > 0 then
+    raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
+      using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  select array_agg(n.value ->> 'id') into v_triggers
+  from jsonb_array_elements(v_row."graph" -> 'nodes') n
+  where n.value ->> 'kind' = 'trigger';
+  if v_node is null and cardinality(v_triggers) = 1 then
+    v_node := v_triggers[1];
+  end if;
+  if v_node is null or not (v_node = any (v_triggers)) then
+    raise exception 'Pass trigger_node, the id of one of the graph''s trigger nodes' using errcode = '22023', hint = 'WORKFLOW_TRIGGER_NODE';
+  end if;
+  return jsonb_build_object(
+    'definition', jsonb_build_object(
+    'id', v_def."id",
+    'tenant', v_def."tenant_id",
+    'slug', v_def."slug",
+    'name', v_def."name",
+    'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
+    'createdBy', v_def."created_by",
+    'createdAt', v_def."created_at",
+    'updatedAt', v_def."updated_at"
+  ),
+    'version', jsonb_build_object(
+    'id', v_row."id",
+    'definition', v_row."definition_id",
+    'version', v_row."version",
+    'status', v_row."status",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
+    'graph', v_row."graph",
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ),
+    'tenant', v_def."tenant_id",
+    'triggerNode', v_node,
+    'input', coalesce(input, '{}'::jsonb),
+    'stubs', coalesce(stubs, '{}'::jsonb)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) to authenticated, service_role;
+
+-- Copies the published graph of source (a system definition, or one in
+-- tenant) into a new definition in tenant with slug, as its draft, and
+-- records the version it copied. workflow.edit in tenant (and an edit grant
+-- on a restricted source).
+create or replace function "better_supabase"."fork_workflow_definition"(source uuid, tenant uuid, slug text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_src "better_supabase"."workflow_definitions"%rowtype;
+  v_version "better_supabase"."workflow_versions"%rowtype;
+  v_row "better_supabase"."workflow_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."workflow_definitions" x where x."id" = source;
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from tenant) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+    raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_src."scope" = 'tenant' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = source), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = source
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+    raise exception 'You may not fork this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  select * into v_version from "better_supabase"."workflow_versions" x where x."definition_id" = source and x."status" = 'published';
+  if not found then
+    raise exception 'This workflow has no published version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+  end if;
+  insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "forked_from", "forked_from_version", "created_by")
+  values (tenant, slug, v_src."name", v_src."description", v_src."subject_types", v_src."id", v_version."version", (select auth.uid()))
+  returning * into v_row;
+  insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
+  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()));
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'slug', v_row."slug",
+    'name', v_row."name",
+    'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  ) || jsonb_build_object('draft', true, 'upstreamVersion', v_version."version", 'behind', false);
+end;
+$$;
+revoke execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) to authenticated, service_role;
+
+-- Opts tenant out of definition (a system definition, or one in tenant), or
+-- back in with opted_out false: workflow.admin in tenant. Returns whether
+-- the tenant is opted out.
+create or replace function "better_supabase"."set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if tenant is null then
+    raise exception 'Pass the tenant that opts out' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."workflow_definitions" x
+    where x."id" = definition and (x."scope" = 'system' or x."tenant_id" = tenant)
+  ) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if coalesce(opted_out, true) then
+    insert into "better_supabase"."workflow_opt_outs" ("tenant_id", "definition_id", "created_by")
+    values (tenant, definition, (select auth.uid()))
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."workflow_opt_outs" x where x."tenant_id" = tenant and x."definition_id" = definition;
+  end if;
+  return coalesce(opted_out, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) to authenticated, service_role;
+
+-- Grants (or with granted false, revokes) action (run or edit) on a
+-- definition to a user, a team or an organization role: workflow.admin in
+-- its tenant. Grants only matter while the definition is restricted.
+create or replace function "better_supabase"."set_workflow_definition_grant"(
+  definition uuid,
+  principal_kind text,
+  principal_id text,
+  action text,
+  granted boolean default true
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage access to this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if principal_kind is null or principal_kind not in ('user', 'team', 'role') then
+    raise exception 'principal_kind is user, team or role' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if action is null or action not in ('run', 'edit') then
+    raise exception 'action is run or edit' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if coalesce(granted, true) then
+    insert into "better_supabase"."workflow_definition_grants" ("definition_id", "principal_kind", "principal_id", "action", "created_by")
+    values (definition, principal_kind, principal_id, action, (select auth.uid()))
+    on conflict on constraint workflow_definition_grants_key do nothing;
+  else
+    delete from "better_supabase"."workflow_definition_grants" x
+    where x."definition_id" = definition and x."principal_kind" = principal_kind
+      and x."principal_id" = principal_id and x."action" = action;
+  end if;
+  return coalesce(granted, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."workflow_definition_grants_list"(definition uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'definition', x."definition_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'action', x."action",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at"
+  ) order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."workflow_definition_grants" x where x."definition_id" = workflow_definition_grants_list.definition;
+$$;
+revoke execute on function "better_supabase"."workflow_definition_grants_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function "better_supabase"."save_workflow_trigger"(
@@ -2165,7 +3311,17 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if trigger is null then
@@ -2235,7 +3391,18 @@ begin
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = y."id"), false)
+      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = y."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = y."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ));
   return found;
 end;
 $$;
@@ -2253,19 +3420,30 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant uuid;
+  v_definition uuid;
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select y."tenant_id", x."kind" into v_tenant, v_kind
+  select y."tenant_id", y."id", x."kind" into v_tenant, v_definition, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
   if not found then
     raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id" and tm."user_id" = (select auth.uid())))
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_kind <> 'webhook' then
@@ -2307,14 +3485,17 @@ revoke execute on function "better_supabase"."workflow_webhook_target"(text) fro
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
 -- The enabled event triggers listening for type (config.type) in tenant,
--- with their definitions (service role; the outbox consumer calls it).
+-- with the tenant the run belongs to and the subject types their definition
+-- runs on (service role; the outbox consumer calls it). System definitions
+-- listen in every tenant; a tenant that opted out of one is left out.
 create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'trigger', jsonb_build_object(
     'id', x."id",
     'definition', x."definition_id",
     'kind', x."kind",
@@ -2322,12 +3503,22 @@ as $$
     'enabled', x."enabled",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
-  ), 'tenant', y."tenant_id") order by x."created_at"), '[]'::jsonb)
+  ),
+    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
+    'subjectTypes', to_jsonb(y."subject_types")
+  ) order by x."created_at"), '[]'::jsonb)
   from "better_supabase"."workflow_triggers" x
   join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."kind" = 'event' and x."enabled"
     and x."config" ->> 'type' = workflow_event_targets.type
-    and y."tenant_id" is not distinct from workflow_event_targets.tenant;
+    and (
+      y."tenant_id" is not distinct from workflow_event_targets.tenant
+      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
+    )
+    and not exists (
+      select 1 from "better_supabase"."workflow_opt_outs" z
+      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
+    );
 $$;
 revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
@@ -2684,7 +3875,7 @@ revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from 
 grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bs.definition
--- attribute) when the run fails.
+-- attribute) when a live run fails; test runs fire none.
 create or replace function "better_supabase"."workflow_runs_alert"()
 returns trigger
 language plpgsql
@@ -2696,7 +3887,7 @@ declare
   v_alert "better_supabase"."workflow_alerts"%rowtype;
   v_fired integer := 0;
 begin
-  if new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
+  if new."mode" = 'test' or new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -2737,6 +3928,7 @@ begin
     select x."id" as alert, y."id" as run from "better_supabase"."workflow_alerts" x
     join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
+      and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
       and y."created_at" < now() - x."threshold"
       and not exists (select 1 from "better_supabase"."workflow_alert_fires" z where z."alert_id" = x."id" and z."run_id" = y."id")
@@ -2780,13 +3972,13 @@ grant select on better_supabase.modules to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-builder', 1, 'managed')
+values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module workflow-builder@1 managed
+-- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -2845,13 +4037,92 @@ create table if not exists "app_private"."workflow_definitions" (
   constraint workflow_definitions_tenant_slug_key unique nulls not distinct ("tenant_id", "slug")
 );
 create index if not exists workflow_definitions_created_by_idx on "app_private"."workflow_definitions" ("created_by");
+-- subject_types: the record types a run of the definition may belong to.
+-- scope: a system definition has no tenant, every member with
+-- workflow.read reads it, only the service role saves and publishes it, and
+-- it runs in a tenant until the tenant opts out (workflow_opt_outs).
+-- forked_from: the definition and version a fork copied.
+-- restricted: running or editing it also needs a workflow_definition_grants
+-- row (or workflow.admin).
+alter table "app_private"."workflow_definitions" add column if not exists "subject_types" text[] not null default '{}';
+alter table "app_private"."workflow_definitions" add column if not exists "scope" text not null default 'tenant'
+  check ("scope" in ('tenant', 'system'));
+alter table "app_private"."workflow_definitions" add column if not exists "forked_from" uuid references "app_private"."workflow_definitions" ("id") on delete set null;
+alter table "app_private"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "app_private"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"app_private"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_system_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 02e502e1' then
+    alter table "app_private"."workflow_definitions" drop constraint if exists "workflow_definitions_system_check";
+    alter table "app_private"."workflow_definitions" add constraint "workflow_definitions_system_check" check ("scope" = 'tenant' or "tenant_id" is null);
+    comment on constraint "workflow_definitions_system_check" on "app_private"."workflow_definitions" is 'better-supabase check 02e502e1';
+  end if;
+end;
+$$;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"app_private"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_subject_types_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check bdb3cf6a' then
+    alter table "app_private"."workflow_definitions" drop constraint if exists "workflow_definitions_subject_types_check";
+    alter table "app_private"."workflow_definitions" add constraint "workflow_definitions_subject_types_check" check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
+    comment on constraint "workflow_definitions_subject_types_check" on "app_private"."workflow_definitions" is 'better-supabase check bdb3cf6a';
+  end if;
+end;
+$$;
+create index if not exists workflow_definitions_forked_from_idx on "app_private"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "app_private"."workflow_definitions" enable row level security;
 revoke all on "app_private"."workflow_definitions" from anon, authenticated;
 grant select on "app_private"."workflow_definitions" to authenticated;
 grant all on "app_private"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "app_private"."workflow_definitions";
 create policy workflow_definitions_read on "app_private"."workflow_definitions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
+
+-- The tenants that opted out of a definition, usually a system one: its
+-- triggers and starts skip them (WORKFLOW_OPTED_OUT).
+create table if not exists "app_private"."workflow_opt_outs" (
+  "tenant_id" uuid not null,
+  "definition_id" uuid not null references "app_private"."workflow_definitions" ("id") on delete cascade,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "definition_id")
+);
+create index if not exists workflow_opt_outs_definition_idx on "app_private"."workflow_opt_outs" ("definition_id");
+create index if not exists workflow_opt_outs_created_by_idx on "app_private"."workflow_opt_outs" ("created_by");
+alter table "app_private"."workflow_opt_outs" enable row level security;
+revoke all on "app_private"."workflow_opt_outs" from anon, authenticated;
+grant select on "app_private"."workflow_opt_outs" to authenticated;
+grant all on "app_private"."workflow_opt_outs" to service_role;
+drop policy if exists workflow_opt_outs_read on "app_private"."workflow_opt_outs";
+create policy workflow_opt_outs_read on "app_private"."workflow_opt_outs" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+
+-- Who may run or edit a restricted definition: a user, a team or an
+-- organization role. An edit grant also runs it.
+create table if not exists "app_private"."workflow_definition_grants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "definition_id" uuid not null references "app_private"."workflow_definitions" ("id") on delete cascade,
+  "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
+  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "action" text not null check ("action" in ('run', 'edit')),
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
+);
+create index if not exists workflow_definition_grants_principal_idx on "app_private"."workflow_definition_grants" ("principal_kind", "principal_id");
+create index if not exists workflow_definition_grants_created_by_idx on "app_private"."workflow_definition_grants" ("created_by");
+alter table "app_private"."workflow_definition_grants" enable row level security;
+revoke all on "app_private"."workflow_definition_grants" from anon, authenticated;
+grant select on "app_private"."workflow_definition_grants" to authenticated;
+grant all on "app_private"."workflow_definition_grants" to service_role;
+drop policy if exists workflow_definition_grants_read on "app_private"."workflow_definition_grants";
+create policy workflow_definition_grants_read on "app_private"."workflow_definition_grants" for select to authenticated
+  using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 create table if not exists "app_private"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2872,6 +4143,10 @@ create table if not exists "app_private"."workflow_versions" (
 alter table "app_private"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
 alter table "app_private"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
 alter table "app_private"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+-- input_schema: the JSON Schema of the input a run of the version takes, as
+-- the editor saved it; callers such as template attachments check against it.
+alter table "app_private"."workflow_versions" add column if not exists "input_schema" jsonb
+  check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
 create index if not exists workflow_versions_published_by_idx on "app_private"."workflow_versions" ("published_by");
 create unique index if not exists workflow_versions_one_draft_idx on "app_private"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on "app_private"."workflow_versions" ("definition_id") where "status" = 'published';
@@ -3050,8 +4325,8 @@ begin
       v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
     end if;
   end loop;
-  if v_triggers <> 1 then
-    v_errors := array_append(v_errors, 'A graph has exactly one trigger node');
+  if v_triggers < 1 then
+    v_errors := array_append(v_errors, 'A graph has at least one trigger node');
   end if;
   for v_edge in select value from jsonb_array_elements(v_edges) loop
     if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
@@ -3065,12 +4340,20 @@ revoke execute on function "app_private"."validate_workflow_graph"(jsonb) from p
 grant execute on function "app_private"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
 -- Creates a definition, or renames the one with the same tenant and slug:
--- the service role or workflow.edit in tenant.
+-- the service role or workflow.edit in tenant (and an edit grant on a
+-- restricted one). subject_types and restricted keep their value when null;
+-- only workflow.admin changes restricted. A system definition (scope
+-- 'system') has no tenant and only the service role saves it; the scope of
+-- a saved definition never changes.
+drop function if exists "app_private"."save_workflow_definition"(uuid, text, text, text);
 create or replace function "app_private"."save_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
-  description text default null
+  description text default null,
+  subject_types text[] default null,
+  scope text default null,
+  restricted boolean default null
 )
 returns jsonb
 language plpgsql
@@ -3080,38 +4363,89 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "app_private"."workflow_definitions"%rowtype;
+  v_scope text := coalesce(scope, 'tenant');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if v_scope not in ('tenant', 'system') then
+    raise exception 'scope is tenant or system' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and tenant is not null then
+    raise exception 'A system workflow has no tenant' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role saves a system workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  insert into "app_private"."workflow_definitions" as x ("tenant_id", "slug", "name", "description", "created_by")
-  values (tenant, slug, name, description, (select auth.uid()))
-  on conflict on constraint workflow_definitions_tenant_slug_key do update set
-    "name" = excluded."name",
-    "description" = excluded."description",
-    "updated_at" = now()
-  returning * into v_row;
+  select * into v_row from "app_private"."workflow_definitions" x
+  where x."tenant_id" is not distinct from tenant and x."slug" = slug
+  for update;
+  if found then
+    if scope is not null and scope <> v_row."scope" then
+      raise exception 'A workflow''s scope never changes' using errcode = '22023', hint = 'WORKFLOW_SCOPE_FIXED';
+    end if;
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = v_row."id"), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+      raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    update "app_private"."workflow_definitions" x set
+      "name" = name,
+      "description" = description,
+      "subject_types" = coalesce(subject_types, x."subject_types"),
+      "restricted" = coalesce(restricted, x."restricted"),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  else
+    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    insert into "app_private"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "scope", "restricted", "created_by")
+    values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
+    returning * into v_row;
+  end if;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
     'slug', v_row."slug",
     'name', v_row."name",
     'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_definition"(uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."save_workflow_definition"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "app_private"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
--- published version and whether it has a draft.
-create or replace function "app_private"."workflow_definitions_list"(tenant uuid default null)
+-- published version and whether it has a draft. With tenant, the tenant's
+-- definitions and the system ones, each with optedOut; with subject_type,
+-- only the definitions that run on it. A fork has upstreamVersion (its
+-- source's published version) and behind (whether that is newer than the
+-- version it copied).
+drop function if exists "app_private"."workflow_definitions_list"(uuid);
+create or replace function "app_private"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
 stable
@@ -3124,18 +4458,34 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
   ) || jsonb_build_object(
       'published', (select y."version" from "app_private"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
-      'draft', exists (select 1 from "app_private"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft')
+      'draft', exists (select 1 from "app_private"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', u.version,
+      'behind', coalesce(u.version > x."forked_from_version", false),
+      'optedOut', case when workflow_definitions_list.tenant is null then null else exists (select 1 from "app_private"."workflow_opt_outs" oo where oo."tenant_id" = workflow_definitions_list.tenant and oo."definition_id" = x."id") end
     ) order by x."name"), '[]'::jsonb)
   from "app_private"."workflow_definitions" x
-  where workflow_definitions_list.tenant is null or x."tenant_id" = workflow_definitions_list.tenant;
+  left join lateral (
+    select y."version" as version from "app_private"."workflow_versions" y
+    where y."definition_id" = x."forked_from" and y."status" = 'published'
+  ) u on true
+  where (workflow_definitions_list.tenant is null
+      or x."tenant_id" = workflow_definitions_list.tenant
+      or x."scope" = 'system')
+    and (workflow_definitions_list.subject_type is null
+      or workflow_definitions_list.subject_type = any (x."subject_types"));
 $$;
-revoke execute on function "app_private"."workflow_definitions_list"(uuid) from public, anon;
-grant execute on function "app_private"."workflow_definitions_list"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."workflow_definitions_list"(uuid, text) from public, anon;
+grant execute on function "app_private"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
 
 create or replace function "app_private"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -3149,6 +4499,11 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -3179,8 +4534,11 @@ revoke execute on function "app_private"."remove_workflow_definition"(uuid) from
 grant execute on function "app_private"."remove_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
--- numbered after the last version. workflow.edit in its tenant.
-create or replace function "app_private"."save_workflow_draft"(definition uuid, graph jsonb)
+-- numbered after the last version. workflow.edit in its tenant, and an edit
+-- grant on a restricted definition. A null input_schema keeps the draft's
+-- current one.
+drop function if exists "app_private"."save_workflow_draft"(uuid, jsonb);
+create or replace function "app_private"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3198,21 +4556,36 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if jsonb_typeof(graph) <> 'object' then
     raise exception 'A graph is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
-  update "app_private"."workflow_versions" x set "graph" = graph, "compiled" = null
+  if input_schema is not null and jsonb_typeof(input_schema) <> 'object' then
+    raise exception 'An input schema is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  update "app_private"."workflow_versions" x set "graph" = graph, "compiled" = null,
+    "input_schema" = coalesce(input_schema, x."input_schema")
   where x."definition_id" = definition and x."status" = 'draft'
   returning * into v_row;
   if not found then
-    insert into "app_private"."workflow_versions" ("definition_id", "version", "graph", "created_by")
+    insert into "app_private"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
     values (
       definition,
       coalesce((select max(y."version") from "app_private"."workflow_versions" y where y."definition_id" = definition), 0) + 1,
       graph,
+      coalesce(input_schema, (select y."input_schema" from "app_private"."workflow_versions" y
+        where y."definition_id" = definition order by y."version" desc limit 1)),
       (select auth.uid())
     )
     returning * into v_row;
@@ -3230,12 +4603,13 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_draft"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "app_private"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -3270,8 +4644,11 @@ grant execute on function "app_private"."workflow_graph_permissions"(jsonb) to a
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
 -- organization-owned version returns publisher null, for the app's service
--- principal. The trigger that started the run never changes the answer.
-create or replace function "app_private"."workflow_run_principal"(version uuid)
+-- principal. A system definition has no tenant, so pass the
+-- tenant its run belongs to; a tenant definition ignores tenant. The
+-- trigger that started the run never changes the answer.
+drop function if exists "app_private"."workflow_run_principal"(uuid);
+create or replace function "app_private"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -3291,7 +4668,8 @@ begin
   if v_row."status" = 'draft' then
     raise exception 'This workflow version was never published' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = v_row."definition_id";
+  select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant
+  from "app_private"."workflow_definitions" x where x."id" = v_row."definition_id";
   if v_row."owner_kind" is null then
     raise exception 'This workflow version was published before publishers were recorded; publish it again'
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
@@ -3317,10 +4695,11 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."workflow_run_principal"(uuid) from public, anon, authenticated;
-grant execute on function "app_private"."workflow_run_principal"(uuid) to service_role;
+revoke execute on function "app_private"."workflow_run_principal"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_run_principal"(uuid, uuid) to service_role;
 
--- Publishes a version: workflow.publish in its tenant, a graph
+-- Publishes a version: workflow.publish in its tenant (and an edit grant on
+-- a restricted definition; a system one only the service role), a graph
 -- validate_workflow_graph accepts, and every permission its steps need
 -- (workflow_graph_permissions), which are stored with the publisher. The
 -- service role publishes for the organization. The version published
@@ -3349,7 +4728,16 @@ begin
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
   select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = v_row."definition_id";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = v_row."definition_id"), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."definition_id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not publish this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if compiled is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -3373,7 +4761,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
   end if;
   v_errors := "app_private"."validate_workflow_graph"(v_row."graph");
@@ -3416,7 +4805,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
@@ -3465,15 +4855,20 @@ as $$
     'owner', x."owner_kind",
     'permissions', to_jsonb(x."permissions"),
     'graph', x."graph",
-    'compiled', x."compiled"
+    'compiled', x."compiled",
+    'inputSchema', x."input_schema"
   ) from "app_private"."workflow_versions" x where x."id" = workflow_version_get.version;
 $$;
 revoke execute on function "app_private"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "app_private"."workflow_version_get"(uuid) to authenticated, service_role;
 
--- What a run of definition starts from: its tenant and its published
--- version. workflow.run in its tenant, or the service role.
-create or replace function "app_private"."workflow_start_target"(definition uuid)
+-- What a run of definition starts from: the tenant it runs in and the
+-- published version. workflow.run in that tenant (and a run grant on a
+-- restricted definition), or the service role. A system definition runs in
+-- tenant, which it needs; a tenant that opted out of the definition gets
+-- WORKFLOW_OPTED_OUT.
+drop function if exists "app_private"."workflow_start_target"(uuid);
+create or replace function "app_private"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -3484,13 +4879,30 @@ as $$
 declare
   v_def "app_private"."workflow_definitions"%rowtype;
   v_row "app_private"."workflow_versions"%rowtype;
+  v_tenant uuid;
 begin
   select * into v_def from "app_private"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.run'), false))) then
+  v_tenant := case when v_def."scope" = 'system' then tenant else v_def."tenant_id" end;
+  if v_def."scope" = 'system' and v_tenant is null then
+    raise exception 'Pass the tenant a system workflow runs in' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('run', 'edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not run this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_tenant is not null and exists (select 1 from "app_private"."workflow_opt_outs" oo where oo."tenant_id" = v_tenant and oo."definition_id" = definition) then
+    raise exception 'This organization opted out of this workflow' using errcode = 'P0001', hint = 'WORKFLOW_OPTED_OUT';
   end if;
   select * into v_row from "app_private"."workflow_versions" x where x."definition_id" = definition and x."status" = 'published';
   if not found then
@@ -3502,6 +4914,11 @@ begin
     'slug', v_def."slug",
     'name', v_def."name",
     'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -3517,12 +4934,334 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
-  ));
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ), 'tenant', v_tenant);
 end;
 $$;
-revoke execute on function "app_private"."workflow_start_target"(uuid) from public, anon;
-grant execute on function "app_private"."workflow_start_target"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."workflow_start_target"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."workflow_start_target"(uuid, uuid) to authenticated, service_role;
+
+-- workflow_start_target for a run that belongs to a record: the definition
+-- must list subject_type in subject_types. Security invoker, so the
+-- record check runs under the caller's RLS; returns the target with the
+-- subject.
+create or replace function "app_private"."workflow_subject_start_target"(
+  definition uuid,
+  subject_type text,
+  subject_id text,
+  tenant uuid default null
+)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_types text[];
+begin
+  if subject_type is null or subject_id is null or length(subject_type) not between 1 and 100 or length(subject_id) not between 1 and 200 then
+    raise exception 'A subject has a type of 1 to 100 and an id of 1 to 200 characters' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_INVALID';
+  end if;
+  select x."subject_types" into v_types from "app_private"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (subject_type = any (v_types)) then
+    raise exception 'This workflow doesn''t run on that subject type' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_TYPE';
+  end if;
+  return "app_private"."workflow_start_target"(definition, tenant)
+    || jsonb_build_object('subject', jsonb_build_object('type', subject_type, 'id', subject_id));
+end;
+$$;
+revoke execute on function "app_private"."workflow_subject_start_target"(uuid, text, text, uuid) from public, anon;
+grant execute on function "app_private"."workflow_subject_start_target"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- What a test run of definition starts from: version (default its draft,
+-- else its published version), the trigger node it starts at (default the
+-- graph's only trigger) and the stubs its steps return. workflow.edit in its
+-- tenant (and an edit grant on a restricted definition). The run records
+-- mode test: its steps don't run, and it fires no alerts and writes no
+-- outbox events.
+create or replace function "app_private"."start_test_run"(
+  definition uuid,
+  version uuid default null,
+  trigger_node text default null,
+  input jsonb default null,
+  stubs jsonb default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_def "app_private"."workflow_definitions"%rowtype;
+  v_row "app_private"."workflow_versions"%rowtype;
+  v_errors jsonb;
+  v_triggers text[];
+  v_node text := trigger_node;
+begin
+  select * into v_def from "app_private"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = definition), false)
+      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_def."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
+    raise exception 'You may not test this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if stubs is not null and jsonb_typeof(stubs) <> 'object' then
+    raise exception 'stubs is an object keyed by node id' using errcode = '22023', hint = 'WORKFLOW_STUBS_INVALID';
+  end if;
+  select * into v_row from "app_private"."workflow_versions" x
+  where x."definition_id" = definition
+    and (case when version is null then x."status" in ('draft', 'published') else x."id" = version end)
+  order by x."status" = 'draft' desc
+  limit 1;
+  if not found then
+    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  v_errors := "app_private"."validate_workflow_graph"(v_row."graph");
+  if jsonb_array_length(v_errors) > 0 then
+    raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
+      using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  select array_agg(n.value ->> 'id') into v_triggers
+  from jsonb_array_elements(v_row."graph" -> 'nodes') n
+  where n.value ->> 'kind' = 'trigger';
+  if v_node is null and cardinality(v_triggers) = 1 then
+    v_node := v_triggers[1];
+  end if;
+  if v_node is null or not (v_node = any (v_triggers)) then
+    raise exception 'Pass trigger_node, the id of one of the graph''s trigger nodes' using errcode = '22023', hint = 'WORKFLOW_TRIGGER_NODE';
+  end if;
+  return jsonb_build_object(
+    'definition', jsonb_build_object(
+    'id', v_def."id",
+    'tenant', v_def."tenant_id",
+    'slug', v_def."slug",
+    'name', v_def."name",
+    'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
+    'createdBy', v_def."created_by",
+    'createdAt', v_def."created_at",
+    'updatedAt', v_def."updated_at"
+  ),
+    'version', jsonb_build_object(
+    'id', v_row."id",
+    'definition', v_row."definition_id",
+    'version', v_row."version",
+    'status', v_row."status",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
+    'graph', v_row."graph",
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ),
+    'tenant', v_def."tenant_id",
+    'triggerNode', v_node,
+    'input', coalesce(input, '{}'::jsonb),
+    'stubs', coalesce(stubs, '{}'::jsonb)
+  );
+end;
+$$;
+revoke execute on function "app_private"."start_test_run"(uuid, uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function "app_private"."start_test_run"(uuid, uuid, text, jsonb, jsonb) to authenticated, service_role;
+
+-- Copies the published graph of source (a system definition, or one in
+-- tenant) into a new definition in tenant with slug, as its draft, and
+-- records the version it copied. workflow.edit in tenant (and an edit grant
+-- on a restricted source).
+create or replace function "app_private"."fork_workflow_definition"(source uuid, tenant uuid, slug text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_src "app_private"."workflow_definitions"%rowtype;
+  v_version "app_private"."workflow_versions"%rowtype;
+  v_row "app_private"."workflow_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "app_private"."workflow_definitions" x where x."id" = source;
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from tenant) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+    raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_src."scope" = 'tenant' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = source), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = source
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+    raise exception 'You may not fork this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  select * into v_version from "app_private"."workflow_versions" x where x."definition_id" = source and x."status" = 'published';
+  if not found then
+    raise exception 'This workflow has no published version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+  end if;
+  insert into "app_private"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "forked_from", "forked_from_version", "created_by")
+  values (tenant, slug, v_src."name", v_src."description", v_src."subject_types", v_src."id", v_version."version", (select auth.uid()))
+  returning * into v_row;
+  insert into "app_private"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
+  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()));
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'slug', v_row."slug",
+    'name', v_row."name",
+    'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  ) || jsonb_build_object('draft', true, 'upstreamVersion', v_version."version", 'behind', false);
+end;
+$$;
+revoke execute on function "app_private"."fork_workflow_definition"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."fork_workflow_definition"(uuid, uuid, text) to authenticated, service_role;
+
+-- Opts tenant out of definition (a system definition, or one in tenant), or
+-- back in with opted_out false: workflow.admin in tenant. Returns whether
+-- the tenant is opted out.
+create or replace function "app_private"."set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if tenant is null then
+    raise exception 'Pass the tenant that opts out' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if not exists (
+    select 1 from "app_private"."workflow_definitions" x
+    where x."id" = definition and (x."scope" = 'system' or x."tenant_id" = tenant)
+  ) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if coalesce(opted_out, true) then
+    insert into "app_private"."workflow_opt_outs" ("tenant_id", "definition_id", "created_by")
+    values (tenant, definition, (select auth.uid()))
+    on conflict do nothing;
+  else
+    delete from "app_private"."workflow_opt_outs" x where x."tenant_id" = tenant and x."definition_id" = definition;
+  end if;
+  return coalesce(opted_out, true);
+end;
+$$;
+revoke execute on function "app_private"."set_workflow_opt_out"(uuid, uuid, boolean) from public, anon;
+grant execute on function "app_private"."set_workflow_opt_out"(uuid, uuid, boolean) to authenticated, service_role;
+
+-- Grants (or with granted false, revokes) action (run or edit) on a
+-- definition to a user, a team or an organization role: workflow.admin in
+-- its tenant. Grants only matter while the definition is restricted.
+create or replace function "app_private"."set_workflow_definition_grant"(
+  definition uuid,
+  principal_kind text,
+  principal_id text,
+  action text,
+  granted boolean default true
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage access to this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if principal_kind is null or principal_kind not in ('user', 'team', 'role') then
+    raise exception 'principal_kind is user, team or role' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if action is null or action not in ('run', 'edit') then
+    raise exception 'action is run or edit' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if coalesce(granted, true) then
+    insert into "app_private"."workflow_definition_grants" ("definition_id", "principal_kind", "principal_id", "action", "created_by")
+    values (definition, principal_kind, principal_id, action, (select auth.uid()))
+    on conflict on constraint workflow_definition_grants_key do nothing;
+  else
+    delete from "app_private"."workflow_definition_grants" x
+    where x."definition_id" = definition and x."principal_kind" = principal_kind
+      and x."principal_id" = principal_id and x."action" = action;
+  end if;
+  return coalesce(granted, true);
+end;
+$$;
+revoke execute on function "app_private"."set_workflow_definition_grant"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "app_private"."set_workflow_definition_grant"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "app_private"."workflow_definition_grants_list"(definition uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'definition', x."definition_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'action', x."action",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at"
+  ) order by x."created_at"), '[]'::jsonb)
+  from "app_private"."workflow_definition_grants" x where x."definition_id" = workflow_definition_grants_list.definition;
+$$;
+revoke execute on function "app_private"."workflow_definition_grants_list"(uuid) from public, anon;
+grant execute on function "app_private"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function "app_private"."save_workflow_trigger"(
@@ -3549,7 +5288,16 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if trigger is null then
@@ -3619,7 +5367,17 @@ begin
   delete from "app_private"."workflow_triggers" x
   using "app_private"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = y."id"), false)
+      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = y."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = y."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ));
   return found;
 end;
 $$;
@@ -3637,19 +5395,29 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant uuid;
+  v_definition uuid;
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select y."tenant_id", x."kind" into v_tenant, v_kind
+  select y."tenant_id", y."id", x."kind" into v_tenant, v_definition, v_kind
   from "app_private"."workflow_triggers" x join "app_private"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
   if not found then
     raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "app_private"."workflow_definitions" z where z."id" = v_definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "app_private"."workflow_definition_grants" gr
+        where gr."definition_id" = v_definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_kind <> 'webhook' then
@@ -3691,14 +5459,17 @@ revoke execute on function "app_private"."workflow_webhook_target"(text) from pu
 grant execute on function "app_private"."workflow_webhook_target"(text) to service_role;
 
 -- The enabled event triggers listening for type (config.type) in tenant,
--- with their definitions (service role; the outbox consumer calls it).
+-- with the tenant the run belongs to and the subject types their definition
+-- runs on (service role; the outbox consumer calls it). System definitions
+-- listen in every tenant; a tenant that opted out of one is left out.
 create or replace function "app_private"."workflow_event_targets"(type text, tenant uuid default null)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'trigger', jsonb_build_object(
     'id', x."id",
     'definition', x."definition_id",
     'kind', x."kind",
@@ -3706,12 +5477,22 @@ as $$
     'enabled', x."enabled",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
-  ), 'tenant', y."tenant_id") order by x."created_at"), '[]'::jsonb)
+  ),
+    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
+    'subjectTypes', to_jsonb(y."subject_types")
+  ) order by x."created_at"), '[]'::jsonb)
   from "app_private"."workflow_triggers" x
   join "app_private"."workflow_definitions" y on y."id" = x."definition_id"
   where x."kind" = 'event' and x."enabled"
     and x."config" ->> 'type' = workflow_event_targets.type
-    and y."tenant_id" is not distinct from workflow_event_targets.tenant;
+    and (
+      y."tenant_id" is not distinct from workflow_event_targets.tenant
+      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
+    )
+    and not exists (
+      select 1 from "app_private"."workflow_opt_outs" z
+      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
+    );
 $$;
 revoke execute on function "app_private"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_event_targets"(text, uuid) to service_role;
@@ -4068,7 +5849,7 @@ revoke execute on function "app_private"."remove_workflow_alert"(uuid) from publ
 grant execute on function "app_private"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bs.definition
--- attribute) when the run fails.
+-- attribute) when a live run fails; test runs fire none.
 create or replace function "app_private"."workflow_runs_alert"()
 returns trigger
 language plpgsql
@@ -4080,7 +5861,7 @@ declare
   v_alert "app_private"."workflow_alerts"%rowtype;
   v_fired integer := 0;
 begin
-  if new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
+  if new."mode" = 'test' or new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -4120,6 +5901,7 @@ begin
     select x."id" as alert, y."id" as run from "app_private"."workflow_alerts" x
     join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
+      and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
       and y."created_at" < now() - x."threshold"
       and not exists (select 1 from "app_private"."workflow_alert_fires" z where z."alert_id" = x."id" and z."run_id" = y."id")
@@ -4162,13 +5944,13 @@ grant select on better_supabase.modules to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-builder', 1, 'managed')
+values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module workflow-builder@1 managed
+-- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -4225,13 +6007,92 @@ create table if not exists "better_supabase"."workflow_definitions" (
   constraint workflow_definitions_tenant_slug_key unique nulls not distinct ("tenant_id", "slug")
 );
 create index if not exists workflow_definitions_created_by_idx on "better_supabase"."workflow_definitions" ("created_by");
+-- subject_types: the record types a run of the definition may belong to.
+-- scope: a system definition has no tenant, every member with
+-- workflow.read reads it, only the service role saves and publishes it, and
+-- it runs in a tenant until the tenant opts out (workflow_opt_outs).
+-- forked_from: the definition and version a fork copied.
+-- restricted: running or editing it also needs a workflow_definition_grants
+-- row (or workflow.admin).
+alter table "better_supabase"."workflow_definitions" add column if not exists "subject_types" text[] not null default '{}';
+alter table "better_supabase"."workflow_definitions" add column if not exists "scope" text not null default 'tenant'
+  check ("scope" in ('tenant', 'system'));
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
+alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "better_supabase"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_system_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 02e502e1' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_system_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check" check ("scope" = 'tenant' or "tenant_id" is null);
+    comment on constraint "workflow_definitions_system_check" on "better_supabase"."workflow_definitions" is 'better-supabase check 02e502e1';
+  end if;
+end;
+$$;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_subject_types_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check bdb3cf6a' then
+    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_subject_types_check";
+    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check" check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
+    comment on constraint "workflow_definitions_subject_types_check" on "better_supabase"."workflow_definitions" is 'better-supabase check bdb3cf6a';
+  end if;
+end;
+$$;
+create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
 create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
+
+-- The tenants that opted out of a definition, usually a system one: its
+-- triggers and starts skip them (WORKFLOW_OPTED_OUT).
+create table if not exists "better_supabase"."workflow_opt_outs" (
+  "tenant_id" uuid not null,
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "definition_id")
+);
+create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
+create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
+alter table "better_supabase"."workflow_opt_outs" enable row level security;
+revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+grant select on "better_supabase"."workflow_opt_outs" to authenticated;
+grant all on "better_supabase"."workflow_opt_outs" to service_role;
+drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+
+-- Who may run or edit a restricted definition: a user, a team or an
+-- organization role. An edit grant also runs it.
+create table if not exists "better_supabase"."workflow_definition_grants" (
+  "id" uuid primary key default gen_random_uuid(),
+  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
+  "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
+  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "action" text not null check ("action" in ('run', 'edit')),
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
+);
+create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
+create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
+alter table "better_supabase"."workflow_definition_grants" enable row level security;
+revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+grant select on "better_supabase"."workflow_definition_grants" to authenticated;
+grant all on "better_supabase"."workflow_definition_grants" to service_role;
+drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+  using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4252,6 +6113,10 @@ create table if not exists "better_supabase"."workflow_versions" (
 alter table "better_supabase"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
 alter table "better_supabase"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+-- input_schema: the JSON Schema of the input a run of the version takes, as
+-- the editor saved it; callers such as template attachments check against it.
+alter table "better_supabase"."workflow_versions" add column if not exists "input_schema" jsonb
+  check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
 create index if not exists workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
 create unique index if not exists workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
@@ -4430,8 +6295,8 @@ begin
       v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
     end if;
   end loop;
-  if v_triggers <> 1 then
-    v_errors := array_append(v_errors, 'A graph has exactly one trigger node');
+  if v_triggers < 1 then
+    v_errors := array_append(v_errors, 'A graph has at least one trigger node');
   end if;
   for v_edge in select value from jsonb_array_elements(v_edges) loop
     if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
@@ -4445,12 +6310,20 @@ revoke execute on function "better_supabase"."validate_workflow_graph"(jsonb) fr
 grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
 -- Creates a definition, or renames the one with the same tenant and slug:
--- the service role or workflow.edit in tenant.
+-- the service role or workflow.edit in tenant (and an edit grant on a
+-- restricted one). subject_types and restricted keep their value when null;
+-- only workflow.admin changes restricted. A system definition (scope
+-- 'system') has no tenant and only the service role saves it; the scope of
+-- a saved definition never changes.
+drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
-  description text default null
+  description text default null,
+  subject_types text[] default null,
+  scope text default null,
+  restricted boolean default null
 )
 returns jsonb
 language plpgsql
@@ -4460,38 +6333,89 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."workflow_definitions"%rowtype;
+  v_scope text := coalesce(scope, 'tenant');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if v_scope not in ('tenant', 'system') then
+    raise exception 'scope is tenant or system' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and tenant is not null then
+    raise exception 'A system workflow has no tenant' using errcode = '22023', hint = 'WORKFLOW_SCOPE_INVALID';
+  end if;
+  if v_scope = 'system' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role saves a system workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  insert into "better_supabase"."workflow_definitions" as x ("tenant_id", "slug", "name", "description", "created_by")
-  values (tenant, slug, name, description, (select auth.uid()))
-  on conflict on constraint workflow_definitions_tenant_slug_key do update set
-    "name" = excluded."name",
-    "description" = excluded."description",
-    "updated_at" = now()
-  returning * into v_row;
+  select * into v_row from "better_supabase"."workflow_definitions" x
+  where x."tenant_id" is not distinct from tenant and x."slug" = slug
+  for update;
+  if found then
+    if scope is not null and scope <> v_row."scope" then
+      raise exception 'A workflow''s scope never changes' using errcode = '22023', hint = 'WORKFLOW_SCOPE_FIXED';
+    end if;
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."id"), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+      raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    update "better_supabase"."workflow_definitions" x set
+      "name" = name,
+      "description" = description,
+      "subject_types" = coalesce(subject_types, x."subject_types"),
+      "restricted" = coalesce(restricted, x."restricted"),
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  else
+    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+      raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+    end if;
+    insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "scope", "restricted", "created_by")
+    values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
+    returning * into v_row;
+  end if;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
     'slug', v_row."slug",
     'name', v_row."name",
     'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
--- published version and whether it has a draft.
-create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null)
+-- published version and whether it has a draft. With tenant, the tenant's
+-- definitions and the system ones, each with optedOut; with subject_type,
+-- only the definitions that run on it. A fork has upstreamVersion (its
+-- source's published version) and behind (whether that is newer than the
+-- version it copied).
+drop function if exists "better_supabase"."workflow_definitions_list"(uuid);
+create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
 stable
@@ -4504,18 +6428,34 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
   ) || jsonb_build_object(
       'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
-      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft')
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', u.version,
+      'behind', coalesce(u.version > x."forked_from_version", false),
+      'optedOut', case when workflow_definitions_list.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = workflow_definitions_list.tenant and oo."definition_id" = x."id") end
     ) order by x."name"), '[]'::jsonb)
   from "better_supabase"."workflow_definitions" x
-  where workflow_definitions_list.tenant is null or x."tenant_id" = workflow_definitions_list.tenant;
+  left join lateral (
+    select y."version" as version from "better_supabase"."workflow_versions" y
+    where y."definition_id" = x."forked_from" and y."status" = 'published'
+  ) u on true
+  where (workflow_definitions_list.tenant is null
+      or x."tenant_id" = workflow_definitions_list.tenant
+      or x."scope" = 'system')
+    and (workflow_definitions_list.subject_type is null
+      or workflow_definitions_list.subject_type = any (x."subject_types"));
 $$;
-revoke execute on function "better_supabase"."workflow_definitions_list"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_definitions_list"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_definitions_list"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -4529,6 +6469,11 @@ as $$
     'slug', x."slug",
     'name', x."name",
     'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -4559,8 +6504,11 @@ revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) 
 grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
--- numbered after the last version. workflow.edit in its tenant.
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb)
+-- numbered after the last version. workflow.edit in its tenant, and an edit
+-- grant on a restricted definition. A null input_schema keeps the draft's
+-- current one.
+drop function if exists "better_supabase"."save_workflow_draft"(uuid, jsonb);
+create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4578,21 +6526,36 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if jsonb_typeof(graph) <> 'object' then
     raise exception 'A graph is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
   end if;
-  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null
+  if input_schema is not null and jsonb_typeof(input_schema) <> 'object' then
+    raise exception 'An input schema is an object' using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  update "better_supabase"."workflow_versions" x set "graph" = graph, "compiled" = null,
+    "input_schema" = coalesce(input_schema, x."input_schema")
   where x."definition_id" = definition and x."status" = 'draft'
   returning * into v_row;
   if not found then
-    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "created_by")
+    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
     values (
       definition,
       coalesce((select max(y."version") from "better_supabase"."workflow_versions" y where y."definition_id" = definition), 0) + 1,
       graph,
+      coalesce(input_schema, (select y."input_schema" from "better_supabase"."workflow_versions" y
+        where y."definition_id" = definition order by y."version" desc limit 1)),
       (select auth.uid())
     )
     returning * into v_row;
@@ -4610,12 +6573,13 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -4650,8 +6614,11 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
 -- organization-owned version returns publisher null, for the app's service
--- principal. The trigger that started the run never changes the answer.
-create or replace function "better_supabase"."workflow_run_principal"(version uuid)
+-- principal. A system definition has no tenant, so pass the
+-- tenant its run belongs to; a tenant definition ignores tenant. The
+-- trigger that started the run never changes the answer.
+drop function if exists "better_supabase"."workflow_run_principal"(uuid);
+create or replace function "better_supabase"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -4671,7 +6638,8 @@ begin
   if v_row."status" = 'draft' then
     raise exception 'This workflow version was never published' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
+  select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant
+  from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
   if v_row."owner_kind" is null then
     raise exception 'This workflow version was published before publishers were recorded; publish it again'
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
@@ -4697,10 +6665,11 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_run_principal"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_run_principal"(uuid) to service_role;
+revoke execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_run_principal"(uuid, uuid) to service_role;
 
--- Publishes a version: workflow.publish in its tenant, a graph
+-- Publishes a version: workflow.publish in its tenant (and an edit grant on
+-- a restricted definition; a system one only the service role), a graph
 -- validate_workflow_graph accepts, and every permission its steps need
 -- (workflow_graph_permissions), which are stored with the publisher. The
 -- service role publishes for the organization. The version published
@@ -4729,7 +6698,16 @@ begin
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."definition_id"), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_row."definition_id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not publish this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if compiled is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -4753,7 +6731,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
   end if;
   v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
@@ -4796,7 +6775,8 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
   );
 end;
 $$;
@@ -4845,15 +6825,20 @@ as $$
     'owner', x."owner_kind",
     'permissions', to_jsonb(x."permissions"),
     'graph', x."graph",
-    'compiled', x."compiled"
+    'compiled', x."compiled",
+    'inputSchema', x."input_schema"
   ) from "better_supabase"."workflow_versions" x where x."id" = workflow_version_get.version;
 $$;
 revoke execute on function "better_supabase"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_version_get"(uuid) to authenticated, service_role;
 
--- What a run of definition starts from: its tenant and its published
--- version. workflow.run in its tenant, or the service role.
-create or replace function "better_supabase"."workflow_start_target"(definition uuid)
+-- What a run of definition starts from: the tenant it runs in and the
+-- published version. workflow.run in that tenant (and a run grant on a
+-- restricted definition), or the service role. A system definition runs in
+-- tenant, which it needs; a tenant that opted out of the definition gets
+-- WORKFLOW_OPTED_OUT.
+drop function if exists "better_supabase"."workflow_start_target"(uuid);
+create or replace function "better_supabase"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -4864,13 +6849,30 @@ as $$
 declare
   v_def "better_supabase"."workflow_definitions"%rowtype;
   v_row "better_supabase"."workflow_versions"%rowtype;
+  v_tenant uuid;
 begin
   select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.run'), false))) then
+  v_tenant := case when v_def."scope" = 'system' then tenant else v_def."tenant_id" end;
+  if v_def."scope" = 'system' and v_tenant is null then
+    raise exception 'Pass the tenant a system workflow runs in' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('run', 'edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not run this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_tenant is not null and exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = v_tenant and oo."definition_id" = definition) then
+    raise exception 'This organization opted out of this workflow' using errcode = 'P0001', hint = 'WORKFLOW_OPTED_OUT';
   end if;
   select * into v_row from "better_supabase"."workflow_versions" x where x."definition_id" = definition and x."status" = 'published';
   if not found then
@@ -4882,6 +6884,11 @@ begin
     'slug', v_def."slug",
     'name', v_def."name",
     'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -4897,12 +6904,334 @@ begin
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions"),
     'graph', v_row."graph",
-    'compiled', v_row."compiled"
-  ));
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ), 'tenant', v_tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."workflow_start_target"(uuid) from public, anon;
-grant execute on function "better_supabase"."workflow_start_target"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_start_target"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_start_target"(uuid, uuid) to authenticated, service_role;
+
+-- workflow_start_target for a run that belongs to a record: the definition
+-- must list subject_type in subject_types. Security invoker, so the
+-- record check runs under the caller's RLS; returns the target with the
+-- subject.
+create or replace function "better_supabase"."workflow_subject_start_target"(
+  definition uuid,
+  subject_type text,
+  subject_id text,
+  tenant uuid default null
+)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_types text[];
+begin
+  if subject_type is null or subject_id is null or length(subject_type) not between 1 and 100 or length(subject_id) not between 1 and 200 then
+    raise exception 'A subject has a type of 1 to 100 and an id of 1 to 200 characters' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_INVALID';
+  end if;
+  select x."subject_types" into v_types from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (subject_type = any (v_types)) then
+    raise exception 'This workflow doesn''t run on that subject type' using errcode = '22023', hint = 'WORKFLOW_SUBJECT_TYPE';
+  end if;
+  return "better_supabase"."workflow_start_target"(definition, tenant)
+    || jsonb_build_object('subject', jsonb_build_object('type', subject_type, 'id', subject_id));
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_subject_start_target"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- What a test run of definition starts from: version (default its draft,
+-- else its published version), the trigger node it starts at (default the
+-- graph's only trigger) and the stubs its steps return. workflow.edit in its
+-- tenant (and an edit grant on a restricted definition). The run records
+-- mode test: its steps don't run, and it fires no alerts and writes no
+-- outbox events.
+create or replace function "better_supabase"."start_test_run"(
+  definition uuid,
+  version uuid default null,
+  trigger_node text default null,
+  input jsonb default null,
+  stubs jsonb default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_def "better_supabase"."workflow_definitions"%rowtype;
+  v_row "better_supabase"."workflow_versions"%rowtype;
+  v_errors jsonb;
+  v_triggers text[];
+  v_node text := trigger_node;
+begin
+  select * into v_def from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_def."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
+    raise exception 'You may not test this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if stubs is not null and jsonb_typeof(stubs) <> 'object' then
+    raise exception 'stubs is an object keyed by node id' using errcode = '22023', hint = 'WORKFLOW_STUBS_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."workflow_versions" x
+  where x."definition_id" = definition
+    and (case when version is null then x."status" in ('draft', 'published') else x."id" = version end)
+  order by x."status" = 'draft' desc
+  limit 1;
+  if not found then
+    raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  v_errors := "better_supabase"."validate_workflow_graph"(v_row."graph");
+  if jsonb_array_length(v_errors) > 0 then
+    raise exception '%', (select string_agg(value, '; ') from jsonb_array_elements_text(v_errors))
+      using errcode = '22023', hint = 'WORKFLOW_GRAPH_INVALID';
+  end if;
+  select array_agg(n.value ->> 'id') into v_triggers
+  from jsonb_array_elements(v_row."graph" -> 'nodes') n
+  where n.value ->> 'kind' = 'trigger';
+  if v_node is null and cardinality(v_triggers) = 1 then
+    v_node := v_triggers[1];
+  end if;
+  if v_node is null or not (v_node = any (v_triggers)) then
+    raise exception 'Pass trigger_node, the id of one of the graph''s trigger nodes' using errcode = '22023', hint = 'WORKFLOW_TRIGGER_NODE';
+  end if;
+  return jsonb_build_object(
+    'definition', jsonb_build_object(
+    'id', v_def."id",
+    'tenant', v_def."tenant_id",
+    'slug', v_def."slug",
+    'name', v_def."name",
+    'description', v_def."description",
+    'subjectTypes', to_jsonb(v_def."subject_types"),
+    'scope', v_def."scope",
+    'forkedFrom', v_def."forked_from",
+    'forkedFromVersion', v_def."forked_from_version",
+    'restricted', v_def."restricted",
+    'createdBy', v_def."created_by",
+    'createdAt', v_def."created_at",
+    'updatedAt', v_def."updated_at"
+  ),
+    'version', jsonb_build_object(
+    'id', v_row."id",
+    'definition', v_row."definition_id",
+    'version', v_row."version",
+    'status', v_row."status",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'publishedAt', v_row."published_at",
+    'publishedBy', v_row."published_by",
+    'owner', v_row."owner_kind",
+    'permissions', to_jsonb(v_row."permissions"),
+    'graph', v_row."graph",
+    'compiled', v_row."compiled",
+    'inputSchema', v_row."input_schema"
+  ),
+    'tenant', v_def."tenant_id",
+    'triggerNode', v_node,
+    'input', coalesce(input, '{}'::jsonb),
+    'stubs', coalesce(stubs, '{}'::jsonb)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_test_run"(uuid, uuid, text, jsonb, jsonb) to authenticated, service_role;
+
+-- Copies the published graph of source (a system definition, or one in
+-- tenant) into a new definition in tenant with slug, as its draft, and
+-- records the version it copied. workflow.edit in tenant (and an edit grant
+-- on a restricted source).
+create or replace function "better_supabase"."fork_workflow_definition"(source uuid, tenant uuid, slug text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_src "better_supabase"."workflow_definitions"%rowtype;
+  v_version "better_supabase"."workflow_versions"%rowtype;
+  v_row "better_supabase"."workflow_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."workflow_definitions" x where x."id" = source;
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from tenant) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+    raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if v_src."scope" = 'tenant' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = source), false)
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = source
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      )) then
+    raise exception 'You may not fork this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  select * into v_version from "better_supabase"."workflow_versions" x where x."definition_id" = source and x."status" = 'published';
+  if not found then
+    raise exception 'This workflow has no published version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_PUBLISHED';
+  end if;
+  insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "forked_from", "forked_from_version", "created_by")
+  values (tenant, slug, v_src."name", v_src."description", v_src."subject_types", v_src."id", v_version."version", (select auth.uid()))
+  returning * into v_row;
+  insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
+  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()));
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'slug', v_row."slug",
+    'name', v_row."name",
+    'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  ) || jsonb_build_object('draft', true, 'upstreamVersion', v_version."version", 'behind', false);
+end;
+$$;
+revoke execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."fork_workflow_definition"(uuid, uuid, text) to authenticated, service_role;
+
+-- Opts tenant out of definition (a system definition, or one in tenant), or
+-- back in with opted_out false: workflow.admin in tenant. Returns whether
+-- the tenant is opted out.
+create or replace function "better_supabase"."set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if tenant is null then
+    raise exception 'Pass the tenant that opts out' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."workflow_definitions" x
+    where x."id" = definition and (x."scope" = 'system' or x."tenant_id" = tenant)
+  ) then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if coalesce(opted_out, true) then
+    insert into "better_supabase"."workflow_opt_outs" ("tenant_id", "definition_id", "created_by")
+    values (tenant, definition, (select auth.uid()))
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."workflow_opt_outs" x where x."tenant_id" = tenant and x."definition_id" = definition;
+  end if;
+  return coalesce(opted_out, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_opt_out"(uuid, uuid, boolean) to authenticated, service_role;
+
+-- Grants (or with granted false, revokes) action (run or edit) on a
+-- definition to a user, a team or an organization role: workflow.admin in
+-- its tenant. Grants only matter while the definition is restricted.
+create or replace function "better_supabase"."set_workflow_definition_grant"(
+  definition uuid,
+  principal_kind text,
+  principal_id text,
+  action text,
+  granted boolean default true
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = definition;
+  if not found then
+    raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+    raise exception 'You may not manage access to this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if principal_kind is null or principal_kind not in ('user', 'team', 'role') then
+    raise exception 'principal_kind is user, team or role' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if action is null or action not in ('run', 'edit') then
+    raise exception 'action is run or edit' using errcode = '22023', hint = 'WORKFLOW_GRANT_INVALID';
+  end if;
+  if coalesce(granted, true) then
+    insert into "better_supabase"."workflow_definition_grants" ("definition_id", "principal_kind", "principal_id", "action", "created_by")
+    values (definition, principal_kind, principal_id, action, (select auth.uid()))
+    on conflict on constraint workflow_definition_grants_key do nothing;
+  else
+    delete from "better_supabase"."workflow_definition_grants" x
+    where x."definition_id" = definition and x."principal_kind" = principal_kind
+      and x."principal_id" = principal_id and x."action" = action;
+  end if;
+  return coalesce(granted, true);
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_definition_grant"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."workflow_definition_grants_list"(definition uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'definition', x."definition_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'action', x."action",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at"
+  ) order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."workflow_definition_grants" x where x."definition_id" = workflow_definition_grants_list.definition;
+$$;
+revoke execute on function "better_supabase"."workflow_definition_grants_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function "better_supabase"."save_workflow_trigger"(
@@ -4929,7 +7258,16 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if trigger is null then
@@ -4999,7 +7337,17 @@ begin
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = y."id"), false)
+      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = y."id"
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = y."tenant_id" and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ));
   return found;
 end;
 $$;
@@ -5017,19 +7365,29 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant uuid;
+  v_definition uuid;
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select y."tenant_id", x."kind" into v_tenant, v_kind
+  select y."tenant_id", y."id", x."kind" into v_tenant, v_definition, v_kind
   from "better_supabase"."workflow_triggers" x join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."id" = trigger;
   if not found then
     raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_definition), false)
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or exists (
+        select 1 from "better_supabase"."workflow_definition_grants" gr
+        where gr."definition_id" = v_definition
+          and gr."action" in ('edit')
+          and ((gr."principal_kind" = 'user' and gr."principal_id" = (select auth.uid())::text)
+        or (gr."principal_kind" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = v_tenant and mr."user_id" = (select auth.uid()) and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))) then
     raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_kind <> 'webhook' then
@@ -5071,14 +7429,17 @@ revoke execute on function "better_supabase"."workflow_webhook_target"(text) fro
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
 -- The enabled event triggers listening for type (config.type) in tenant,
--- with their definitions (service role; the outbox consumer calls it).
+-- with the tenant the run belongs to and the subject types their definition
+-- runs on (service role; the outbox consumer calls it). System definitions
+-- listen in every tenant; a tenant that opted out of one is left out.
 create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'trigger', jsonb_build_object(
     'id', x."id",
     'definition', x."definition_id",
     'kind', x."kind",
@@ -5086,12 +7447,22 @@ as $$
     'enabled', x."enabled",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
-  ), 'tenant', y."tenant_id") order by x."created_at"), '[]'::jsonb)
+  ),
+    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
+    'subjectTypes', to_jsonb(y."subject_types")
+  ) order by x."created_at"), '[]'::jsonb)
   from "better_supabase"."workflow_triggers" x
   join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
   where x."kind" = 'event' and x."enabled"
     and x."config" ->> 'type' = workflow_event_targets.type
-    and y."tenant_id" is not distinct from workflow_event_targets.tenant;
+    and (
+      y."tenant_id" is not distinct from workflow_event_targets.tenant
+      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
+    )
+    and not exists (
+      select 1 from "better_supabase"."workflow_opt_outs" z
+      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
+    );
 $$;
 revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
@@ -5448,7 +7819,7 @@ revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from 
 grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bs.definition
--- attribute) when the run fails.
+-- attribute) when a live run fails; test runs fire none.
 create or replace function "better_supabase"."workflow_runs_alert"()
 returns trigger
 language plpgsql
@@ -5460,7 +7831,7 @@ declare
   v_alert "better_supabase"."workflow_alerts"%rowtype;
   v_fired integer := 0;
 begin
-  if new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
+  if new."mode" = 'test' or new."status" <> 'failed' or (tg_op = 'UPDATE' and old."status" = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -5500,6 +7871,7 @@ begin
     select x."id" as alert, y."id" as run from "better_supabase"."workflow_alerts" x
     join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
+      and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
       and y."created_at" < now() - x."threshold"
       and not exists (select 1 from "better_supabase"."workflow_alert_fires" z where z."alert_id" = x."id" and z."run_id" = y."id")
@@ -5522,6 +7894,12 @@ grant execute on function "better_supabase"."check_workflow_alerts"(integer) to 
 -- sql.modules.workflow-builder.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_workflow_definition"(uuid, text, text, text);
+drop function if exists "api"."workflow_definitions_list"(uuid);
+drop function if exists "api"."save_workflow_draft"(uuid, jsonb);
+drop function if exists "api"."workflow_run_principal"(uuid);
+drop function if exists "api"."workflow_start_target"(uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -5550,23 +7928,23 @@ as $$ select "better_supabase"."validate_workflow_graph"($1) $$;
 revoke execute on function "api"."validate_workflow_graph"(jsonb) from public, anon;
 grant execute on function "api"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_definition"(tenant uuid, slug text, name text, description text default null)
+create or replace function "api"."save_workflow_definition"(tenant uuid, slug text, name text, description text default null, subject_types text[] default null, scope text default null, restricted boolean default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_definition"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_workflow_definition"(uuid, text, text, text) from public, anon;
-grant execute on function "api"."save_workflow_definition"(uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."save_workflow_definition"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "api"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
-create or replace function "api"."workflow_definitions_list"(tenant uuid default null)
+create or replace function "api"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."workflow_definitions_list"($1) $$;
-revoke execute on function "api"."workflow_definitions_list"(uuid) from public, anon;
-grant execute on function "api"."workflow_definitions_list"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."workflow_definitions_list"($1, $2) $$;
+revoke execute on function "api"."workflow_definitions_list"(uuid, text) from public, anon;
+grant execute on function "api"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -5586,14 +7964,14 @@ as $$ select "better_supabase"."remove_workflow_definition"($1) $$;
 revoke execute on function "api"."remove_workflow_definition"(uuid) from public, anon;
 grant execute on function "api"."remove_workflow_definition"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_draft"(definition uuid, graph jsonb)
+create or replace function "api"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_draft"($1, $2) $$;
-revoke execute on function "api"."save_workflow_draft"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."save_workflow_draft"($1, $2, $3) $$;
+revoke execute on function "api"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 create or replace function "api"."workflow_graph_permissions"(graph jsonb)
 returns text[]
@@ -5604,14 +7982,14 @@ as $$ select "better_supabase"."workflow_graph_permissions"($1) $$;
 revoke execute on function "api"."workflow_graph_permissions"(jsonb) from public, anon;
 grant execute on function "api"."workflow_graph_permissions"(jsonb) to authenticated, service_role;
 
-create or replace function "api"."workflow_run_principal"(version uuid)
+create or replace function "api"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."workflow_run_principal"($1) $$;
-revoke execute on function "api"."workflow_run_principal"(uuid) from public, anon, authenticated;
-grant execute on function "api"."workflow_run_principal"(uuid) to service_role;
+as $$ select "better_supabase"."workflow_run_principal"($1, $2) $$;
+revoke execute on function "api"."workflow_run_principal"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "api"."workflow_run_principal"(uuid, uuid) to service_role;
 
 create or replace function "api"."publish_workflow_version"(version uuid, compiled jsonb default null)
 returns jsonb
@@ -5640,14 +8018,68 @@ as $$ select "better_supabase"."workflow_version_get"($1) $$;
 revoke execute on function "api"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "api"."workflow_version_get"(uuid) to authenticated, service_role;
 
-create or replace function "api"."workflow_start_target"(definition uuid)
+create or replace function "api"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."workflow_start_target"($1) $$;
-revoke execute on function "api"."workflow_start_target"(uuid) from public, anon;
-grant execute on function "api"."workflow_start_target"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."workflow_start_target"($1, $2) $$;
+revoke execute on function "api"."workflow_start_target"(uuid, uuid) from public, anon;
+grant execute on function "api"."workflow_start_target"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."workflow_subject_start_target"(definition uuid, subject_type text, subject_id text, tenant uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_subject_start_target"($1, $2, $3, $4) $$;
+revoke execute on function "api"."workflow_subject_start_target"(uuid, text, text, uuid) from public, anon;
+grant execute on function "api"."workflow_subject_start_target"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."start_test_run"(definition uuid, version uuid default null, trigger_node text default null, input jsonb default null, stubs jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."start_test_run"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."start_test_run"(uuid, uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function "api"."start_test_run"(uuid, uuid, text, jsonb, jsonb) to authenticated, service_role;
+
+create or replace function "api"."fork_workflow_definition"(source uuid, tenant uuid, slug text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."fork_workflow_definition"($1, $2, $3) $$;
+revoke execute on function "api"."fork_workflow_definition"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."fork_workflow_definition"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."set_workflow_opt_out"(tenant uuid, definition uuid, opted_out boolean default true)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_workflow_opt_out"($1, $2, $3) $$;
+revoke execute on function "api"."set_workflow_opt_out"(uuid, uuid, boolean) from public, anon;
+grant execute on function "api"."set_workflow_opt_out"(uuid, uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."set_workflow_definition_grant"(definition uuid, principal_kind text, principal_id text, action text, granted boolean default true)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_workflow_definition_grant"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_workflow_definition_grant"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "api"."set_workflow_definition_grant"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."workflow_definition_grants_list"(definition uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_definition_grants_list"($1) $$;
+revoke execute on function "api"."workflow_definition_grants_list"(uuid) from public, anon;
+grant execute on function "api"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 create or replace function "api"."save_workflow_trigger"(definition uuid, kind text, config jsonb default '{}'::jsonb, enabled boolean default true, trigger uuid default null)
 returns jsonb
@@ -5834,6 +8266,6 @@ grant select on better_supabase.modules to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflow-builder', 1, 'managed')
+values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

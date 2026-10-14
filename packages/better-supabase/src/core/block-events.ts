@@ -49,6 +49,20 @@ export interface NotificationEventData {
   readonly error?: string;
 }
 
+/**
+ * `notification.delivered`, `notification.failed` and the provider events
+ * (`opened`, `clicked`, `bounced`, `complained`, `delayed`): the record the
+ * notification is about is the subject, or the notification itself when it
+ * has none.
+ */
+export interface NotificationDeliveryEventData
+  extends NotificationEventData, SubjectEventData {
+  readonly organizationId: string | null;
+  readonly deliveryId?: string;
+  readonly provider?: string | null;
+  readonly providerEventId?: string | null;
+}
+
 /** `webhook.*`: outgoing webhooks. */
 export interface WebhookEventData {
   readonly endpointId: string;
@@ -281,6 +295,9 @@ export interface WorkflowRunEventData {
   readonly definition?: string | null;
   readonly status: string;
   readonly error?: string | null;
+  /** The record the run belongs to, when it was started on one. */
+  readonly subjectType?: string | null;
+  readonly subjectId?: string | null;
 }
 
 /** `workflow.published` and `workflow_alert.triggered`, from the workflow-builder module. */
@@ -347,6 +364,9 @@ export type SubjectEventType =
   | "subject.tagged"
   | "subject.untagged"
   | "status.changed"
+  | "status.paused"
+  | "status.resumed"
+  | "status.flagged"
   | "field_value.set"
   | "share_link.created"
   | "subject.viewed"
@@ -392,7 +412,15 @@ export type SubjectEventType =
   | "signature.signed"
   | "signature.completed"
   | "signature.declined"
-  | "signature.cancelled";
+  | "signature.cancelled"
+  | "template.applied"
+  | "notification.delivered"
+  | "notification.failed"
+  | "notification.opened"
+  | "notification.clicked"
+  | "notification.bounced"
+  | "notification.complained"
+  | "notification.delayed";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -421,6 +449,11 @@ export interface SaasEventData {
   readonly targetId?: string;
   /** Rows that failed in a bulk run. */
   readonly failed?: number;
+  /** When a `status.paused` pause ends, or `null` until it is resumed. */
+  readonly until?: string | null;
+  /** The lifecycle flag of a `status.flagged` event, and whether it is now on. */
+  readonly flag?: string;
+  readonly enabled?: boolean;
 }
 
 /** Events from the calendar and bookings blocks. */
@@ -590,6 +623,29 @@ export interface SignatureEventData extends SubjectEventData {
   readonly method?: string;
 }
 
+/** `template.published` from the templates module. */
+export interface TemplateEventData {
+  readonly organizationId: string | null;
+  /** The template. */
+  readonly id: string;
+  readonly versionId: string;
+  readonly version: number;
+  /** The template type, such as `invoice`. */
+  readonly type: string;
+}
+
+/**
+ * `template.applied` from the templates module. The subject is the record
+ * the application created.
+ */
+export interface TemplateApplicationEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The application. */
+  readonly id: string;
+  readonly templateId: string;
+  readonly versionId: string;
+}
+
 /**
  * Time entry events from the time-tracking module. `subjectType` and
  * `subjectId` are null for time not tracked on a record.
@@ -708,8 +764,13 @@ export interface BlockEventMap {
   "invitation.declined": InvitationEventData;
   "invitation.revoked": InvitationEventData;
   "notification.created": NotificationEventData;
-  "notification.delivered": NotificationEventData;
-  "notification.failed": NotificationEventData;
+  "notification.delivered": NotificationDeliveryEventData;
+  "notification.failed": NotificationDeliveryEventData;
+  "notification.opened": NotificationDeliveryEventData;
+  "notification.clicked": NotificationDeliveryEventData;
+  "notification.bounced": NotificationDeliveryEventData;
+  "notification.complained": NotificationDeliveryEventData;
+  "notification.delayed": NotificationDeliveryEventData;
   "webhook.delivered": WebhookEventData;
   "webhook.failed": WebhookEventData;
   "webhook.disabled": WebhookEventData;
@@ -747,6 +808,9 @@ export interface BlockEventMap {
   "subject.tagged": SaasSubjectEventData;
   "subject.untagged": SaasSubjectEventData;
   "status.changed": SaasSubjectEventData;
+  "status.paused": SaasSubjectEventData;
+  "status.resumed": SaasSubjectEventData;
+  "status.flagged": SaasSubjectEventData;
   "custom_field.saved": SaasEventData;
   "custom_field.deleted": SaasEventData;
   "field_value.set": SaasSubjectEventData;
@@ -835,6 +899,8 @@ export interface BlockEventMap {
   "signature.completed": SignatureEventData;
   "signature.declined": SignatureEventData;
   "signature.cancelled": SignatureEventData;
+  "template.published": TemplateEventData;
+  "template.applied": TemplateApplicationEventData;
   "time_entry.started": TimeEntryEventData;
   "time_entry.recorded": TimeEntryEventData;
   "time_entry.updated": TimeEntryEventData;

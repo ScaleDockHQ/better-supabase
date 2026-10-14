@@ -1,6 +1,6 @@
 -- better-supabase module: comments (0.8.0)
--- @bs-module comments@3 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.
+-- @bs-module comments@4 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -143,8 +143,8 @@ create trigger "bs_comments_before_write"
   for each row execute function "better_supabase"."comments_before_write"();
 
 -- Notifies newly mentioned members who can read comments in the tenant,
--- and writes comment.created, comment.mentioned and comment.deleted to the
--- outbox when it is installed.
+-- makes the author and them follow the subject, and writes comment.created,
+-- comment.mentioned and comment.deleted to the outbox when it is installed.
 create or replace function "better_supabase"."comments_after_write"()
 returns trigger
 language plpgsql
@@ -198,6 +198,13 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
+  -- The author and newly mentioned members follow the subject
+  -- (participating); a level a member already chose stays.
+  insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+  select distinct new."organization_id", f.x, new."subject_type", new."subject_id", 'participating'
+  from unnest(case when tg_op = 'INSERT' then array[new."author_id"] else '{}'::uuid[] end || v_new) f(x)
+  where f.x is not null
+  on conflict do nothing;
   return null;
 end;
 $$;
@@ -375,9 +382,26 @@ alter table "better_supabase"."activity_entries" enable row level security;
 revoke all on "better_supabase"."activity_entries" from anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
+-- Whether the caller can read a registered subject (can_subject).
+create or replace function "better_supabase"."activity_subject_readable"(subject_type text, subject_id text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return coalesce("better_supabase"."can_subject"(subject_type, subject_id, 'read'), false);
+end;
+$$;
+revoke execute on function "better_supabase"."activity_subject_readable"(text, text) from public, anon;
+grant execute on function "better_supabase"."activity_subject_readable"(text, text) to authenticated, service_role;
 drop policy if exists "activity_entries_read" on "better_supabase"."activity_entries";
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
+    and ("subject_type" is null or "subject_id" is null
+      or not ("subject_type" = any ('{customer}'::text[]))
+      or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -408,7 +432,10 @@ end;
 $$;
 
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller.
+-- subject_type and subject_id; before pages back. Runs as the caller, and
+-- each entry carries source: event for an activity entry, audit for an
+-- audit log entry on the subject's row.
+-- A registered subject's timeline is empty unless can_subject grants read.
 create or replace function "better_supabase"."list_activity"(
   tenant uuid,
   subject_type text default null,
@@ -417,21 +444,55 @@ create or replace function "better_supabase"."list_activity"(
   max_rows integer default 50
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."occurred_at" desc, x."id" desc), '[]'::jsonb)
+declare
+  v_limit integer := least(greatest(coalesce(list_activity.max_rows, 50), 1), 500);
+  v_rows jsonb;
+  v_table text;
+begin
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{customer}'::text[])
+    and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
+    return '[]'::jsonb;
+  end if;
+  if list_activity.subject_id is not null then
+    v_table := case list_activity.subject_type
+      when 'customer' then 'public.customers'
+    end;
+  end if;
+  select coalesce(jsonb_agg(x.entry order by x.at desc, x.id desc), '[]'::jsonb)
+  into v_rows
   from (
-    select * from "better_supabase"."activity_entries" y
+    select u.entry, u.at, u.id from (
+    (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
+      y."occurred_at" as at, y."id"::text as id
+    from "better_supabase"."activity_entries" y
     where y."organization_id" = list_activity.tenant
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
     order by y."occurred_at" desc, y."id" desc
-    limit least(greatest(coalesce(list_activity.max_rows, 50), 1), 500)
-  ) x
+    limit v_limit)
+    union all
+    (select jsonb_build_object('id', l."id"::text, 'organization_id', l."organization_id", 'event_id', null::text, 'type', coalesce(l."event_type", 'audit.' || l."op"), 'actor_id', l."actor_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', l."summary", 'data', jsonb_strip_nulls(jsonb_build_object('op', l."op", 'changed', to_jsonb(l."changed"), 'table', l."table_name")), 'occurred_at', l."occurred_at", 'source', 'audit') as entry,
+      l."occurred_at" as at, l."id"::text as id
+    from "better_supabase"."audit_events" l
+    where v_table is not null
+      and l."table_name" = v_table
+      and l."record_id" = list_activity.subject_id
+      and l."organization_id" = list_activity.tenant
+      and (list_activity.before is null or l."occurred_at" < list_activity.before)
+    order by l."occurred_at" desc, l."id" desc
+    limit v_limit)
+    ) u
+    order by u.at desc, u.id desc
+    limit v_limit
+  ) x;
+  return v_rows;
+end;
 $$;
 
 revoke execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) from public, anon;
@@ -458,6 +519,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."activity_subject_readable"(text, text);
 drop function if exists "api"."comment_subject_readable"(text, text, uuid);
 
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid);

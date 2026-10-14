@@ -51,6 +51,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_access_grant",
   ],
   documents: ["before_document_create", "after_document_create"],
+  templates: [
+    "before_template_save",
+    "after_template_save",
+    "before_template_apply",
+    "after_template_apply",
+  ],
   catalog: [
     "before_product_save",
     "after_product_save",

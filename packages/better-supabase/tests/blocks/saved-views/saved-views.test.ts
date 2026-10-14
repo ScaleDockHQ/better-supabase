@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   createSavedViews,
   defaultView,
+  displayStateOf,
   queryFromUrlState,
   SAVED_VIEW_KINDS,
   SAVED_VIEW_SCOPES,
+  sameDisplayState,
   sameQuery,
   savedViewIssues,
   savedViewStateSchema,
@@ -121,7 +123,11 @@ describe("saved views client", () => {
     });
     const views = createSavedViews({ transport: fake, schema: "app" });
     const [view] = await views.list("org", "tasks").orThrow();
-    expect(view).toMatchObject({ scope: "tenant", kind: "board" });
+    expect(view).toMatchObject({
+      scope: "tenant",
+      kind: "board",
+      preference: { isDefault: false, hidden: false, pinned: false },
+    });
     expect(await views.reorder("v1", { previous: "V" }).orThrow()).toBe("k");
     expect(await views.setDefault("v1").orThrow()).toBe(true);
     expect(await views.delete("v1").orThrow()).toBe(true);
@@ -130,6 +136,66 @@ describe("saved views client", () => {
       "rank_view",
       "set_default_view",
       "delete_view",
+    ]);
+  });
+
+  it("reads the caller's preference from a listed view", async () => {
+    const fake = transport({
+      list_views: [
+        {
+          id: "v1",
+          list: "tasks",
+          scope: "tenant",
+          name: "All",
+          kind: "table",
+          state: {},
+          rank: "V",
+          isDefault: false,
+          preference: { isDefault: true, hidden: false, pinned: true },
+        },
+      ],
+    });
+    const views = createSavedViews({ transport: fake, schema: "app" });
+    const [view] = await views.list("org", "tasks").orThrow();
+    expect(view?.preference).toEqual({
+      isDefault: true,
+      hidden: false,
+      pinned: true,
+    });
+  });
+
+  it("sets a preference, passing null for the flags it keeps", async () => {
+    const fake = transport({
+      set_view_preference: {
+        viewId: "v1",
+        isDefault: true,
+        hidden: false,
+        pinned: false,
+      },
+    });
+    const views = createSavedViews({ transport: fake, schema: "app" });
+    expect(
+      await views.setPreference("v1", { isDefault: true }).orThrow(),
+    ).toEqual({ isDefault: true, hidden: false, pinned: false });
+    expect(fake.calls[0]).toEqual({
+      fn: "set_view_preference",
+      args: { view_id: "v1", make_default: true, hide: null, pin: null },
+    });
+  });
+
+  it("duplicates a view as a personal copy by default", async () => {
+    const fake = transport({ duplicate_view: { id: "v2", rank: "k" } });
+    const views = createSavedViews({ transport: fake, schema: "app" });
+    expect(await views.duplicate("v1").orThrow()).toEqual({
+      id: "v2",
+      rank: "k",
+    });
+    await views
+      .duplicate("v1", { name: "Team copy", scope: "team", teamId: "t1" })
+      .orThrow();
+    expect(fake.calls.map((call) => call.args)).toEqual([
+      { view_id: "v1", scope: "user", name: null, team: null },
+      { view_id: "v1", scope: "team", name: "Team copy", team: "t1" },
     ]);
   });
 });
@@ -188,6 +254,63 @@ describe("saved view state", () => {
     ).toBe("x");
     const none: (typeof views)[number][] = [];
     expect(defaultView(none)).toBeUndefined();
+  });
+
+  it("opens the caller's preferred view first and skips hidden ones", () => {
+    const views = [
+      { id: "u", scope: "user", isDefault: true },
+      {
+        id: "t",
+        scope: "tenant",
+        isDefault: false,
+        preference: { isDefault: true },
+      },
+    ] as const;
+    expect(defaultView(views)?.id).toBe("t");
+    expect(
+      defaultView([
+        {
+          id: "u",
+          scope: "user",
+          isDefault: true,
+          preference: { hidden: true },
+        },
+        { id: "m", scope: "team", isDefault: true },
+      ])?.id,
+    ).toBe("m");
+    expect(
+      defaultView([
+        {
+          id: "h",
+          scope: "tenant",
+          isDefault: false,
+          preference: { hidden: true },
+        },
+      ]),
+    ).toBeUndefined();
+  });
+});
+
+describe("display state", () => {
+  it("drops the query and compares the rest", () => {
+    expect(displayStateOf({ query: { q: "x" }, density: "compact" })).toEqual({
+      density: "compact",
+    });
+    expect(
+      sameDisplayState(
+        { query: { q: "x" }, columns: { order: ["b", "a"] }, grouping: [] },
+        { grouping: [], columns: { order: ["b", "a"] } },
+      ),
+    ).toBe(true);
+    expect(
+      sameDisplayState(
+        { columns: { order: ["a", "b"] } },
+        {
+          columns: { order: ["b", "a"] },
+        },
+      ),
+    ).toBe(false);
+    expect(sameDisplayState(undefined, {})).toBe(true);
   });
 });
 

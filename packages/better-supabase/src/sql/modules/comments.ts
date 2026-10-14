@@ -18,6 +18,7 @@ import {
   revokeTable,
   fail,
 } from "../shared.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import {
   qualifiedTable,
   type Subject,
@@ -28,6 +29,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
+import { hasColumn } from "./audit-columns.ts";
 
 const EVENTS: ModuleEvents = {
   "comment.deleted": {
@@ -72,6 +74,7 @@ const NAMES: ModuleNames = {
     "maxBodyLength",
     "documentSchema",
     "notify",
+    "follow",
     "mentionGroups",
   ],
   tables: {
@@ -178,6 +181,168 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
   return { table, group, member, ...(tenant !== undefined && { tenant }) };
 }
 
+/**
+ * With notifications (and its subscriptions table) and `options.follow`
+ * (default true): the comments_after_write statement that makes the author
+ * of a new comment and its newly mentioned members follow the subject.
+ */
+function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
+  if (!ctx.installed("notifications") || !ctx.flag("follow", true)) return "";
+  const n = ctx.of("notifications");
+  if (!n.hasTable("subscriptions")) return "";
+  const s = (logical: string): string => n.col("subscriptions", logical);
+  const tenant = n.has("subscriptions", "tenant");
+  const columns = [
+    ...(tenant ? [s("tenant")] : []),
+    s("user"),
+    s("subjectType"),
+    s("subjectId"),
+    s("level"),
+  ];
+  const values = [
+    ...(tenant ? [`new.${c("tenant")}`] : []),
+    "f.x",
+    `new.${c("subjectType")}`,
+    `new.${c("subjectId")}`,
+    "'participating'",
+  ];
+  return `
+  -- The author and newly mentioned members follow the subject
+  -- (participating); a level a member already chose stays.
+  insert into ${n.table("subscriptions")} (${columns.join(", ")})
+  select distinct ${values.join(", ")}
+  from unnest(case when tg_op = 'INSERT' then array[new.${c("author")}] else '{}'::uuid[] end || v_new) f(x)
+  where f.x is not null
+  on conflict do nothing;`;
+}
+
+interface ActivityReads {
+  /** The activity_subject_readable function, before the read policy. */
+  readonly readable: string;
+  /** Drops activity_subject_readable when the policy doesn't call it. */
+  readonly dropReadable: string;
+  /** The per-row registry check appended to the read policy. */
+  readonly rowCheck: string;
+  /** list_activity's early return for a subject the caller can't read. */
+  readonly gate: string;
+  /** Sets v_table to the subject type's registry table. */
+  readonly auditSetup: string;
+  /** The audit log entries on the subject's row, unioned into the timeline. */
+  readonly auditBranch: string;
+}
+
+/**
+ * How the activity feed reads through the `subjects` registry and the
+ * audit log. A registered subject type needs `can_subject(read)`, per row in
+ * the read policy and once for a subject's timeline; types the registry
+ * doesn't know keep the tenant check alone. With `audit` and its
+ * `readPolicy`, a registered subject's timeline also returns the log's
+ * entries on its row, which that policy gates by the audit read permission.
+ */
+function activityReads(ctx: ModuleContext): ActivityReads {
+  const none: ActivityReads = {
+    readable: "",
+    dropReadable: `\ndrop function if exists ${ctx.fn("activity_subject_readable")}(text, text);`,
+    rowCheck: "",
+    gate: "",
+    auditSetup: "",
+    auditBranch: "",
+  };
+  if (!ctx.installed("subjects")) return none;
+  const registry = registeredSubjects(ctx.subjects);
+  if (registry.length === 0) return none;
+  const a = (logical: string): string => ctx.col("activity", logical);
+  const readable = ctx.fn("activity_subject_readable");
+  const types = `${sqlString(`{${registry.map((subject) => subject.type).join(",")}}`)}::text[]`;
+  const audit = ctx.installed("audit") ? ctx.of("audit") : undefined;
+  const auditOn =
+    audit !== undefined &&
+    audit.mode !== "custom" &&
+    audit.flag("readPolicy", false) &&
+    hasColumn(audit, "log", "table") &&
+    hasColumn(audit, "log", "record");
+  return {
+    // PL/pgSQL resolves can_subject when it runs: the subjects module
+    // installs after this one.
+    readable: `-- Whether the caller can read a registered subject (can_subject).
+create or replace function ${readable}(subject_type text, subject_id text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return coalesce(${ctx.of("subjects").fn("can_subject")}(subject_type, subject_id, 'read'), false);
+end;
+$$;
+revoke execute on function ${readable}(text, text) from public, anon;
+grant execute on function ${readable}(text, text) to authenticated, service_role;
+`,
+    dropReadable: "",
+    rowCheck: `
+    and (${a("subjectType")} is null or ${a("subjectId")} is null
+      or not (${a("subjectType")} = any (${types}))
+      or ${readable}(${a("subjectType")}, ${a("subjectId")}))`,
+    gate: `
+  if list_activity.subject_id is not null and list_activity.subject_type = any (${types})
+    and not ${readable}(list_activity.subject_type, list_activity.subject_id) then
+    return '[]'::jsonb;
+  end if;`,
+    auditSetup: auditOn
+      ? `
+  if list_activity.subject_id is not null then
+    v_table := case list_activity.subject_type
+${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlString(`${subject.schema}.${subject.table}`)}`).join("\n")}
+    end;
+  end if;`
+      : "",
+    auditBranch: auditOn ? auditBranch(ctx, audit) : "",
+  };
+}
+
+/** The union branch that reads the audit log's entries on v_table's row. */
+function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
+  const a = (logical: string): string =>
+    sqlString(ctx.col("activity", logical).replaceAll('"', ""));
+  const l = (logical: string): string => `l.${audit.col("log", logical)}`;
+  const has = (logical: string): boolean => hasColumn(audit, "log", logical);
+  const op = has("op") ? l("op") : "null::text";
+  const type = has("eventType")
+    ? `coalesce(${l("eventType")}, 'audit.' || ${op})`
+    : `'audit.' || coalesce(${op}, 'event')`;
+  const data = [
+    `'op', ${op}`,
+    ...(has("changed") ? [`'changed', to_jsonb(${l("changed")})`] : []),
+    `'table', ${l("table")}`,
+  ];
+  const entry = [
+    `${a("id")}, ${l("id")}::text`,
+    `${a("tenant")}, ${l("tenant")}`,
+    `${a("event")}, null::text`,
+    `${a("type")}, ${type}`,
+    `${a("actor")}, ${l("actor")}`,
+    `${a("subjectType")}, list_activity.subject_type`,
+    `${a("subjectId")}, list_activity.subject_id`,
+    `${a("summary")}, ${has("summary") ? l("summary") : "null::text"}`,
+    `${a("data")}, jsonb_strip_nulls(jsonb_build_object(${data.join(", ")}))`,
+    `${a("occurredAt")}, ${l("occurredAt")}`,
+    `'source', 'audit'`,
+  ];
+  return `
+    union all
+    (select jsonb_build_object(${entry.join(", ")}) as entry,
+      ${l("occurredAt")} as at, ${l("id")}::text as id
+    from ${audit.table("log")} l
+    where v_table is not null
+      and ${l("table")} = v_table
+      and ${l("record")} = list_activity.subject_id
+      and ${l("tenant")} = list_activity.tenant
+      and (list_activity.before is null or ${l("occurredAt")} < list_activity.before)
+    order by ${l("occurredAt")} desc, ${l("id")} desc
+    limit v_limit)`;
+}
+
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
@@ -186,6 +351,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const c = (logical: string): string => ctx.col("comments", logical);
   const a = (logical: string): string => ctx.col("activity", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const reads = activityReads(ctx);
   const permissions = moduleOperations("comments");
   const permission = (action: keyof typeof permissions): string =>
     ctx.permission(action, permissions[action]);
@@ -361,6 +527,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     )}
   end if;`
       : "";
+  const followers = followSql(ctx, c);
   const payload = (extra: string): string =>
     `jsonb_build_object('commentId', new.${c("id")}, 'organizationId', new.${c("tenant")}::text, 'subjectType', new.${c("subjectType")}, 'subjectId', new.${c("subjectId")}, 'authorId', new.${c("author")}${extra})`;
   const subject = `'comments/' || new.${c("id")}::text`;
@@ -495,10 +662,12 @@ create trigger ${ctx.trigger("comments_before_write")}
   for each row execute function ${fn("comments_before_write")}();
 
 ${
-  [created, mentioned, deleted].some((sql) => sql !== NOTHING) || notifications
+  [created, mentioned, deleted].some((sql) => sql !== NOTHING) ||
+  notifications ||
+  followers
     ? `-- Notifies newly mentioned members who can read comments in the tenant,
--- and writes comment.created, comment.mentioned and comment.deleted to the
--- outbox when it is installed.
+-- makes the author and them follow the subject, and writes comment.created,
+-- comment.mentioned and comment.deleted to the outbox when it is installed.
 create or replace function ${fn("comments_after_write")}()
 returns trigger
 language plpgsql
@@ -521,7 +690,7 @@ begin
   end if;
   if cardinality(v_new) > 0 then
     ${mentioned}
-  end if;${notifications}
+  end if;${notifications}${followers}
   return null;
 end;
 $$;
@@ -703,9 +872,9 @@ alter table ${activity} enable row level security;
 ${revokeTable(activity)}
 grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
-drop policy if exists "activity_entries_read" on ${activity};
+${reads.readable}drop policy if exists "activity_entries_read" on ${activity};
 create policy "activity_entries_read" on ${activity} for select to authenticated
-  using (${tenantIn(a("tenant"), permission("activity"))});
+  using (${tenantIn(a("tenant"), permission("activity"))}${reads.rowCheck});${reads.dropReadable}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -736,7 +905,8 @@ end;
 $$;
 
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller.
+-- subject_type and subject_id; before pages back. Runs as the caller, and
+-- each entry carries source: event for an activity entry${reads.auditBranch === "" ? "" : ", audit for an\n-- audit log entry on the subject's row"}.${reads.gate === "" ? "" : "\n-- A registered subject's timeline is empty unless can_subject grants read."}
 create or replace function ${fn("list_activity")}(
   tenant ${id},
   subject_type text default null,
@@ -745,21 +915,34 @@ create or replace function ${fn("list_activity")}(
   max_rows integer default 50
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${a("occurredAt")} desc, x.${a("id")} desc), '[]'::jsonb)
+declare
+  v_limit integer := ${pageSize("list_activity.max_rows", 50, 500)};
+  v_rows jsonb;${reads.auditBranch === "" ? "" : "\n  v_table text;"}
+begin${reads.gate}${reads.auditSetup}
+  select coalesce(jsonb_agg(x.entry order by x.at desc, x.id desc), '[]'::jsonb)
+  into v_rows
   from (
-    select * from ${activity} y
+    select u.entry, u.at, u.id from (
+    (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
+      y.${a("occurredAt")} as at, y.${a("id")}::text as id
+    from ${activity} y
     where y.${a("tenant")} = list_activity.tenant
       and (list_activity.subject_type is null or y.${a("subjectType")} = list_activity.subject_type)
       and (list_activity.subject_id is null or y.${a("subjectId")} = list_activity.subject_id)
       and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)
     order by y.${a("occurredAt")} desc, y.${a("id")} desc
-    limit ${pageSize("list_activity.max_rows", 50, 500)}
-  ) x
+    limit v_limit)${reads.auditBranch}
+    ) u
+    order by u.at desc, u.id desc
+    limit v_limit
+  ) x;
+  return v_rows;
+end;
 $$;
 ${cascades}${documentCheck}
 revoke execute on function ${fn("comment_subject_readable")}(text, text, ${id}) from public, anon;
@@ -832,17 +1015,17 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const COMMENTS: ModuleDefinition = {
-  internal: ["comment_subject_readable"],
+  internal: ["comment_subject_readable", "activity_subject_readable"],
   name: "comments",
   title: "Comments and activity",
   description:
-    "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.",
+    "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.",
   requires: ["tenant", "access"],
-  integrates: ["jsonb-schemas", "notifications"],
+  integrates: ["jsonb-schemas", "notifications", "subjects", "audit"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -855,6 +1038,12 @@ export const COMMENTS: ModuleDefinition = {
       from: 2,
       description:
         "Without notifications or the outbox, comments have no after-write trigger.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "list_activity tags each entry with its source, checks can_subject for registered subjects and returns the subject's audit entries; comment authors and mentioned members follow the subject.",
       sql: () => "",
     },
   ],

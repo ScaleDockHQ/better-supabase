@@ -77,6 +77,11 @@ const CALL: BuilderStartCall = {
     createdBy: undefined,
     createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
     updatedAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    subjectTypes: ["deal"],
+    scope: "tenant",
+    forkedFrom: undefined,
+    forkedFromVersion: undefined,
+    restricted: false,
   },
   version: {
     id: "v1",
@@ -237,9 +242,65 @@ describe("compileGraph", () => {
     }
   });
 
+  it("runs a test from stubs, starts at the trigger node, and reads the subject", async () => {
+    const compiled = compileGraph(GRAPH);
+    const runtime = fakeRuntime("free", undefined);
+    const results = await load(
+      compiled.source,
+      runtime,
+      compiled.aliases,
+    )(
+      { email: "a@x.test" },
+      {
+        runKey: "k",
+        mode: "test",
+        stubs: { lookup: { plan: "pro" }, ok: { approved: false } },
+      },
+    );
+    expect(runtime.log).toEqual([]);
+    expect(results).toMatchObject({
+      lookup: { plan: "pro" },
+      isPro: true,
+      wait: null,
+      ok: { approved: false },
+      rejected: { stubbed: true },
+    });
+    const twoTriggers = {
+      nodes: [
+        { id: "a", kind: "trigger" as const },
+        { id: "b", kind: "trigger" as const },
+        {
+          id: "deal",
+          kind: "condition" as const,
+          config: {
+            path: "subject.type",
+            op: "equals" as const,
+            value: "deal",
+          },
+        },
+      ],
+      edges: [
+        { id: "1", source: "a", target: "deal" },
+        { id: "2", source: "b", target: "deal" },
+      ],
+    };
+    const multi = compileGraph(twoTriggers);
+    const run = load(multi.source, fakeRuntime("", undefined), multi.aliases);
+    expect(
+      await run(1, {
+        runKey: "k",
+        triggerNode: "b",
+        subject: { type: "deal", id: "d1" },
+      }),
+    ).toEqual({ b: 1, deal: true });
+    await expect(run(1, { runKey: "k" })).rejects.toThrow(
+      "pass the trigger node",
+    );
+  });
+
   it("refuses invalid graphs and source over the dynamic limit", () => {
     expect(() => compileGraph({ nodes: [], edges: [] })).toThrow(
-      "exactly one trigger",
+      "at least one trigger",
     );
     const huge = {
       nodes: [
@@ -302,7 +363,14 @@ describe("graphStarter", () => {
     expect(source).toBe(compileGraph(GRAPH).source);
     expect(args).toEqual([
       { email: "a@x.test" },
-      { runKey: "run:k", definition: "d1", version: 3, versionId: "v1" },
+      {
+        runKey: "run:k",
+        definition: "d1",
+        version: 3,
+        versionId: "v1",
+        tenant: "t1",
+        triggerNode: "start",
+      },
     ]);
     expect(options).toMatchObject({
       attributes: {
@@ -311,6 +379,9 @@ describe("graphStarter", () => {
         "bs.definition": "d1",
         "bs.version": "3",
         "bs.key": "run:k",
+        "bs.trigger_node": "start",
+        "bs.principal_kind": "user",
+        "bs.principal": "u1",
       },
       experimental_dynamic: { exportName: "workflow" },
     });
@@ -369,7 +440,13 @@ describe("graphStarter", () => {
     expect(args).toEqual([
       GRAPH,
       { email: "a@x.test" },
-      { runKey: "run:k", definition: "d1", version: 3, versionId: "v1" },
+      {
+        runKey: "run:k",
+        definition: "d1",
+        version: 3,
+        versionId: "v1",
+        triggerNode: "start",
+      },
     ]);
     expect(options).toMatchObject({ world });
     expect(
@@ -378,6 +455,61 @@ describe("graphStarter", () => {
     await expect(graphStarter({ steps })(CALL)).rejects.toThrow(
       "pass an executor",
     );
+  });
+
+  it("records the subject, and a test run's mode and stubs without a principal", async () => {
+    await graphStarter({ steps, dynamic: true })({
+      ...CALL,
+      subject: { type: "deal", id: "d9" },
+      mode: "test",
+      stubs: { lookup: { plan: "pro" } },
+    });
+    const [, args, options] = start.mock.calls[0] ?? [];
+    expect((args as unknown[])[1]).toMatchObject({
+      subject: { type: "deal", id: "d9" },
+      mode: "test",
+      stubs: { lookup: { plan: "pro" } },
+    });
+    const attributes = (options as { attributes: Record<string, string> })
+      .attributes;
+    expect(attributes).toMatchObject({
+      "bs.subject": "deal/d9",
+      "bs.mode": "test",
+    });
+    expect(attributes).not.toHaveProperty("bs.principal_kind");
+  });
+
+  it("records the service principal for an organization-owned version", async () => {
+    await graphStarter({ steps, dynamic: true })({
+      ...CALL,
+      version: {
+        ...CALL.version,
+        owner: "organization",
+        publishedBy: undefined,
+      },
+    });
+    const [, , options] = start.mock.calls[0] ?? [];
+    const attributes = (options as { attributes: Record<string, string> })
+      .attributes;
+    expect(attributes["bs.principal_kind"]).toBe("service_principal");
+    expect(attributes).not.toHaveProperty("bs.principal");
+  });
+
+  it("refuses a test run on a static executor that doesn't take its stubs", async () => {
+    const executor = Object.assign(async () => undefined, {
+      workflowId: "executor",
+    });
+    const test = { ...CALL, mode: "test" as const };
+    await expect(
+      graphStarter({ steps, executor, dynamic: false })(test),
+    ).rejects.toThrow("executorRunsTests");
+    await graphStarter({
+      steps,
+      executor,
+      dynamic: false,
+      executorRunsTests: true,
+    })(test);
+    expect(start).toHaveBeenCalledTimes(1);
   });
 
   it("returns the run a repeated key already started", async () => {

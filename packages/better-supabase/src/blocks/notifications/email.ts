@@ -19,6 +19,11 @@ export interface ComposedEmail {
   readonly replyTo?: string;
   /** Defaults to `notification`. */
   readonly category?: MailCategory;
+  /**
+   * Names the template this mail came from, e.g. `task-assigned-v2`. The
+   * delivery keeps it, so a record's sent emails show which one went out.
+   */
+  readonly templateKey?: string;
 }
 
 export interface EmailChannelOptions {
@@ -102,6 +107,9 @@ export function emailChannel(
         ...(receipt?.providerMessageId === undefined
           ? {}
           : { providerMessageId: receipt.providerMessageId }),
+        ...(mail.templateKey === undefined
+          ? {}
+          : { templateKey: mail.templateKey }),
       };
     },
   };

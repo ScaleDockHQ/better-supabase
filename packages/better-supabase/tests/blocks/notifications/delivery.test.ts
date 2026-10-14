@@ -18,6 +18,7 @@ import {
 } from "../../../src/blocks/notifications/index.ts";
 import { defineAuthorizationHooks } from "../../../src/core/contracts/authorization-hooks.ts";
 import { DbException, dbError } from "../../../src/core/errors.ts";
+import { EventHub } from "../../../src/core/events.ts";
 
 const titled: StandardSchemaV1<{ title: string }> = {
   "~standard": {
@@ -488,6 +489,235 @@ describe("createNotifications({ email }).deliver", () => {
         channels: [{ apiVersion: 1, name: "email", send: vi.fn() }],
       }),
     ).toThrow(/remove the channel named "email"/);
+  });
+});
+
+describe("createNotifications delivery tracking", () => {
+  it("stores the composed template key and puts the subject on delivered and failed", async () => {
+    const { transport: mail } = recordingTransport();
+    const { transport, completions } = fakeTransport({
+      claim_notification_deliveries: claimOnce([
+        delivery("d1", "u1"),
+        delivery("d2", "u2", {
+          notification: notification({
+            id: "r2",
+            event_id: "e2",
+            subject_type: null,
+            subject_id: null,
+          }),
+        }),
+      ]),
+    });
+    const events = new EventHub();
+    const seen: [string, unknown][] = [];
+    events.on("block", (event) => seen.push([event.type, event.data]));
+    const notifications = createNotifications({
+      transport,
+      types,
+      events,
+      email: {
+        transport: {
+          ...mail,
+          send: (message, options) => {
+            if (options.idempotencyKey === "d2") throw new Error("smtp down");
+            return mail.send(message, options);
+          },
+        },
+        from: "hi@acme.test",
+        compose: () => ({ subject: "Assigned", templateKey: "assigned-v2" }),
+      },
+    });
+    expect(await notifications.deliver()).toEqual({
+      sent: 1,
+      skipped: 0,
+      failed: 1,
+    });
+    expect(completions()[0]).toEqual({
+      delivery: "d1",
+      status: "sent",
+      provider: "fake",
+      provider_message_id: "m-d1",
+      template_key: "assigned-v2",
+    });
+    expect(seen).toEqual([
+      [
+        "notification.delivered",
+        {
+          notificationId: "e1",
+          organizationId: "organization_1",
+          type: "task.assigned",
+          channel: "email",
+          deliveryId: "d1",
+          subjectType: "task",
+          subjectId: "42",
+        },
+      ],
+      [
+        "notification.failed",
+        expect.objectContaining({
+          notificationId: "e2",
+          deliveryId: "d2",
+          subjectType: "notification",
+          subjectId: "e2",
+          error: "smtp down",
+        }),
+      ],
+    ]);
+  });
+
+  it("records a provider event and emits it with the subject once", async () => {
+    const answer = (recorded: boolean) => ({
+      delivery_id: "d1",
+      notification_id: "e1",
+      tenant: "organization_1",
+      type: "task.assigned",
+      channel: "email",
+      user_id: "u1",
+      subject_type: "task",
+      subject_id: "42",
+      kind: "opened",
+      provider_status: "clicked",
+      recorded,
+    });
+    let first = true;
+    const { transport, calls } = fakeTransport({
+      record_delivery_event: () => {
+        const recorded = first;
+        first = false;
+        return answer(recorded);
+      },
+    });
+    const events = new EventHub();
+    const seen: [string, unknown][] = [];
+    events.on("block", (event) => seen.push([event.type, event.data]));
+    const notifications = createNotifications({ transport, types, events });
+    const input = {
+      provider: "resend",
+      providerMessageId: "re_1",
+      kind: "opened",
+      providerEventId: "msg_1",
+      occurredAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    } as const;
+    expect(await notifications.recordDeliveryEvent(input).orThrow()).toEqual({
+      deliveryId: "d1",
+      notificationId: "e1",
+      tenant: "organization_1",
+      type: "task.assigned",
+      channel: "email",
+      userId: "u1",
+      subject: { type: "task", id: "42" },
+      kind: "opened",
+      providerStatus: "clicked",
+      recorded: true,
+    });
+    expect(
+      (await notifications.recordDeliveryEvent(input).orThrow())?.recorded,
+    ).toBe(false);
+    expect(calls[0]).toEqual({
+      fn: "record_delivery_event",
+      args: {
+        provider: "resend",
+        provider_message_id: "re_1",
+        kind: "opened",
+        provider_event_id: "msg_1",
+        occurred_at: "2026-01-01T00:00:00Z",
+        detail: {},
+        suppress: null,
+      },
+    });
+    expect(seen).toEqual([
+      [
+        "notification.opened",
+        {
+          notificationId: "e1",
+          organizationId: "organization_1",
+          type: "task.assigned",
+          channel: "email",
+          deliveryId: "d1",
+          provider: "resend",
+          providerEventId: "msg_1",
+          subjectType: "task",
+          subjectId: "42",
+        },
+      ],
+    ]);
+  });
+
+  it("returns null for an unknown message and lists a record's deliveries", async () => {
+    const { transport, calls } = fakeTransport({
+      list_subject_deliveries: () => [
+        {
+          id: "d1",
+          notification_id: "e1",
+          type: "task.assigned",
+          channel: "email",
+          user_id: "u1",
+          status: "sent",
+          provider: "resend",
+          provider_message_id: "re_1",
+          provider_status: "opened",
+          provider_status_at: "2026-01-01T00:01:00Z",
+          template_key: "assigned-v2",
+          error: null,
+          attempts: 1,
+          created_at: "2026-01-01T00:00:00Z",
+          delivered_at: "2026-01-01T00:00:01Z",
+          events: [
+            {
+              kind: "delivered",
+              occurred_at: "2026-01-01T00:00:30Z",
+              detail: {},
+            },
+            { kind: "unknown", occurred_at: null, detail: null },
+          ],
+        },
+        { id: "d2", notification_id: "e1", status: "weird" },
+        "not a row",
+      ],
+    });
+    const notifications = createNotifications({ transport, types });
+    expect(
+      await notifications
+        .recordDeliveryEvent({
+          provider: "resend",
+          providerMessageId: "re_x",
+          kind: "delivered",
+        })
+        .orThrow(),
+    ).toBeNull();
+    const [first, second, ...rest] = await notifications
+      .subjectDeliveries({
+        subject: { type: "task", id: "42" },
+        tenant: "organization_1",
+        limit: 5,
+      })
+      .orThrow();
+    expect(rest).toEqual([]);
+    expect(first).toMatchObject({
+      id: "d1",
+      status: "sent",
+      providerStatus: "opened",
+      templateKey: "assigned-v2",
+      attempts: 1,
+      events: [{ kind: "delivered", detail: {} }],
+    });
+    expect(first?.providerStatusAt?.toString()).toBe("2026-01-01T00:01:00Z");
+    expect(second).toMatchObject({
+      id: "d2",
+      status: "pending",
+      providerStatus: null,
+      attempts: null,
+      events: [],
+    });
+    expect(calls.at(-1)).toEqual({
+      fn: "list_subject_deliveries",
+      args: {
+        subject_type: "task",
+        subject_id: "42",
+        tenant: "organization_1",
+        max_items: 5,
+      },
+    });
   });
 });
 

@@ -39,8 +39,9 @@ const OPERATORS: readonly WorkflowConditionOperator[] = [
 ];
 
 /**
- * A test on the run's data. `path` starts at `input` (the trigger's input)
- * or `results` (each node's output by node id), e.g. `results.lookup.plan`.
+ * A test on the run's data. `path` starts at `input` (the trigger's input),
+ * `results` (each node's output by node id, e.g. `results.lookup.plan`) or
+ * `subject` (the record the run belongs to: `subject.type`, `subject.id`).
  */
 export interface WorkflowCondition {
   readonly path: string;
@@ -104,7 +105,7 @@ export function durationMs(value: unknown): number | undefined {
   return ms > 0 ? ms : undefined;
 }
 
-const CONDITION_PATH = /^(input|results)(\.[^.]+)*$/;
+const CONDITION_PATH = /^(input|results|subject)(\.[^.]+)*$/;
 
 /** The node's condition, or `undefined` when its config isn't one. */
 export function conditionOf(
@@ -119,13 +120,23 @@ export function conditionOf(
   return { path, op, value: config["value"] };
 }
 
-/** Reads `path` (`input...` or `results...`) from the run's data. */
-export function readPath(
-  scope: { readonly input: unknown; readonly results: unknown },
-  path: string,
-): unknown {
+/** The run's data a condition reads. */
+export interface GraphScope {
+  readonly input: unknown;
+  readonly results: unknown;
+  /** The record the run belongs to, when it has one. */
+  readonly subject?: unknown;
+}
+
+/** Reads `path` (`input...`, `results...` or `subject...`) from the run's data. */
+export function readPath(scope: GraphScope, path: string): unknown {
   const [root, ...rest] = path.split(".");
-  let value: unknown = root === "input" ? scope.input : scope.results;
+  let value: unknown =
+    root === "input"
+      ? scope.input
+      : root === "subject"
+        ? scope.subject
+        : scope.results;
   for (const key of rest) {
     if (Array.isArray(value)) value = value[Number(key)];
     else if (isGraphRecord(value)) value = value[key];
@@ -137,7 +148,7 @@ export function readPath(
 /** Whether `condition` holds for the run's data. */
 export function evaluateCondition(
   condition: WorkflowCondition,
-  scope: { readonly input: unknown; readonly results: unknown },
+  scope: GraphScope,
 ): boolean {
   const actual = readPath(scope, condition.path);
   const expected = condition.value;
@@ -340,7 +351,7 @@ export function validateGraph(
       }
     }
   }
-  if (triggers !== 1) errors.push("A graph has exactly one trigger node");
+  if (triggers === 0) errors.push("A graph has at least one trigger node");
   const edgeIds = new Set<string>();
   const edges: WorkflowGraphEdge[] = [];
   for (const value of graph["edges"]) {

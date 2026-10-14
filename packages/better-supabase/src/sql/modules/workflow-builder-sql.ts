@@ -7,7 +7,13 @@ import {
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
-import { SERVICE_CALLER, serviceGrant, tenantIn, fail } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  activeMembership,
+  serviceGrant,
+  tenantIn,
+  fail,
+} from "../shared.ts";
 import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
@@ -26,6 +32,10 @@ export interface BuilderSql {
   readonly n: string;
   readonly a: string;
   readonly f: string;
+  /** The tenants that opted out of a definition. */
+  readonly o: string;
+  /** Who may run or edit a restricted definition. */
+  readonly g: string;
   readonly cd: (value: string) => string;
   readonly cv: (value: string) => string;
   readonly ct: (value: string) => string;
@@ -35,6 +45,8 @@ export interface BuilderSql {
   readonly cn: (value: string) => string;
   readonly ca: (value: string) => string;
   readonly cf: (value: string) => string;
+  readonly co: (value: string) => string;
+  readonly cg: (value: string) => string;
   readonly r: string;
   readonly cr: (value: string) => string;
   readonly permission: (action: BuilderAction) => string;
@@ -63,6 +75,20 @@ export interface BuilderSql {
    */
   readonly principal?: (tenant: string) => string;
   readonly allowed: (tenant: string, action: BuilderAction) => string;
+  /**
+   * Whether the caller may `action` the definition (a uuid expression) in
+   * `tenant`: always when it isn't restricted, else through a grant that
+   * names them, one of their teams or their role (an `edit` grant also
+   * runs), `workflow.admin` in the tenant, or the service role. Combine
+   * it with `allowed`, which checks the tenant permission.
+   */
+  readonly granted: (
+    definition: string,
+    tenant: string,
+    action: "run" | "edit",
+  ) => string;
+  /** Whether `tenant` opted out of the definition (a uuid expression). */
+  readonly optedOut: (definition: string, tenant: string) => string;
   readonly forbidden: (value: string) => string;
   readonly serviceOnly: (value: string) => string;
   readonly callable: (value: string) => string;
@@ -133,6 +159,10 @@ export function builderSql(
   const cn = (column: string): string => ctx.col("nodeRuns", column);
   const ca = (column: string): string => ctx.col("alerts", column);
   const cf = (column: string): string => ctx.col("alertFires", column);
+  const o = ctx.table("optOuts");
+  const g = ctx.table("grants");
+  const co = (column: string): string => ctx.col("optOuts", column);
+  const cg = (column: string): string => ctx.col("grants", column);
   const workflows = ctx.of("workflows");
   const r = workflows.table("runs");
   const cr = (column: string): string => workflows.col("runs", column);
@@ -158,6 +188,36 @@ grant execute on function ${signature} to authenticated, service_role;`;
     tenantIn(tenant, permission("read"));
   const definitionReadable = (column: string): string =>
     `${column} in (select x.${cd("id")} from ${d} x)`;
+  const tenant = ctx.of("tenant");
+  const m = (column: string): string => tenant.col("memberships", column);
+  const teams =
+    ctx.installed("teams") && ctx.of("teams").mode !== "custom"
+      ? ctx.of("teams")
+      : undefined;
+  const principalMatch = (grant: string, tenantId: string): string => {
+    const team =
+      teams === undefined
+        ? ""
+        : `
+        or (${grant}.${cg("principalKind")} = 'team' and exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = ${grant}.${cg("principalId")} and tm.${teams.col("members", "user")} = (select auth.uid())))`;
+    return `((${grant}.${cg("principalKind")} = 'user' and ${grant}.${cg("principalId")} = (select auth.uid())::text)${team}
+        or (${grant}.${cg("principalKind")} = 'role' and exists (select 1 from ${tenant.table("memberships")} mr where mr.${m("tenant")} = ${tenantId} and mr.${m("user")} = (select auth.uid()) and mr.${m("role")}::text = ${grant}.${cg("principalId")}${activeMembership(ctx, "mr")})))`;
+  };
+  const granted = (
+    definition: string,
+    tenantId: string,
+    action: "run" | "edit",
+  ): string => `(${SERVICE_CALLER}
+      or not coalesce((select z.${cd("restricted")} from ${d} z where z.${cd("id")} = ${definition}), false)
+      or (${tenantId} is not null and ${can(tenantId, "admin")})
+      or exists (
+        select 1 from ${g} gr
+        where gr.${cg("definition")} = ${definition}
+          and gr.${cg("action")} in (${action === "run" ? "'run', 'edit'" : "'edit'"})
+          and ${principalMatch("gr", tenantId)}
+      ))`;
+  const optedOut = (definition: string, tenantId: string): string =>
+    `exists (select 1 from ${o} oo where oo.${co("tenant")} = ${tenantId} and oo.${co("definition")} = ${definition})`;
 
   const definitionJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cd("id")},
@@ -165,6 +225,11 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'slug', ${alias}.${cd("slug")},
     'name', ${alias}.${cd("name")},
     'description', ${alias}.${cd("description")},
+    'subjectTypes', to_jsonb(${alias}.${cd("subjectTypes")}),
+    'scope', ${alias}.${cd("scope")},
+    'forkedFrom', ${alias}.${cd("forkedFrom")},
+    'forkedFromVersion', ${alias}.${cd("forkedFromVersion")},
+    'restricted', ${alias}.${cd("restricted")},
     'createdBy', ${alias}.${cd("createdBy")},
     'createdAt', ${alias}.${cd("createdAt")},
     'updatedAt', ${alias}.${cd("updatedAt")}
@@ -186,7 +251,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
       full
         ? `,
     'graph', ${alias}.${cv("graph")},
-    'compiled', ${alias}.${cv("compiled")}`
+    'compiled', ${alias}.${cv("compiled")},
+    'inputSchema', ${alias}.${cv("inputSchema")}`
         : ""
     }
   )`;
@@ -264,6 +330,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
     n,
     a,
     f,
+    o,
+    g,
     cd,
     cv,
     ct,
@@ -273,6 +341,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
     cn,
     ca,
     cf,
+    co,
+    cg,
     r,
     cr,
     permission,
@@ -288,6 +358,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
         }
       : {}),
     allowed,
+    granted,
+    optedOut,
     forbidden,
     serviceOnly: serviceGrant,
     callable,
@@ -330,9 +402,12 @@ export function builderRuntimeSql(s: BuilderSql): string {
     cn,
     ca,
     cf,
+    o,
+    co,
     r,
     cr,
     allowed,
+    granted,
     forbidden,
     serviceOnly: serviceGrant,
     callable,
@@ -366,7 +441,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not ${allowed("v_tenant", "edit")} then
+  if not (${allowed("v_tenant", "edit")} and ${granted("definition", "v_tenant", "edit")}) then
     ${forbidden("You may not edit this workflow")}
   end if;
   if trigger is null then
@@ -415,7 +490,8 @@ begin
   delete from ${t} x
   using ${d} y
   where x.${ct("id")} = trigger and y.${cd("id")} = x.${ct("definition")}
-    and ${allowed(`y.${cd("tenant")}`, "edit")};
+    and ${allowed(`y.${cd("tenant")}`, "edit")}
+    and ${granted(`y.${cd("id")}`, `y.${cd("tenant")}`, "edit")};
   return found;
 end;
 $$;
@@ -432,16 +508,17 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant ${id};
+  v_definition uuid;
   v_kind text;
   v_token text := 'wfh_' || encode(extensions.gen_random_bytes(24), 'hex');
 begin
-  select y.${cd("tenant")}, x.${ct("kind")} into v_tenant, v_kind
+  select y.${cd("tenant")}, y.${cd("id")}, x.${ct("kind")} into v_tenant, v_definition, v_kind
   from ${t} x join ${d} y on y.${cd("id")} = x.${ct("definition")}
   where x.${ct("id")} = trigger;
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such trigger", "P0002")}
   end if;
-  if not ${allowed("v_tenant", "edit")} then
+  if not (${allowed("v_tenant", "edit")} and ${granted("v_definition", "v_tenant", "edit")}) then
     ${forbidden("You may not edit this workflow")}
   end if;
   if v_kind <> 'webhook' then
@@ -473,19 +550,32 @@ $$;
 ${serviceGrant(`${fn("workflow_webhook_target")}(text)`)}
 
 -- The enabled event triggers listening for type (config.type) in tenant,
--- with their definitions (service role; the outbox consumer calls it).
+-- with the tenant the run belongs to and the subject types their definition
+-- runs on (service role; the outbox consumer calls it). System definitions
+-- listen in every tenant; a tenant that opted out of one is left out.
 create or replace function ${fn("workflow_event_targets")}(type text, tenant ${id} default null)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('trigger', ${triggerJson("x")}, 'tenant', y.${cd("tenant")}) order by x.${ct("createdAt")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'trigger', ${triggerJson("x")},
+    'tenant', coalesce(y.${cd("tenant")}, workflow_event_targets.tenant),
+    'subjectTypes', to_jsonb(y.${cd("subjectTypes")})
+  ) order by x.${ct("createdAt")}), '[]'::jsonb)
   from ${t} x
   join ${d} y on y.${cd("id")} = x.${ct("definition")}
   where x.${ct("kind")} = 'event' and x.${ct("enabled")}
     and x.${ct("config")} ->> 'type' = workflow_event_targets.type
-    and y.${cd("tenant")} is not distinct from workflow_event_targets.tenant;
+    and (
+      y.${cd("tenant")} is not distinct from workflow_event_targets.tenant
+      or (y.${cd("scope")} = 'system' and workflow_event_targets.tenant is not null)
+    )
+    and not exists (
+      select 1 from ${o} z
+      where z.${co("tenant")} = workflow_event_targets.tenant and z.${co("definition")} = y.${cd("id")}
+    );
 $$;
 ${serviceGrant(`${fn("workflow_event_targets")}(text, ${id})`)}
 
@@ -742,7 +832,7 @@ $$;
 ${callable(`${fn("remove_workflow_alert")}(uuid)`)}
 
 -- Fires the failed alerts of a run's definition (the bs.definition
--- attribute) when the run fails.
+-- attribute) when a live run fails; test runs fire none.
 create or replace function ${fn("workflow_runs_alert")}()
 returns trigger
 language plpgsql
@@ -754,7 +844,7 @@ declare
   v_alert ${a}%rowtype;
   v_fired integer := 0;
 begin
-  if new.${cr("status")} <> 'failed' or (tg_op = 'UPDATE' and old.${cr("status")} = 'failed') then
+  if new.${cr("mode")} = 'test' or new.${cr("status")} <> 'failed' or (tg_op = 'UPDATE' and old.${cr("status")} = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -790,6 +880,7 @@ begin
     select x.${ca("id")} as alert, y.${cr("id")} as run from ${a} x
     join ${r} y on y.${cr("attributes")} ->> 'bs.definition' = x.${ca("definition")}::text
     where x.${ca("onEvent")} = 'slow'
+      and y.${cr("mode")} = 'live'
       and y.${cr("status")} in ('queued', 'running', 'waiting')
       and y.${cr("createdAt")} < now() - x.${ca("threshold")}
       and not exists (select 1 from ${f} z where z.${cf("alert")} = x.${ca("id")} and z.${cf("run")} = y.${cr("id")})

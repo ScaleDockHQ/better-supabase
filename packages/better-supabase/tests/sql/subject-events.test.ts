@@ -11,6 +11,9 @@ const SUBJECT_EVENTS = [
   "subject.tagged",
   "subject.untagged",
   "status.changed",
+  "status.paused",
+  "status.resumed",
+  "status.flagged",
   "field_value.set",
   "share_link.created",
   "subject.viewed",
@@ -57,7 +60,18 @@ const SUBJECT_EVENTS = [
   "signature.completed",
   "signature.declined",
   "signature.cancelled",
+  "notification.delivered",
+  "notification.failed",
+  "notification.opened",
+  "notification.clicked",
+  "notification.bounced",
+  "notification.complained",
+  "notification.delayed",
+  "template.applied",
 ] as const satisfies readonly SubjectEventType[];
+
+/** Subject events that only the TypeScript block emits, so no SQL catalog lists them. */
+const EMITTED_IN_TS = new Set<string>(["notification.failed"]);
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;
 const everyTypeListed: Unlisted extends never ? true : false = true;
@@ -69,6 +83,9 @@ const OPTIONAL_SUBJECT = new Set([
   "time_entry.recorded",
   "time_entry.updated",
   "time_entry.deleted",
+  "workflow_run.completed",
+  "workflow_run.failed",
+  "workflow_run.cancelled",
 ]);
 
 interface CatalogEntry {
@@ -90,15 +107,22 @@ describe("subject-bound events in the SQL catalogs", () => {
     expect(everyTypeListed).toBe(true);
   });
 
-  it.each(SUBJECT_EVENTS)("%s carries the tenant and the subject", (type) => {
-    const entries = catalog.filter((entry) => entry.type === type);
-    expect(entries.length).toBeGreaterThan(0);
-    for (const entry of entries) {
-      expect(entry.payload).toEqual(
-        expect.arrayContaining(["organizationId", "subjectType", "subjectId"]),
-      );
-    }
-  });
+  it.each(SUBJECT_EVENTS.filter((type) => !EMITTED_IN_TS.has(type)))(
+    "%s carries the tenant and the subject",
+    (type) => {
+      const entries = catalog.filter((entry) => entry.type === type);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const entry of entries) {
+        expect(entry.payload).toEqual(
+          expect.arrayContaining([
+            "organizationId",
+            "subjectType",
+            "subjectId",
+          ]),
+        );
+      }
+    },
+  );
 
   it("every event with a subject in its payload is a SubjectEventType", () => {
     const listed = new Set<string>(SUBJECT_EVENTS);

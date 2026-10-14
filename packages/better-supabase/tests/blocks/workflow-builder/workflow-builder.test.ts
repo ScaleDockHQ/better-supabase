@@ -572,6 +572,208 @@ describe("createBuilder", () => {
     expect(!without.ok && without.error.message).toContain("Pass `start`");
   });
 
+  it("starts a run on a record and a system definition in a tenant", async () => {
+    const { transport, calls } = fake({
+      workflow_subject_start_target: (args) => ({
+        ...target(),
+        tenant: "t1",
+        subject: { type: args["subject_type"], id: args["subject_id"] },
+      }),
+      workflow_start_target: () => ({
+        definition: { ...DEFINITION, tenant: null, scope: "system" },
+        version: published,
+        tenant: "t2",
+      }),
+    });
+    const starts: BuilderStartCall[] = [];
+    const builder = createBuilder({
+      transport,
+      start: async (call) => {
+        starts.push(call);
+        return "wrun_1";
+      },
+    });
+    await builder
+      .run({ definition: "d1", subject: { type: "deal", id: "x" } })
+      .orThrow();
+    expect(calls[0]).toEqual({
+      fn: "workflow_subject_start_target",
+      args: {
+        definition: "d1",
+        subject_type: "deal",
+        subject_id: "x",
+        tenant: undefined,
+      },
+    });
+    expect(starts[0]).toMatchObject({
+      tenant: "t1",
+      subject: { type: "deal", id: "x" },
+    });
+    await builder.run({ definition: "d1", tenant: "t2" }).orThrow();
+    expect(calls[1]?.args).toEqual({ definition: "d1", tenant: "t2" });
+    expect(starts[1]?.tenant).toBe("t2");
+    expect(starts[1]?.definition.scope).toBe("system");
+    expect(starts[1]).not.toHaveProperty("subject");
+  });
+
+  it("starts a test run with stubs and library examples", async () => {
+    const { transport, calls } = fake({
+      start_test_run: (args) => ({
+        ...target(),
+        definition: { ...DEFINITION, subjectTypes: ["deal"] },
+        tenant: "t1",
+        triggerNode: "start",
+        input: args["input"],
+        stubs: args["stubs"],
+      }),
+    });
+    const starts: BuilderStartCall[] = [];
+    const builder = createBuilder({
+      transport,
+      steps: [
+        {
+          name: "crm.lookup",
+          title: "Lookup",
+          outputSchema: { examples: [{ plan: "free" }] },
+        },
+        {
+          name: "email.send",
+          title: "Email",
+          outputSchema: { default: "sent" },
+        },
+      ],
+      start: async (call) => {
+        starts.push(call);
+        return "wrun_t";
+      },
+    });
+    expect(
+      await builder
+        .test({
+          definition: "d1",
+          input: { a: 1 },
+          stubs: { lookup: { plan: "pro" } },
+          subject: { type: "deal", id: "x" },
+        })
+        .orThrow(),
+    ).toBe("wrun_t");
+    expect(calls[0]?.args).toEqual({
+      definition: "d1",
+      version: undefined,
+      trigger_node: undefined,
+      input: { a: 1 },
+      stubs: { lookup: { plan: "pro" } },
+    });
+    expect(starts[0]).toMatchObject({
+      mode: "test",
+      triggerNode: "start",
+      tenant: "t1",
+      actor: undefined,
+      input: { a: 1 },
+      subject: { type: "deal", id: "x" },
+      stubs: {
+        lookup: { plan: "pro" },
+        welcome: "sent",
+        nudge: "sent",
+      },
+    });
+    expect(starts[0]?.idempotencyKey).toMatch(/^test:/);
+    const wrongType = await builder.test({
+      definition: "d1",
+      subject: { type: "invoice", id: "x" },
+    });
+    expect(!wrongType.ok && wrongType.error.hint).toBe("WORKFLOW_SUBJECT_TYPE");
+    const without = await createBuilder({ transport }).test({
+      definition: "d1",
+    });
+    expect(!without.ok && without.error.message).toContain("Pass `start`");
+  });
+
+  it("forks, opts out and manages grants", async () => {
+    const { transport, calls } = fake({
+      fork_workflow_definition: () => ({
+        ...DEFINITION,
+        id: "d2",
+        forkedFrom: "d1",
+        forkedFromVersion: 3,
+        draft: true,
+        upstreamVersion: 3,
+        behind: false,
+      }),
+      set_workflow_opt_out: (args) => args["opted_out"],
+      set_workflow_definition_grant: (args) => args["granted"],
+      workflow_definition_grants_list: () => [
+        {
+          id: "g1",
+          definition: "d1",
+          principalKind: "team",
+          principalId: "team-1",
+          action: "edit",
+          createdBy: null,
+          createdAt: AT,
+        },
+      ],
+      workflow_definitions_list: () => [
+        {
+          ...DEFINITION,
+          scope: "system",
+          tenant: null,
+          subjectTypes: ["deal"],
+          optedOut: true,
+          restricted: true,
+        },
+      ],
+    });
+    const builder = createBuilder({ transport });
+    expect(
+      await builder.definitions
+        .fork({ source: "d1", tenant: "t1", slug: "mine" })
+        .orThrow(),
+    ).toMatchObject({
+      id: "d2",
+      forkedFrom: "d1",
+      forkedFromVersion: 3,
+      upstreamVersion: 3,
+      behind: false,
+      scope: "tenant",
+    });
+    expect(
+      await builder.definitions
+        .optOut({ tenant: "t1", definition: "d1" })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await builder.definitions
+        .optOut({ tenant: "t1", definition: "d1", optedOut: false })
+        .orThrow(),
+    ).toBe(false);
+    const grant = {
+      definition: "d1",
+      principalKind: "team" as const,
+      principalId: "team-1",
+      action: "edit" as const,
+    };
+    expect(await builder.definitions.grants.add(grant).orThrow()).toBe(true);
+    expect(await builder.definitions.grants.remove(grant).orThrow()).toBe(true);
+    expect(
+      calls.filter((c) => c.fn === "set_workflow_definition_grant")[1]?.args,
+    ).toMatchObject({ principal_kind: "team", granted: false });
+    expect(await builder.definitions.grants.list("d1").orThrow()).toMatchObject(
+      [{ principalKind: "team", action: "edit" }],
+    );
+    expect(
+      await builder.definitions.list("t1", { subjectType: "deal" }).orThrow(),
+    ).toMatchObject([
+      {
+        scope: "system",
+        optedOut: true,
+        restricted: true,
+        subjectTypes: ["deal"],
+      },
+    ]);
+    expect(calls.at(-1)?.args).toEqual({ tenant: "t1", subject_type: "deal" });
+  });
+
   it("answers webhooks", async () => {
     let found = true;
     const { transport } = fake({
@@ -643,6 +845,58 @@ describe("createBuilder", () => {
       new Request("https://a.test/wfh_x", { method: "POST" }),
     );
     expect(refused.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("starts event triggers on the event's record and tenant", async () => {
+    const { transport, calls } = fake({
+      workflow_event_targets: () => [
+        {
+          trigger: {
+            ...TRIGGER,
+            id: "a",
+            kind: "event",
+            config: { node: "onDeal" },
+          },
+          tenant: "t9",
+          subjectTypes: ["deal"],
+        },
+        { trigger: { ...TRIGGER, id: "b", kind: "event" }, subjectTypes: [] },
+      ],
+      workflow_subject_start_target: (args) => ({
+        ...target(),
+        tenant: args["tenant"],
+        subject: { type: args["subject_type"], id: args["subject_id"] },
+      }),
+      workflow_start_target: target,
+    });
+    const starts: BuilderStartCall[] = [];
+    const builder = createBuilder({
+      transport,
+      start: async (call) => {
+        starts.push(call);
+        return "wrun";
+      },
+    });
+    await builder.triggers
+      .onEvent({
+        id: "e1",
+        type: "deal.updated",
+        actorId: "u1",
+        payload: { subjectType: "deal", subjectId: "x" },
+      })
+      .orThrow();
+    expect(starts[0]).toMatchObject({
+      tenant: "t9",
+      actor: "u1",
+      subject: { type: "deal", id: "x" },
+      triggerNode: "onDeal",
+    });
+    expect(starts[1]).not.toHaveProperty("subject");
+    expect(calls.map((c) => c.fn)).toEqual([
+      "workflow_event_targets",
+      "workflow_subject_start_target",
+      "workflow_start_target",
+    ]);
   });
 
   it("starts event triggers and stops at the first failure", async () => {
@@ -726,6 +980,33 @@ describe("createBuilder", () => {
     await expect(
       builder.triggers.starter()({ ...scheduled, workflow: "report" }),
     ).rejects.toThrow('no starter for workflow "report"');
+    const { transport: optedOut } = fake({
+      workflow_start_target: () => {
+        throw Object.assign(new Error("opted out"), {
+          code: "P0001",
+          hint: "WORKFLOW_OPTED_OUT",
+        });
+      },
+    });
+    const skipping = createBuilder({
+      transport: optedOut,
+      start: async () => "never",
+    }).triggers.starter();
+    expect(await skipping(scheduled)).toBe("");
+    const { transport: missing } = fake({
+      workflow_start_target: () => {
+        throw Object.assign(new Error("not published"), {
+          code: "P0002",
+          hint: "WORKFLOW_NOT_PUBLISHED",
+        });
+      },
+    });
+    await expect(
+      createBuilder({
+        transport: missing,
+        start: async () => "x",
+      }).triggers.starter()(scheduled),
+    ).rejects.toThrow("not published");
   });
 
   it("stores, authorizes, resolves and revokes credentials through providers", async () => {

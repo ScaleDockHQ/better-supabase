@@ -65,8 +65,11 @@ ${callable(`${fn("workflow_graph_permissions")}(jsonb)`)}
       : `An
 -- organization-owned version returns publisher null, for the app's service
 -- principal.`
-  } The trigger that started the run never changes the answer.
-create or replace function ${fn("workflow_run_principal")}(version uuid)
+  } A system definition has no tenant, so pass the
+-- tenant its run belongs to; a tenant definition ignores tenant. The
+-- trigger that started the run never changes the answer.
+drop function if exists ${fn("workflow_run_principal")}(uuid);
+create or replace function ${fn("workflow_run_principal")}(version uuid, tenant ${id} default null)
 returns jsonb
 language plpgsql
 stable
@@ -86,7 +89,8 @@ begin
   if v_row.${cv("status")} = 'draft' then
     ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow version was never published", "P0002")}
   end if;
-  select x.${cd("tenant")} into v_tenant from ${d} x where x.${cd("id")} = v_row.${cv("definition")};
+  select case when x.${cd("scope")} = 'system' then tenant else x.${cd("tenant")} end into v_tenant
+  from ${d} x where x.${cd("id")} = v_row.${cv("definition")};
   if v_row.${cv("owner")} is null then
     ${revoked("'This workflow version was published before publishers were recorded; publish it again'")}
   end if;
@@ -125,5 +129,5 @@ ${
   );
 end;
 $$;
-${serviceGrant(`${fn("workflow_run_principal")}(uuid)`)}`;
+${serviceGrant(`${fn("workflow_run_principal")}(uuid, ${id})`)}`;
 }

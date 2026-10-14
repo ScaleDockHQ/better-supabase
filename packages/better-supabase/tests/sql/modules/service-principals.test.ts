@@ -14,8 +14,8 @@ const BASE = ["tenant", "access", "service-principals"];
 describe("service-principals module", () => {
   it("is registered before ensure-rls", () => {
     const names = Object.keys(SQL_MODULES);
-    expect(names.indexOf("service-principals")).toBe(
-      names.indexOf("ensure-rls") - 1,
+    expect(names.indexOf("service-principals")).toBeLessThan(
+      names.indexOf("ensure-rls"),
     );
   });
 

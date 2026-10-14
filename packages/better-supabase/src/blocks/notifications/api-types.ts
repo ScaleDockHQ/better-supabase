@@ -216,6 +216,79 @@ export interface NotificationSuppression {
   readonly createdAt: Temporal.Instant | null;
 }
 
+/** What a provider reported about a sent message. */
+export type DeliveryEventKind =
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "delayed";
+
+/** One provider event for `recordDeliveryEvent`, usually from a webhook. */
+export interface DeliveryEventInput {
+  /** The provider the delivery was sent with, e.g. `resend`. */
+  readonly provider: string;
+  /** The provider's id for the message, as the channel returned it. */
+  readonly providerMessageId: string;
+  readonly kind: DeliveryEventKind;
+  /** The provider's event or webhook message id; the same id is stored once. */
+  readonly providerEventId?: string;
+  /** When the provider saw it. Defaults to now. */
+  readonly occurredAt?: Temporal.Instant;
+  readonly detail?: Readonly<Record<string, unknown>>;
+  /**
+   * Whether a `bounced` or `complained` event suppresses the recipient's
+   * address. Defaults to `true`; pass `false` for a soft bounce.
+   */
+  readonly suppress?: boolean;
+}
+
+/** The delivery a provider event was recorded on. */
+export interface RecordedDeliveryEvent {
+  readonly deliveryId: string;
+  readonly notificationId: string;
+  readonly tenant: string | null;
+  readonly type: string;
+  readonly channel: string;
+  readonly userId: string | null;
+  /** The notification's subject, or `notification` and its id without one. */
+  readonly subject: { readonly type: string; readonly id: string };
+  readonly kind: DeliveryEventKind;
+  /** The delivery's furthest provider status after this event. */
+  readonly providerStatus: DeliveryEventKind | null;
+  /** `false` when the provider event id was already stored. */
+  readonly recorded: boolean;
+}
+
+/** One stored provider event of a delivery. */
+export interface DeliveryEvent {
+  readonly kind: DeliveryEventKind;
+  readonly occurredAt: Temporal.Instant | null;
+  readonly detail: Readonly<Record<string, unknown>>;
+}
+
+/** A delivery of a notification about one record, for `subjectDeliveries`. */
+export interface SubjectDelivery {
+  readonly id: string;
+  readonly notificationId: string;
+  readonly type: string;
+  readonly channel: string;
+  readonly userId: string;
+  readonly status: "pending" | "sent" | "failed" | "skipped";
+  readonly provider: string | null;
+  readonly providerMessageId: string | null;
+  readonly providerStatus: DeliveryEventKind | null;
+  readonly providerStatusAt: Temporal.Instant | null;
+  readonly templateKey: string | null;
+  readonly error: string | null;
+  readonly attempts: number | null;
+  readonly createdAt: Temporal.Instant | null;
+  readonly deliveredAt: Temporal.Instant | null;
+  /** Oldest first. */
+  readonly events: readonly DeliveryEvent[];
+}
+
 export interface Rendered<
   K extends string = string,
   D = unknown,
@@ -397,6 +470,28 @@ export interface Notifications<K extends NotificationTypes> {
   suppressions(options?: {
     readonly limit?: number;
   }): AsyncResult<readonly NotificationSuppression[]>;
+  /**
+   * Records what a provider reported about a sent message: stores it on
+   * the delivery once per `providerEventId`, moves the delivery's provider
+   * status forward, suppresses the address on a bounce or a complaint, and
+   * emits `notification.<kind>` with the notification's subject. `null`
+   * when no delivery has that provider message id. Service only;
+   * `resendWebhook` calls it for every status.
+   */
+  recordDeliveryEvent(
+    input: DeliveryEventInput,
+  ): AsyncResult<RecordedDeliveryEvent | null>;
+  /**
+   * The deliveries of the notifications about one record, newest first,
+   * each with its provider events: a record's sent emails. The service
+   * reads every tenant; a member needs the send permission in `tenant`.
+   */
+  subjectDeliveries(options: {
+    readonly subject: { readonly type: string; readonly id: string };
+    readonly tenant?: string;
+    /** Up to 200. Defaults to 50. */
+    readonly limit?: number;
+  }): AsyncResult<readonly SubjectDelivery[]>;
   /**
    * An `EventSink` that sends a notification for each event `map` returns
    * one for. The key defaults to the event id and the tenant to its

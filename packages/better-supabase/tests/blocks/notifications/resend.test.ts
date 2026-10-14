@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
+  DeliveryEventInput,
   DeliveryTransport,
   EmailMessage,
+  RecordedDeliveryEvent,
   SuppressInput,
 } from "../../../src/blocks/notifications/index.ts";
 
 import {
   mailHeaders,
   ResendError,
+  resendDeliveryEvent,
   resendSuppressions,
   resendTransport,
   resendWebhook,
@@ -281,6 +284,69 @@ describe("resendSuppressions", () => {
   });
 });
 
+describe("resendDeliveryEvent", () => {
+  it("maps each Resend status to a delivery event on the email id", () => {
+    expect(
+      resendDeliveryEvent(
+        {
+          type: "email.clicked",
+          created_at: "2026-01-01T00:00:00Z",
+          data: { email_id: "re_9", click: { link: "https://acme.test/t" } },
+        },
+        "msg_1",
+      ),
+    ).toEqual({
+      provider: "resend",
+      providerMessageId: "re_9",
+      kind: "clicked",
+      providerEventId: "msg_1",
+      occurredAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+      detail: { link: "https://acme.test/t" },
+    });
+    for (const [type, kind] of [
+      ["email.delivered", "delivered"],
+      ["email.opened", "opened"],
+      ["email.bounced", "bounced"],
+      ["email.complained", "complained"],
+      ["email.delivery_delayed", "delayed"],
+    ] as const) {
+      expect(
+        resendDeliveryEvent({ type, data: { email_id: "re_9" } }),
+      ).toMatchObject({ kind, providerMessageId: "re_9" });
+    }
+  });
+
+  it("keeps a transient bounce from suppressing and carries the bounce details", () => {
+    expect(
+      resendDeliveryEvent({
+        type: "email.bounced",
+        created_at: "not a time",
+        data: {
+          email_id: "re_9",
+          bounce: { type: "Transient", subType: "MailboxFull" },
+        },
+      }),
+    ).toEqual({
+      provider: "resend",
+      providerMessageId: "re_9",
+      kind: "bounced",
+      detail: { bounceType: "Transient", subType: "MailboxFull" },
+      suppress: false,
+    });
+  });
+
+  it("ignores other events and events without an email id", () => {
+    expect(
+      resendDeliveryEvent({ type: "email.sent", data: { email_id: "re_9" } }),
+    ).toBeUndefined();
+    expect(
+      resendDeliveryEvent({ type: "email.delivered", data: {} }),
+    ).toBeUndefined();
+    expect(resendDeliveryEvent({ type: "toString", data: {} })).toBeUndefined();
+    expect(resendDeliveryEvent(null)).toBeUndefined();
+  });
+});
+
 describe("resendWebhook", () => {
   const writer = (result: Result<boolean> = ok(true)) => {
     const written: SuppressInput[] = [];
@@ -377,6 +443,69 @@ describe("resendWebhook", () => {
       seen: () => true,
     });
     expect((await handle(await signed(complaint))).status).toBe(409);
+  });
+
+  const tracker = (result: Result<RecordedDeliveryEvent | null> = ok(null)) => {
+    const recorded: DeliveryEventInput[] = [];
+    const base = writer();
+    return {
+      recorded,
+      written: base.written,
+      notifications: {
+        ...base.notifications,
+        recordDeliveryEvent: (input: DeliveryEventInput) => {
+          recorded.push(input);
+          return new AsyncResult(Promise.resolve(result));
+        },
+      },
+    };
+  };
+
+  it("records every status on its delivery, then suppresses as before", async () => {
+    const { recorded, written, notifications } = tracker();
+    const handle = resendWebhook({ secret: SECRET, notifications });
+    expect(
+      (
+        await handle(
+          await signed({ type: "email.opened", data: { email_id: "re_1" } }),
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await handle(
+          await signed({
+            type: "email.complained",
+            data: { email_id: "re_1", to: ["c@acme.test"] },
+          }),
+        )
+      ).status,
+    ).toBe(204);
+    expect(recorded).toEqual([
+      expect.objectContaining({ kind: "opened", providerMessageId: "re_1" }),
+      expect.objectContaining({
+        kind: "complained",
+        providerEventId: "msg_1",
+      }),
+    ]);
+    expect(written).toEqual([
+      expect.objectContaining({ address: "c@acme.test", reason: "complaint" }),
+    ]);
+  });
+
+  it("answers with the problem of a failed delivery event", async () => {
+    const { notifications, written } = tracker(
+      err(dbError("unexpected", "db down")),
+    );
+    const handle = resendWebhook({ secret: SECRET, notifications });
+    const response = await handle(
+      await signed({
+        type: "email.complained",
+        data: { email_id: "re_1", to: ["c@acme.test"] },
+      }),
+    );
+    expect(response.status).toBe(500);
+    expect(written).toEqual([]);
   });
 
   it("answers with the problem of a failed write so Resend retries", async () => {

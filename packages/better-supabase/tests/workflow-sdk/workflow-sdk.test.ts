@@ -126,6 +126,23 @@ describe("startFor", () => {
     });
   });
 
+  it("drops caller principal attributes and stores the subject", async () => {
+    await startFor(user, approve, ["i1"], {
+      attributes: { "bs.principal_kind": "system", "bs.principal": "x" },
+      subject: { type: "deal", id: "d1" },
+    });
+    expect(start.mock.calls[0]?.[2]).toEqual({
+      attributes: {
+        "bs.tenant": "t1",
+        "bs.actor": "u1",
+        "bs.subject": "deal/d1",
+      },
+    });
+    await expect(
+      startFor(user, approve, ["i1"], { subject: { type: "a/b", id: "1" } }),
+    ).rejects.toThrow(TypeError);
+  });
+
   it("stores the ticket as bs.ticket", async () => {
     await startFor(user, approve, ["i1"], { ticket: "tk-1" });
     expect(start.mock.calls[0]?.[2]).toEqual({
@@ -191,7 +208,9 @@ describe("workflowStarter", () => {
         "bs.publisher": "p1",
         "bs.trigger": "u1",
         "bs.tenant": "t1",
-        "bs.actor": "p1",
+        "bs.actor": "u1",
+        "bs.principal_kind": "user",
+        "bs.principal": "p1",
         "bs.key": "schedule:s1:x",
       },
     });
@@ -314,14 +333,17 @@ describe("startOnEvent", () => {
         "bs.publisher": "p1",
         "bs.trigger": "u1",
         "bs.tenant": "t1",
-        "bs.actor": "p1",
+        "bs.actor": "u1",
+        "bs.principal_kind": "user",
+        "bs.principal": "p1",
         "bs.key": "event:e1",
       },
     });
     expect(start.mock.calls[1]?.[2]).toEqual({
       attributes: {
         "bs.publisher": "p1",
-        "bs.actor": "p1",
+        "bs.principal_kind": "user",
+        "bs.principal": "p1",
         "bs.key": "event:e3",
       },
     });
@@ -366,7 +388,9 @@ describe("startOnEvent", () => {
         "bs.publisher": "p1",
         "bs.trigger": "u1",
         "bs.tenant": "t1",
-        "bs.actor": "p1",
+        "bs.actor": "u1",
+        "bs.principal_kind": "user",
+        "bs.principal": "p1",
         "bs.ticket": "ticket:e1",
         "bs.key": "event:e1",
       },

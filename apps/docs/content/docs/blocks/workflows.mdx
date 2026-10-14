@@ -15,12 +15,12 @@ with it.
 better-supabase sql add workflows   # adds tenant and access as well
 ```
 
-| Table                     | Holds                                                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `workflow_runs`           | One row per run: `engine`, `external_id`, `definition`, `tenant_id`, `actor_id`, `status`, `attributes`, `error` and the times |
-| `workflow_schedules`      | Recurring starts: `name`, `workflow`, `input`, `cron`, `timezone`, `next_run_at`, `paused`                                     |
-| `workflow_semaphores`     | The holders of each semaphore key, until they release it or their lease ends                                                   |
-| `workflow_start_requests` | Starts waiting for room under their key's concurrency, debounce or singleton rule                                              |
+| Table                     | Holds                                                                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workflow_runs`           | One row per run: `engine`, `external_id`, `definition`, `tenant_id`, `actor_id`, `status`, `attributes`, `error`, the times, and the `subject_type`, `subject_id`, `principal_kind`, `principal_id`, `mode` and `trigger_node` below |
+| `workflow_schedules`      | Recurring starts: `name`, `workflow`, `input`, `cron`, `timezone`, `next_run_at`, `paused`                                                                                                                                           |
+| `workflow_semaphores`     | The holders of each semaphore key, until they release it or their lease ends                                                                                                                                                         |
+| `workflow_start_requests` | Starts waiting for room under their key's concurrency, debounce or singleton rule                                                                                                                                                    |
 
 | Permission       | Lets                                                        | Default roles   |
 | ---------------- | ----------------------------------------------------------- | --------------- |
@@ -37,6 +37,28 @@ A run's status is `queued`, `running`, `waiting`, `completed`, `failed` or
 `workflow-runs:<tenant>`. With the [outbox](/docs/blocks/outbox) installed,
 a run that ends emits `workflow_run.completed`, `workflow_run.failed` or
 `workflow_run.cancelled`.
+
+## Runs on a record
+
+A run can belong to a record, such as a deal or a ticket: its subject,
+stored as `subject_type` and `subject_id`. List a record's runs with
+`runs.list({ subject: { type: "deal", id: dealId } })`, and the run's
+outbox events carry `subjectType` and `subjectId`, so a record's activity
+feed can show them. The Workflow SDK adapter records the subject from the
+`subject` option of `startFor` (stored on the run as the `bs.subject`
+attribute), and queued starts take one in `admission.request({ subject })`.
+
+A run also records who its steps act as: `principal_kind` is `user`,
+`service_principal`, `system` or `external`, and `principal_id` names the
+user or service principal. `actor_id` stays the user who triggered the run,
+so a schedule's creator or an event's actor sees the run they caused, while
+the steps run as the publisher. `run.principal` returns both.
+
+`mode` is `live` or `test`. Test runs come from the
+[workflow builder's](/docs/blocks/workflow-builder#test-runs) test button:
+they emit no outbox events and fire no alerts, and `runs.list` leaves them
+out unless you pass `mode: "test"` or `mode: "all"`. `trigger_node` names
+the trigger node a run of a graph with several started at.
 
 ## Reading runs
 
@@ -179,16 +201,16 @@ idempotency key `admission:<id>`. Both are service-role functions.
 
 ## Functions
 
-| Function                                                            | Granted to                      | Does                                               |
-| ------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------- |
-| `workflow_runs_list(tenant, definition, status, max, before)`       | `authenticated`, `service_role` | The runs the caller may read, newest first         |
-| `workflow_run_get(run)`                                             | `authenticated`, `service_role` | One run by its id or its engine's id               |
-| `request_workflow_cancel(run)`                                      | `authenticated`, `service_role` | Marks a run for cancellation                       |
-| `record_workflow_run(...)`                                          | `service_role`                  | Creates or updates a run by engine and external id |
-| `purge_workflow_runs(older_than, batch)`                            | `service_role`                  | Deletes finished runs                              |
-| `create_workflow_schedule(...)`                                     | `authenticated`, `service_role` | Creates or replaces a schedule by tenant and name  |
-| `workflow_schedules_list(tenant)`                                   | `authenticated`, `service_role` | The schedules the caller may read                  |
-| `pause_workflow_schedule(id, paused)`, `remove_workflow_schedule`   | `authenticated`, `service_role` | Pauses, resumes or removes a schedule              |
-| `claim_due_workflow_schedules`, `advance_workflow_schedule`         | `service_role`                  | The schedule tick                                  |
-| `acquire_workflow_semaphore`, `release_workflow_semaphore`          | `service_role`                  | Semaphores                                         |
-| `request_workflow_start`, `claim_workflow_start_requests`, `mark_*` | `service_role`                  | Admission control                                  |
+| Function                                                                                      | Granted to                      | Does                                                                                   |
+| --------------------------------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| `workflow_runs_list(tenant, definition, status, max, before, subject_type, subject_id, mode)` | `authenticated`, `service_role` | The runs the caller may read, newest first; `mode` defaults to `live`, null lists both |
+| `workflow_run_get(run)`                                                                       | `authenticated`, `service_role` | One run by its id or its engine's id                                                   |
+| `request_workflow_cancel(run)`                                                                | `authenticated`, `service_role` | Marks a run for cancellation                                                           |
+| `record_workflow_run(...)`                                                                    | `service_role`                  | Creates or updates a run by engine and external id                                     |
+| `purge_workflow_runs(older_than, batch)`                                                      | `service_role`                  | Deletes finished runs                                                                  |
+| `create_workflow_schedule(...)`                                                               | `authenticated`, `service_role` | Creates or replaces a schedule by tenant and name                                      |
+| `workflow_schedules_list(tenant)`                                                             | `authenticated`, `service_role` | The schedules the caller may read                                                      |
+| `pause_workflow_schedule(id, paused)`, `remove_workflow_schedule`                             | `authenticated`, `service_role` | Pauses, resumes or removes a schedule                                                  |
+| `claim_due_workflow_schedules`, `advance_workflow_schedule`                                   | `service_role`                  | The schedule tick                                                                      |
+| `acquire_workflow_semaphore`, `release_workflow_semaphore`                                    | `service_role`                  | Semaphores                                                                             |
+| `request_workflow_start`, `claim_workflow_start_requests`, `mark_*`                           | `service_role`                  | Admission control                                                                      |

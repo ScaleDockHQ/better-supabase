@@ -1,5 +1,6 @@
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { ListQueryInput } from "../../list/list-query.ts";
+import type { SavedViewDisplayState, SavedViewState } from "./saved-views.ts";
 
 /**
  * The URL state of a list as nuqs returns it from
@@ -87,6 +88,22 @@ function canonical(value: unknown): unknown {
     );
   }
   return value;
+}
+
+/** A view's state without `query`: the part `onApplyState` shows. */
+export function displayStateOf(state: SavedViewState): SavedViewDisplayState {
+  const { query: _query, ...display } = state;
+  return display;
+}
+
+/** Whether two states show the same columns, grouping, density and layout. */
+export function sameDisplayState(
+  a: SavedViewState | undefined,
+  b: SavedViewState | undefined,
+): boolean {
+  const strip = (state: SavedViewState | undefined): unknown =>
+    canonical(state ? displayStateOf(state) : {});
+  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
 }
 
 /** Whether two stored queries select the same rows in the same order. */

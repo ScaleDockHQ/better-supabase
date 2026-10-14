@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@1 managed
+-- @bs-module workflows@2 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,6 +63,29 @@ create table if not exists "better_supabase"."workflow_runs" (
 create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
 create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+-- The record a run belongs to (subject_type and subject_id, both or
+-- neither), who its steps run as (principal_kind and principal_id), whether
+-- it is a test run, and the trigger node it started from. Test runs write
+-- no outbox events and fire no alerts.
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
+    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
+create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
@@ -137,12 +160,27 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
+    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow_run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox (not
+-- for test runs).
 create or replace function "better_supabase"."workflow_runs_changed"()
 returns trigger
 language plpgsql
@@ -167,8 +205,10 @@ drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_
 create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
--- Creates or updates the run an engine reports. tenant, actor and started_at
--- keep their first non-null value; attributes merge.
+-- Creates or updates the run an engine reports. tenant, actor, the subject,
+-- the principal, the trigger node and started_at keep their first non-null
+-- value, mode keeps the first report's (default live); attributes merge.
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -179,7 +219,13 @@ create or replace function "better_supabase"."record_workflow_run"(
   attributes jsonb default '{}'::jsonb,
   error text default null,
   started_at timestamptz default null,
-  completed_at timestamptz default null
+  completed_at timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  mode text default null,
+  trigger_node text default null
 )
 returns uuid
 language plpgsql
@@ -189,8 +235,8 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at)
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -200,21 +246,32 @@ begin
     "error" = coalesce(excluded."error", x."error"),
     "started_at" = coalesce(x."started_at", excluded."started_at"),
     "completed_at" = coalesce(excluded."completed_at", x."completed_at"),
+    "subject_type" = case when x."subject_type" is null then excluded."subject_type" else x."subject_type" end,
+    "subject_id" = case when x."subject_type" is null then excluded."subject_id" else x."subject_id" end,
+    "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
+    "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
+    "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
+-- subject_type and subject_id narrow to one record's runs; mode is live
+-- (the default), test, or null for both.
+drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
   status text default null,
   max integer default 50,
-  before timestamptz default null
+  before timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  mode text default 'live'
 )
 returns jsonb
 language sql
@@ -235,7 +292,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -243,12 +306,15 @@ as $$
       and (workflow_runs_list.definition is null or y."definition" = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y."status" = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y."created_at" < workflow_runs_list.before)
+      and (workflow_runs_list.subject_type is null or y."subject_type" = workflow_runs_list.subject_type)
+      and (workflow_runs_list.subject_id is null or y."subject_id" = workflow_runs_list.subject_id)
+      and (workflow_runs_list.mode is null or y."mode" = workflow_runs_list.mode)
     order by y."created_at" desc
     limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
   ) x;
 $$;
-revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
+grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function "better_supabase"."workflow_run_get"(run text)
@@ -271,7 +337,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -324,7 +396,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -344,7 +422,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
 end;
 $$;
@@ -632,7 +716,9 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
 -- is active; debounce replaces the waiting request and waits that long;
--- concurrency caps the runs started at once.
+-- concurrency caps the runs started at once. subject_type and subject_id
+-- name the record the run belongs to.
+drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -641,7 +727,9 @@ create or replace function "better_supabase"."request_workflow_start"(
   actor uuid default null,
   concurrency integer default null,
   debounce interval default null,
-  singleton boolean default false
+  singleton boolean default false,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -663,17 +751,17 @@ begin
     where x."key" = key and x."status" = 'pending'
       and (x."claimed_until" is null or x."claimed_until" < now());
   end if;
-  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before")
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'))
+  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) from public, anon, authenticated;
-grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) to service_role;
+revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) to service_role;
 
 -- Leases up to batch start requests whose time came and whose key has room:
--- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
+-- [{ id, key, workflow, input, tenant, actor, subjectType, subjectId }]. Start each, then call
 -- mark_workflow_start_request; a lease that runs out frees the request.
 create or replace function "better_supabase"."claim_workflow_start_requests"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -705,7 +793,9 @@ begin
         'workflow', v_row."workflow",
         'input', v_row."input",
         'tenant', v_row."tenant_id",
-        'actor', v_row."actor_id"
+        'actor', v_row."actor_id",
+        'subjectType', v_row."subject_type",
+        'subjectId', v_row."subject_id"
       ));
       v_taken := v_taken + 1;
     end if;
@@ -782,13 +872,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 1, 'managed')
+values ('workflows', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@1 managed
+-- @bs-module workflows@2 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -851,6 +941,29 @@ create table if not exists "better_supabase"."workflow_runs" (
 create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
 create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+-- The record a run belongs to (subject_type and subject_id, both or
+-- neither), who its steps run as (principal_kind and principal_id), whether
+-- it is a test run, and the trigger node it started from. Test runs write
+-- no outbox events and fire no alerts.
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
+    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
+create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
@@ -925,12 +1038,27 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
+    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow_run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox (not
+-- for test runs).
 create or replace function "better_supabase"."workflow_runs_changed"()
 returns trigger
 language plpgsql
@@ -947,13 +1075,16 @@ begin
       perform realtime.send(jsonb_build_object('id', new."id", 'status', new."status"), 'status', 'workflow-runs:' || new."tenant_id"::text, true);
     end if;
   end if;
+  if new."mode" = 'test' then
+    return null;
+  end if;
   case new."status"
     when 'completed' then
-      perform "better_supabase".emit_event('workflow_run.completed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.completed:' || new."id", 'better-supabase/workflows');
+      perform "better_supabase".emit_event('workflow_run.completed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.completed:' || new."id", 'better-supabase/workflows');
     when 'failed' then
-      perform "better_supabase".emit_event('workflow_run.failed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.failed:' || new."id", 'better-supabase/workflows');
+      perform "better_supabase".emit_event('workflow_run.failed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.failed:' || new."id", 'better-supabase/workflows');
     when 'cancelled' then
-      perform "better_supabase".emit_event('workflow_run.cancelled', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.cancelled:' || new."id", 'better-supabase/workflows');
+      perform "better_supabase".emit_event('workflow_run.cancelled', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.cancelled:' || new."id", 'better-supabase/workflows');
     else null;
   end case;
   return null;
@@ -964,8 +1095,10 @@ drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_
 create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
--- Creates or updates the run an engine reports. tenant, actor and started_at
--- keep their first non-null value; attributes merge.
+-- Creates or updates the run an engine reports. tenant, actor, the subject,
+-- the principal, the trigger node and started_at keep their first non-null
+-- value, mode keeps the first report's (default live); attributes merge.
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -976,7 +1109,13 @@ create or replace function "better_supabase"."record_workflow_run"(
   attributes jsonb default '{}'::jsonb,
   error text default null,
   started_at timestamptz default null,
-  completed_at timestamptz default null
+  completed_at timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  mode text default null,
+  trigger_node text default null
 )
 returns uuid
 language plpgsql
@@ -986,8 +1125,8 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at)
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -997,21 +1136,32 @@ begin
     "error" = coalesce(excluded."error", x."error"),
     "started_at" = coalesce(x."started_at", excluded."started_at"),
     "completed_at" = coalesce(excluded."completed_at", x."completed_at"),
+    "subject_type" = case when x."subject_type" is null then excluded."subject_type" else x."subject_type" end,
+    "subject_id" = case when x."subject_type" is null then excluded."subject_id" else x."subject_id" end,
+    "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
+    "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
+    "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
+-- subject_type and subject_id narrow to one record's runs; mode is live
+-- (the default), test, or null for both.
+drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
   status text default null,
   max integer default 50,
-  before timestamptz default null
+  before timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  mode text default 'live'
 )
 returns jsonb
 language sql
@@ -1032,7 +1182,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -1040,12 +1196,15 @@ as $$
       and (workflow_runs_list.definition is null or y."definition" = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y."status" = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y."created_at" < workflow_runs_list.before)
+      and (workflow_runs_list.subject_type is null or y."subject_type" = workflow_runs_list.subject_type)
+      and (workflow_runs_list.subject_id is null or y."subject_id" = workflow_runs_list.subject_id)
+      and (workflow_runs_list.mode is null or y."mode" = workflow_runs_list.mode)
     order by y."created_at" desc
     limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
   ) x;
 $$;
-revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
+grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function "better_supabase"."workflow_run_get"(run text)
@@ -1068,7 +1227,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -1121,7 +1286,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -1141,7 +1312,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
 end;
 $$;
@@ -1429,7 +1606,9 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
 -- is active; debounce replaces the waiting request and waits that long;
--- concurrency caps the runs started at once.
+-- concurrency caps the runs started at once. subject_type and subject_id
+-- name the record the run belongs to.
+drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -1438,7 +1617,9 @@ create or replace function "better_supabase"."request_workflow_start"(
   actor uuid default null,
   concurrency integer default null,
   debounce interval default null,
-  singleton boolean default false
+  singleton boolean default false,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -1460,17 +1641,17 @@ begin
     where x."key" = key and x."status" = 'pending'
       and (x."claimed_until" is null or x."claimed_until" < now());
   end if;
-  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before")
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'))
+  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) from public, anon, authenticated;
-grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) to service_role;
+revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) to service_role;
 
 -- Leases up to batch start requests whose time came and whose key has room:
--- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
+-- [{ id, key, workflow, input, tenant, actor, subjectType, subjectId }]. Start each, then call
 -- mark_workflow_start_request; a lease that runs out frees the request.
 create or replace function "better_supabase"."claim_workflow_start_requests"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -1502,7 +1683,9 @@ begin
         'workflow', v_row."workflow",
         'input', v_row."input",
         'tenant', v_row."tenant_id",
-        'actor', v_row."actor_id"
+        'actor', v_row."actor_id",
+        'subjectType', v_row."subject_type",
+        'subjectId', v_row."subject_id"
       ));
       v_taken := v_taken + 1;
     end if;
@@ -1579,13 +1762,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 1, 'managed')
+values ('workflows', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@1 managed
+-- @bs-module workflows@2 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,6 +1833,29 @@ create table if not exists "app_private"."workflow_runs" (
 create index if not exists workflow_runs_tenant_idx on "app_private"."workflow_runs" ("tenant_id", "created_at" desc);
 create index if not exists workflow_runs_actor_idx on "app_private"."workflow_runs" ("actor_id", "created_at" desc);
 create index if not exists workflow_runs_status_idx on "app_private"."workflow_runs" ("status", "completed_at");
+-- The record a run belongs to (subject_type and subject_id, both or
+-- neither), who its steps run as (principal_kind and principal_id), whether
+-- it is a test run, and the trigger node it started from. Test runs write
+-- no outbox events and fire no alerts.
+alter table "app_private"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "app_private"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "app_private"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "app_private"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "app_private"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "app_private"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"app_private"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "app_private"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
+    alter table "app_private"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_runs_subject_check" on "app_private"."workflow_runs" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
+create index if not exists workflow_runs_subject_idx on "app_private"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "app_private"."workflow_runs" enable row level security;
 revoke all on "app_private"."workflow_runs" from anon, authenticated;
 grant select on "app_private"."workflow_runs" to authenticated;
@@ -1724,12 +1930,27 @@ create table if not exists "app_private"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "app_private"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "app_private"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "app_private"."workflow_start_requests" ("actor_id");
+alter table "app_private"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "app_private"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"app_private"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "app_private"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
+    alter table "app_private"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_start_requests_subject_check" on "app_private"."workflow_start_requests" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
 alter table "app_private"."workflow_start_requests" enable row level security;
 revoke all on "app_private"."workflow_start_requests" from anon, authenticated;
 grant all on "app_private"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow_run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox (not
+-- for test runs).
 create or replace function "app_private"."workflow_runs_changed"()
 returns trigger
 language plpgsql
@@ -1754,8 +1975,10 @@ drop trigger if exists "bs_workflow_runs_status" on "app_private"."workflow_runs
 create trigger "bs_workflow_runs_status" after insert or update of "status" on "app_private"."workflow_runs"
   for each row execute function "app_private"."workflow_runs_changed"();
 
--- Creates or updates the run an engine reports. tenant, actor and started_at
--- keep their first non-null value; attributes merge.
+-- Creates or updates the run an engine reports. tenant, actor, the subject,
+-- the principal, the trigger node and started_at keep their first non-null
+-- value, mode keeps the first report's (default live); attributes merge.
+drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
 create or replace function "app_private"."record_workflow_run"(
   engine text,
   external_id text,
@@ -1766,7 +1989,13 @@ create or replace function "app_private"."record_workflow_run"(
   attributes jsonb default '{}'::jsonb,
   error text default null,
   started_at timestamptz default null,
-  completed_at timestamptz default null
+  completed_at timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  mode text default null,
+  trigger_node text default null
 )
 returns uuid
 language plpgsql
@@ -1776,8 +2005,8 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "app_private"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at)
+  insert into "app_private"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -1787,21 +2016,32 @@ begin
     "error" = coalesce(excluded."error", x."error"),
     "started_at" = coalesce(x."started_at", excluded."started_at"),
     "completed_at" = coalesce(excluded."completed_at", x."completed_at"),
+    "subject_type" = case when x."subject_type" is null then excluded."subject_type" else x."subject_type" end,
+    "subject_id" = case when x."subject_type" is null then excluded."subject_id" else x."subject_id" end,
+    "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
+    "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
+    "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) from public, anon, authenticated;
-grant execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) to service_role;
+revoke execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
+-- subject_type and subject_id narrow to one record's runs; mode is live
+-- (the default), test, or null for both.
+drop function if exists "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
 create or replace function "app_private"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
   status text default null,
   max integer default 50,
-  before timestamptz default null
+  before timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  mode text default 'live'
 )
 returns jsonb
 language sql
@@ -1822,7 +2062,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "app_private"."workflow_runs" y
@@ -1830,12 +2076,15 @@ as $$
       and (workflow_runs_list.definition is null or y."definition" = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y."status" = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y."created_at" < workflow_runs_list.before)
+      and (workflow_runs_list.subject_type is null or y."subject_type" = workflow_runs_list.subject_type)
+      and (workflow_runs_list.subject_id is null or y."subject_id" = workflow_runs_list.subject_id)
+      and (workflow_runs_list.mode is null or y."mode" = workflow_runs_list.mode)
     order by y."created_at" desc
     limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
   ) x;
 $$;
-revoke execute on function "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
+grant execute on function "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function "app_private"."workflow_run_get"(run text)
@@ -1858,7 +2107,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   )
   from "app_private"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -1911,7 +2166,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
   end if;
   update "app_private"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -1931,7 +2192,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
 end;
 $$;
@@ -2219,7 +2486,9 @@ grant execute on function "app_private"."workflow_admission_active"(text) to ser
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
 -- is active; debounce replaces the waiting request and waits that long;
--- concurrency caps the runs started at once.
+-- concurrency caps the runs started at once. subject_type and subject_id
+-- name the record the run belongs to.
+drop function if exists "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 create or replace function "app_private"."request_workflow_start"(
   key text,
   workflow text,
@@ -2228,7 +2497,9 @@ create or replace function "app_private"."request_workflow_start"(
   actor uuid default null,
   concurrency integer default null,
   debounce interval default null,
-  singleton boolean default false
+  singleton boolean default false,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -2250,17 +2521,17 @@ begin
     where x."key" = key and x."status" = 'pending'
       and (x."claimed_until" is null or x."claimed_until" < now());
   end if;
-  insert into "app_private"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before")
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'))
+  insert into "app_private"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-revoke execute on function "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) from public, anon, authenticated;
-grant execute on function "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) to service_role;
+revoke execute on function "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) to service_role;
 
 -- Leases up to batch start requests whose time came and whose key has room:
--- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
+-- [{ id, key, workflow, input, tenant, actor, subjectType, subjectId }]. Start each, then call
 -- mark_workflow_start_request; a lease that runs out frees the request.
 create or replace function "app_private"."claim_workflow_start_requests"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -2292,7 +2563,9 @@ begin
         'workflow', v_row."workflow",
         'input', v_row."input",
         'tenant', v_row."tenant_id",
-        'actor', v_row."actor_id"
+        'actor', v_row."actor_id",
+        'subjectType', v_row."subject_type",
+        'subjectId', v_row."subject_id"
       ));
       v_taken := v_taken + 1;
     end if;
@@ -2369,13 +2642,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 1, 'managed')
+values ('workflows', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@1 managed
+-- @bs-module workflows@2 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -2438,6 +2711,29 @@ create table if not exists "better_supabase"."workflow_runs" (
 create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
 create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+-- The record a run belongs to (subject_type and subject_id, both or
+-- neither), who its steps run as (principal_kind and principal_id), whether
+-- it is a test run, and the trigger node it started from. Test runs write
+-- no outbox events and fire no alerts.
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
+    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
+create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
@@ -2512,12 +2808,27 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
+    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
+    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
+    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
+  end if;
+end;
+$$;
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow_run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox (not
+-- for test runs).
 create or replace function "better_supabase"."workflow_runs_changed"()
 returns trigger
 language plpgsql
@@ -2542,8 +2853,10 @@ drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_
 create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
--- Creates or updates the run an engine reports. tenant, actor and started_at
--- keep their first non-null value; attributes merge.
+-- Creates or updates the run an engine reports. tenant, actor, the subject,
+-- the principal, the trigger node and started_at keep their first non-null
+-- value, mode keeps the first report's (default live); attributes merge.
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -2554,7 +2867,13 @@ create or replace function "better_supabase"."record_workflow_run"(
   attributes jsonb default '{}'::jsonb,
   error text default null,
   started_at timestamptz default null,
-  completed_at timestamptz default null
+  completed_at timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  mode text default null,
+  trigger_node text default null
 )
 returns uuid
 language plpgsql
@@ -2564,8 +2883,8 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at)
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -2575,21 +2894,32 @@ begin
     "error" = coalesce(excluded."error", x."error"),
     "started_at" = coalesce(x."started_at", excluded."started_at"),
     "completed_at" = coalesce(excluded."completed_at", x."completed_at"),
+    "subject_type" = case when x."subject_type" is null then excluded."subject_type" else x."subject_type" end,
+    "subject_id" = case when x."subject_type" is null then excluded."subject_id" else x."subject_id" end,
+    "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
+    "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
+    "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
+-- subject_type and subject_id narrow to one record's runs; mode is live
+-- (the default), test, or null for both.
+drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
   status text default null,
   max integer default 50,
-  before timestamptz default null
+  before timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  mode text default 'live'
 )
 returns jsonb
 language sql
@@ -2610,7 +2940,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -2618,12 +2954,15 @@ as $$
       and (workflow_runs_list.definition is null or y."definition" = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y."status" = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y."created_at" < workflow_runs_list.before)
+      and (workflow_runs_list.subject_type is null or y."subject_type" = workflow_runs_list.subject_type)
+      and (workflow_runs_list.subject_id is null or y."subject_id" = workflow_runs_list.subject_id)
+      and (workflow_runs_list.mode is null or y."mode" = workflow_runs_list.mode)
     order by y."created_at" desc
     limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
   ) x;
 $$;
-revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
+grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function "better_supabase"."workflow_run_get"(run text)
@@ -2646,7 +2985,13 @@ as $$
     'updatedAt', x."updated_at",
     'startedAt', x."started_at",
     'completedAt', x."completed_at",
-    'cancelRequestedAt', x."cancel_requested_at"
+    'cancelRequestedAt', x."cancel_requested_at",
+    'subjectType', x."subject_type",
+    'subjectId', x."subject_id",
+    'principalKind', x."principal_kind",
+    'principalId', x."principal_id",
+    'mode', x."mode",
+    'triggerNode', x."trigger_node"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -2699,7 +3044,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -2719,7 +3070,13 @@ begin
     'updatedAt', v_run."updated_at",
     'startedAt', v_run."started_at",
     'completedAt', v_run."completed_at",
-    'cancelRequestedAt', v_run."cancel_requested_at"
+    'cancelRequestedAt', v_run."cancel_requested_at",
+    'subjectType', v_run."subject_type",
+    'subjectId', v_run."subject_id",
+    'principalKind', v_run."principal_kind",
+    'principalId', v_run."principal_id",
+    'mode', v_run."mode",
+    'triggerNode', v_run."trigger_node"
   );
 end;
 $$;
@@ -3007,7 +3364,9 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
 -- is active; debounce replaces the waiting request and waits that long;
--- concurrency caps the runs started at once.
+-- concurrency caps the runs started at once. subject_type and subject_id
+-- name the record the run belongs to.
+drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -3016,7 +3375,9 @@ create or replace function "better_supabase"."request_workflow_start"(
   actor uuid default null,
   concurrency integer default null,
   debounce interval default null,
-  singleton boolean default false
+  singleton boolean default false,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -3038,17 +3399,17 @@ begin
     where x."key" = key and x."status" = 'pending'
       and (x."claimed_until" is null or x."claimed_until" < now());
   end if;
-  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before")
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'))
+  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) from public, anon, authenticated;
-grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) to service_role;
+revoke execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) to service_role;
 
 -- Leases up to batch start requests whose time came and whose key has room:
--- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
+-- [{ id, key, workflow, input, tenant, actor, subjectType, subjectId }]. Start each, then call
 -- mark_workflow_start_request; a lease that runs out frees the request.
 create or replace function "better_supabase"."claim_workflow_start_requests"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -3080,7 +3441,9 @@ begin
         'workflow', v_row."workflow",
         'input', v_row."input",
         'tenant', v_row."tenant_id",
-        'actor', v_row."actor_id"
+        'actor', v_row."actor_id",
+        'subjectType', v_row."subject_type",
+        'subjectId', v_row."subject_id"
       ));
       v_taken := v_taken + 1;
     end if;
@@ -3140,6 +3503,10 @@ $$;
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+drop function if exists "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -3158,23 +3525,23 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."record_workflow_run"(engine text, external_id text, definition text, status text, tenant uuid default null, actor uuid default null, attributes jsonb default '{}'::jsonb, error text default null, started_at timestamptz default null, completed_at timestamptz default null)
+create or replace function "api"."record_workflow_run"(engine text, external_id text, definition text, status text, tenant uuid default null, actor uuid default null, attributes jsonb default '{}'::jsonb, error text default null, started_at timestamptz default null, completed_at timestamptz default null, subject_type text default null, subject_id text default null, principal_kind text default null, principal_id text default null, mode text default null, trigger_node text default null)
 returns uuid
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."record_workflow_run"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) from public, anon, authenticated;
-grant execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz) to service_role;
+as $$ select "better_supabase"."record_workflow_run"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) $$;
+revoke execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
 
-create or replace function "api"."workflow_runs_list"(tenant uuid default null, definition text default null, status text default null, max integer default 50, before timestamptz default null)
+create or replace function "api"."workflow_runs_list"(tenant uuid default null, definition text default null, status text default null, max integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, mode text default 'live')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."workflow_runs_list"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."workflow_runs_list"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
+grant execute on function "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."workflow_run_get"(run text)
 returns jsonb
@@ -3284,14 +3651,14 @@ as $$ select "better_supabase"."workflow_admission_active"($1) $$;
 revoke execute on function "api"."workflow_admission_active"(text) from public, anon, authenticated;
 grant execute on function "api"."workflow_admission_active"(text) to service_role;
 
-create or replace function "api"."request_workflow_start"(key text, workflow text, payload jsonb default '{}'::jsonb, tenant uuid default null, actor uuid default null, concurrency integer default null, debounce interval default null, singleton boolean default false)
+create or replace function "api"."request_workflow_start"(key text, workflow text, payload jsonb default '{}'::jsonb, tenant uuid default null, actor uuid default null, concurrency integer default null, debounce interval default null, singleton boolean default false, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."request_workflow_start"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) from public, anon, authenticated;
-grant execute on function "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean) to service_role;
+as $$ select "better_supabase"."request_workflow_start"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) from public, anon, authenticated;
+grant execute on function "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean, text, text) to service_role;
 
 create or replace function "api"."claim_workflow_start_requests"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -3332,6 +3699,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 1, 'managed')
+values ('workflows', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

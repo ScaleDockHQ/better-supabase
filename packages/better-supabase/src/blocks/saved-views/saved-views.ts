@@ -57,6 +57,31 @@ export interface SavedViewState<
   readonly layout?: Readonly<Record<string, unknown>>;
 }
 
+/** The part of a view's state that lives outside the URL. */
+export type SavedViewDisplayState = Omit<SavedViewState, "query">;
+
+/** The caller's own flags for a view, which need no right to change it. */
+export interface SavedViewPreference {
+  /** Opens this view first, ahead of every slot default. */
+  readonly isDefault: boolean;
+  readonly hidden: boolean;
+  readonly pinned: boolean;
+}
+
+export interface SavedViewPreferenceInput {
+  readonly isDefault?: boolean;
+  readonly hidden?: boolean;
+  readonly pinned?: boolean;
+}
+
+export interface DuplicateViewInput {
+  readonly name?: string;
+  /** Default `user`. `team` and `tenant` need `views.share`. */
+  readonly scope?: SavedViewScope;
+  /** The team, for `scope: "team"`. */
+  readonly teamId?: string;
+}
+
 /**
  * The part of a `defineListQuery` definition a saved view checks its query
  * against. Any list definition fits.
@@ -81,7 +106,10 @@ export interface SavedView<
   readonly kind: SavedViewKind;
   readonly state: SavedViewState<Q>;
   readonly rank: string;
+  /** The default of its slot (the owner's, the team's or the tenant's). */
   readonly isDefault: boolean;
+  /** The caller's own flags; all false without the preferences table. */
+  readonly preference: SavedViewPreference;
 }
 
 export interface SaveViewInput<
@@ -119,6 +147,19 @@ export interface SavedViews {
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   /** Makes a view the default of its slot (the user's, the team's or the tenant's). */
   setDefault(id: string, on?: boolean): AsyncResult<boolean>;
+  /**
+   * Sets the caller's own flags on a view they see. Omitted flags keep their
+   * value; one preferred default per user and list.
+   */
+  setPreference(
+    id: string,
+    preference: SavedViewPreferenceInput,
+  ): AsyncResult<SavedViewPreference>;
+  /** Copies a view the caller sees as a new view. Resolves to its id and rank key. */
+  duplicate(
+    id: string,
+    input?: DuplicateViewInput,
+  ): AsyncResult<{ id: string; rank: string }>;
   delete(id: string): AsyncResult<boolean>;
 }
 
@@ -263,6 +304,20 @@ function oneOfOr<T extends string>(
   return values.find((item) => item === value) ?? fallback;
 }
 
+function preferenceOf(value: unknown): SavedViewPreference {
+  const row = isRecord(value) ? value : {};
+  return {
+    isDefault: row["isDefault"] === true,
+    hidden: row["hidden"] === true,
+    pinned: row["pinned"] === true,
+  };
+}
+
+function savedOf(value: unknown): { id: string; rank: string } {
+  const row = recordOf(value, "saved view");
+  return { id: textOf(row["id"]), rank: textOf(row["rank"]) };
+}
+
 function viewOf(value: unknown): SavedView {
   const row = recordOf(value, "saved view");
   const state = row["state"];
@@ -277,6 +332,7 @@ function viewOf(value: unknown): SavedView {
     state: isRecord(state) ? state : {},
     rank: optionalText(row["rank"]) ?? "V",
     isDefault: row["isDefault"] === true,
+    preference: preferenceOf(row["preference"]),
   };
 }
 
@@ -304,10 +360,7 @@ export function createSavedViews(options: SavedViewsOptions): SavedViews {
           state: storedState(input.state),
           view_id: input.id ?? null,
         },
-        (value) => {
-          const row = recordOf(value, "saved view");
-          return { id: textOf(row["id"]), rank: textOf(row["rank"]) };
-        },
+        savedOf,
       );
     },
     list: (organizationId, list) =>
@@ -325,21 +378,56 @@ export function createSavedViews(options: SavedViewsOptions): SavedViews {
         { view_id: id, on_default: on },
         (value) => value === true,
       ),
+    setPreference: (id, preference) =>
+      call(
+        "set_view_preference",
+        {
+          view_id: id,
+          make_default: preference.isDefault ?? null,
+          hide: preference.hidden ?? null,
+          pin: preference.pinned ?? null,
+        },
+        preferenceOf,
+      ),
+    duplicate: (id, input = {}) =>
+      call(
+        "duplicate_view",
+        {
+          view_id: id,
+          scope: input.scope ?? "user",
+          name: input.name ?? null,
+          team: input.teamId ?? null,
+        },
+        savedOf,
+      ),
     delete: (id) =>
       call("delete_view", { view_id: id }, (value) => value === true),
   };
 }
 
+/** The fields of a view `defaultView` reads; `SavedView` fits. */
+export interface DefaultViewCandidate {
+  readonly scope: SavedViewScope;
+  readonly isDefault: boolean;
+  readonly preference?: Partial<
+    Pick<SavedViewPreference, "isDefault" | "hidden">
+  >;
+}
+
 /**
- * The view that opens first: the user's default, then a team default, then
- * the tenant's, then the first view.
+ * The view that opens first: the caller's preferred default, then the
+ * user's slot default, a team default, the tenant's, then the first view.
+ * Views the caller hid are skipped.
  */
-export function defaultView<V extends Pick<SavedView, "scope" | "isDefault">>(
+export function defaultView<V extends DefaultViewCandidate>(
   views: readonly V[],
 ): V | undefined {
+  const shown = views.filter((view) => view.preference?.hidden !== true);
+  const preferred = shown.find((view) => view.preference?.isDefault === true);
+  if (preferred) return preferred;
   for (const scope of SAVED_VIEW_SCOPES) {
-    const match = views.find((view) => view.isDefault && view.scope === scope);
+    const match = shown.find((view) => view.isDefault && view.scope === scope);
     if (match) return match;
   }
-  return views[0];
+  return shown[0];
 }
