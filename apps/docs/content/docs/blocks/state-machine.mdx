@@ -1,9 +1,9 @@
 ---
 title: State machine
-description: Allowed status transitions, a history row and a status.changed event.
+description: Allowed status transitions as the caller, a history row, status events, and an optional lifecycle with pause, flags and a pinned version.
 ---
 
-`state-machine` rejects a status change the machine does not allow (`STATE_TRANSITION_INVALID`), writes a history row and records `status.changed`. Audit, webhooks and notifications pick that event up when those modules are installed.
+`state-machine` rejects a status change the machine does not allow (`STATE_TRANSITION_INVALID`), writes a history row and records `status.changed`. Audit, webhooks and notifications pick that event up when those modules are installed. A machine can also keep a stages timeline and a lifecycle row that pauses the record, holds flags and pins the machine version it started on.
 
 ```bash
 better-supabase sql add state-machine
@@ -11,11 +11,115 @@ better-supabase sql add state-machine
 
 ```ts
 import { createStateMachine } from "better-supabase/blocks/state-machine";
+
+const machine = createStateMachine<"quote">({ transport });
+await machine
+  .transition("quote", quoteId, "sent", "ready for the client")
+  .orThrow();
 ```
 
-`options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check, writes the history row and records `status.changed`, so a direct update or a board move into another status emits the event too, and an update that keeps the status emits nothing. `transition(subject_type, id, to, reason)` is the RPC path: it passes the reason to the trigger for that one change. The machine name is the `subjectType` of the history row and the event, so name a machine after its subject (`deal`, `task`) when watchers or comments use the same subject type.
+`options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check, writes the history row and records `status.changed`, so a direct update or a board move into another status emits the event too, and an update that keeps the status emits nothing. The machine name is the `subjectType` of the history row and the events, so name a machine after its subject (`deal`, `task`) when watchers or comments use the same subject type.
 
-History goes to `status_history`, or to a table named on the machine (`history.table` and its columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage. Pause and pin state stay in the app or in workflow-builder.
+A machine without a `table` takes its table, id type and tenant column from [`config.subjects`](/docs/blocks/sql#subject-registry) under the same name, so a subject declared once needs only its status column and edges here. `idType` (without it, ids compare as text) makes the lookups compare the id in its own type, which keeps the primary key index in use.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  quote: { table: "public.quotes", idType: "uuid", tenant: "organization_id" },
+},
+sql: {
+  modules: {
+    "state-machine": {
+      options: {
+        machines: {
+          quote: {
+            column: "status",
+            initial: "draft",
+            transitions: { draft: ["sent", "void"], sent: ["accepted", "void"] },
+            order: ["draft", "sent", "accepted"],
+          },
+        },
+      },
+    },
+  },
+},
+```
+
+## Who may transition
+
+`transition(subject_type, id, to, reason)` runs as the caller. It updates the status column with the caller's privileges, so the subject table's row level security decides whether they may change that record: a member of another tenant, or a member whose policies allow a read but not an update, gets `STATE_SUBJECT_NOT_FOUND` (Postgres `P0002`, a `not_found` error in TypeScript). The trigger then checks the edge, and the history, stages and lifecycle writes happen inside it. The service role passes every policy, as it does for a direct update.
+
+The block's readers run as the caller too, and return `STATE_SUBJECT_NOT_FOUND` for a record the caller can't see:
+
+| Method                           | Returns                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `state(subjectType, id)`         | The status, its `step` and `progress` through `order`, and with a lifecycle its `version`, `flags` and pause       |
+| `history(subjectType, id, page)` | Status changes, newest first, 50 per page and at most 500; pass the last `createdAt` as `cursor` for the next page |
+| `stages(subjectType, id)`        | The stages timeline in display order, empty for a machine without `stages: true`                                   |
+
+`progress` is 0 at the first status of `order` and 1 at the last; a status outside `order` (`void` above) has no `step` or `progress`. The `status_history`, `status_stages` and `subject_lifecycles` tables have select policies that show a row when the caller can see its record, so a query on them returns the same rows as the readers.
+
+History goes to `status_history`, or to a table named on the machine (`history.table` and its columns; `history()` also reads its `id` and `createdAt` columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage.
+
+## Lifecycle: pause, flags and a pinned version
+
+Set `lifecycle: true` on a machine to keep one `subject_lifecycles` row per record. The trigger creates it on insert with the machine's `version` (default 1), so a record keeps the version it started on after you change the machine and raise the version. `flags` lists the flags a record may carry.
+
+```ts title="better-supabase.config.ts"
+quote: {
+  column: "status",
+  initial: "draft",
+  transitions: { draft: ["sent"], sent: ["accepted"] },
+  lifecycle: true,
+  version: 2,
+  flags: ["urgent", "needs-legal"],
+},
+```
+
+```ts
+await machine
+  .pause("quote", quoteId, {
+    until: Temporal.Now.instant().add({ hours: 48 }),
+    reason: "waiting for the client",
+  })
+  .orThrow();
+await machine.setFlag("quote", quoteId, "urgent", true).orThrow();
+await machine.resume("quote", quoteId).orThrow();
+```
+
+While a pause holds, the trigger refuses every transition with `STATE_PAUSED`, including a direct update of the status column. A pause without `until` holds until `resume()`; a pause with one ends on its own, and the next transition clears it and records `status.resumed`. `pause()` refuses an `until` in the past (`STATE_PAUSE_INVALID`), and `setFlag()` refuses a flag the machine doesn't list (`STATE_FLAG_UNKNOWN`). Each returns `false` when nothing changed: `resume()` on a record that wasn't paused, or `setFlag()` with the value the flag already has.
+
+`pause`, `resume` and `setFlag` run as the caller and are authorized like `transition`: the caller must be able to update the record. They write by updating the status column to its current value, so a `before update` trigger of your own on that column runs for them too. A machine without `lifecycle: true` refuses them with `STATE_LIFECYCLE_DISABLED`; `version` and `flags` need `lifecycle: true`.
+
+## Events
+
+| Type             | When                                            | Payload beyond `organizationId`, `subjectType`, `subjectId` |
+| ---------------- | ----------------------------------------------- | ----------------------------------------------------------- |
+| `status.changed` | The status moved along an allowed edge          | `from`, `to`, `reason`                                      |
+| `status.paused`  | `pause()` started or replaced a pause           | `until`, `reason`                                           |
+| `status.resumed` | `resume()`, or a transition after a pause ended | none                                                        |
+| `status.flagged` | `setFlag()` changed a flag                      | `flag`, `enabled`                                           |
+
+The events need the [outbox](/docs/blocks/outbox) module; the subject of each is `statuses/<machine>/<id>`.
+
+## A lifecycle driven by a workflow
+
+A workflow can own the part of a lifecycle that runs on a timer or waits on someone, while the machine keeps the rules. Start a [workflow-builder](/docs/blocks/workflow-builder) definition from an `event` trigger with `config.type` set to `status.changed`, and have your outbox consumer hand it only the events of the subject type the workflow is for:
+
+```ts title="lib/outbox-consumer.ts"
+const isQuote = (payload: unknown) =>
+  typeof payload === "object" &&
+  payload !== null &&
+  "subjectType" in payload &&
+  payload.subjectType === "quote";
+
+for (const event of batch) {
+  if (event.type === "status.changed" && isQuote(event.payload)) {
+    await serviceBuilder.triggers.onEvent(event).orThrow();
+  }
+}
+```
+
+The workflow's steps then call `machine.pause()` while it waits (a client reply, a signature), `machine.setFlag()` when a step escalates, and `machine.transition()` when it is done. The trigger still checks each edge, so a workflow can't move a record along an edge the machine doesn't allow, and a member who moves the record by hand while it is paused gets `STATE_PAUSED`.
 
 ## Transitions that need approval
 
@@ -35,4 +139,6 @@ machines: {
 
 ## Adopt mode
 
-Point `history.table` at `public.quote_status_history` or `public.invoice_status_history`. Portal-only columns such as `actor_customer_id` stay on the table and are not required by the module.
+Point `history.table` at `public.quote_status_history` or `public.invoice_status_history`. Portal-only columns such as `actor_customer_id` stay on the table and are not required by the module. `history()` reads the table's `id` and `created_at` columns; name others with `history.id` and `history.createdAt`.
+
+A machine with `lifecycle: true` needs a lifecycles table with the columns of `subject_lifecycles` and a unique key on `(subject_type, subject_id)`. In adopt mode the module doesn't create read policies on your tables, so add the ones your app needs.
