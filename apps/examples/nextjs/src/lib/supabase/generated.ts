@@ -585,4 +585,10 @@ export const buckets = {
   }
 } as const;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The app's subject types, from `config.subjects`. */
+export const subjectTypes = ["customer"] as const;
+export type SubjectType = (typeof subjectTypes)[number];
+/** One subject: its type and its id as text. */
+export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+
+export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);

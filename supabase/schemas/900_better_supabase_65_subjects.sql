@@ -1,6 +1,6 @@
 -- better-supabase module: subjects (0.8.0)
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url and can_subject for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -88,6 +88,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when 'customer' then
+      return exists (
+        select 1 from "public"."customers" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'customers.read'), false)
+          else false
+        end
+      );
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
