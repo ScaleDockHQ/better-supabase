@@ -21,7 +21,8 @@ import {
   type ProviderRequirement,
   unsafeKey,
 } from "../authorization.ts";
-import { catalogOf } from "./shared.ts";
+import { withoutStrings } from "./rls.ts";
+import { catalogOf, policyObject, qualified } from "./shared.ts";
 
 const TEMPLATE_EFFECT: Readonly<
   Partial<Record<keyof AuthorizationProvider["functions"], string>>
@@ -564,4 +565,81 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       ];
     },
   },
+  {
+    code: "BS414",
+    severity: "warning",
+    title: "Access contract answers from built-in roles next to a provider",
+    description:
+      "With `authorization` set, `sql.modules.access.model` defaults to `provider`, so `better_supabase.can()` and `better_supabase.tenant_ids_with()` answer from the provider's templates. When the config sets another model, those functions answer from the built-in roles instead, which the provider never sees. Doctor reports each policy and each function in `schemas` that calls them, so a check that looks provider-backed is not silently role-backed.",
+    check: (context) => {
+      const provider = context.config.authorization;
+      const model = context.config.sql.modules.access?.model;
+      if (
+        provider === undefined ||
+        !context.config.sql.moduleNames.includes("access") ||
+        model === undefined ||
+        model === "provider"
+      )
+        return [];
+      const why = `sql.modules.access.model is "${model}", so it answers from the built-in roles, not ${providerLabel(provider)}. Remove the model to use the provider, or call the provider's function directly.`;
+      const findings: FindingInput[] = [];
+      for (const table of catalogOf(context).tables) {
+        for (const policy of table.policies) {
+          const calls = contractCalls(
+            `${policy.using ?? ""} ${policy.check ?? ""}`,
+          );
+          if (calls.length === 0) continue;
+          findings.push({
+            message: `Policy "${policy.name}" on ${qualified(table)} calls ${calls.join(" and ")}, but ${why}`,
+            target: `${qualified(table)}.${policy.name}`,
+            object: policyObject(table, policy),
+          });
+        }
+      }
+      for (const fn of context.snapshot.generator.functions) {
+        if (
+          fn.schema === "better_supabase" ||
+          !context.config.schemas.includes(fn.schema) ||
+          !fn.definition
+        )
+          continue;
+        const calls = contractCalls(fn.definition);
+        if (calls.length === 0) continue;
+        findings.push({
+          message: `${fn.schema}.${fn.name} calls ${calls.join(" and ")}, but ${why}`,
+          target: `${fn.schema}.${fn.name}`,
+        });
+      }
+      return findings;
+    },
+  },
+  {
+    code: "BS415",
+    severity: "warning",
+    title: "The provider sets the deprecated canApprove template",
+    description:
+      "`authorization.functions.isApprover` replaces `canApprove`: one eligibility check for tool calls, support sessions and the app's own approvals, with `{kind}` and `{subject}` instead of `{tool}`. 0.9 still reads `canApprove` when `isApprover` is unset, and drops it in a later minor release.",
+    check: (context) => {
+      const provider = context.config.authorization;
+      // oxlint-disable-next-line typescript/no-deprecated -- the rule reports the deprecated template
+      if (provider?.functions.canApprove === undefined) return [];
+      return [
+        {
+          message: `${providerLabel(provider)} sets authorization.functions.canApprove, which is deprecated. Set isApprover with {kind}, {subject} and {tenant}; {kind} is 'tool' and {subject} the tool name for AI tool calls.`,
+          target: "authorization.functions.canApprove",
+        },
+      ];
+    },
+  },
 ];
+
+const CONTRACT_CALL =
+  /\bbetter_supabase"?\s*\.\s*"?(can|tenant_ids_with)"?\s*\(/gi;
+
+/** The access contract functions `text` calls, outside string literals. */
+function contractCalls(text: string): string[] {
+  const names = new Set<string>();
+  for (const match of withoutStrings(text).matchAll(CONTRACT_CALL))
+    names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
+  return [...names].sort();
+}

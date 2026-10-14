@@ -680,3 +680,90 @@ describe("BS411", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS414", () => {
+  const withContractPolicy = (): Snapshot => {
+    const copy = structuredClone(toCatalog(base)) as {
+      -readonly [K in keyof Catalog]: Catalog[K];
+    };
+    const [first] = copy.tables;
+    copy.tables = [
+      {
+        ...first!,
+        policies: [
+          {
+            name: "members read",
+            command: "select",
+            roles: ["authenticated"],
+            permissive: true,
+            using:
+              "organization_id in (select better_supabase.tenant_ids_with('posts.read'))",
+            check: null,
+          },
+          {
+            name: "quoted text only",
+            command: "select",
+            roles: ["authenticated"],
+            permissive: true,
+            using: "note = 'better_supabase.can('",
+            check: null,
+          },
+        ],
+      },
+      ...copy.tables.slice(1),
+    ];
+    return fromCatalog(copy);
+  };
+
+  it("reports access contract calls when the config keeps built-in roles", async () => {
+    const result = await findings(
+      "BS414",
+      {
+        authorization: stubProvider,
+        sql: { modules: { tenant: {}, access: { model: "roles" } } },
+      },
+      { snapshot: withContractPolicy() },
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.severity).toBe("warning");
+    expect(result[0]!.message).toMatch(
+      /^Policy "members read" on \S+ calls better_supabase\.tenant_ids_with\(\),/,
+    );
+    expect(result[0]!.message).toContain('model is "roles"');
+  });
+
+  it("stays quiet under the provider model, without a provider or without access", async () => {
+    const snapshot = withContractPolicy();
+    for (const config of [
+      { authorization: stubProvider, sql: { modules: ["tenant", "access"] } },
+      { sql: { modules: { access: { model: "roles" as const } } } },
+      { authorization: stubProvider, sql: { modules: ["tenant"] } },
+    ]) {
+      expect(await findings("BS414", config, { snapshot })).toEqual([]);
+    }
+  });
+});
+
+describe("BS415", () => {
+  it("warns while the provider sets canApprove", async () => {
+    const provider: AuthorizationProvider = {
+      ...stubProvider,
+      functions: {
+        ...stubProvider.functions,
+        // oxlint-disable-next-line typescript/no-deprecated -- the template BS415 reports
+        canApprove: "authz.can_approve({tool}, {tenant}::text)",
+      },
+    };
+    const result = await findings("BS415", { authorization: provider });
+    expect(result).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authorization.functions.canApprove",
+      }),
+    ]);
+    expect(await findings("BS415", { authorization: stubProvider })).toEqual(
+      [],
+    );
+    expect(await findings("BS415", {})).toEqual([]);
+  });
+});

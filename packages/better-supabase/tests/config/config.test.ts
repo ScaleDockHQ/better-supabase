@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
+import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 describe("resolveJsonSchema", () => {
   const tuple = toStandardJsonSchema(v.tuple([v.string()]));
@@ -63,5 +64,46 @@ describe("resolveConfig specs", () => {
         "/app",
       ).specs,
     ).toEqual({ entry: "new.ts", outputs, failOn: "warning" });
+  });
+});
+
+describe("resolveConfig access model", () => {
+  it("defaults the access model to provider when authorization is set", () => {
+    const listed = resolveConfig(
+      { authorization: stubProvider, sql: { modules: ["tenant", "access"] } },
+      "/app",
+    ).sql;
+    expect(listed.modules.access?.model).toBe("provider");
+    expect(listed.moduleNames).toEqual(["tenant", "access"]);
+    const keyed = resolveConfig(
+      {
+        authorization: stubProvider,
+        sql: { modules: { access: { idType: "uuid" } } },
+      },
+      "/app",
+    ).sql.modules.access;
+    expect(keyed).toEqual({ idType: "uuid", model: "provider" });
+  });
+
+  it("keeps an explicit model, and roles without a provider", () => {
+    expect(
+      resolveConfig(
+        {
+          authorization: stubProvider,
+          sql: { modules: { access: { model: "roles" } } },
+        },
+        "/app",
+      ).sql.modules.access?.model,
+    ).toBe("roles");
+    expect(
+      resolveConfig({ sql: { modules: ["access"] } }, "/app").sql.modules
+        .access,
+    ).toBeUndefined();
+    expect(
+      resolveConfig(
+        { authorization: stubProvider, sql: { modules: ["tenant"] } },
+        "/app",
+      ).sql.modules,
+    ).toEqual({});
   });
 });

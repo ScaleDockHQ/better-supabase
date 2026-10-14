@@ -1,4 +1,5 @@
 import type { AuthorizationProvider } from "./authorization.ts";
+import type { ModulesConfig } from "./modules.ts";
 import type { Generator } from "./types/codegen.ts";
 import type { BetterSupabaseConfig, ResolvedConfig } from "./types/config.ts";
 import type {
@@ -67,13 +68,28 @@ function vectorSearchOf(
   );
 }
 
+/**
+ * With `authorization` set, the `access` module's model defaults to
+ * `provider`, so `can`, `tenant_ids_with` and every module check answer
+ * from the provider's templates instead of the built-in roles.
+ */
 function sqlModulesOf(
   config: SqlConfig["modules"] = [],
+  provider: boolean,
 ): Pick<ResolvedSqlConfig, "modules" | "moduleNames"> {
-  if (isModuleList(config)) {
-    return { modules: {}, moduleNames: config };
+  const modules: ModulesConfig = isModuleList(config) ? {} : config;
+  const moduleNames = isModuleList(config) ? config : Object.keys(config);
+  if (
+    !provider ||
+    !moduleNames.includes("access") ||
+    modules.access?.model !== undefined
+  ) {
+    return { modules, moduleNames };
   }
-  return { modules: config, moduleNames: Object.keys(config) };
+  return {
+    modules: { ...modules, access: { ...modules.access, model: "provider" } },
+    moduleNames,
+  };
 }
 
 function isModuleList(
@@ -204,7 +220,7 @@ export function resolveConfig(
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
-      ...sqlModulesOf(config.sql?.modules),
+      ...sqlModulesOf(config.sql?.modules, config.authorization !== undefined),
     },
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
