@@ -65,7 +65,12 @@ function setup() {
     env,
     auth: { jwks: signer.jwks as never },
     postgres,
-    support: supportSessions({ store, cookie: { secure: false } }),
+    support: supportSessions({
+      store,
+      cookie: { secure: false },
+      authorize: () => true,
+      policy: { approval: "none" },
+    }),
   });
   return { bs, store, claims };
 }

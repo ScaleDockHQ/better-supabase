@@ -254,6 +254,7 @@ export function createServer<
         betterSupabase.events,
         options.auth?.claims ?? betterSupabase.claimsSchema,
         betterSupabase.temporal,
+        options.authorization,
       )
     : supportOff;
 

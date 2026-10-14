@@ -95,13 +95,80 @@ describe("support-sessions module", () => {
         },
       },
     });
-    expect(sql).not.toContain("create table if not exists");
+    expect(sql).not.toContain(
+      'create table if not exists "better_supabase"."support_sessions"',
+    );
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."support_requests"',
+    );
     expect(sql).toContain(
       'insert into "public"."impersonation_sessions" ("impersonator_id", "target_user_id", "reason", "expires_at")',
     );
     expect(sql).toContain("'read_only', true,");
     expect(sql).toContain("'metadata', '{}'::jsonb");
     expect(sql).toContain('set "ended_at" = now()\n');
+  });
+
+  it("adopts the requests table without creating it", () => {
+    const sql = support({
+      mode: "adopt",
+      tables: {
+        sessions: "public.impersonation_sessions",
+        requests: "public.impersonation_requests",
+      },
+    });
+    expect(sql).not.toContain("create table if not exists");
+    expect(sql).toContain('from "public"."impersonation_requests" x');
+  });
+
+  it("needs a second admin by default, in a table that refuses self-approval", () => {
+    const sql = support();
+    expect(sql).toContain(
+      'constraint support_requests_distinct_approver check ("approved_by" <> "admin_id")',
+    );
+    expect(sql).toContain("hint = 'SUPPORT_APPROVAL_REQUIRED'");
+    expect(sql).toContain("hint = 'SUPPORT_SELF_APPROVAL'");
+    expect(sql).toContain('and x."approved_by" <> admin');
+    expect(sql).toContain(
+      'update "better_supabase"."support_requests" x set "session_id" = session_id where x."id" = approval_id;',
+    );
+    expect(sql).toContain("'request_id', approval_id, 'approved_by', approver");
+    expect(sql).toContain("now() + '1 hour'::interval");
+    // The requests table is read-only for clients: no insert or update grant.
+    expect(sql).toContain(
+      'revoke all on "better_supabase"."support_requests" from anon, authenticated;',
+    );
+    expect(sql).not.toMatch(/grant (insert|update)[^;]*support_requests/);
+    expect(sql).toContain(
+      `if not service and not "better_supabase"."is_platform"('support.start') then`,
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."approve_support_request"(uuid, uuid) to authenticated, service_role;',
+    );
+  });
+
+  it("starts without a second admin under approval none", () => {
+    const sql = support({
+      options: { approval: "none", approvalTtl: "15 minutes" },
+    });
+    expect(sql).not.toContain("SUPPORT_APPROVAL_REQUIRED");
+    expect(sql).not.toContain("approval_id");
+    expect(sql).toContain("now() + '15 minutes'::interval");
+  });
+
+  it("checks the approval option and the requests table", () => {
+    expect(() => support({ options: { approval: "self" } })).toThrow(
+      /options.approval must be distinct or none, not "self"/,
+    );
+    expect(() =>
+      support({ mode: "adopt", tables: { requests: null } }),
+    ).toThrow(/tables.requests is null/);
+    const sql = support({
+      mode: "adopt",
+      tables: { requests: null },
+      options: { approval: "none" },
+    });
+    expect(sql).not.toContain("request_support_session");
   });
 
   it("writes nothing in custom mode and checks claimsHook", () => {
@@ -123,6 +190,42 @@ describe("support-sessions module", () => {
       expect.arrayContaining(["access", "audit", "support-sessions"]),
     );
     expect(names.indexOf("support-sessions")).toBe(names.length - 1);
+  });
+});
+
+describe("support-sessions approvers from the provider", () => {
+  const withApprover = (isApprover?: string) =>
+    renderModules(["support-sessions"], {
+      modules: { access: { model: "provider" } },
+      accessProvider: {
+        ...moduleProvider,
+        functions: {
+          ...moduleProvider.functions,
+          ...(isApprover === undefined ? {} : { isApprover }),
+          // oxlint-disable-next-line typescript/no-deprecated -- canApprove covers tool calls only.
+          canApprove: "authz.can_approve({tool}, {tenant})",
+        },
+      },
+    }).find(
+      (file) => file.module === "support-sessions" && file.kind === "schema",
+    )!.contents;
+
+  it("asks isApprover with kind support-session and the request id", () => {
+    const sql = withApprover(
+      "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
+    );
+    expect(sql).toContain(
+      `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."organization_id", 'organization')), false) then`,
+    );
+    expect(sql).not.toContain("can_approve");
+  });
+
+  it("keeps the start permission without isApprover, never canApprove", () => {
+    const sql = withApprover();
+    expect(sql).not.toContain("can_approve");
+    expect(sql).toContain(
+      `if not service and not "better_supabase"."is_platform"('support.start') then`,
+    );
   });
 });
 

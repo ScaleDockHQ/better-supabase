@@ -100,6 +100,22 @@ A run is `queued`, `running`, `cancel_requested`, `completed`, `failed` or
 `FINAL_RUN_STATES` from `better-supabase/blocks` lists the three final
 ones.
 
+## Tool approvals
+
+`approvals.request` stores a tool call that waits for a decision in
+`ai_tool_approvals`, and `approvals.decide` records it through
+`decide_ai_tool_approval`. The service role may always decide. Otherwise
+the approval's owner, the user whose chat made the call, decides it.
+
+Under the `provider` [access model](/docs/blocks/access), the provider's
+[`isApprover`](/docs/extending/authorization-providers#approvals) template
+decides instead, with `{kind}` `'ai-tool'`, `{subject}` the tool's name and
+`{tenant}` the chat's tenant. The approval's owner is then always refused
+(`AI_APPROVAL_NOT_FOUND`), so a second person decides every call. A provider
+that still sets the deprecated `canApprove` is read when `isApprover` is
+unset, and there `approvals.distinctApprover: true` refuses the owner. The server side of the same check is the `approverOf`
+[runtime hook](/docs/extending/authorization-providers#runtime-hooks).
+
 ## Durable runs
 
 A run's `engine` is `ai-sdk` for an answer written inside the request and

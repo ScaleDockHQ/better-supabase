@@ -14,6 +14,8 @@ const notConfigured = <T>(): AsyncResult<T> =>
 /** `bs.support` without `ServerOptions.support`: every call fails. */
 export const supportOff: SupportApi = {
   start: notConfigured,
+  request: notConfigured,
+  approve: notConfigured,
   stop: notConfigured,
   revoke: notConfigured,
   current: () => Promise.resolve(undefined),

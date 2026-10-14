@@ -2,7 +2,6 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
-import { fillTemplate } from "../../core/access-sql.ts";
 import {
   canIn,
   raise,
@@ -11,7 +10,11 @@ import {
   userGrant,
   pageSize,
 } from "../shared.ts";
-import { accessModel } from "./access-model.ts";
+import {
+  AI_TOOL_APPROVAL,
+  type ApproverCheck,
+  approverCheck,
+} from "./approver.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
 export function approvalJson(names: AiChatNames, row: string): string {
@@ -34,54 +37,36 @@ function moderationJson(names: AiChatNames, row: string): string {
   return `jsonb_build_object('id', ${row}.${md.id}, 'organization_id', ${row}.${md.tenant}, 'chat_id', ${row}.${md.chat}, 'message_id', ${row}.${md.message}, 'user_id', ${row}.${md.user}, 'stage', ${row}.${md.stage}, 'category', ${row}.${md.category}, 'score', ${row}.${md.score}, 'action', ${row}.${md.action}, 'created_at', ${row}.${md.createdAt})`;
 }
 
-/** The provider's `canApprove` and `approvals`, when the `provider` access model decides. */
-function approvalProvider(
+/** The provider's approver check for a waiting tool call, whose subject is the tool name. */
+function toolApprover(
   ctx: ModuleContext,
+  names: AiChatNames,
   layout: ModuleLayout,
-):
-  | {
-      readonly scope: string;
-      readonly canApprove: string;
-      readonly distinct: boolean;
-    }
-  | undefined {
-  const provider = layout.accessProvider;
-  // oxlint-disable-next-line typescript/no-deprecated -- read until every provider sets isApprover.
-  const canApprove = provider?.functions.canApprove;
-  if (canApprove === undefined || accessModel(ctx) !== "provider")
-    return undefined;
-  return {
-    scope: provider!.scope,
-    canApprove,
-    distinct: provider!.approvals?.distinctApprover === true,
-  };
+): ApproverCheck | undefined {
+  const a = names.c.approvals;
+  const ch = names.c.chats;
+  return approverCheck(ctx, layout, {
+    kind: AI_TOOL_APPROVAL,
+    subject: `v_row.${a.tool}`,
+    tenant: `(select c.${ch.tenant} from ${names.t.chats} c where c.${ch.id} = v_row.${a.chat})`,
+  });
 }
 
 /**
  * Who may decide a waiting tool call besides the service role: a user the
- * provider's `canApprove` allows (never the requester with
- * `approvals.distinctApprover`), else the chat's owner.
+ * provider's approver check allows (never the chat's owner when the check
+ * is distinct), else the chat's owner.
  */
 function approver(
   names: AiChatNames,
-  provider: ReturnType<typeof approvalProvider>,
+  check: ApproverCheck | undefined,
 ): string {
   const a = names.c.approvals;
-  const ch = names.c.chats;
-  if (provider === undefined) return `v_row.${a.owner} = (select auth.uid())`;
-  const check = fillTemplate(
-    "authorization.functions.canApprove",
-    provider.canApprove,
-    {
-      scope: provider.scope,
-      tenant: `(select c.${ch.tenant} from ${names.t.chats} c where c.${ch.id} = v_row.${a.chat})`,
-      tool: `v_row.${a.tool}`,
-    },
-  );
-  const distinct = provider.distinct
+  if (check === undefined) return `v_row.${a.owner} = (select auth.uid())`;
+  const distinct = check.distinct
     ? `v_row.${a.owner} is distinct from (select auth.uid()) and `
     : "";
-  return `(select auth.uid()) is not null and ${distinct}coalesce((${check}), false)`;
+  return `(select auth.uid()) is not null and ${distinct}coalesce((${check.sql}), false)`;
 }
 
 function approvals(
@@ -96,7 +81,7 @@ function approvals(
   const po = names.c.policies;
   const i = names.c.inputs;
   const can = canIn;
-  const provider = approvalProvider(ctx, layout);
+  const provider = toolApprover(ctx, names, layout);
   const serviceOnly = raise(
     "Only the server records this",
     "42501",
@@ -170,7 +155,7 @@ end;
 $$;
 ${serviceGrant(`${fn("record_ai_tool_approval")}(uuid, jsonb)`)}
 
--- Approves or denies a waiting tool call, once; the service role or ${provider === undefined ? "the chat's owner" : `a user the authorization provider's canApprove allows${provider.distinct ? " other than the chat's owner" : ""}`}.
+-- Approves or denies a waiting tool call, once; the service role or ${provider === undefined ? "the chat's owner" : `a user the authorization provider's ${provider.template} allows${provider.distinct ? " other than the chat's owner" : ""}`}.
 -- Repeating the same decision returns the row.
 create or replace function ${fn("decide_ai_tool_approval")}(approval_id text, approved boolean, reason text default null)
 returns jsonb
