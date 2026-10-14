@@ -26,6 +26,7 @@ Each block that is installed adds its action:
 | `tags.set`                | [Tags](/docs/blocks/tags)                   | `{ add?: tagIds, remove?: tagIds }`     |
 | `stateMachine.transition` | [State machine](/docs/blocks/state-machine) | `{ to, reason? }`                       |
 | `relations.link`          | [Relations](/docs/blocks/relations)         | `{ kind, targetType, targetId, data? }` |
+| `trash.trash`             | [Trash](/docs/blocks/trash)                 | none (`{}`)                             |
 
 An app adds its own actions in `options.actions`, each a function that
 takes `(tenant, subject_type, subject_id, args jsonb)` and raises with a

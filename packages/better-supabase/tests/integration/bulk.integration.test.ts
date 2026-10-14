@@ -15,7 +15,11 @@ import {
 const live = await reachable();
 
 const layout: ModuleLayout = {
+  subjects: {
+    task: { table: "bulk_it.tasks", idType: "uuid", deletedAt: "deleted_at" },
+  },
   modules: {
+    trash: { schema: "bulk_it", options: { subjects: { task: {} } } },
     relations: {
       schema: "bulk_it",
       options: {
@@ -67,7 +71,8 @@ create table bulk_it.tasks (
   organization_id uuid not null,
   locked boolean not null default false,
   label text,
-  archived_by uuid
+  archived_by uuid,
+  deleted_at timestamptz
 );
 alter table bulk_it.tasks enable row level security;
 create policy tasks_all on bulk_it.tasks for all to authenticated using (true) with check (true);
@@ -85,7 +90,7 @@ end;
 $$;
 grant execute on function bulk_it.archive_task(uuid, text, text, jsonb) to authenticated;`);
     await db.install(
-      ["organizations", "outbox", "jobs", "relations", "bulk"],
+      ["organizations", "outbox", "jobs", "relations", "trash", "bulk"],
       layout,
     );
     owner = await db.user("owner");
@@ -167,6 +172,21 @@ from generate_series(1, 9) n;`);
       `bulk_it.descendants('${org}', 'parent', 'task', '${task(9)}')`,
     );
     expect(children).toHaveLength(2);
+  });
+
+  it("trashes rows through the trash block", async () => {
+    await db.as(owner);
+    const result = await db.value<Applied>(apply("trash.trash", ids(7, 7)));
+    expect(result.succeeded).toBe(1);
+    expect(result.results[1]?.error?.code).toBe("TRASH_NOT_FOUND");
+    expect(
+      await db.value<boolean>(`bulk_it.is_trashed('task', '${task(7)}')`),
+    ).toBe(true);
+    await db.service();
+    const items = await db.rows<{ id: string }>(
+      `select id from bulk_it.trash_items where subject_id = '${task(7)}'`,
+    );
+    await db.value(`bulk_it.restore_trash('${items[0]?.id ?? ""}')`);
   });
 
   it("runs a background run in steps as the user who started it", async () => {

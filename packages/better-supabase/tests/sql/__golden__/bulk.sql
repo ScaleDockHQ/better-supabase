@@ -361,6 +361,8 @@ begin
       perform "better_supabase"."transition"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');
     when 'relations.link' then
       perform "better_supabase"."link"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');
+    when 'trash.trash' then
+      perform "better_supabase"."trash"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);
     else
       raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end case;
@@ -388,7 +390,7 @@ begin
   if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
-  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link'])) then
+  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash'])) then
     raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end if;
   if cardinality(v_chunk) > 500 then
@@ -430,7 +432,7 @@ begin
   if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
-  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link'])) then
+  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash'])) then
     raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end if;
   if v_total > 100000 then

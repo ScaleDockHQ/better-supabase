@@ -16,9 +16,12 @@ describe("bulk module", () => {
     const bare = sqlOf();
     expect(bare).toContain("array[]::text[]");
     expect(bare).not.toContain("'tags.set'");
-    const full = sqlOf(["bulk", "tags", "state-machine", "relations"]);
+    const full = sqlOf(["bulk", "tags", "state-machine", "relations", "trash"]);
     expect(full).toContain(
-      "array['tags.set', 'stateMachine.transition', 'relations.link']",
+      "array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash']",
+    );
+    expect(full).toContain(
+      'perform "better_supabase"."trash"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);',
     );
     expect(full).toContain("when 'tags.set' then");
     expect(full).toContain('perform "better_supabase"."transition"(');

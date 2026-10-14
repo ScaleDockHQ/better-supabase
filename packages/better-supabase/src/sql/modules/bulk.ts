@@ -23,6 +23,7 @@ export const BULK_ACTIONS = {
   "tags.set": "tags",
   "stateMachine.transition": "state-machine",
   "relations.link": "relations",
+  "trash.trash": "trash",
 } as const;
 
 const ACTION_NAME: RegExp = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*$/;
@@ -114,6 +115,10 @@ function dispatch(
   if (ctx.installed("relations")) {
     arms.push(`    when 'relations.link' then
       perform ${ctx.of("relations").fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`);
+  }
+  if (ctx.installed("trash")) {
+    arms.push(`    when 'trash.trash' then
+      perform ${ctx.of("trash").fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`);
   }
   for (const [name, target] of custom) {
     arms.push(`    when ${sqlString(name)} then
@@ -396,7 +401,7 @@ export const BULK: ModuleDefinition = {
   description:
     "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
   requires: ["tenant", "access"],
-  integrates: ["jobs", "outbox", "tags", "state-machine", "relations"],
+  integrates: ["jobs", "outbox", "tags", "state-machine", "relations", "trash"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

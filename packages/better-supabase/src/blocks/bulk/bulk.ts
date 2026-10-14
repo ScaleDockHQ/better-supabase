@@ -14,7 +14,8 @@ import {
 export type BuiltInBulkAction =
   | "tags.set"
   | "stateMachine.transition"
-  | "relations.link";
+  | "relations.link"
+  | "trash.trash";
 
 /** Arguments per built-in action; an app's own actions take any object. */
 export interface BulkActionArgs {
@@ -32,6 +33,7 @@ export interface BulkActionArgs {
     readonly targetId: string;
     readonly data?: Readonly<Record<string, unknown>>;
   };
+  readonly "trash.trash": Readonly<Record<string, never>>;
 }
 
 type ArgsOf<A extends string> = A extends keyof BulkActionArgs
