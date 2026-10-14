@@ -22,6 +22,12 @@ export interface NotificationSendResult {
   readonly provider?: string;
   /** The provider's id for the message, kept for support and webhooks. */
   readonly providerMessageId?: string;
+  /**
+   * The template the message was built from, e.g. `task-assigned-v2`,
+   * stored on the delivery for `subjectDeliveries`. Needs notifications
+   * module version 6.
+   */
+  readonly templateKey?: string;
 }
 
 /**

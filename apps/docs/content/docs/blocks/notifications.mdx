@@ -387,16 +387,19 @@ The idempotency key is the delivery id, so a retried delivery reaches the
 provider under the same key and sends one email. Passing `email` next to a
 channel named `email` throws.
 
-| Option        | Use                                                                                                      |
-| ------------- | -------------------------------------------------------------------------------------------------------- |
-| `transport`   | The `DeliveryTransport` that sends the mail                                                              |
-| `from`        | The sender, e.g. `Acme <notifications@acme.com>`                                                         |
-| `replyTo`     | An optional reply address                                                                                |
-| `compose`     | `(message) => ({ subject, text?, html?, replyTo?, category? })`; defaults to the rendered title and body |
-| `unsubscribe` | `(message) => ({ url?, mailto? })`: your signed unsubscribe link for notification mail                   |
+| Option        | Use                                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `transport`   | The `DeliveryTransport` that sends the mail                                                                            |
+| `from`        | The sender, e.g. `Acme <notifications@acme.com>`                                                                       |
+| `replyTo`     | An optional reply address                                                                                              |
+| `compose`     | `(message) => ({ subject, text?, html?, replyTo?, category?, templateKey? })`; defaults to the rendered title and body |
+| `unsubscribe` | `(message) => ({ url?, mailto? })`: your signed unsubscribe link for notification mail                                 |
 
 A recipient without an email address is skipped. Without `compose`, the
 block needs `render`, and a notification it can't render fails its delivery.
+A `templateKey` from `compose` (for example `assigned-v2`) is stored on the
+delivery's `template_key` column, so you can tell which template a sent
+email used.
 
 `resendTransport({ apiKey })` posts to `https://api.resend.com/emails` with
 `fetch` and the delivery id in the `Idempotency-Key` header. Read the key
@@ -474,8 +477,9 @@ RLS lets users read their own rows; only the service role writes them.
 already suppressed; the first reason stays. `unsuppress` returns whether a
 row was removed.
 
-`resendWebhook` writes the suppressions from Resend's bounce and complaint
-events. It verifies the Svix signature (`svix-id`, `svix-timestamp`,
+`resendWebhook` records every delivery status Resend reports (see
+[Delivery tracking](#delivery-tracking)) and writes the suppressions from
+its bounce and complaint events. It verifies the Svix signature (`svix-id`, `svix-timestamp`,
 `svix-signature`, or the `webhook-` names) with the endpoint's signing
 secret, and answers 204:
 
@@ -500,17 +504,69 @@ export const POST = resendWebhook({
 });
 ```
 
-| Resend event                                 | Suppression                |
-| -------------------------------------------- | -------------------------- |
-| `email.bounced`, bounce type not `Transient` | `bounce`, per recipient    |
-| `email.complained`                           | `complaint`, per recipient |
-| Anything else, or a `Transient` bounce       | None                       |
+| Resend event                                 | Delivery event | Suppression                |
+| -------------------------------------------- | -------------- | -------------------------- |
+| `email.delivered`                            | `delivered`    | None                       |
+| `email.delivery_delayed`                     | `delayed`      | None                       |
+| `email.opened`                               | `opened`       | None                       |
+| `email.clicked`                              | `clicked`      | None                       |
+| `email.bounced`, bounce type not `Transient` | `bounced`      | `bounce`, per recipient    |
+| `email.bounced`, bounce type `Transient`     | `bounced`      | None                       |
+| `email.complained`                           | `complained`   | `complaint`, per recipient |
+| Anything else                                | None           | None                       |
 
 A bad signature answers 401, a body over `maxBodyBytes` (256 KiB) 413, and a
 method other than `POST` 405. A failed write answers with its problem, so
 Resend retries the event. Pass `seen` to refuse a replayed message id, and
-an array of secrets while rotating. `resendSuppressions(event, id)` maps an
-event without the handler, e.g. from a queue.
+an array of secrets while rotating. `resendDeliveryEvent(event, id)` and
+`resendSuppressions(event, id)` map an event without the handler, e.g. from
+a queue.
+
+#### Delivery tracking
+
+`notification_delivery_events` keeps what the provider reports after a send:
+one row per event, with the delivery, a `kind` (`delivered`, `opened`,
+`clicked`, `bounced`, `complained` or `delayed`), the provider's event id
+(unique, so a retried webhook writes one row), `occurred_at` and a `detail`
+object. The delivery itself gets `provider_status` and `provider_status_at`,
+which only move forward: an `opened` that arrives after a `clicked` is stored
+as an event but leaves the status at `clicked`.
+
+`recordDeliveryEvent` finds the delivery by `provider` and
+`providerMessageId` and calls `record_delivery_event`, which only the
+service role can run. A hard bounce or a complaint also suppresses the
+address through `suppress_notification_address`, unless you pass
+`suppress: false`. A new event emits `notification.<kind>` with the
+notification's subject (`subjectType`, `subjectId`), through the outbox in
+SQL and on `betterSupabase.events` in TypeScript. It returns `null` when no
+delivery has that message id, and `recorded: false` for an event id it has
+already stored.
+
+```ts
+await notifications
+  .recordDeliveryEvent({
+    provider: "postmark",
+    providerMessageId: event.MessageID,
+    kind: "bounced",
+    providerEventId: String(event.ID),
+    occurredAt: Temporal.Instant.from(event.BouncedAt),
+    detail: { type: event.Type },
+  })
+  .orThrow();
+```
+
+`subjectDeliveries({ subject, tenant?, limit? })` calls
+`list_subject_deliveries` and lists the deliveries of every notification
+about one record, newest first, each with its status, provider status,
+template key and events. The service role can always read it; with the
+access module installed, a member with `notifications.send` in the
+organization can too. Use it to show "sent, opened, bounced" next to a deal
+or an invoice.
+
+| Method                                          | SQL                       | Who                      |
+| ----------------------------------------------- | ------------------------- | ------------------------ |
+| `recordDeliveryEvent(input)`                    | `record_delivery_event`   | service role             |
+| `subjectDeliveries({ subject, tenant, limit })` | `list_subject_deliveries` | service role, or senders |
 
 #### Other providers
 
@@ -560,8 +616,9 @@ with `@aws-sdk/client-sesv2` and pass the headers in
 `Content.Simple.Headers`; SES has no idempotency key either. For SMTP, send
 with `nodemailer` from a Node.js runtime, with the headers in `headers` and
 the delivery id as the `Message-ID` local part, so a retry repeats the same
-id. Point the provider's bounce and complaint notifications at a route that
-calls `notifications.suppress` with the service connection.
+id. Point the provider's delivery webhooks at a route that calls
+`notifications.recordDeliveryEvent` with the service connection; it
+suppresses hard bounces and complaints for you.
 
 ## From outbox events
 
@@ -644,7 +701,7 @@ events come from a relay or a broker rather than from the outbox itself.
 | `hooks` option                  | Refuses, rewrites or observes any method in TypeScript, e.g. quiet hours on `send`; see [Extending blocks](/docs/extending/blocks#hooks) |
 | `audience` option               | Narrows who `deliver` sends to; see [Audience](#audience)                                                                                |
 | `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`                                                                 |
-| `notification.*` block events   | `created`, `delivered` and `failed` on `betterSupabase.events`                                                                           |
+| `notification.*` block events   | `created`, `delivered`, `failed`, and the provider's `opened`, `clicked`, `bounced`, `complained` and `delayed`, with the subject        |
 | `notifications.send` permission | Rename it with `sql.modules.notifications.permissions.send`                                                                              |
 
 ## Existing tables
@@ -652,10 +709,12 @@ events come from a relay or a broker rather than from the outbox itself.
 The managed tables are `notification_events` (with `type`, `data` and
 `actor_id`), `notification_recipients` (keyed on `user_id`),
 `notification_deliveries`, `notification_subscriptions`,
-`notification_preferences`, keyed on `organization_id`, and
-`notification_suppressions`. Adopt yours and rename what differs; map
-columns and tables you don't have to `null`. An adopted module honours
-suppressions only when `tables.suppressions` names your table:
+`notification_preferences`, keyed on `organization_id`,
+`notification_suppressions` and `notification_delivery_events`. Adopt yours
+and rename what differs; map columns and tables you don't have to `null`. An
+adopted module honours suppressions only when `tables.suppressions` names
+your table, and tracks delivery events only when `tables.deliveryEvents`
+does (its `provider_event_id` must be unique):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -702,3 +761,5 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |
 | `NOTIFICATION_SUPPRESSION_ADDRESS` | `suppress` without an address                                       |
 | `NOTIFICATION_SUPPRESSION_REASON`  | A suppression reason other than `bounce`, `complaint` or `manual`   |
+| `NOTIFICATION_DELIVERY_EVENT_KIND` | `recordDeliveryEvent` with a kind the block doesn't know            |
+| `NOTIFICATION_DELIVERY_MESSAGE_ID` | `recordDeliveryEvent` without a provider message id                 |

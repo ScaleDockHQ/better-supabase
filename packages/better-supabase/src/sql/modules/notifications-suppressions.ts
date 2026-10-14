@@ -9,7 +9,7 @@ import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
  * needs the table mapped explicitly, so an adopter that predates it keeps
  * installing.
  */
-const suppressing = (ctx: ModuleContext): boolean =>
+export const suppressing = (ctx: ModuleContext): boolean =>
   ctx.hasTable("deliveries") &&
   ctx.hasTable("suppressions") &&
   (ctx.manages || ctx.config.tables["suppressions"] !== undefined);

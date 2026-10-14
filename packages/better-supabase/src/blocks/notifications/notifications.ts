@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
 import type {
+  DeliveryEventKind,
   ListOptions,
   NotificationActor,
   NotificationOf,
@@ -12,9 +13,11 @@ import type {
   NotificationUpdate,
   Notifications,
   NotificationsOptions,
+  RecordedDeliveryEvent,
   Rendered,
   SendInput,
   SentNotification,
+  SubjectDelivery,
   SuppressionReason,
   TypeName,
 } from "./api-types.ts";
@@ -23,7 +26,8 @@ import type { NotificationItem } from "./types.ts";
 
 import {
   blockEmitter,
-  type NotificationEventData,
+  type BlockEventMap,
+  type NotificationDeliveryEventData,
 } from "../../core/block-events.ts";
 import { budget, toBlockError } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -63,6 +67,96 @@ const SUPPRESSION_REASONS: readonly SuppressionReason[] = [
   "complaint",
   "manual",
 ];
+
+const DELIVERY_EVENT_KINDS: readonly DeliveryEventKind[] = [
+  "delivered",
+  "opened",
+  "clicked",
+  "bounced",
+  "complained",
+  "delayed",
+];
+
+const DELIVERY_STATUSES: readonly SubjectDelivery["status"][] = [
+  "pending",
+  "sent",
+  "failed",
+  "skipped",
+];
+
+const kindOf = (value: unknown): DeliveryEventKind | null =>
+  DELIVERY_EVENT_KINDS.find((kind) => kind === value) ?? null;
+
+const recordedOf = (value: unknown): RecordedDeliveryEvent | null => {
+  if (!isRecord(value)) return null;
+  const kind = kindOf(value["kind"]);
+  if (kind === null) return null;
+  return {
+    deliveryId: String(value["delivery_id"]),
+    notificationId: String(value["notification_id"]),
+    tenant: nullableText(value["tenant"]),
+    type: String(value["type"]),
+    channel: String(value["channel"]),
+    userId: nullableText(value["user_id"]),
+    subject: {
+      type: String(value["subject_type"]),
+      id: String(value["subject_id"]),
+    },
+    kind,
+    providerStatus: kindOf(value["provider_status"]),
+    recorded: value["recorded"] === true,
+  };
+};
+
+const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
+  id: String(row["id"]),
+  notificationId: String(row["notification_id"]),
+  type: String(row["type"]),
+  channel: String(row["channel"]),
+  userId: String(row["user_id"]),
+  status:
+    DELIVERY_STATUSES.find((status) => status === row["status"]) ?? "pending",
+  provider: nullableText(row["provider"]),
+  providerMessageId: nullableText(row["provider_message_id"]),
+  providerStatus: kindOf(row["provider_status"]),
+  providerStatusAt: nullableInstant(row["provider_status_at"]),
+  templateKey: nullableText(row["template_key"]),
+  error: nullableText(row["error"]),
+  attempts: typeof row["attempts"] === "number" ? row["attempts"] : null,
+  createdAt: nullableInstant(row["created_at"]),
+  deliveredAt: nullableInstant(row["delivered_at"]),
+  events: (Array.isArray(row["events"]) ? row["events"] : [])
+    .filter(isRecord)
+    .flatMap((event) => {
+      const kind = kindOf(event["kind"]);
+      return kind === null
+        ? []
+        : [
+            {
+              kind,
+              occurredAt: nullableInstant(event["occurred_at"]),
+              detail: isRecord(event["detail"]) ? event["detail"] : {},
+            },
+          ];
+    }),
+});
+
+/** The data of `notification.delivered` and `notification.failed` for one delivery. */
+const deliveryData = (
+  message: NotificationMessage,
+  channel: string,
+): NotificationDeliveryEventData => {
+  const notification = message.notification;
+  return {
+    notificationId: notification.eventId,
+    organizationId: notification.tenant,
+    type: notification.type,
+    channel,
+    deliveryId: message.deliveryId,
+    subjectType: notification.subject?.type ?? "notification",
+    subjectId: notification.subject?.id ?? notification.eventId,
+  };
+};
 
 interface Claimed {
   readonly message: NotificationMessage;
@@ -113,14 +207,11 @@ export function createNotifications<
 
   const emitEvent = blockEmitter(options);
 
-  function emit(
-    type:
+  function emit<
+    T extends
       | "notification.created"
-      | "notification.delivered"
-      | "notification.failed",
-    data: NotificationEventData,
-    tenant: string | null,
-  ): void {
+      | `notification.${DeliveryEventKind | "failed"}`,
+  >(type: T, data: BlockEventMap[T], tenant: string | null): void {
     emitEvent(type, data, `notifications/${data.notificationId}`, tenant);
   }
 
@@ -283,12 +374,7 @@ export function createNotifications<
     });
     emit(
       "notification.failed",
-      {
-        notificationId: message.notification.eventId,
-        type: message.notification.type,
-        channel: channel.name,
-        error,
-      },
+      { ...deliveryData(message, channel.name), error },
       message.notification.tenant,
     );
     return "failed";
@@ -373,15 +459,14 @@ export function createNotifications<
         status,
         provider: result?.provider ?? null,
         provider_message_id: result?.providerMessageId ?? null,
+        ...(result?.templateKey === undefined
+          ? {}
+          : { template_key: result.templateKey }),
       });
       if (status === "sent") {
         emit(
           "notification.delivered",
-          {
-            notificationId: notification.eventId,
-            type: notification.type,
-            channel: channel.name,
-          },
+          deliveryData(message, channel.name),
           notification.tenant,
         );
       }
@@ -720,6 +805,55 @@ export function createNotifications<
                     },
                   ];
             }),
+      );
+    },
+    recordDeliveryEvent(input) {
+      return run(
+        "record_delivery_event",
+        {
+          provider: input.provider,
+          provider_message_id: input.providerMessageId,
+          kind: input.kind,
+          provider_event_id: input.providerEventId ?? null,
+          occurred_at: input.occurredAt?.toString() ?? null,
+          detail: input.detail ?? {},
+          suppress: input.suppress ?? null,
+        },
+        recordedOf,
+      ).map((recorded) => {
+        if (recorded?.recorded === true) {
+          emit(
+            `notification.${recorded.kind}`,
+            {
+              notificationId: recorded.notificationId,
+              organizationId: recorded.tenant,
+              type: recorded.type,
+              channel: recorded.channel,
+              deliveryId: recorded.deliveryId,
+              provider: input.provider,
+              providerEventId: input.providerEventId ?? null,
+              subjectType: recorded.subject.type,
+              subjectId: recorded.subject.id,
+            },
+            recorded.tenant,
+          );
+        }
+        return recorded;
+      });
+    },
+    subjectDeliveries(deliveryOptions) {
+      return run(
+        "list_subject_deliveries",
+        {
+          subject_type: deliveryOptions.subject.type,
+          subject_id: deliveryOptions.subject.id,
+          tenant: deliveryOptions.tenant ?? null,
+          max_items: deliveryOptions.limit ?? 50,
+        },
+        (value) =>
+          (Array.isArray(value) ? value : [])
+            .filter(isRecord)
+            .map(subjectDeliveryOf),
       );
     },
     sink(sinkOptions) {

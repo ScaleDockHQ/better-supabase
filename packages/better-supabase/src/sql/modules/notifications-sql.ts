@@ -18,6 +18,10 @@ import {
   claimSuppression,
   suppressionFunctions,
 } from "./notifications-suppressions.ts";
+import {
+  keepsTemplateKey,
+  trackingFunctions,
+} from "./notifications-tracking.ts";
 import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
@@ -858,6 +862,12 @@ function delivery(ctx: ModuleContext, n: NotifyNames): string {
     );
   if (n.has("deliveries", "error"))
     set.push(`${d("error")} = complete_notification_delivery.error`);
+  const templateKey = keepsTemplateKey(ctx);
+  if (templateKey)
+    set.push(
+      `${d("templateKey")} = coalesce(complete_notification_delivery.template_key, d.${d("templateKey")})`,
+    );
+  const completeArgs = `uuid, text, text, text, text, integer${templateKey ? ", text" : ""}`;
   if (n.has("deliveries", "deliveredAt"))
     set.push(
       `${d("deliveredAt")} = case when v_status = 'sent' then now() else d.${d("deliveredAt")} end`,
@@ -896,6 +906,7 @@ function delivery(ctx: ModuleContext, n: NotifyNames): string {
   return `
 drop function if exists ${ctx.fn("claim_notification_deliveries")}(text, integer, interval);
 drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text);
+drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer${templateKey ? "" : ", text"});
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function ${ctx.fn("claim_notification_deliveries")}(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -943,8 +954,8 @@ $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function ${ctx.fn("complete_notification_delivery")}(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead.${templateKey ? " template_key\n-- names the template the channel composed, for list_subject_deliveries." : ""}
+create or replace function ${ctx.fn("complete_notification_delivery")}(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5${templateKey ? ", template_key text default null" : ""})
 returns text
 language plpgsql
 security definer
@@ -964,8 +975,8 @@ end;
 $$;
 revoke execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) to service_role;
-revoke execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer) to service_role;`;
+revoke execute on function ${ctx.fn("complete_notification_delivery")}(${completeArgs}) from public, anon, authenticated;
+grant execute on function ${ctx.fn("complete_notification_delivery")}(${completeArgs}) to service_role;`;
 }
 
 /** Deletes up to batch notifications older than older_than, with their recipients and deliveries. */
@@ -1011,6 +1022,7 @@ export function functions(
     readers(ctx, n),
     delivery(ctx, n),
     suppressionFunctions(ctx, n),
+    trackingFunctions(ctx, n),
     purge(ctx, n),
   ].join("\n");
 }
