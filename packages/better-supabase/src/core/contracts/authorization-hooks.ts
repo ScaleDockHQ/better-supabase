@@ -124,8 +124,10 @@ export interface AutomationHooks {
 
 /**
  * Turns an opaque run ticket back into the context a job or a workflow step
- * runs as. `null` refuses the ticket (expired, revoked, or for a principal
- * that is gone), and the run fails instead of running as anyone else.
+ * runs as. `null` or a throw refuses the ticket (expired, revoked, or for a
+ * principal that is gone), and the run fails instead of running as anyone
+ * else. The ticket is stored in plain text as a run attribute, so it is an
+ * id the provider looks up, never a bearer secret.
  */
 export type TicketSubject = (
   ticket: string,
