@@ -1,7 +1,8 @@
 -- The organizations and invitations modules on the fixture's memberships and
--- access contract (supabase/schemas/041_memberships.sql and
--- 045_access_contract.sql). The admin owns Acme (…0001) and is a member of
--- Globex (…0002); the member belongs to Acme only (supabase/seed.sql).
+-- access contract (supabase/schemas/public/tables/memberships.sql and
+-- supabase/schemas/better_supabase/functions). The admin owns Acme (…0001)
+-- and is a member of Globex (…0002); the member belongs to Acme only
+-- (supabase/seed.sql).
 begin;
 select plan(19);
 

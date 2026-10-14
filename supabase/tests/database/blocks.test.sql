@@ -1,5 +1,5 @@
 -- The api-keys, settings and comments modules over the fixture's access
--- contract (supabase/schemas/045_access_contract.sql): the admin
+-- contract (supabase/schemas/better_supabase/functions): the admin
 -- (…00a1) and the member (…00a2) of Acme (…0001), never Globex (…0002).
 begin;
 select plan(26);

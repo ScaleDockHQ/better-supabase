@@ -59,7 +59,7 @@ const publishableKey =
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 
 const FIXTURE_SEARCH = new URL(
-  "../../../../supabase/schemas/900_better_supabase_70_search.sql",
+  "../../../../supabase/schemas/_better_supabase/900_better_supabase_70_search.sql",
   import.meta.url,
 );
 const ACME = "00000000-0000-4000-8000-000000000001";

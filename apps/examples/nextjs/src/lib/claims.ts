@@ -42,7 +42,7 @@ const Memberships = v.fallback(
 /**
  * The claims the servers validate on every request (`betterSupabase.claims(Claims)`),
  * in the claim contract better-supabase reads. The custom access token hook
- * (supabase/schemas/040_rbac.sql) writes `memberships` and `features`;
+ * (supabase/schemas/rbac/functions/custom_access_token_hook.sql) writes `memberships` and `features`;
  * `tenant_id` in `app_metadata` is the active organization, which
  * `switch_organization` changes.
  *
