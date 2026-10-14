@@ -4,14 +4,13 @@ import type { Now } from "./migrations.ts";
 
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
-import { migrationCommand, readSupabaseToml } from "../supabase-toml.ts";
 import { type SqlFlags, USAGE } from "./args.ts";
 import {
   layoutFor,
   MEMBERSHIP_CLAIM_MODULES,
   providerOwnsMemberships,
 } from "./providers.ts";
-import { unlistedModuleFiles, write } from "./write.ts";
+import { nextStep, unlistedModuleFiles, write } from "./write.ts";
 
 export async function addModules(
   config: ResolvedConfig,
@@ -81,9 +80,6 @@ export async function addModules(
   }
   if (args["dry-run"] !== true)
     lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
-  lines.push(
-    "",
-    `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_module")}`,
-  );
+  lines.push("", await nextStep(config));
   return { code: 0, output: lines.join("\n") };
 }

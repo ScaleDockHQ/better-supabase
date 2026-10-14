@@ -24,7 +24,21 @@ export interface BucketConfig {
   readonly lifecycle?: BucketLifecycle;
 }
 
+/**
+ * How the SQL modules reach the database: `pg-delta` (Supabase Declarative
+ * Schemas 2.0, `supabase db schema declarative sync`), `migra` (declarative
+ * schemas 1.0, `supabase db diff`) or `migrations` (no declarative schemas:
+ * the `sql` commands write the modules into a migration).
+ */
+export type SqlWorkflow = "pg-delta" | "migra" | "migrations";
+
 export interface SqlConfig {
+  /**
+   * The workflow. Unset, better-supabase reads `supabase/config.toml`:
+   * pg-delta when it enables it or nothing says otherwise, migra when it
+   * turns pg-delta off or the project keeps migra's declarative schemas.
+   */
+  readonly workflow?: SqlWorkflow;
   /** Directory declarative schema files are written to. */
   readonly dir?: string;
   /** File name prefix, so generated files sort after yours. */
@@ -41,6 +55,8 @@ export interface SqlConfig {
 
 /** `sql` with defaults applied: settings per module, and their names in order. */
 export interface ResolvedSqlConfig {
+  /** Unset when the config leaves it to `supabase/config.toml`. */
+  readonly workflow?: SqlWorkflow;
   readonly dir: string;
   readonly prefix: string;
   readonly testsDir: string;

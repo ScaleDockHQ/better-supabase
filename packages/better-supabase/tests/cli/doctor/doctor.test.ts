@@ -1305,7 +1305,7 @@ uri = "https://example.com/hook"
           .split("\n")
           .at(1),
       ).toBe(
-        "-- Add this to the schema file that defines the function, then run `supabase db schema declarative sync`.",
+        "-- Add to the schema file that defines the function, then run `supabase db schema declarative sync`.",
       );
     });
 

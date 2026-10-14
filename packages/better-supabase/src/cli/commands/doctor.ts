@@ -28,6 +28,7 @@ import {
   runRules,
   type TextFile,
 } from "../doctor/rules.ts";
+import { workflowOf } from "../doctor/shared.ts";
 import { errorText } from "../errors.ts";
 import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
@@ -37,9 +38,9 @@ import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
 import {
-  diffEngine,
   findRepoRoot,
   readSupabaseToml,
+  sqlWorkflow,
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
@@ -225,7 +226,11 @@ export async function runDoctor(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
     readSupabaseToml(config.root).then(
-      async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
+      async (toml) =>
+        [
+          toml,
+          await sqlFiles(config.root, toml, sqlWorkflow(config, toml)),
+        ] as const,
     ),
     readText(config.root, ".gitignore"),
     sourceFiles(config),
@@ -266,10 +271,7 @@ export async function runDoctor(
     await opened.close();
     return {
       code: 0,
-      output: hookGrantBlock(
-        hookGrantProblems(context),
-        diffEngine(context.configToml),
-      ),
+      output: hookGrantBlock(hookGrantProblems(context), workflowOf(context)),
     };
   }
   let ran: Finding[];

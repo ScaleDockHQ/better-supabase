@@ -49,6 +49,7 @@ import {
   policyObject,
   qualified,
   tableObject,
+  workflowOf,
 } from "./shared.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
@@ -215,7 +216,7 @@ async function moduleVersionsBehind(
   for (const { file, current, behind } of await moduleFiles(context)) {
     if (!behind || current === undefined) continue;
     findings.push({
-      message: `${file.path} has ${file.module} version ${String(moduleFileVersion(current)?.version ?? 1)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
+      message: `${file.path} has ${file.module} version ${String(moduleFileVersion(current)?.version ?? 1)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
       target: file.path,
       location: { file: file.path, line: 1 },
     });
@@ -721,7 +722,7 @@ const OWN_RULES: readonly Rule[] = [
         const next =
           file.kind === "data"
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
-            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.`;
+            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(workflowOf(context))}\`.`;
         stale.push({
           message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. ${next}${edited}`,
           target: file.path,
@@ -738,18 +739,27 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Legacy migra diff engine",
     description:
-      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta.",
+      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `sql.workflow` to `migra` or `migrations` silences it.",
     check: (context) => {
       const toml = context.configToml;
       if (toml === undefined || diffEngine(toml) === "pg-delta") return [];
+      if (
+        context.config.sql.workflow !== undefined &&
+        context.config.sql.workflow !== "pg-delta"
+      )
+        return [];
       const schemas = `${toml.dir}/schemas/`;
       const declarative =
         context.config.sql.moduleNames.length > 0 ||
         (context.sqlFiles ?? []).some((file) => file.path.startsWith(schemas));
       if (!declarative) return [];
+      const keep =
+        context.config.sql.workflow === undefined
+          ? ' To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.'
+          : "";
       return [
         {
-          message: `${toml.path} uses the legacy migra engine. Add \`[experimental.pgdelta]\` with \`enabled = true\`, remove \`[db.migrations] schema_paths\`, and create migrations with \`supabase db schema declarative sync\` instead of \`supabase db diff\`.`,
+          message: `${toml.path} uses the legacy migra engine. Add \`[experimental.pgdelta]\` with \`enabled = true\`, remove \`[db.migrations] schema_paths\`, and create migrations with \`supabase db schema declarative sync\` instead of \`supabase db diff\`.${keep}`,
           target: toml.path,
           location: { file: toml.path, line: 1 },
         },
@@ -784,7 +794,7 @@ const OWN_RULES: readonly Rule[] = [
           return [];
         return [
           {
-            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`${migrationCommand(context.configToml)}\`.`,
+            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
             target: qualified(table),
             object: tableObject(table),
           },

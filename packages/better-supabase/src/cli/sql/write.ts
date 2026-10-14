@@ -13,7 +13,12 @@ import {
 } from "../../sql/index.ts";
 import { writeLine } from "../files.ts";
 import { display } from "../io.ts";
-import { readSupabaseToml, schemaPaths } from "../supabase-toml.ts";
+import {
+  migrationCommand,
+  readSupabaseToml,
+  schemaPaths,
+  sqlWorkflow,
+} from "../supabase-toml.ts";
 import { DATA_NEXT, type Now, writeExtensionsMigration } from "./migrations.ts";
 
 const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
@@ -99,6 +104,14 @@ export async function write(
   return lines;
 }
 
+/** The line that tells the reader how the written modules reach the database. */
+export async function nextStep(config: ResolvedConfig): Promise<string> {
+  const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
+  return workflow === "migrations"
+    ? `Then apply it: ${migrationCommand(workflow)}`
+    : `Then create a migration: ${migrationCommand(workflow, "better_supabase_module")}`;
+}
+
 /** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */
 export async function unlistedModuleFiles(
   config: ResolvedConfig,
@@ -106,7 +119,9 @@ export async function unlistedModuleFiles(
   sqlLayout: ModuleLayout,
 ): Promise<string[]> {
   const toml = await readSupabaseToml(config.root);
-  const order = await schemaPaths(config.root, toml);
+  const workflow = sqlWorkflow(config, toml);
+  if (workflow !== "migra") return [];
+  const order = await schemaPaths(config.root, toml, workflow);
   if (!order.configured) return [];
   const supabase = `${toml?.dir ?? "supabase"}/`;
   const unlisted = new Set(order.unlisted);

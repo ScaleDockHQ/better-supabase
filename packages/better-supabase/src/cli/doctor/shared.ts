@@ -1,3 +1,4 @@
+import type { SqlWorkflow } from "../../config/index.ts";
 import type {
   Catalog,
   CatalogPolicy,
@@ -7,9 +8,22 @@ import type {
 import type { DoctorContext, SqlObject } from "./rules.ts";
 
 import { toCatalog } from "../introspect/catalog.ts";
-import { tomlGet } from "../supabase-toml.ts";
+import { detectWorkflow, sqlWorkflow, tomlGet } from "../supabase-toml.ts";
 
 const catalogs = new WeakMap<Snapshot, Catalog>();
+
+/** The project's SQL workflow: `sql.workflow`, or the one `config.toml` and the schema files imply. */
+export function workflowOf(context: DoctorContext): SqlWorkflow {
+  const toml = context.configToml;
+  if (context.config.sql.workflow !== undefined || toml === undefined)
+    return sqlWorkflow(context.config, toml);
+  const schemas = `${toml.dir}/schemas/`;
+  return detectWorkflow(
+    context.config.root,
+    toml,
+    (context.sqlFiles ?? []).some((file) => file.path.startsWith(schemas)),
+  );
+}
 
 /** The snapshot joined per table and function, computed once per snapshot. */
 export function catalogOf(context: DoctorContext): Catalog {

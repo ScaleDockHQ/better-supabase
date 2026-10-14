@@ -1,6 +1,15 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { diffEngine } from "../supabase-toml.ts";
+import { declarativeSchemasDir, type SupabaseToml } from "../supabase-toml.ts";
+import { workflowOf } from "./shared.ts";
+
+/** `config.toml` when the project runs the pg-delta workflow. */
+function pgdeltaToml(context: DoctorContext): SupabaseToml | undefined {
+  const toml = context.configToml;
+  return toml !== undefined && workflowOf(context) === "pg-delta"
+    ? toml
+    : undefined;
+}
 
 /** Comments blanked out, so a commented-out statement never matches and line numbers stay. */
 function withoutComments(text: string): string {
@@ -19,9 +28,9 @@ const lineAt = (text: string, index: number): number =>
  * better-supabase writes, when the project diffs with pg-delta.
  */
 function pgdeltaSchemaFiles(context: DoctorContext): readonly TextFile[] {
-  const toml = context.configToml;
-  if (toml === undefined || diffEngine(toml) !== "pg-delta") return [];
-  const schemas = `${toml.dir}/schemas/`;
+  const toml = pgdeltaToml(context);
+  if (toml === undefined) return [];
+  const schemas = `${declarativeSchemasDir(toml, "pg-delta")}/`;
   return (context.sqlFiles ?? []).filter(
     (file) =>
       file.path.startsWith(schemas) && !/^-- @bs-module /m.test(file.text),
@@ -82,8 +91,9 @@ const CREATE_EXTENSION =
  * schema (`pgmq`) out of the generated migration.
  */
 function missingExtensions(context: DoctorContext): FindingInput[] {
-  const toml = context.configToml;
-  if (toml === undefined || diffEngine(toml) !== "pg-delta") return [];
+  const toml = pgdeltaToml(context);
+  if (toml === undefined) return [];
+  const schemas = `${declarativeSchemasDir(toml, "pg-delta")}/`;
   const files = context.sqlFiles ?? [];
   const migrations = files.filter((file) =>
     file.path.startsWith(`${toml.dir}/migrations/`),
@@ -98,7 +108,7 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
   );
   const seen = new Set<string>();
   return files
-    .filter((file) => file.path.startsWith(`${toml.dir}/schemas/`))
+    .filter((file) => file.path.startsWith(schemas))
     .flatMap((file) => {
       const text = withoutComments(file.text);
       return [...text.matchAll(CREATE_EXTENSION)].flatMap((match) => {

@@ -18,10 +18,9 @@ import { fileDiff } from "../diff.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { type Paint } from "../style.ts";
-import { migrationCommand, readSupabaseToml } from "../supabase-toml.ts";
 import { migrationStamp, type Now } from "./migrations.ts";
 import { layoutFor } from "./providers.ts";
-import { write } from "./write.ts";
+import { nextStep, write } from "./write.ts";
 
 /**
  * Rewrites the module files of modules behind the current version, and writes
@@ -128,7 +127,7 @@ export async function upgrade(
   lines.push(
     ...(await write(config, args, config.sql.moduleNames, sqlLayout, now)),
     "",
-    `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_module")}`,
+    await nextStep(config),
   );
   return { code: 0, output: lines.join("\n") };
 }

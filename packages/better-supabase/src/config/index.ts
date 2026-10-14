@@ -29,6 +29,7 @@ export type {
   ResolvedSqlConfig,
   SeedConfig,
   SqlConfig,
+  SqlWorkflow,
   TopicTriggerConfig,
   VectorDistance,
   VectorSearchConfig,

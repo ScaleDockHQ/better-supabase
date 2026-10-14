@@ -568,14 +568,22 @@ describe("generated and module files (BS303, BS304)", () => {
       files.map((file) => file.path),
     );
     expect(missing[0]!.message).toMatch(/\(updated-at\) is missing\./);
-    expect(missing[0]!.message).toContain("then `supabase db diff`.");
-    const pgdelta = await run("BS304", {
-      ...ctx,
-      configToml: toml("[experimental.pgdelta]\nenabled = true\n"),
-    });
-    expect(pgdelta[0]!.message).toContain(
+    expect(missing[0]!.message).toContain(
       "then `supabase db schema declarative sync`.",
     );
+    const migra = await run("BS304", {
+      ...ctx,
+      configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
+    });
+    expect(migra[0]!.message).toContain("then `supabase db diff`.");
+    const migrations = await run("BS304", {
+      ...ctx,
+      config: {
+        ...ctx.config,
+        sql: { ...ctx.config.sql, workflow: "migrations" },
+      },
+    });
+    expect(migrations[0]!.message).toContain("then `supabase migration up`.");
 
     const data = files.find((file) => file.kind === "data")!;
     expect(

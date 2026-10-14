@@ -1196,6 +1196,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "workflow": {
+          "description": "How the SQL modules reach the database: pg-delta (Declarative Schemas 2.0), migra (declarative schemas 1.0) or migrations (written straight into a migration). Unset, supabase/config.toml decides, and pg-delta is the default.",
+          "enum": ["pg-delta", "migra", "migrations"]
+        },
         "dir": {
           "type": "string",
           "default": "supabase/schemas"
