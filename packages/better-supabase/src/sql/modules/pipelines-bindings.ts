@@ -7,9 +7,9 @@ import {
 } from "../subject-registry.ts";
 
 /** The fixed outcomes every stage category maps to. Reports read these, never stage names. */
-export const PIPELINE_OUTCOMES = ["open", "success", "failure"] as const;
+const PIPELINE_OUTCOMES = ["open", "success", "failure"] as const;
 
-export type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
+type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;

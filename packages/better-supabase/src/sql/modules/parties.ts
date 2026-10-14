@@ -17,15 +17,10 @@ import { moduleOperations } from "./access-model.ts";
 import { partyFunctions, type PartyNames } from "./parties-functions.ts";
 
 /** The lifecycle stages `options.companyLifecycles` falls back to. */
-export const COMPANY_LIFECYCLES = [
-  "lead",
-  "prospect",
-  "customer",
-  "churned",
-] as const;
+const COMPANY_LIFECYCLES = ["lead", "prospect", "customer", "churned"] as const;
 
 /** The lifecycle stages `options.personLifecycles` falls back to. */
-export const PERSON_LIFECYCLES = [
+const PERSON_LIFECYCLES = [
   "lead",
   "mql",
   "sql",

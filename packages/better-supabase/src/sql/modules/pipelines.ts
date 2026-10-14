@@ -16,13 +16,6 @@ import {
   stageTrigger,
 } from "./pipelines-sql.ts";
 
-export {
-  PIPELINE_OUTCOMES,
-  type PipelineBinding,
-  type PipelineOutcome,
-  pipelineBindings,
-} from "./pipelines-bindings.ts";
-
 const STAGE_PAYLOAD = [
   "organizationId",
   "subjectType",

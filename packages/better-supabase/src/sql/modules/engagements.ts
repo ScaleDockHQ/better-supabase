@@ -23,13 +23,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 
 /** The engagement types `options.types` falls back to. */
-export const ENGAGEMENT_TYPES = [
-  "call",
-  "email",
-  "meeting",
-  "note",
-  "task",
-] as const;
+const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;
 
 const PAYLOAD = [
   "organizationId",
