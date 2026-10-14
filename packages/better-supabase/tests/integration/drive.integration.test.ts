@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
+import { driveSubject } from "../../src/blocks/drive/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -342,6 +343,55 @@ describe.skipIf(!live)("drive", () => {
         [created.node.id],
       );
       expect(purged.objects).toHaveLength(2);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("indexes nodes for search and links them through relations", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install([...MODULES, "search", "relations"], {
+        subjects: { drive_node: driveSubject() },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+      const search = (q: string): Promise<{ subjectId: string }[]> =>
+        s.value("better_supabase.search($1, array['drive_node'])", [q]);
+
+      await s.asRole(owner);
+      const specs = await s.value<Node>(
+        "better_supabase.drive_create_folder($1, null, 'Launch specs')",
+        [tenant],
+      );
+      const notes = await s.value<Node>(
+        "better_supabase.drive_create_folder($1, null, 'Meeting notes')",
+        [tenant],
+      );
+      expect((await search("launch")).map((hit) => hit.subjectId)).toEqual([
+        specs.id,
+      ]);
+      await s.value("better_supabase.drive_rename($1, 'Release specs')", [
+        specs.id,
+      ]);
+      expect(await search("launch")).toEqual([]);
+      expect((await search("release")).map((hit) => hit.subjectId)).toEqual([
+        specs.id,
+      ]);
+
+      await s.value(
+        "better_supabase.link($1::uuid, 'relates', 'drive_node', $2::text, 'drive_node', $3::text, null)",
+        [tenant, specs.id, notes.id],
+      );
+      const edges = await s.value<{ subjectId: string }[]>(
+        "better_supabase.relations_of($1::uuid, 'drive_node', $2::text, null)",
+        [tenant, specs.id],
+      );
+      expect(edges.map((edge) => edge.subjectId)).toEqual([notes.id]);
+
+      await s.value("better_supabase.drive_trash($1)", [specs.id]);
+      expect(await search("release")).toEqual([]);
     } finally {
       await s.close();
     }
