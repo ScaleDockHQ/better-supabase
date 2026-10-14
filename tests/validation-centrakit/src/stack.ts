@@ -58,6 +58,9 @@ const ORGANIZATION_PERMISSIONS = [
   "notifications.send",
   "notifications.read",
   "audit.view",
+  "drive.read",
+  "drive.create",
+  "drive.manage",
 ];
 
 const GRANTS = {
@@ -67,7 +70,12 @@ const GRANTS = {
       key !== "organization.delete" &&
       key !== "organization.ownership.transfer",
   ),
-  member: ["notifications.send", "notifications.read"],
+  member: [
+    "notifications.send",
+    "notifications.read",
+    "drive.read",
+    "drive.create",
+  ],
   systemSupport: ["system.users.manage"],
 } satisfies Record<keyof typeof ROLES, readonly string[]>;
 

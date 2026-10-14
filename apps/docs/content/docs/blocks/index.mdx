@@ -142,6 +142,7 @@ expose the module schema itself.
 | [Documents](/docs/blocks/documents)                         | `better-supabase/blocks/documents`, `better-supabase/yjs`                                                                          | `documents`                            |
 | [Catalog](/docs/blocks/catalog)                             | `better-supabase/blocks/catalog`                                                                                                   | `catalog`                              |
 | [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                                                                                 | `inventory`                            |
+| [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                                                                     | `drive`, `drive-files`                 |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -248,6 +249,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `documents`          | `tenant`, `access`                        | `outbox`, `audit`, `jobs`, `versions`                                                   |
 | `catalog`            | `tenant`, `access`                        | `outbox`, `state-machine`, `inventory`                                                  |
 | `inventory`          | `tenant`, `access`, `catalog`             | `outbox`                                                                                |
+| `drive`              | `tenant`, `access`, `drive-files`         | `outbox`, `audit`, `attachments`, `versions`, `trash`, `teams`, `share-links`           |
+| `drive-files`        | `attachments`                             | `drive`, `outbox`, `audit`, `versions`, `trash`, `teams`, `share-links`                 |
 | `ensure-rls`         | none                                      | none                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

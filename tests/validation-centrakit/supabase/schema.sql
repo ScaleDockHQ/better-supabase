@@ -560,6 +560,33 @@ create table centrakit.import_runs (
   created_at timestamptz not null default now()
 );
 
+-- CentraKit's file tree: folders and files with an object path, shared with
+-- users or teams. The drive module adopts both tables.
+create table centrakit.file_node (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations (id) on delete cascade,
+  parent_id uuid references centrakit.file_node (id) on delete cascade,
+  kind text not null check (kind in ('folder', 'file')),
+  name text not null,
+  storage_path text,
+  mime_type text,
+  size_bytes bigint,
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table centrakit.file_node_grant (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations (id) on delete cascade,
+  file_node_id uuid not null references centrakit.file_node (id) on delete cascade,
+  user_id uuid,
+  team_id uuid references centrakit.teams (id) on delete cascade,
+  role text not null check (role in ('viewer', 'commenter', 'editor')),
+  created_at timestamptz not null default now(),
+  check ((user_id is null) <> (team_id is null))
+);
+
 do $$
 declare
   t text;

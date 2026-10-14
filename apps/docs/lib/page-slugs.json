@@ -49,6 +49,7 @@
   "blocks/custom-fields",
   "blocks/data-lifecycle",
   "blocks/documents",
+  "blocks/drive",
   "blocks/entitlements",
   "blocks/flags",
   "blocks/imports",

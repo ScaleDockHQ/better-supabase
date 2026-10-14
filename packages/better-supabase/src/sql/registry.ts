@@ -31,6 +31,7 @@ import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
+import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -195,11 +196,20 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(DOCUMENTS),
       built(CATALOG),
       built(INVENTORY),
+      built(DRIVE),
+      built(DRIVE_FILES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
 
 export const ORDER: readonly string[] = Object.keys(SQL_MODULES);
+
+/** Where a module renders: its own position, or just ahead of `before`. */
+function renderPosition(module: SqlModule): number {
+  return module.before === undefined
+    ? ORDER.indexOf(module.name)
+    : ORDER.indexOf(module.before) - 0.5;
+}
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveModules });
 
@@ -222,7 +232,7 @@ export function resolveModules(
     ordered.push(module);
   };
   for (const name of names) visit(name);
-  return ordered.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
+  return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 
 /** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */

@@ -94,6 +94,7 @@ const entries = [
   "blocks/approvals/index",
   "blocks/access-requests/index",
   "blocks/documents/index",
+  "blocks/drive/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

@@ -320,6 +320,7 @@ standard or sets how the repo works.
 - 0022: Yjs documents are an update log and a snapshot in Postgres, compacted in JavaScript; `yjs` is an optional peer of `better-supabase/yjs`.
 - 0023: the bookings block installs `btree_gist` for the exclusion constraint that refuses double bookings.
 - 0024: money is `bigint` minor units from ISO 4217; payments and tax plug in through the versioned `PaymentProvider` and `TaxProvider`, with Stripe adapters.
+- 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
 
 ## Pre-release pins
 

@@ -721,6 +721,11 @@
       "types": "./dist/blocks/documents/index.d.ts",
       "default": "./dist/blocks/documents/index.js"
     },
+    "./blocks/drive": {
+      "@better-supabase/source": "./src/blocks/drive/index.ts",
+      "types": "./dist/blocks/drive/index.d.ts",
+      "default": "./dist/blocks/drive/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1389,6 +1394,10 @@
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",
         "default": "./dist/blocks/documents/index.js"
+      },
+      "./blocks/drive": {
+        "types": "./dist/blocks/drive/index.d.ts",
+        "default": "./dist/blocks/drive/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

@@ -65,6 +65,16 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_stock_reserve",
     "after_stock_reserve",
   ],
+  drive: [
+    "before_drive_node_create",
+    "after_drive_node_create",
+    "before_drive_node_move",
+    "after_drive_node_move",
+    "before_drive_node_rename",
+    "after_drive_node_rename",
+    "before_drive_node_share",
+    "after_drive_node_share",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

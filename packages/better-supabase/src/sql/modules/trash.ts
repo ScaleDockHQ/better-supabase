@@ -165,6 +165,11 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
   return list;
 }
 
+/** The subject types trash can hold, for a module that trashes through `trash_cascade`. */
+export function trashTypes(ctx: ModuleContext): ReadonlySet<string> {
+  return new Set(trashable(ctx).map((entry) => entry.type));
+}
+
 const tenantColumn = (subject: Subject): string =>
   sqlIdent(
     typeof subject.tenant === "string" ? subject.tenant : "organization_id",
@@ -380,7 +385,28 @@ end;
 $$;
 ${userGrant(`${fn("trash")}(${ctx.idType}, text, text)`)}
 
--- Restores every row of the item's batch, after checking the unique columns.
+-- Restores every row of a batch, after checking the unique columns. The
+-- caller deletes the batch's items, so the read-only guard sees its write.
+create or replace function ${fn("trash_restore_batch")}(batch uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item ${items}%rowtype;
+  v_count integer := 0;
+begin
+  for v_item in select * from ${items} where ${c("batch")} = trash_restore_batch.batch order by ${c("depth")} loop
+    ${untrashCase(list)}
+    ${record("subject.restored", `v_item.${c("id")}`, "v_item")}
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function ${fn("trash_restore_batch")}(uuid) from public, anon, authenticated;
+
 create or replace function ${fn("restore_trash")}(item_id uuid)
 returns jsonb
 language plpgsql
@@ -389,8 +415,7 @@ set search_path = ''
 as $$
 declare
   v_root ${items}%rowtype;
-  v_item ${items}%rowtype;
-  v_count integer := 0;
+  v_count integer;
 begin
   select r.* into v_root from ${items} i
     join ${items} r on r.${c("batch")} = i.${c("batch")} and r.${c("depth")} = 0
@@ -402,11 +427,7 @@ begin
     ${fail("TRASH_FORBIDDEN", "not allowed to restore this record")}
   end if;
   ${ctx.hook("before_untrash", [["uuid", `v_root.${c("id")}`]])}
-  for v_item in select * from ${items} where ${c("batch")} = v_root.${c("batch")} order by ${c("depth")} loop
-    ${untrashCase(list)}
-    ${record("subject.restored", `v_item.${c("id")}`, "v_item")}
-    v_count := v_count + 1;
-  end loop;
+  v_count := ${fn("trash_restore_batch")}(v_root.${c("batch")});
   delete from ${items} where ${c("batch")} = v_root.${c("batch")};
   ${ctx.hook("after_untrash", [
     ["uuid", `v_root.${c("id")}`],

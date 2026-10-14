@@ -13,9 +13,13 @@ export function modulePath(module: SqlModule, layout: ModuleLayout): string {
     "",
   );
   const slug = module.name.replaceAll("-", "_");
+  const position =
+    module.before === undefined
+      ? ORDER.indexOf(module.name) + 1
+      : ORDER.indexOf(module.before);
   return module.target === "test"
     ? `${testsDir}/000_better_supabase_${slug}.test.sql`
-    : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+    : `${dir}/${prefix}_${String(position).padStart(2, "0")}_${slug}.sql`;
 }
 
 /**

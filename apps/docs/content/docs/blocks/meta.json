@@ -67,6 +67,7 @@
     "access-requests",
     "documents",
     "catalog",
-    "inventory"
+    "inventory",
+    "drive"
   ]
 }

@@ -59,6 +59,7 @@ const PURE_BARRELS = [
   "blocks/documents",
   "blocks/catalog",
   "blocks/inventory",
+  "blocks/drive",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",
