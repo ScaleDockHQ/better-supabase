@@ -39,6 +39,16 @@ const SUBJECT_EVENTS = [
   "drive.node_shared",
   "drive.node_unshared",
   "drive.node_purged",
+  "order.placed",
+  "order.paid",
+  "order.cancelled",
+  "order.fulfilled",
+  "order.completed",
+  "order.refunded",
+  "fulfillment.shipped",
+  "fulfillment.delivered",
+  "return.requested",
+  "return.received",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;

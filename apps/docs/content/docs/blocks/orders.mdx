@@ -1,0 +1,238 @@
+---
+title: Orders
+description: Carts for anonymous and signed-in shoppers, a checkout that prices from the catalog, quotes tax, reserves stock and takes the payment once, then fulfillments, returns, refunds and invoices.
+---
+
+`orders` turns [catalog](/docs/blocks/catalog) variants into orders. A cart
+belongs to the signed-in user, which can be an anonymous Supabase user, so a
+shopper can fill one before creating an account. Checkout prices the cart
+from the catalog, quotes tax through a `TaxProvider`, places the order with
+a number from `number-sequences`, reserves its stock when
+[inventory](/docs/blocks/inventory) is installed, and creates the payment
+through a `PaymentProvider` with an idempotency key. After the sale it
+records fulfillments, returns, refunds and the invoice.
+
+```bash
+better-supabase sql add orders
+```
+
+```ts title="lib/orders.ts"
+import { fixedRates, stripePayments } from "better-supabase/blocks/commerce";
+import { createOrders, sqlTransport } from "better-supabase/blocks/orders";
+
+export const orders = createOrders({
+  transport: sqlTransport(ctx.postgres),
+  service: sqlTransport(servicePostgres),
+  payments: stripePayments({
+    stripe: { secretKey: env.STRIPE_SECRET_KEY },
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  }),
+  tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
+});
+```
+
+The module needs `tenant`, `access` and `catalog`. It uses `inventory` for
+reservations and stock movements, `promotions` for discount codes,
+`number-sequences` for order and invoice numbers, `state-machine` for the
+status column, and `outbox` for events, each when it is installed. The
+providers are described on the [commerce](/docs/blocks/commerce) page; both
+are optional, and without `payments` only free orders can be placed.
+
+## Permissions
+
+| Key             | What it allows                                                       |
+| --------------- | -------------------------------------------------------------------- |
+| `orders.read`   | Read every cart and order in the organization                        |
+| `orders.manage` | Shipping rates, fulfillments, returns, refunds and cancelling orders |
+
+Shoppers need neither key: a user reads and edits their own carts and reads
+their own orders. Placing an order, recording a payment, merging carts and
+expiring orders are service-only, so pass a `service` transport as above.
+
+## Carts
+
+```ts
+await supabase.auth.signInAnonymously();
+
+const cart = await orders
+  .createCart(organizationId, { currency: "EUR" })
+  .orThrow();
+await orders.addToCart(cart.id, variantId, 2).orThrow();
+await orders.setCartLine(cart.id, variantId, 1).orThrow(); // 0 removes the line
+await orders
+  .setCartDetails(cart.id, {
+    email: "ada@example.com",
+    shippingAddress: {
+      line1: "Damrak 1",
+      city: "Amsterdam",
+      postalCode: "1012 LG",
+      country: "NL",
+    },
+  })
+  .orThrow();
+
+const priced = await orders.priceCart(cart.id).orThrow();
+// { lines, subtotal, discountTotal, shippingTotal, total, problems }
+```
+
+`createCart` returns the caller's open cart for the organization and
+currency, and creates one when there is none. Only variants of active
+products can be added (`ORDERS_VARIANT_UNAVAILABLE`). `priceCart` reads
+today's catalog price for each line; a line whose price changed carries
+`previousUnitAmount`, and `problems` lists what keeps the cart from checkout
+(an unavailable or unpriced line, a missing shipping rate or address).
+
+When an anonymous shopper signs in to an existing account, Supabase gives
+them a different user id. Move their carts on the server:
+
+```ts
+await orders.mergeCarts(anonymousUserId, signedInUserId).orThrow();
+```
+
+Lines for the same variant add up, and the cart's promotion codes move
+with them. Linking an identity to the anonymous user
+(`supabase.auth.linkIdentity`) keeps the id, so it needs no merge.
+
+## Shipping
+
+```ts
+await orders
+  .saveShippingRate(organizationId, {
+    name: "Standard",
+    countries: ["NL", "BE"],
+    amount: money(495n, "EUR"),
+    freeOver: money(5000n, "EUR"),
+  })
+  .orThrow();
+
+const options = await orders.shippingOptions(cart.id).orThrow();
+await orders.setShippingRate(cart.id, options[0].id).orThrow();
+```
+
+A `flat` rate charges `amount`; a `weight` rate adds `amountPerKg` for each
+started kilogram of the variants' weights. `freeOver` makes the rate free once
+the discounted subtotal reaches it. A cart with only digital variants needs
+no rate.
+
+## Checkout
+
+```ts
+const { order, payment } = await orders
+  .checkout(cart.id, { returnUrl: "https://shop.example.com/thanks" })
+  .orThrow();
+// Hand payment.clientSecret to the browser to confirm the payment.
+```
+
+`checkout` prices the cart, quotes tax for its lines and shipping, and
+places the order in one transaction with the quote's total. If a price
+changed in between, it fails with `ORDERS_PRICE_CHANGED` and the shopper
+sees the new total. Placing converts the cart, assigns the order number
+(`SO-0001` from the `order` sequence when one is configured), copies each
+line's SKU, title and price, redeems the cart's promotions and reserves the
+stock at `locationId`, or at the location with the most available.
+
+The order starts as `pending_payment` and holds its stock for 30 minutes
+(the `paymentWindowMinutes` module option). The payment is created with the
+idempotency key `order:<id>:payment`, so calling `checkout` again for the
+same cart returns the same order and the same payment. A free order is paid
+at once.
+
+### Payment events
+
+Route the provider's webhook to `orders.webhook`. It verifies the delivery,
+then applies each payment and refund event:
+
+```ts title="app/api/payments/route.ts"
+export async function POST(request: Request) {
+  const outcomes = await orders.webhook(request).orThrow();
+  return Response.json({ handled: outcomes.length });
+}
+```
+
+When the captured amount reaches the total, the order becomes `paid`: its
+reservations turn into `sale` movements, it gets an invoice number
+(`INV-00001` from the `invoice` sequence) and the sale is committed to the
+tax provider. A failed commit is logged; retry it with `commitTax(orderId)`.
+With `capture: "manual"` the funds are held until `orders.capture(orderId)`.
+
+`cancelOrder(orderId)` cancels an unpaid order, releases its stock and its
+open payments. Schedule `orders.job` to cancel orders whose payment window
+passed:
+
+```ts
+await jobs.schedule("orders:expire", "*/5 * * * *", "orders.expire", {});
+```
+
+## After the sale
+
+```ts
+const shipment = await orders
+  .createFulfillment(order.id, { carrier: "PostNL" }) // every unit not fulfilled yet
+  .orThrow();
+await orders
+  .shipFulfillment(shipment.id, { trackingNumber: "3SABC123" })
+  .orThrow();
+await orders.deliverFulfillment(shipment.id).orThrow();
+
+const ret = await orders
+  .requestReturn(order.id, [{ lineId, quantity: 1 }], "too small")
+  .orThrow();
+await orders.receiveReturn(ret.id).orThrow(); // restocks tracked variants
+
+await orders
+  .refund(order.id, { amount: money(2420n, "EUR"), returnId: ret.id })
+  .orThrow();
+// { status: "succeeded", orderStatus: "paid", refundedTotal, taxReversal }
+
+const invoice = await orders.invoice(order.id).orThrow();
+// { number: "INV-00001", issuedAt, order }
+```
+
+An order becomes `fulfilled` when every unit is in a fulfillment and
+`completed` when they are all delivered. `refund` defaults to everything
+paid and not refunded yet, refunds through the provider with the key
+`refund:<id>`, and reverses the refunded share of each line's tax. Refunding
+the whole total moves the order to `refunded`.
+
+| Status            | Next                                                      |
+| ----------------- | --------------------------------------------------------- |
+| `pending_payment` | `paid`, `cancelled`                                       |
+| `paid`            | `fulfilled`, `refunded`                                   |
+| `fulfilled`       | `paid` (a cancelled fulfillment), `completed`, `refunded` |
+| `completed`       | `refunded`                                                |
+
+To change these rules, register a [state machine](/docs/blocks/state-machine)
+on the orders `status` column; the module then leaves the check to it.
+
+## Events
+
+| Event                                          | When                                       |
+| ---------------------------------------------- | ------------------------------------------ |
+| `order.placed`                                 | `checkout` places the order                |
+| `order.paid`                                   | The captured amount reaches the total      |
+| `order.cancelled`                              | `cancelOrder` or an expired payment window |
+| `order.fulfilled`, `order.completed`           | Every unit is fulfilled, then delivered    |
+| `order.refunded`                               | A refund succeeds                          |
+| `fulfillment.shipped`, `fulfillment.delivered` | A fulfillment step                         |
+| `return.requested`, `return.received`          | A return step                              |
+
+They are subject events on the `order` subject (`organizationId`,
+`subjectType` and `subjectId`), so the
+[watcher sink](/docs/blocks/notifications#watchers) can notify an order's
+watchers. The payloads are listed on the [events](/docs/extending/events)
+page.
+
+## Hooks
+
+The SQL module calls `before_order_place`, `after_order_place`,
+`before_fulfillment_create`, `after_fulfillment_create`,
+`before_refund_create` and `after_refund_create` when you define them (see
+[blocks](/docs/extending/blocks)). The TypeScript client takes `hooks` keyed
+by method name.
+
+## Not included
+
+Orders doesn't export e-invoices (EN 16931), issue credit notes, sell
+subscriptions or license keys for digital goods, or handle B2B quotes and
+purchase orders from customers. Adopt mode, which maps the tables to
+existing ones, isn't available yet.

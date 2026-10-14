@@ -99,6 +99,8 @@ const entries = [
   "blocks/reactions/react/server",
   "blocks/catalog/index",
   "blocks/inventory/index",
+  "blocks/orders/index",
+  "blocks/promotions/index",
   "ai-sdk/index",
   "ai-sdk/chat/index",
   "ai-sdk/files/index",

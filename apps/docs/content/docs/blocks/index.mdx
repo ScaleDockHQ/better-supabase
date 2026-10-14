@@ -143,6 +143,8 @@ expose the module schema itself.
 | [Catalog](/docs/blocks/catalog)                             | `better-supabase/blocks/catalog`                                                                                                   | `catalog`                              |
 | [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                                                                                 | `inventory`                            |
 | [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                                                                     | `drive`, `drive-files`                 |
+| [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                                                                    | `orders`                               |
+| [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                                                                                | `promotions`                           |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -251,6 +253,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `inventory`          | `tenant`, `access`, `catalog`             | `outbox`                                                                                |
 | `drive`              | `tenant`, `access`, `drive-files`         | `outbox`, `audit`, `attachments`, `versions`, `trash`, `teams`, `share-links`           |
 | `drive-files`        | `attachments`                             | `drive`, `outbox`, `audit`, `versions`, `trash`, `teams`, `share-links`                 |
+| `orders`             | `tenant`, `access`, `catalog`             | `outbox`, `inventory`, `promotions`, `number-sequences`, `state-machine`                |
+| `promotions`         | `tenant`, `access`, `catalog`, `orders`   | `outbox`                                                                                |
 | `ensure-rls`         | none                                      | none                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

@@ -4060,6 +4060,86 @@
       "TransferInput"
     ]
   },
+  "./blocks/orders": {
+    "values": [
+      "createOrders",
+      "dbTransport",
+      "extendBlock",
+      "FULFILLMENT_STATUSES",
+      "ORDER_STATUSES",
+      "REFUND_STATUSES",
+      "RETURN_STATUSES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Address",
+      "AppliedPromotion",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CartDetails",
+      "CartInput",
+      "CartLine",
+      "CartProblem",
+      "Checkout",
+      "CheckoutInput",
+      "Fulfillment",
+      "FulfillmentInput",
+      "FulfillmentStatus",
+      "Invoice",
+      "Order",
+      "OrderLine",
+      "OrderPayment",
+      "OrderRefund",
+      "OrderRefundStatus",
+      "OrderReturn",
+      "Orders",
+      "OrdersOptions",
+      "OrderStatus",
+      "PaymentEventOutcome",
+      "PaymentRecord",
+      "PricedCart",
+      "QuantityLine",
+      "RefundOutcome",
+      "RefundRequest",
+      "ReturnStatus",
+      "RpcClient",
+      "ShippingOption",
+      "ShippingRateInput",
+      "TrackingInput"
+    ]
+  },
+  "./blocks/promotions": {
+    "values": [
+      "createPromotions",
+      "dbTransport",
+      "extendBlock",
+      "PROMOTION_KINDS",
+      "PROMOTION_SCOPES",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "AppliedCode",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CodesInput",
+      "PromotionCode",
+      "PromotionDiscount",
+      "PromotionInput",
+      "PromotionKind",
+      "Promotions",
+      "PromotionScope",
+      "PromotionsOptions",
+      "RpcClient"
+    ]
+  },
   "./blocks/announcements/react": {
     "values": [
       "useAnnouncements"

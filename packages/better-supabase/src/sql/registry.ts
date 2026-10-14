@@ -50,10 +50,12 @@ import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
+import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PROFILES } from "./modules/profiles.ts";
+import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
@@ -198,6 +200,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(INVENTORY),
       built(DRIVE),
       built(DRIVE_FILES),
+      built(ORDERS),
+      built(PROMOTIONS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -228,6 +228,8 @@ export const MODULE_PERMISSIONS = {
     reserve: "inventory.reserve",
     purchase: "inventory.purchase",
   },
+  orders: { manage: "orders.manage", read: "orders.read" },
+  promotions: { manage: "promotions.manage", read: "promotions.read" },
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
@@ -392,6 +394,8 @@ export const MODULE_PERMISSION_SCOPES: {
     reserve: "tenant",
     purchase: "tenant",
   },
+  orders: { manage: "tenant", read: "tenant" },
+  promotions: { manage: "tenant", read: "tenant" },
   "custom-fields": {
     manage: "tenant",
     read: "tenant",

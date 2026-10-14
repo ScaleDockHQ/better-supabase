@@ -68,6 +68,8 @@
     "documents",
     "catalog",
     "inventory",
-    "drive"
+    "drive",
+    "orders",
+    "promotions"
   ]
 }

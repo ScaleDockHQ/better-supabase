@@ -374,7 +374,17 @@ export type SubjectEventType =
   | "drive.node_moved"
   | "drive.node_shared"
   | "drive.node_unshared"
-  | "drive.node_purged";
+  | "drive.node_purged"
+  | "order.placed"
+  | "order.paid"
+  | "order.cancelled"
+  | "order.fulfilled"
+  | "order.completed"
+  | "order.refunded"
+  | "fulfillment.shipped"
+  | "fulfillment.delivered"
+  | "return.requested"
+  | "return.received";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -484,6 +494,22 @@ export interface CommerceEventData {
   readonly reorderPoint?: string;
   readonly supplierType?: string | null;
   readonly supplierId?: string | null;
+  readonly orderId?: string;
+  readonly number?: string;
+  readonly customerId?: string | null;
+  readonly subtotal?: string;
+  readonly discountTotal?: string;
+  readonly shippingTotal?: string;
+  readonly taxTotal?: string;
+  readonly total?: string;
+  readonly refundedTotal?: string;
+  /** Units across the order's lines. */
+  readonly units?: string;
+  readonly invoiceNumber?: string | null;
+  readonly carrier?: string | null;
+  readonly trackingNumber?: string | null;
+  readonly promotionId?: string;
+  readonly code?: string | null;
 }
 
 /** `CommerceEventData` for an event about one subject, such as a variant. */
@@ -704,6 +730,17 @@ export interface BlockEventMap {
   "drive.node_shared": DriveEventData;
   "drive.node_unshared": DriveEventData;
   "drive.node_purged": DriveEventData;
+  "order.placed": CommerceSubjectEventData;
+  "order.paid": CommerceSubjectEventData;
+  "order.cancelled": CommerceSubjectEventData;
+  "order.fulfilled": CommerceSubjectEventData;
+  "order.completed": CommerceSubjectEventData;
+  "order.refunded": CommerceSubjectEventData;
+  "fulfillment.shipped": CommerceSubjectEventData;
+  "fulfillment.delivered": CommerceSubjectEventData;
+  "return.requested": CommerceSubjectEventData;
+  "return.received": CommerceSubjectEventData;
+  "promotion.redeemed": CommerceEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -75,6 +75,15 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_drive_node_share",
     "after_drive_node_share",
   ],
+  orders: [
+    "before_order_place",
+    "after_order_place",
+    "before_fulfillment_create",
+    "after_fulfillment_create",
+    "before_refund_create",
+    "after_refund_create",
+  ],
+  promotions: ["before_promotion_save", "after_promotion_save"],
 };
 
 /** Modules that call their hooks only for configured items. */
