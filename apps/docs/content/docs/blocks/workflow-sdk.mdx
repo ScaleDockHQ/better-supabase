@@ -277,6 +277,12 @@ approver:
 await approvalWaiter.wake(approvalId, { approved: true });
 ```
 
+With the [approvals](/docs/blocks/approvals) block, use the request's id as
+the token and let `wakeOnApproval(event)` do the waking from your outbox
+consumer: it resumes the run for `approval.approved`, `approval.rejected`,
+`approval.expired` and `approval.cancelled` with `{ approved, status,
+requestId }`, and ignores a request no run waits on.
+
 `wait` resolves `{ status: "resumed", payload }` or `{ status: "expired" }`,
 and returns `expired` at once for a deadline that has passed. `wake`
 sends `null` when you pass no payload.
@@ -287,8 +293,34 @@ sends `null` when you pass no payload.
 [workflow builder](/docs/blocks/workflow-builder) on the Workflow SDK.
 `compileGraph` turns a graph into dynamic workflow source: each step node
 calls its own step, sleep nodes call `sleep` and approval nodes wait on
-`createHook({ token: "<runKey>:<node>" })`. Pass it as `compile`, and
-`graphStarter` as `start`, to `createBuilder`.
+`createHook`. Pass it as `compile`, and `graphStarter` as `start`, to
+`createBuilder`.
+
+Pass `approval` to `graphStarter` (and `requestApproval` to the static
+executor's runtime): a step that files an approvals request for the node
+and returns its id. The node then waits on that id, and `wakeOnApproval`
+resumes it once an eligible approver decides. Without it the token is
+`<runKey>:<node>`, which anyone who knows the run key can guess.
+
+```ts title="workflows/approval.ts"
+import type { GraphApprovalCall } from "better-supabase/blocks/workflow-builder";
+
+export async function requestApproval(call: GraphApprovalCall) {
+  "use step";
+  const claims = await serviceBuilder.versions.runAs(call.version).orThrow();
+  const request = await serviceApprovals
+    .request({
+      organizationId: String(claims.tenant_id),
+      subjectType: "workflow_run",
+      subjectId: call.runKey,
+      action:
+        typeof call.config.action === "string" ? call.config.action : "approve",
+      payload: { node: call.node },
+    })
+    .orThrow();
+  return request.id;
+}
+```
 
 ```ts title="workflows/graph.ts"
 import {
@@ -298,6 +330,7 @@ import {
 } from "better-supabase/blocks/workflow-builder";
 import { createHook, sleep } from "workflow";
 
+import { requestApproval } from "./approval";
 import { steps } from "./steps";
 
 export async function graphExecutor(
@@ -310,6 +343,7 @@ export async function graphExecutor(
     runKey: meta.runKey,
     step: (call: GraphStepCall) => steps[call.step](call),
     sleep: (ms) => sleep(ms),
+    requestApproval: (call) => requestApproval(call),
     approval: (token) => createHook({ token }),
   });
 }

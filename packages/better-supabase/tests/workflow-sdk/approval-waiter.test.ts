@@ -29,7 +29,7 @@ const resumeHook = vi.fn(async (_token: string, _payload: unknown) => ({
 vi.mock("workflow", () => ({ createHook, sleep }));
 vi.mock("workflow/api", () => ({ resumeHook }));
 
-const { approvalWaiter } =
+const { approvalWaiter, wakeOnApproval } =
   await import("../../src/workflow-sdk/approval-waiter.ts");
 
 const LATER = "2999-01-01T00:00:00Z";
@@ -95,5 +95,69 @@ describe("approvalWaiter.wake", () => {
       ["apr_2", null],
     ]);
     await expect(approvalWaiter.wake("")).rejects.toThrow(TypeError);
+  });
+});
+
+describe("wakeOnApproval", () => {
+  it("wakes the run waiting on the request id with the outcome", async () => {
+    const woken: unknown[] = [];
+    const waiter = {
+      wake: async (token: string, payload: unknown) => {
+        woken.push([token, payload]);
+      },
+    };
+    expect(
+      await wakeOnApproval(
+        { type: "approval.approved", payload: { id: "req-1" } },
+        waiter,
+      ),
+    ).toBe(true);
+    expect(
+      await wakeOnApproval(
+        { type: "approval.rejected", payload: { id: "req-2" } },
+        waiter,
+      ),
+    ).toBe(true);
+    expect(
+      await wakeOnApproval(
+        { type: "approval.requested", payload: { id: "req-3" } },
+        waiter,
+      ),
+    ).toBe(false);
+    expect(
+      await wakeOnApproval({ type: "approval.expired", payload: {} }, waiter),
+    ).toBe(false);
+    expect(woken).toEqual([
+      ["req-1", { approved: true, status: "approved", requestId: "req-1" }],
+      ["req-2", { approved: false, status: "rejected", requestId: "req-2" }],
+    ]);
+  });
+
+  it("ignores a request no run waits on, and rethrows anything else", async () => {
+    const missing = Object.assign(new Error("Hook not found"), {
+      name: "HookNotFoundError",
+    });
+    await expect(
+      wakeOnApproval(
+        { type: "approval.cancelled", payload: { id: "req-4" } },
+        { wake: () => Promise.reject(missing) },
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      wakeOnApproval(
+        { type: "approval.cancelled", payload: { id: "req-4" } },
+        { wake: () => Promise.reject(new Error("down")) },
+      ),
+    ).rejects.toThrow("down");
+  });
+
+  it("defaults to approvalWaiter", async () => {
+    resumeHook.mockClear();
+    await wakeOnApproval({ type: "approval.approved", payload: { id: "r" } });
+    expect(resumeHook).toHaveBeenCalledWith("r", {
+      approved: true,
+      status: "approved",
+      requestId: "r",
+    });
   });
 });

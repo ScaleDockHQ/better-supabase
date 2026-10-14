@@ -262,6 +262,40 @@ describe("executeGraph", () => {
     expect(approvalToken("k", "n")).toBe("k:n");
   });
 
+  it("waits on the request id requestApproval returns", async () => {
+    const runtime = fakeRuntime("pro", { approved: false });
+    const calls: unknown[] = [];
+    const results = await executeGraph(
+      GRAPH,
+      { email: "a@x.test" },
+      {
+        ...runtime,
+        version: "v1",
+        requestApproval: async (call) => {
+          calls.push(call);
+          return "5f0c1b2e-request";
+        },
+      },
+    );
+    expect(calls).toEqual([
+      {
+        node: "ok",
+        config: {},
+        input: { email: "a@x.test" },
+        results: {
+          start: { email: "a@x.test" },
+          lookup: { plan: "pro" },
+          isPro: true,
+          wait: null,
+        },
+        runKey: "run-1",
+        version: "v1",
+      },
+    ]);
+    expect(runtime.log).toContain("approval 5f0c1b2e-request ok");
+    expect(results["welcome"]).toBeUndefined();
+  });
+
   it("takes the false branches", async () => {
     const free = fakeRuntime("free", undefined);
     await executeGraph(GRAPH, {}, free);

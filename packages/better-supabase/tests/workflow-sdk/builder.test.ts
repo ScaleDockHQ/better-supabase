@@ -156,6 +156,46 @@ describe("compileGraph", () => {
     expect(noMeta.log).toContain("approval :ok ok");
   });
 
+  it("files the approval through steps.bs_approval when it is passed", async () => {
+    const compiled = compileGraph(GRAPH);
+    const runtime = fakeRuntime("pro", { approved: true });
+    const requests: unknown[] = [];
+    const steps = {
+      ...Object.fromEntries(
+        Object.keys(compiled.aliases).map((alias) => [
+          alias,
+          (call: GraphStepCall) => runtime.step(call),
+        ]),
+      ),
+      bs_approval: async (call: unknown) => {
+        requests.push(call);
+        return "req-123";
+      },
+    };
+    // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
+    const factory = new Function(
+      "steps",
+      "sleep",
+      "createHook",
+      `${compiled.source}\nreturn workflow;`,
+    );
+    const tokens: string[] = [];
+    const workflow: unknown = factory(
+      steps,
+      async () => undefined,
+      async ({ token }: { token: string }) => {
+        tokens.push(token);
+        return { approved: true };
+      },
+    );
+    if (typeof workflow !== "function") throw new Error("no workflow");
+    await workflow({ email: "a@x.test" }, { runKey: "run-1", versionId: "v1" });
+    expect(tokens).toEqual(["req-123"]);
+    expect(requests).toMatchObject([
+      { node: "ok", config: {}, runKey: "run-1", version: "v1" },
+    ]);
+  });
+
   it("compiles every condition operator like evaluateCondition", async () => {
     const cases: [string, unknown, unknown][] = [
       ["notEquals", "input.plan", "pro"],
@@ -283,6 +323,16 @@ describe("graphStarter", () => {
       steps["email.send"],
       steps["slack.post"],
     ]);
+  });
+
+  it("binds the approval step as steps.bs_approval", async () => {
+    const approval = { stepId: "approval" };
+    await graphStarter({ steps, approval, dynamic: true })(CALL);
+    const [, , options] = start.mock.calls[0] ?? [];
+    const bound = (
+      options as { experimental_dynamic: { steps: Record<string, unknown> } }
+    ).experimental_dynamic.steps;
+    expect(bound["bs_approval"]).toBe(approval);
   });
 
   it("never runs a stored compiled form, and refuses steps it wasn't given", async () => {

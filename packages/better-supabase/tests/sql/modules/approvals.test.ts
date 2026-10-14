@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 type Layout = Parameters<typeof renderModules>[1];
 
@@ -176,5 +177,44 @@ describe("approvals module", () => {
     expect(sqlOf(["approvals", "notifications"], "approvals")).toContain(
       "'approval.' || approval_notify.kind",
     );
+  });
+});
+
+describe("approvals approvers from the provider", () => {
+  const eligible = (isApprover?: string): string =>
+    sqlOf(["approvals"], "approvals", {
+      modules: {
+        access: { model: "provider" },
+        approvals: {
+          options: {
+            policies: {
+              invoice: {
+                send: {
+                  steps: [{ approvers: { role: "admin" }, required: 1 }],
+                },
+              },
+            },
+          },
+        },
+      },
+      accessProvider: {
+        ...moduleProvider,
+        functions: {
+          ...moduleProvider.functions,
+          ...(isApprover === undefined ? {} : { isApprover }),
+        },
+      },
+    });
+
+  it("also asks isApprover with kind <subject type>.<action>, never for the requester", () => {
+    expect(
+      eligible("authz.is_approver({kind}, {subject}, {tenant}, '{scope}')"),
+    ).toContain(
+      `or (v_me is distinct from v_req."requested_by" and coalesce((authz.is_approver(v_req."subject_type" || '.' || v_req."action", v_req."subject_id"::text, v_req."tenant_id", 'organization')), false));`,
+    );
+  });
+
+  it("keeps the built-in approvers without isApprover", () => {
+    expect(eligible()).not.toContain("is_approver");
   });
 });

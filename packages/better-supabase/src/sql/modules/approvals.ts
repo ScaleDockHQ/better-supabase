@@ -4,7 +4,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -28,6 +28,7 @@ import {
   approvalPolicies,
   policySnapshot,
 } from "./approvals-policies.ts";
+import { approverCheck } from "./approver.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
 export const ACCESS_REQUEST_SUBJECT = "access_request";
@@ -143,7 +144,7 @@ function validateRuns(
   }
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const requests = ctx.table("requests");
   const decisions = ctx.table("decisions");
@@ -154,6 +155,11 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", OPERATIONS["approvals.manage"]);
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
+  const provider = approverCheck(ctx, layout, {
+    kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
+    subject: `v_req.${c("subjectId")}::text`,
+    tenant: `v_req.${c("tenant")}`,
+  });
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
   const timesheets =
@@ -377,7 +383,13 @@ ${userGrant(`${fn("approval_policy")}(text, text)`)}
 
 -- Whether the caller may decide the request's current step: a named user,
 -- a holder of the permission, a member with the role or in the team, or a
--- delegate. The requester can't, unless the policy allows self-approval.
+-- delegate. The requester can't, unless the policy allows self-approval.${
+    provider
+      ? `
+-- A user the provider's isApprover allows for kind <subject type>.<action>
+-- may decide as well, never the requester.`
+      : ""
+  }
 create or replace function ${fn("approval_eligible")}(request_id uuid)
 returns boolean
 language plpgsql
@@ -415,7 +427,12 @@ begin
       select 1 from ${decisions} x
       where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = v_req.${c("step")}
         and x.${d("decision")} = 'delegated' and x.${d("delegateTo")} = v_me
-    );
+    )${
+      provider
+        ? `
+    or (v_me is distinct from v_req.${c("requestedBy")} and coalesce((${provider.sql}), false))`
+        : ""
+    };
 end;
 $$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}

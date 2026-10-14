@@ -82,3 +82,83 @@ export const approvalWaiter: ApprovalWaiter = Object.freeze({
     await resumeHook(tokenOf(token), payload);
   },
 });
+
+/** The outbox events of the approvals module that end a wait. */
+export const APPROVAL_OUTCOME_EVENTS: readonly string[] = Object.freeze([
+  "approval.approved",
+  "approval.rejected",
+  "approval.expired",
+  "approval.cancelled",
+]);
+
+/** The payload `wakeOnApproval` resumes a run with. */
+export interface ApprovalOutcome {
+  /** `true` only for `approval.approved`; a builder approval node takes the branch from it. */
+  readonly approved: boolean;
+  readonly status: "approved" | "rejected" | "expired" | "cancelled";
+  readonly requestId: string;
+}
+
+/** The part of an outbox event `wakeOnApproval` reads. */
+export interface ApprovalOutcomeEvent {
+  readonly type: string;
+  readonly payload: unknown;
+}
+
+/**
+ * Wakes the run waiting on an approval request once the approvals module
+ * decides it: pass every outbox event from your consumer. For
+ * `approval.approved`, `approval.rejected`, `approval.expired` and
+ * `approval.cancelled` it calls `waiter.wake(<request id>, outcome)` and
+ * returns `true`; other events return `false`. The request id is a random
+ * uuid, so only `decide_approval` (and with it the approver check) can end
+ * the wait. A wake for a request no run waits on is ignored.
+ */
+export async function wakeOnApproval(
+  event: ApprovalOutcomeEvent,
+  waiter: Pick<ApprovalWaiter, "wake"> = approvalWaiter,
+): Promise<boolean> {
+  if (!APPROVAL_OUTCOME_EVENTS.includes(event.type)) return false;
+  const payload = event.payload;
+  const requestId =
+    typeof payload === "object" &&
+    payload !== null &&
+    "id" in payload &&
+    typeof payload.id === "string"
+      ? payload.id
+      : undefined;
+  if (requestId === undefined) return false;
+  const status = statusOf(event.type);
+  const outcome: ApprovalOutcome = {
+    approved: status === "approved",
+    status,
+    requestId,
+  };
+  try {
+    await waiter.wake(requestId, outcome);
+  } catch (cause) {
+    if (!isMissingHook(cause)) throw cause;
+  }
+  return true;
+}
+
+function statusOf(type: string): ApprovalOutcome["status"] {
+  switch (type) {
+    case "approval.approved": {
+      return "approved";
+    }
+    case "approval.rejected": {
+      return "rejected";
+    }
+    case "approval.expired": {
+      return "expired";
+    }
+    default: {
+      return "cancelled";
+    }
+  }
+}
+
+/** The Workflow SDK's `HookNotFoundError`, matched by name as `HookNotFoundError.is` does. */
+const isMissingHook = (cause: unknown): boolean =>
+  cause instanceof Error && cause.name === "HookNotFoundError";

@@ -83,7 +83,7 @@ const graph: WorkflowGraph = {
 | `trigger`   | Passes the run's input on                                                                                                                |
 | `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                        |
 | `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                        |
-| `approval`  | Waits for its hook to be resumed; the payload `{ approved: false }` takes the `false` branch                                             |
+| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch     |
 | `condition` | Tests `config.path` (under `input` or `results`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
 
 An edge without a `branch` runs its target when its source ran. From a

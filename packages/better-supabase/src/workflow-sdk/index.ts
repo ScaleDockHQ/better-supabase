@@ -1,5 +1,9 @@
 export {
+  APPROVAL_OUTCOME_EVENTS,
   approvalWaiter,
+  wakeOnApproval,
+  type ApprovalOutcome,
+  type ApprovalOutcomeEvent,
   type ApprovalWaiter,
   type ApprovalWaitOptions,
   type ApprovalWaitResult,

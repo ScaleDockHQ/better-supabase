@@ -37,6 +37,71 @@ const REQUEST = {
 };
 
 describe("approvals client", () => {
+  it("asks approverOf before deciding, with kind <subject type>.<action>", async () => {
+    const fake = transport({
+      get_approval: () => ({ ...REQUEST, canDecide: true, decisions: [] }),
+      decide_approval: () => ({ ...REQUEST, status: "approved" }),
+      delegate_approval: () => REQUEST,
+    });
+    const seen: unknown[] = [];
+    let allow = false;
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      approver: { userId: "u2", claims: { sub: "u2" } },
+      authorization: {
+        approverOf: (approver, request) => {
+          seen.push([approver.userId, request]);
+          return allow;
+        },
+      },
+    });
+    const refused = await approvals.approve("r1");
+    expect(!refused.ok && refused.error.hint).toBe("APPROVAL_FORBIDDEN");
+    expect(seen[0]).toEqual([
+      "u2",
+      { kind: "invoice.send", subject: "i1", tenant: "o", requester: "u1" },
+    ]);
+    expect(fake.calls.map(([fn]) => fn)).toEqual(["get_approval"]);
+    allow = true;
+    expect((await approvals.approve("r1").orThrow()).status).toBe("approved");
+    await approvals.delegate("r1", "u3").orThrow();
+    expect(fake.calls.map(([fn]) => fn)).toEqual([
+      "get_approval",
+      "get_approval",
+      "decide_approval",
+      "get_approval",
+      "delegate_approval",
+    ]);
+  });
+
+  it("refuses without asking when SQL says the caller can't decide", async () => {
+    const fake = transport({
+      get_approval: () => ({ ...REQUEST, canDecide: false, decisions: [] }),
+    });
+    let asked = false;
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      approver: { userId: "u2", claims: {} },
+      authorization: {
+        approverOf: () => {
+          asked = true;
+          return true;
+        },
+      },
+    });
+    const result = await approvals.reject("r1");
+    expect(!result.ok && result.error.kind).toBe("forbidden");
+    expect(asked).toBe(false);
+    expect(() =>
+      createApprovals({
+        transport: fake,
+        authorization: { approverOf: () => true },
+      }),
+    ).toThrow(/approver/);
+  });
+
   it("requests, decides, delegates and cancels", async () => {
     const fake = transport({
       request_approval: () => REQUEST,
