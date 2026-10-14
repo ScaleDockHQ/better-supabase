@@ -355,6 +355,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner.
 create or replace function "better_supabase"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
@@ -1220,6 +1223,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner.
 create or replace function "better_supabase"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
@@ -2137,6 +2143,9 @@ end;
 $$;
 revoke execute on function "app_private"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists "app_private"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner.
 create or replace function "app_private"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
@@ -3002,6 +3011,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner.
 create or replace function "better_supabase"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
@@ -3950,6 +3962,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner.
 create or replace function "better_supabase"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)

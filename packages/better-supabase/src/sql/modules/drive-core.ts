@@ -413,6 +413,9 @@ end;
 $$;
 revoke execute on function ${fn("drive_check_parent")}(${ctx.idType}, uuid) from public, anon, authenticated;
 
+-- It returns the node table's row type, which differs between managed and
+-- adopted tables.
+drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets ${roles.top}.
 create or replace function ${fn("drive_insert_node")}(tenant ${ctx.idType}, parent uuid, kind text, name text, conflict text, fields jsonb)
