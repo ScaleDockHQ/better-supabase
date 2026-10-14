@@ -142,6 +142,8 @@ create table if not exists "better_supabase"."bookings" (
   ) where ("status" <> 'cancelled')
 );
 create index if not exists bookings_tenant_during_idx on "better_supabase"."bookings" using gist ("tenant_id", "during");
+create index if not exists bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
+create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from anon, authenticated;
@@ -886,6 +888,8 @@ create table if not exists "better_supabase"."bookings" (
   ) where ("status" <> 'cancelled')
 );
 create index if not exists bookings_tenant_during_idx on "better_supabase"."bookings" using gist ("tenant_id", "during");
+create index if not exists bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
+create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from anon, authenticated;
@@ -1868,6 +1872,8 @@ create table if not exists "app_private"."bookings" (
   ) where ("status" <> 'cancelled')
 );
 create index if not exists bookings_tenant_during_idx on "app_private"."bookings" using gist ("tenant_id", "during");
+create index if not exists bookings_resource_idx on "app_private"."bookings" ("resource_id");
+create index if not exists bookings_service_idx on "app_private"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "app_private"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "app_private"."bookings" enable row level security;
 revoke all on "app_private"."bookings" from anon, authenticated;
@@ -2612,6 +2618,8 @@ create table if not exists "better_supabase"."bookings" (
   ) where ("status" <> 'cancelled')
 );
 create index if not exists bookings_tenant_during_idx on "better_supabase"."bookings" using gist ("tenant_id", "during");
+create index if not exists bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
+create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from anon, authenticated;

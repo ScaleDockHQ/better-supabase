@@ -56,6 +56,7 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'team' or "team_id" is not null)
 );
 create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;
@@ -380,6 +381,7 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'team' or "team_id" is not null)
 );
 create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;
@@ -706,6 +708,7 @@ create table if not exists "app_private"."saved_views" (
   check ("scope" <> 'team' or "team_id" is not null)
 );
 create index if not exists saved_views_list_idx on "app_private"."saved_views" ("tenant_id", "list");
+create index if not exists saved_views_owner_idx on "app_private"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists saved_views_default_idx on "app_private"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "app_private"."saved_views" enable row level security;
 revoke all on "app_private"."saved_views" from anon, authenticated;
@@ -1030,6 +1033,7 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'team' or "team_id" is not null)
 );
 create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;

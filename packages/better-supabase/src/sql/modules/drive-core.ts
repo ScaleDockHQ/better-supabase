@@ -80,6 +80,7 @@ export function driveCoreSql(kit: DriveKit): string {
 );${addExtraColumns(T, extras)}
 create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_sibling_name_idx`)} on ${T} (${n("tenant")}, coalesce(${n("parent")}, '00000000-0000-0000-0000-000000000000'::uuid), lower(${n("name")})) where ${n("deletedAt")} is null;
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_idx`)} on ${T} (${n("tenant")}, ${n("parent")}, ${n("rank")});
+create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_fk_idx`)} on ${T} (${n("parent")}) where ${n("parent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_path_idx`)} on ${T} (${n("path")} text_pattern_ops);
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_attachment_idx`)} on ${T} (${n("attachment")});
 ${lockTable(T, { read: true })}

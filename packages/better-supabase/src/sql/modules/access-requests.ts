@@ -238,6 +238,7 @@ function build(ctx: ModuleContext): string {
   ${c("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
 ${lockTable(requests, { read: true })}
 drop policy if exists "access_requests_read" on ${requests};

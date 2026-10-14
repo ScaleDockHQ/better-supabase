@@ -119,6 +119,7 @@ function build(ctx: ModuleContext): string {
   check (${scope} <> 'team' or ${team} is not null)
 );
 create index if not exists saved_views_list_idx on ${views} (${tenant}, ${list});
+create index if not exists saved_views_owner_idx on ${views} (${owner}) where ${owner} is not null;
 create unique index if not exists saved_views_default_idx on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};
 ${lockTable(views, { read: true })}
 `

@@ -287,6 +287,7 @@ create table if not exists ${timesheets} (
   ${t("createdAt")} timestamptz not null default now(),
   unique (${t("tenant")}, ${t("user")}, ${t("week")})
 );
+create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_approval_idx`)} on ${timesheets} (${t("approval")}) where ${t("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_week_idx`)} on ${timesheets} (${t("tenant")}, ${t("week")} desc);
 ${lockTable(timesheets, { read: true })}
 drop policy if exists "timesheets_read" on ${timesheets};

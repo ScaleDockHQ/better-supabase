@@ -234,6 +234,8 @@ create table if not exists ${p.bookings} (
   ) where (${b("status")} <> 'cancelled')
 );
 create index if not exists bookings_tenant_during_idx on ${p.bookings} using gist (${b("tenant")}, ${b("during")});
+create index if not exists bookings_resource_idx on ${p.bookings} (${b("resource")});
+create index if not exists bookings_service_idx on ${p.bookings} (${b("service")});
 create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};

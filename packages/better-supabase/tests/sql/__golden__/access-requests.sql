@@ -53,6 +53,7 @@ create table if not exists "better_supabase"."access_requests" (
   "created_at" timestamptz not null default now()
 );
 create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from anon, authenticated;
@@ -414,6 +415,7 @@ create table if not exists "better_supabase"."access_requests" (
   "created_at" timestamptz not null default now()
 );
 create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from anon, authenticated;
@@ -809,6 +811,7 @@ create table if not exists "app_private"."access_requests" (
   "created_at" timestamptz not null default now()
 );
 create index if not exists "access_requests_tenant_idx" on "app_private"."access_requests" ("tenant_id", "created_at" desc);
+create index if not exists "access_requests_approval_idx" on "app_private"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "app_private"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "app_private"."access_requests" enable row level security;
 revoke all on "app_private"."access_requests" from anon, authenticated;
@@ -1170,6 +1173,7 @@ create table if not exists "better_supabase"."access_requests" (
   "created_at" timestamptz not null default now()
 );
 create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from anon, authenticated;

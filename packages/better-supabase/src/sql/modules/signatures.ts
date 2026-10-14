@@ -243,6 +243,7 @@ function build(ctx: ModuleContext): string {
   ${r("completedAt")} timestamptz
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
 ${lockTable(requests, { read: true })}
 drop policy if exists "signature_requests_read" on ${requests};

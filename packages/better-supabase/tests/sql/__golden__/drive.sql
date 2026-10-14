@@ -54,6 +54,7 @@ create table if not exists "better_supabase"."drive_nodes" (
 );
 create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null;
 create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
@@ -918,6 +919,7 @@ create table if not exists "better_supabase"."drive_nodes" (
 );
 create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null;
 create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
@@ -1834,6 +1836,7 @@ create table if not exists "app_private"."drive_nodes" (
 );
 create unique index if not exists "drive_nodes_sibling_name_idx" on "app_private"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null;
 create index if not exists "drive_nodes_parent_idx" on "app_private"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index if not exists "drive_nodes_parent_fk_idx" on "app_private"."drive_nodes" ("parent_id") where "parent_id" is not null;
 create index if not exists "drive_nodes_path_idx" on "app_private"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "app_private"."drive_nodes" ("attachment_id");
 alter table "app_private"."drive_nodes" enable row level security;
@@ -2698,6 +2701,7 @@ create table if not exists "better_supabase"."drive_nodes" (
 );
 create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null;
 create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;

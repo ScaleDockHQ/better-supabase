@@ -87,6 +87,7 @@ create table if not exists "better_supabase"."timesheets" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "user_id", "week")
 );
+create index if not exists "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
 create index if not exists "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
 alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from anon, authenticated;
@@ -849,6 +850,7 @@ create table if not exists "better_supabase"."timesheets" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "user_id", "week")
 );
+create index if not exists "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
 create index if not exists "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
 alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from anon, authenticated;
@@ -1640,6 +1642,7 @@ create table if not exists "app_private"."timesheets" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "user_id", "week")
 );
+create index if not exists "timesheets_approval_idx" on "app_private"."timesheets" ("approval_id") where "approval_id" is not null;
 create index if not exists "timesheets_week_idx" on "app_private"."timesheets" ("tenant_id", "week" desc);
 alter table "app_private"."timesheets" enable row level security;
 revoke all on "app_private"."timesheets" from anon, authenticated;
@@ -2402,6 +2405,7 @@ create table if not exists "better_supabase"."timesheets" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "user_id", "week")
 );
+create index if not exists "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
 create index if not exists "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
 alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from anon, authenticated;

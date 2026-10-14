@@ -345,6 +345,7 @@ create table if not exists ${submissions} (
   check ((${s("subjectType")} is null) = (${s("subjectId")} is null))
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_form_idx`)} on ${submissions} (${s("form")}, ${s("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_version_idx`)} on ${submissions} (${s("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_respondent_idx`)} on ${submissions} (${s("respondent")}) where ${s("respondent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subject_idx`)} on ${submissions} (${s("subjectType")}, ${s("subjectId")}) where ${s("subjectType")} is not null;
 ${lockTable(submissions, { read: true })}

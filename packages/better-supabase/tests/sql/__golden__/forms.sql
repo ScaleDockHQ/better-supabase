@@ -97,6 +97,7 @@ create table if not exists "better_supabase"."form_submissions" (
   check (("subject_type" is null) = ("subject_id" is null))
 );
 create index if not exists "form_submissions_form_idx" on "better_supabase"."form_submissions" ("form_id", "created_at" desc);
+create index if not exists "form_submissions_version_idx" on "better_supabase"."form_submissions" ("version_id");
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
@@ -853,6 +854,7 @@ create table if not exists "better_supabase"."form_submissions" (
   check (("subject_type" is null) = ("subject_id" is null))
 );
 create index if not exists "form_submissions_form_idx" on "better_supabase"."form_submissions" ("form_id", "created_at" desc);
+create index if not exists "form_submissions_version_idx" on "better_supabase"."form_submissions" ("version_id");
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
@@ -1756,6 +1758,7 @@ create table if not exists "app_private"."form_submissions" (
   check (("subject_type" is null) = ("subject_id" is null))
 );
 create index if not exists "form_submissions_form_idx" on "app_private"."form_submissions" ("form_id", "created_at" desc);
+create index if not exists "form_submissions_version_idx" on "app_private"."form_submissions" ("version_id");
 create index if not exists "form_submissions_respondent_idx" on "app_private"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "app_private"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "app_private"."form_submissions" enable row level security;
@@ -2512,6 +2515,7 @@ create table if not exists "better_supabase"."form_submissions" (
   check (("subject_type" is null) = ("subject_id" is null))
 );
 create index if not exists "form_submissions_form_idx" on "better_supabase"."form_submissions" ("form_id", "created_at" desc);
+create index if not exists "form_submissions_version_idx" on "better_supabase"."form_submissions" ("version_id");
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;

@@ -55,6 +55,7 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;
@@ -514,6 +515,7 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;
@@ -1025,6 +1027,7 @@ create table if not exists "app_private"."signature_requests" (
   "completed_at" timestamptz
 );
 create index if not exists "signature_requests_subject_idx" on "app_private"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index if not exists "signature_requests_version_idx" on "app_private"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "app_private"."signature_requests" using gin ("signers");
 alter table "app_private"."signature_requests" enable row level security;
 revoke all on "app_private"."signature_requests" from anon, authenticated;
@@ -1484,6 +1487,7 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;

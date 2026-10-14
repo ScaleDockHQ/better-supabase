@@ -82,6 +82,7 @@ create table if not exists "better_supabase"."calendar_events" (
   check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
+create index if not exists calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index if not exists calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from anon, authenticated;
@@ -679,6 +680,7 @@ create table if not exists "better_supabase"."calendar_events" (
   check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
+create index if not exists calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index if not exists calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from anon, authenticated;
@@ -1331,6 +1333,7 @@ create table if not exists "app_private"."calendar_events" (
   check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
+create index if not exists calendar_events_recurrence_idx on "app_private"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index if not exists calendar_events_range_idx on "app_private"."calendar_events" ("calendar_id", "starts_at");
 alter table "app_private"."calendar_events" enable row level security;
 revoke all on "app_private"."calendar_events" from anon, authenticated;
@@ -1928,6 +1931,7 @@ create table if not exists "better_supabase"."calendar_events" (
   check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
+create index if not exists calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index if not exists calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from anon, authenticated;

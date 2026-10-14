@@ -334,6 +334,7 @@ create table if not exists ${events} (
   check ((${e("recurrence")} is null) = (${e("originalStart")} is null)),
   unique nulls not distinct (${e("calendar")}, ${e("uid")}, ${e("originalStart")})
 );
+create index if not exists calendar_events_recurrence_idx on ${events} (${e("recurrence")}) where ${e("recurrence")} is not null;
 create index if not exists calendar_events_range_idx on ${events} (${e("calendar")}, ${e("startsAt")});
 ${lockTable(events, { read: true })}
 drop policy if exists calendar_events_read on ${events};
