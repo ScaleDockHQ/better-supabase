@@ -421,6 +421,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./yjs": {
+      "@better-supabase/source": "./src/yjs/index.ts",
+      "types": "./dist/yjs/index.d.ts",
+      "default": "./dist/yjs/index.js"
+    },
     "./better-result": {
       "@better-supabase/source": "./src/better-result/index.ts",
       "types": "./dist/better-result/index.d.ts",
@@ -685,6 +690,42 @@
       "types": "./dist/blocks/bookings/react/index.d.ts",
       "react-server": "./dist/blocks/bookings/react/server.js",
       "default": "./dist/blocks/bookings/react/index.js"
+    },
+    "./blocks/versions": {
+      "@better-supabase/source": "./src/blocks/versions/index.ts",
+      "types": "./dist/blocks/versions/index.d.ts",
+      "default": "./dist/blocks/versions/index.js"
+    },
+    "./blocks/trash": {
+      "@better-supabase/source": "./src/blocks/trash/index.ts",
+      "types": "./dist/blocks/trash/index.d.ts",
+      "default": "./dist/blocks/trash/index.js"
+    },
+    "./blocks/reactions": {
+      "@better-supabase/source": "./src/blocks/reactions/index.ts",
+      "types": "./dist/blocks/reactions/index.d.ts",
+      "default": "./dist/blocks/reactions/index.js"
+    },
+    "./blocks/approvals": {
+      "@better-supabase/source": "./src/blocks/approvals/index.ts",
+      "types": "./dist/blocks/approvals/index.d.ts",
+      "default": "./dist/blocks/approvals/index.js"
+    },
+    "./blocks/access-requests": {
+      "@better-supabase/source": "./src/blocks/access-requests/index.ts",
+      "types": "./dist/blocks/access-requests/index.d.ts",
+      "default": "./dist/blocks/access-requests/index.js"
+    },
+    "./blocks/documents": {
+      "@better-supabase/source": "./src/blocks/documents/index.ts",
+      "types": "./dist/blocks/documents/index.d.ts",
+      "default": "./dist/blocks/documents/index.js"
+    },
+    "./blocks/reactions/react": {
+      "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
+      "types": "./dist/blocks/reactions/react/index.d.ts",
+      "react-server": "./dist/blocks/reactions/react/server.js",
+      "default": "./dist/blocks/reactions/react/index.js"
     },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
@@ -1097,6 +1138,10 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./yjs": {
+        "types": "./dist/yjs/index.d.ts",
+        "default": "./dist/yjs/index.js"
+      },
       "./better-result": {
         "types": "./dist/better-result/index.d.ts",
         "default": "./dist/better-result/index.js"
@@ -1311,6 +1356,35 @@
         "react-server": "./dist/blocks/bookings/react/server.js",
         "default": "./dist/blocks/bookings/react/index.js"
       },
+      "./blocks/versions": {
+        "types": "./dist/blocks/versions/index.d.ts",
+        "default": "./dist/blocks/versions/index.js"
+      },
+      "./blocks/trash": {
+        "types": "./dist/blocks/trash/index.d.ts",
+        "default": "./dist/blocks/trash/index.js"
+      },
+      "./blocks/reactions": {
+        "types": "./dist/blocks/reactions/index.d.ts",
+        "default": "./dist/blocks/reactions/index.js"
+      },
+      "./blocks/approvals": {
+        "types": "./dist/blocks/approvals/index.d.ts",
+        "default": "./dist/blocks/approvals/index.js"
+      },
+      "./blocks/access-requests": {
+        "types": "./dist/blocks/access-requests/index.d.ts",
+        "default": "./dist/blocks/access-requests/index.js"
+      },
+      "./blocks/documents": {
+        "types": "./dist/blocks/documents/index.d.ts",
+        "default": "./dist/blocks/documents/index.js"
+      },
+      "./blocks/reactions/react": {
+        "types": "./dist/blocks/reactions/react/index.d.ts",
+        "react-server": "./dist/blocks/reactions/react/server.js",
+        "default": "./dist/blocks/reactions/react/index.js"
+      },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
         "react-server": "./dist/blocks/announcements/react/server.js",
@@ -1491,6 +1565,7 @@
     "vue": "catalog:",
     "workflow": "catalog:",
     "yaml": "catalog:",
+    "yjs": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -1528,7 +1603,8 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "vue": "catalog:peers",
-    "workflow": "catalog:peers"
+    "workflow": "catalog:peers",
+    "yjs": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/mcp": {
@@ -1631,6 +1707,9 @@
       "optional": true
     },
     "workflow": {
+      "optional": true
+    },
+    "yjs": {
       "optional": true
     }
   },

@@ -27,6 +27,7 @@ import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts"
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
+import { useReactions } from "../../src/blocks/reactions/react/index.ts";
 import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
 import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
 import { undoToken } from "../../src/blocks/undo/undo.ts";
@@ -1255,6 +1256,79 @@ describe("useAnnouncements", () => {
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.error?.message).toBe("offline");
+    view.unmount();
+  });
+});
+
+describe("useReactions", () => {
+  it("loads, toggles and reloads when a watched subject changes", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let counts = [{ emoji: "👍", count: 1, reacted: false, actors: ["u2"] }];
+    const rpc = withRpc(client, (fn, args) => {
+      if (fn === "react") {
+        return [
+          {
+            emoji: args["emoji"],
+            count: args["present"] ? 2 : 0,
+            reacted: args["present"],
+            actors: [],
+          },
+        ];
+      }
+      return { c1: counts, c2: [] };
+    });
+    const view = renderHook(
+      () =>
+        useReactions({
+          organizationId: "org-1",
+          subjectType: "comment",
+          subjectIds: ["c1", "c2"],
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.reactions?.["c1"]?.[0]?.count).toBe(1);
+    expect(rpc).toHaveBeenCalledWith("reaction_summary", {
+      tenant: "org-1",
+      subject_type: "comment",
+      subject_ids: ["c1", "c2"],
+    });
+
+    await view.result.toggle("c1", "👍");
+    expect(rpc).toHaveBeenLastCalledWith("react", {
+      tenant: "org-1",
+      subject_type: "comment",
+      subject_id: "c1",
+      emoji: "👍",
+      present: true,
+      actor: null,
+    });
+    expect(view.result.reactions?.["c1"]?.[0]).toMatchObject({
+      count: 2,
+      reacted: true,
+    });
+    await view.result.toggle("c1", "👍");
+    expect(rpc).toHaveBeenLastCalledWith(
+      "react",
+      expect.objectContaining({ present: false }),
+    );
+
+    const calls = rpc.mock.calls.length;
+    emit("reactions:org-1", "changed", {
+      subjectType: "comment",
+      subjectId: "other",
+    });
+    await flush();
+    expect(rpc.mock.calls.length).toBe(calls);
+    counts = [{ emoji: "🎉", count: 1, reacted: false, actors: ["u3"] }];
+    emit("reactions:org-1", "changed", {
+      subjectType: "comment",
+      subjectId: "c2",
+    });
+    await flush();
+    expect(view.result.reactions?.["c1"]?.[0]?.emoji).toBe("🎉");
     view.unmount();
   });
 });

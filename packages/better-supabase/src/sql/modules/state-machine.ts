@@ -12,6 +12,7 @@ import {
   lockTable,
   quotedTable,
   schemaPreamble,
+  SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
 
@@ -70,6 +71,8 @@ interface Machine {
   readonly tenantColumn: string;
   readonly initial: string;
   readonly transitions: Readonly<Record<string, readonly string[]>>;
+  /** Transitions only an approved request of the approvals module may make. */
+  readonly requiresApproval: Readonly<Record<string, readonly string[]>>;
   /** Writes a timeline row (label snapshot, display order, cleared_at). */
   readonly stages: boolean;
   readonly history?: {
@@ -124,14 +127,19 @@ function machine(name: string, entry: unknown): Machine {
       `${where}.transitions must be an object of status to statuses`,
     );
   }
-  const edges: Record<string, readonly string[]> = {};
-  for (const [from, to] of Object.entries(transitions)) {
-    if (!Array.isArray(to) || to.some((item) => typeof item !== "string")) {
-      throw new TypeError(
-        `${where}.transitions.${from} must be a list of statuses`,
-      );
+  const edges = edgesOf(transitions, `${where}.transitions`);
+  const gated = edgesOf(
+    record["requiresApproval"] ?? {},
+    `${where}.requiresApproval`,
+  );
+  for (const [from, to] of Object.entries(gated)) {
+    for (const status of to) {
+      if (!edges[from]?.includes(status)) {
+        throw new TypeError(
+          `${where}.requiresApproval.${from}: ${status} is not an allowed transition`,
+        );
+      }
     }
-    edges[from] = to;
   }
   const history = historyOf(record["history"], where);
   return {
@@ -143,9 +151,27 @@ function machine(name: string, entry: unknown): Machine {
       typeof record["tenant"] === "string" ? record["tenant"] : "tenant_id",
     initial,
     transitions: edges,
+    requiresApproval: gated,
     stages: record["stages"] === true,
     ...(history === undefined ? {} : { history }),
   };
+}
+
+function edgesOf(
+  value: unknown,
+  where: string,
+): Record<string, readonly string[]> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${where} must be an object of status to statuses`);
+  }
+  const edges: Record<string, readonly string[]> = {};
+  for (const [from, to] of Object.entries(value)) {
+    if (!Array.isArray(to) || to.some((item) => typeof item !== "string")) {
+      throw new TypeError(`${where}.${from} must be a list of statuses`);
+    }
+    edges[from] = to;
+  }
+  return edges;
 }
 
 function historyOf(
@@ -204,6 +230,39 @@ function stageWrite(
   insert into ${stages} (${ctx.col("stages", "tenant")}, ${subjectType}, ${subjectId}, ${ctx.col("stages", "label")}, ${display})
   values (new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${id}::text, new.${sqlIdent(item.column)},
     coalesce((select max(s.${display}) from ${stages} s where s.${subjectId} = new.${id}::text), 0) + 1);`;
+}
+
+function approvalGate(ctx: ModuleContext, item: Machine): string {
+  const gated = Object.entries(item.requiresApproval).filter(
+    ([, to]) => to.length > 0,
+  );
+  if (gated.length === 0) return "";
+  const where = `sql.modules.state-machine.options.machines.${item.name}.requiresApproval`;
+  if (!ctx.installed("approvals")) {
+    throw new TypeError(`${where} needs the approvals module`);
+  }
+  const approvals = ctx.of("approvals");
+  const a = (column: string): string => approvals.col("requests", column);
+  const arms = gated
+    .map(
+      ([from, to]) =>
+        `when ${sqlString(from)} then new.${sqlIdent(item.column)} = any (${sqlString(`{${to.join(",")}}`)}::text[])`,
+    )
+    .join(" ");
+  return `
+  -- The approvals module sets better_supabase.approval to the request it
+  -- just approved before it makes the transition.
+  if (case old.${sqlIdent(item.column)} ${arms} else false end)
+    and not ${SERVICE_CALLER}
+    and not exists (
+      select 1 from ${approvals.table("requests")} a
+      where a.${a("id")}::text = nullif(current_setting('better_supabase.approval', true), '')
+        and a.${a("status")} = 'approved'
+        and a.${a("subjectType")} = ${sqlString(item.name)}
+        and a.${a("subjectId")} = new.${sqlIdent(item.idColumn)}::text
+    ) then
+    ${fail("STATE_APPROVAL_REQUIRED", "that status change needs an approved request", "42501")}
+  end if;`;
 }
 
 function build(ctx: ModuleContext): string {
@@ -285,7 +344,7 @@ begin
   end if;
   if not (case old.${sqlIdent(item.column)} ${allowed} else false end) then
     ${fail("STATE_TRANSITION_INVALID", "that status change is not allowed", "22023")}
-  end if;
+  end if;${approvalGate(ctx, item)}
   ${write}
   ${stageWrite(ctx, item, "advance")}
   ${ctx.record({
@@ -363,7 +422,7 @@ export const STATE_MACHINE: ModuleDefinition = {
   description:
     "Allowed status transitions, a history row and a status.changed event. A machine can also write a stages timeline. Each machine is a subject table named in options.machines.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "approvals"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

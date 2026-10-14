@@ -59,6 +59,12 @@
     "metrics",
     "commerce",
     "calendar",
-    "bookings"
+    "bookings",
+    "versions",
+    "trash",
+    "reactions",
+    "approvals",
+    "access-requests",
+    "documents"
   ]
 }

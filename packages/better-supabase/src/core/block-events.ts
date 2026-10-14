@@ -352,7 +352,22 @@ export type SubjectEventType =
   | "subject.viewed"
   | "reminder.sent"
   | "subject.linked"
-  | "subject.unlinked";
+  | "subject.unlinked"
+  | "version.created"
+  | "version.restored"
+  | "version.deleted"
+  | "subject.trashed"
+  | "subject.restored"
+  | "subject.purged"
+  | "reaction.added"
+  | "reaction.removed"
+  | "document.created"
+  | "approval.requested"
+  | "approval.approved"
+  | "approval.rejected"
+  | "approval.cancelled"
+  | "approval.expired"
+  | "approval.delegated";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -391,6 +406,49 @@ export interface SchedulingEventData {
   readonly calendarId?: string;
   readonly resourceId?: string;
   readonly serviceId?: string | null;
+}
+
+/** Events from the collaboration blocks (versions, trash, reactions, approvals, access requests, documents). */
+export interface CollaborationEventData extends SubjectEventData {
+  readonly id?: string;
+  readonly number?: number;
+  readonly label?: string | null;
+  readonly source?: string;
+  readonly restoredFrom?: number;
+  /** The trash batch: a subject and the children trashed with it. */
+  readonly batchId?: string;
+  /** The emoji, or a custom emoji's `:shortcode:`. */
+  readonly emoji?: string;
+  /** Who reacted: a user id, or the name the service passed. */
+  readonly actor?: string;
+  /** The action an approval request is for, such as `publish`. */
+  readonly action?: string;
+  /** An approval request's status after the event. */
+  readonly status?: string;
+  /** The approval step the request is on, from 0. */
+  readonly step?: number;
+}
+
+/** Events from the access-requests module. */
+export interface AccessRequestEventData {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly role: string;
+  /** The access request. */
+  readonly id: string;
+  readonly approvalId?: string | null;
+  /** When the granted role ends; null for a grant without a duration. */
+  readonly expiresAt?: string | null;
+  /** For `access.ended`: `expired` or `revoked`. */
+  readonly reason?: string;
+}
+
+/** Events from the documents module. */
+export interface DocumentEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The document. */
+  readonly id: string;
+  readonly name: string;
 }
 
 /** Every block event type and its data. */
@@ -539,6 +597,24 @@ export interface BlockEventMap {
   "booking.confirmed": SchedulingEventData;
   "booking.cancelled": SchedulingEventData;
   "booking.expired": SchedulingEventData;
+  "version.created": CollaborationEventData;
+  "version.restored": CollaborationEventData;
+  "version.deleted": CollaborationEventData;
+  "subject.trashed": CollaborationEventData;
+  "subject.restored": CollaborationEventData;
+  "subject.purged": CollaborationEventData;
+  "reaction.added": CollaborationEventData;
+  "reaction.removed": CollaborationEventData;
+  "approval.requested": CollaborationEventData;
+  "approval.approved": CollaborationEventData;
+  "approval.rejected": CollaborationEventData;
+  "approval.cancelled": CollaborationEventData;
+  "approval.expired": CollaborationEventData;
+  "approval.delegated": CollaborationEventData;
+  "access.requested": AccessRequestEventData;
+  "access.request_approved": AccessRequestEventData;
+  "access.ended": AccessRequestEventData;
+  "document.created": DocumentEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

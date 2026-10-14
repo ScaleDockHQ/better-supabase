@@ -30,6 +30,27 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_booking_confirm",
     "after_booking_cancel",
   ],
+  versions: [
+    "before_version_snapshot",
+    "after_version_snapshot",
+    "before_version_restore",
+    "after_version_restore",
+  ],
+  trash: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
+  reactions: ["before_react", "after_react"],
+  approvals: [
+    "before_approval_request",
+    "after_approval_request",
+    "before_approval_decide",
+    "after_approval_decide",
+  ],
+  "access-requests": [
+    "before_access_request",
+    "after_access_request",
+    "before_access_grant",
+    "after_access_grant",
+  ],
+  documents: ["before_document_create", "after_document_create"],
 };
 
 /** Modules that call their hooks only for configured items. */

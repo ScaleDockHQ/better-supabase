@@ -1,0 +1,80 @@
+---
+title: Trash
+description: Soft delete through each subject's deletedAt column, with children trashed in one batch, restore with unique checks, a list per organization and purge after a retention period.
+---
+
+`trash` sets a subject's `deletedAt` column instead of deleting the row, records it in `trash_items`, and trashes the rows that point at it in the same batch. Restoring a trash item restores its whole batch. Reading the trash needs `trash.read`, trashing needs `trash.create` and the subject's `write` permission, restoring needs `trash.restore`, and purging needs `trash.manage`.
+
+```bash
+better-supabase sql add trash
+```
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+
+const trash = createTrash({ transport });
+const batch = await trash.trash(organizationId, "project", projectId).orThrow();
+const bin = await trash.list(organizationId).orThrow();
+await trash.restore(batch.id).orThrow();
+```
+
+## Configure subjects
+
+Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  project: { table: "public.projects", idType: "uuid", title: "name", deletedAt: "deleted_at" },
+  task: { table: "public.tasks", idType: "uuid", title: "title", deletedAt: "deleted_at" },
+},
+sql: {
+  modules: {
+    trash: {
+      options: {
+        retentionDays: 30,
+        subjects: {
+          project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
+          task: {},
+        },
+      },
+    },
+  },
+},
+```
+
+| Option                      | Default            | What it does                                                                 |
+| --------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| `subjects.<type>.deletedAt` | the registry entry | The `timestamptz` column that marks a trashed row                            |
+| `subjects.<type>.title`     | the registry entry | The column the trash list shows                                              |
+| `subjects.<type>.unique`    | none               | Columns checked on restore; a clash fails with `TRASH_RESTORE_CONFLICT`      |
+| `subjects.<type>.children`  | none               | `{ type, column }`: rows of `type` whose `column` holds this subject's id    |
+| `retentionDays`             | `30`               | Days before `purge_expired_trash` deletes a batch; `0` keeps it until purged |
+
+Children are trashed recursively, so a project trashes its tasks and their own children. A child that was already in the trash stays in its own batch.
+
+## Hide trashed rows
+
+Filter on the `deletedAt` column in queries and policies (`deleted_at is null`). For a policy that can't see the column, `better_supabase.is_trashed(subject_type, subject_id)` tells whether a subject is in the trash:
+
+```sql
+create policy "projects_read" on public.projects for select to authenticated
+  using (deleted_at is null and organization_id in (select better_supabase.tenant_ids_with('projects.read')));
+```
+
+The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set.
+
+## Purge
+
+`purge(id)` deletes a batch's rows for good, children first. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/jobs) drain:
+
+```sql
+select cron.schedule('purge-trash', '15 3 * * *', 'select better_supabase.purge_expired_trash()');
+```
+
+## Events and hooks
+
+The module records `subject.trashed`, `subject.restored` and `subject.purged` for every row, each with `organizationId`, `subjectType`, `subjectId`, the trash item `id` and the `batchId`, so search indexes and [data lifecycle](/docs/blocks/data-lifecycle) can follow them. It calls `before_trash`, `after_trash`, `before_untrash` and `after_untrash` around trash and restore.
+
+## With ReUI
+
+A bin page renders `list()` in a ReUI data grid, with restore and delete-forever actions per row. `count` shows how many rows a batch holds, and `purgeAfter` when it goes for good.

@@ -1931,6 +1931,7 @@
       "BlockEventType",
       "CloudEvent",
       "CloudEventOptions",
+      "CollaborationEventData",
       "CommentEventData",
       "ConnectorEventData",
       "CredentialEventData",
@@ -2669,6 +2670,20 @@
       "VercelConnectCredentialsOptions",
       "VercelConnectModule",
       "VercelConnectRef"
+    ]
+  },
+  "./yjs": {
+    "values": [
+      "compactDocument",
+      "createDocumentProvider"
+    ],
+    "types": [
+      "CompactDocumentOptions",
+      "DocumentProvider",
+      "DocumentProviderOptions",
+      "DocumentProviderStatus",
+      "YDocLike",
+      "YjsLike"
     ]
   },
   "./better-result": {
@@ -3800,6 +3815,131 @@
     "types": [
       "AvailableSlotsState",
       "UseAvailableSlotsOptions"
+    ]
+  },
+  "./blocks/versions": {
+    "values": [
+      "applyPatch",
+      "createPatch",
+      "createVersions",
+      "dbTransport",
+      "jsonEqual",
+      "JsonPatchError",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "JsonPatchOperation",
+      "JsonValue",
+      "RestoreResult",
+      "SnapshotInput",
+      "SnapshotResult",
+      "Version",
+      "VersionListOptions",
+      "Versions",
+      "VersionsOptions",
+      "VersionSource"
+    ]
+  },
+  "./blocks/trash": {
+    "values": [
+      "createTrash",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Trash",
+      "TrashBatch",
+      "TrashItem",
+      "TrashListOptions",
+      "TrashOptions"
+    ]
+  },
+  "./blocks/reactions": {
+    "values": [
+      "createReactions",
+      "dbTransport",
+      "reactionsTopic",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "CustomEmoji",
+      "CustomEmojiInput",
+      "ReactionCount",
+      "Reactions",
+      "ReactionsOptions",
+      "ReactOptions"
+    ]
+  },
+  "./blocks/approvals": {
+    "values": [
+      "createApprovals",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "ApprovalApprovers",
+      "ApprovalDecision",
+      "ApprovalListOptions",
+      "ApprovalRequest",
+      "ApprovalRequestDetail",
+      "ApprovalRequestInput",
+      "Approvals",
+      "ApprovalsOptions",
+      "ApprovalStatus",
+      "ApprovalStep",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/access-requests": {
+    "values": [
+      "createAccessRequests",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AccessRequest",
+      "AccessRequestInput",
+      "AccessRequestListOptions",
+      "AccessRequests",
+      "AccessRequestsOptions",
+      "AccessRequestStatus",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/documents": {
+    "values": [
+      "createDocuments",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "DocumentInfo",
+      "DocumentRef",
+      "Documents",
+      "DocumentsOptions",
+      "DocumentState",
+      "DocumentUpdate",
+      "DocumentVersion",
+      "OpenedDocument"
+    ]
+  },
+  "./blocks/reactions/react": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "ReactionsState",
+      "UseReactionsOptions"
     ]
   },
   "./blocks/announcements/react": {

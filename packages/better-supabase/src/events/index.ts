@@ -271,6 +271,7 @@ export type {
   AttachmentEventData,
   AuditRevealEventData,
   BillingEventData,
+  CollaborationEventData,
   CommentEventData,
   ConnectorEventData,
   CredentialEventData,

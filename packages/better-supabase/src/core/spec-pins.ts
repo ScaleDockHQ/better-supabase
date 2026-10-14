@@ -44,6 +44,8 @@ export const SPEC_PINS: {
   readonly rfc4180: "2005-10";
   /** ISO 4217 List One publication behind the commerce block's minor units. */
   readonly iso4217: "2026-09-17";
+  /** RFC 6902 JSON Patch that the versions block's `createPatch` writes and `applyPatch` applies. */
+  readonly rfc6902: "2013-04";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -79,4 +81,5 @@ export const SPEC_PINS: {
   rfc5545: "2009-09",
   rfc4180: "2005-10",
   iso4217: "2026-09-17",
+  rfc6902: "2013-04",
 };

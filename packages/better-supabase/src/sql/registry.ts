@@ -5,6 +5,7 @@ import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
+import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
@@ -15,6 +16,7 @@ import { AI_PROVIDERS } from "./modules/ai-providers.ts";
 import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
+import { APPROVALS } from "./modules/approvals.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
@@ -27,6 +29,7 @@ import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DOCUMENTS } from "./modules/documents.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -51,6 +54,7 @@ import { PROFILES } from "./modules/profiles.ts";
 import { PUSH } from "./modules/push.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
+import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { RELATIONS } from "./modules/relations.ts";
@@ -69,9 +73,11 @@ import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TENANT } from "./modules/tenant.ts";
+import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
+import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
@@ -179,6 +185,12 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(METRICS),
       built(CALENDAR),
       built(BOOKINGS),
+      built(VERSIONS),
+      built(TRASH),
+      built(REACTIONS),
+      built(APPROVALS),
+      built(ACCESS_REQUESTS),
+      built(DOCUMENTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

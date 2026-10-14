@@ -44,6 +44,12 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "metrics.*",
     "calendar.*",
     "bookings.*",
+    "versions.*",
+    "trash.*",
+    "reactions.*",
+    "approvals.*",
+    "access_requests.*",
+    "documents.*",
   ],
   member: [
     "organization.read",
@@ -79,6 +85,19 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "calendar.write",
     "bookings.read",
     "bookings.create",
+    "versions.read",
+    "versions.create",
+    "versions.restore",
+    "trash.read",
+    "trash.create",
+    "trash.restore",
+    "reactions.read",
+    "reactions.create",
+    "approvals.read",
+    "approvals.request",
+    "access_requests.create",
+    "documents.read",
+    "documents.write",
   ],
   viewer: ["organization.read"],
 };
@@ -222,6 +241,38 @@ export const MODULE_PERMISSIONS = {
     create: "bookings.create",
     read: "bookings.read",
   },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
+  trash: {
+    read: "trash.read",
+    create: "trash.create",
+    restore: "trash.restore",
+    manage: "trash.manage",
+  },
+  reactions: {
+    read: "reactions.read",
+    create: "reactions.create",
+    manage: "reactions.manage",
+  },
+  approvals: {
+    read: "approvals.read",
+    request: "approvals.request",
+    manage: "approvals.manage",
+  },
+  "access-requests": {
+    read: "access_requests.read",
+    create: "access_requests.create",
+    manage: "access_requests.manage",
+  },
+  documents: {
+    read: "documents.read",
+    write: "documents.write",
+    manage: "documents.manage",
+  },
 } as const;
 
 /**
@@ -334,6 +385,22 @@ export const MODULE_PERMISSION_SCOPES: {
   metrics: { read: "tenant", manage: "tenant" },
   calendar: { manage: "tenant", write: "tenant", read: "tenant" },
   bookings: { manage: "tenant", create: "tenant", read: "tenant" },
+  versions: {
+    read: "tenant",
+    create: "tenant",
+    restore: "tenant",
+    manage: "tenant",
+  },
+  trash: {
+    read: "tenant",
+    create: "tenant",
+    restore: "tenant",
+    manage: "tenant",
+  },
+  reactions: { read: "tenant", create: "tenant", manage: "tenant" },
+  approvals: { read: "tenant", request: "tenant", manage: "tenant" },
+  "access-requests": { read: "tenant", create: "tenant", manage: "tenant" },
+  documents: { read: "tenant", write: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
