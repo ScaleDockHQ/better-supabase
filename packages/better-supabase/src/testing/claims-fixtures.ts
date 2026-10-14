@@ -14,7 +14,7 @@ export interface SupabaseClaimFixture {
     readonly actor: SessionActor;
     /** Set for support and impersonated sessions only. */
     readonly impersonator?: Impersonator;
-    /** Set for an `oauth-client` actor only. */
+    /** Set for an `oauth-client` actor, and an `agent` on a token with a `scope`. */
     readonly delegation?: SessionDelegation;
   };
 }
@@ -24,7 +24,8 @@ export type SupabaseClaimFixtureName =
   | "supportSessionReadOnly"
   | "impersonation"
   | "oauthClient"
-  | "agentChain";
+  | "agentChain"
+  | "agentRun";
 
 const base = {
   sub: "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10",
@@ -40,12 +41,19 @@ const admin = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const supportSessionId = "4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b";
 const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
 const chain = { sub: "agent-runner", act: { sub: "mcp-client-42" } } as const;
+const agentAct = {
+  kind: "agent",
+  sub: "agent-7",
+  tools: ["search_knowledge"],
+  act: chain,
+} as const;
 
 /**
  * `supportSession` and `supportSessionReadOnly` are what `supportClaims`
  * mints (`act.kind: "support"`), `impersonation` what `actingAs` mints
- * (`act.kind: "impersonation"`), `oauthClient` a Supabase OAuth server token
- * and `agentChain` an RFC 8693 chain without `kind`.
+ * (`act.kind: "impersonation"`), `oauthClient` a Supabase OAuth server
+ * token, `agentChain` an RFC 8693 chain without `kind`, and `agentRun` what
+ * `agentClaims` mints over that chain (`act.kind: "agent"`).
  */
 export const supabaseClaimFixtures: Readonly<
   Record<SupabaseClaimFixtureName, SupabaseClaimFixture>
@@ -132,6 +140,18 @@ export const supabaseClaimFixtures: Readonly<
     expect: {
       actor: { kind: "oauth-client", id: "agent-runner", chain },
       delegation: { scopes: ["posts:read"], chain },
+    },
+  },
+  agentRun: {
+    claims: { ...base, scope: "posts:read", act: agentAct },
+    expect: {
+      actor: {
+        kind: "agent",
+        id: "agent-7",
+        tools: ["search_knowledge"],
+        chain: agentAct,
+      },
+      delegation: { scopes: ["posts:read"], chain: agentAct },
     },
   },
 };

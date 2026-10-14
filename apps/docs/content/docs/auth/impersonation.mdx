@@ -425,15 +425,26 @@ always agree:
 | --------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------- | ------------------------------- |
 | `{ kind: "support", sub, reason, session_id, read_only }`, from a support session | `support`, with `sessionId` and `readOnly` | set                    | never                           |
 | `{ kind: "impersonation", sub, reason }`, from `actingAs`                         | `impersonation`                            | set                    | never                           |
+| `{ kind: "agent", sub, tools }`, from `agentClaims`                               | `agent`, with `tools` and the `chain`      | not set                | the `scope` claim, when set     |
 | no `kind`, from an OAuth client or an agent chain                                 | `oauth-client`, with the `chain`           | not set                | the `scope` claim and the chain |
 | none, with a `client_id` (Supabase's OAuth server)                                | `oauth-client`                             | not set                | the `scope` claim               |
 
-Only an `oauth-client` actor is limited to the scopes the user delegated: the
-`scopes` guard option checks a support or impersonated session as the user's
-own, and a read-only support session still blocks writes. A support token
+An `oauth-client` actor is limited to the scopes the user delegated, and so
+is an `agent` on a token that carries a `scope`: the `scopes` guard option
+checks a support or impersonated session, and an agent on the user's own
+session, as the user's own, and a read-only support session still blocks
+writes. An agent writes with the user's row level security unless its
+level sets `read_only: true`.
+
+`agentClaims(claims, { agent, tools })` from `better-supabase/server` puts
+the agent on top of the user's claims and moves any earlier `act` below it.
+An agent run's context carries the level as `run.act`, so a tool passes
+`agentClaims(claims, run.act)` to `asUser` or `forContext` and the audit
+log records the agent as the actor. A support token
 from 0.5.0, with `session_id` but no `kind`, counts as a support session
 until 0.6. An `act` claim that is not a chain of objects each with a `sub`,
-that has another `kind`, or a support level without `session_id` makes the
+that has another `kind`, a support level without `session_id`, or an agent
+level whose `tools` is not a list of names makes the
 session `{ kind: 'invalid', reason: 'actor' }`.
 
 `impersonatorOf(claims)` from `better-supabase/server` reads the same claim

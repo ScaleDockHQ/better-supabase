@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 
-import { actorOf, delegationOf } from "../../src/auth/actor.ts";
+import { actorOf, agentClaims, delegationOf } from "../../src/auth/actor.ts";
+import { delegatedClaims } from "../../src/auth/delegation.ts";
+import { impersonatorOf } from "../../src/auth/impersonation.ts";
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { toSession } from "../../src/auth/view.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -167,6 +169,53 @@ describe("session.actor and session.delegation", () => {
       kind: "invalid",
       reason: "actor",
       error: { kind: "unauthorized", code: "ACTOR_INVALID" },
+    });
+  });
+});
+
+describe("agent actors", () => {
+  const agentAct = { kind: "agent", sub: "agent-1", tools: ["lookup"] };
+
+  it("reads an agent level with its tools and keeps the chain", () => {
+    expect(actorOf({ ...base, act: agentAct })).toEqual({
+      ok: true,
+      actor: {
+        kind: "agent",
+        id: "agent-1",
+        tools: ["lookup"],
+        chain: agentAct,
+      },
+    });
+    expect(impersonatorOf({ ...base, act: agentAct })).toBeUndefined();
+  });
+
+  it("refuses tools that are not a list of names, and a session id", () => {
+    for (const act of [
+      { ...agentAct, tools: "lookup" },
+      { ...agentAct, tools: [""] },
+      { ...agentAct, session_id: "s1" },
+    ]) {
+      expect(actorOf({ ...base, act })).toEqual({
+        ok: false,
+        reason: "invalid-chain",
+      });
+    }
+  });
+
+  it("nests an earlier act under the agent and records the chain", () => {
+    const claims = agentClaims(actChain, {
+      agent: "agent-1",
+      tools: ["lookup"],
+    });
+    expect(claims.act).toEqual({
+      kind: "agent",
+      sub: "agent-1",
+      tools: ["lookup"],
+      act: actChain.act,
+    });
+    expect(delegatedClaims(claims)).toEqual({
+      ok: true,
+      delegation: { scope: "posts:read", act: claims.act },
     });
   });
 });

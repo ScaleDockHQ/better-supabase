@@ -120,6 +120,7 @@ export { serverCore } from "./entries/core.ts";
 export type { ServerCore } from "./entries/core.ts";
 export {
   aalOf,
+  agentClaims,
   amrOf,
   AUTH_CACHE_HEADERS,
   authContext,
@@ -139,6 +140,7 @@ export {
 export type {
   Aal,
   ActClaim,
+  AgentActOptions,
   AmrEntry,
   AuthResolution,
   AuthResolver,

@@ -233,9 +233,14 @@ export function createAgentRuntime(
   options: AgentRuntimeOptions,
 ): ToolLoopAgent<never, ToolSet> {
   const { agent } = options;
-  const run = agentRunContext(agent, options.caller);
   const tools = agentTools(agent, options.tools ?? {}, options.policies);
-  if (options.knowledge !== undefined && agent.knowledgeScopes.length > 0) {
+  const searchesKnowledge =
+    options.knowledge !== undefined && agent.knowledgeScopes.length > 0;
+  const run = agentRunContext(agent, options.caller, [
+    ...Object.keys(tools),
+    ...(searchesKnowledge ? ["search_knowledge"] : []),
+  ]);
+  if (searchesKnowledge) {
     const {
       knowledge,
       organizationId,

@@ -9,6 +9,7 @@ import type {
 } from "../../../src/blocks/knowledge/index.ts";
 
 import {
+  agentClaims,
   agentRunContext,
   agentToolOperation,
   type AgentRuntimeOptions,
@@ -122,6 +123,7 @@ describe("agentRunContext", () => {
       userId: "u1",
       organizationId: "o2",
       actor: { kind: "agent", id: "a1" },
+      act: { agent: "a1", tools: [] },
     });
     expect(Object.isFrozen(context)).toBe(true);
     expect(Object.isFrozen(context.actor)).toBe(true);
@@ -132,6 +134,19 @@ describe("agentRunContext", () => {
     expect(context.userId).toBeUndefined();
     expect(context.organizationId).toBe("o1");
     expect(Object.values(context)).not.toContain("a1");
+  });
+
+  it("carries the act level with the run's tools for database calls", () => {
+    const context = agentRunContext(agent(), { userId: "u1" }, ["lookup"]);
+    expect(context.act).toEqual({ agent: "a1", tools: ["lookup"] });
+    expect(Object.isFrozen(context.act.tools)).toBe(true);
+    expect(
+      agentClaims({ sub: "u1", role: "authenticated" }, context.act),
+    ).toEqual({
+      sub: "u1",
+      role: "authenticated",
+      act: { kind: "agent", sub: "a1", tools: ["lookup"] },
+    });
   });
 });
 
@@ -198,6 +213,7 @@ describe("createAgentRuntime authorizeModel", () => {
         userId: "u1",
         organizationId: "o2",
         actor: { kind: "agent", id: "a1" },
+        act: { agent: "a1", tools: ["a"] },
       });
     }
   });
@@ -333,6 +349,7 @@ describe("createAgentRuntime results filter", () => {
       userId: "u1",
       organizationId: "o1",
       actor: { kind: "agent", id: "a1" },
+      act: { agent: "a1", tools: ["search_knowledge"] },
       toolName: "search_knowledge",
       query: "q",
     });

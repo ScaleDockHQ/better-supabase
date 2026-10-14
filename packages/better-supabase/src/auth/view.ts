@@ -102,7 +102,11 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       const impersonator = impersonatorOf(auth.claims);
       const outcome = actorOf(auth.claims);
       const actor = outcome.ok ? outcome.actor : undefined;
-      const client = actor?.kind === "oauth-client" ? actor : undefined;
+      const client =
+        actor?.kind === "oauth-client" ||
+        (actor?.kind === "agent" && delegationOf(auth.claims) !== undefined)
+          ? actor
+          : undefined;
       const scopes = client ? delegationOf(auth.claims)?.scopes : undefined;
       const delegation: SessionDelegation | undefined =
         client && (scopes || client.chain)

@@ -22,6 +22,7 @@ describe.skipIf(!live)("read-only actors", () => {
       };
       expect(await may(undefined)).toBe(true);
       expect(await may({ kind: "agent" })).toBe(true);
+      expect(await may({ kind: "agent", read_only: true })).toBe(false);
       expect(await may({ kind: "support" })).toBe(false);
       expect(await may({ kind: "impersonation" })).toBe(false);
       expect(await may({ session_id: crypto.randomUUID() })).toBe(false);

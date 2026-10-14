@@ -69,6 +69,16 @@ is all the table keeps. `/api/workflows/tick` runs every minute from a cron
 and starts due schedules and queued admission requests through
 `triggers.starter`.
 
+Every step of a published version runs with its publisher's rights,
+capped to the permissions its nodes needed at publish, through
+`versions.runAs`. A version an organization owns runs as the tenant's
+service principal from the `service-principals` block. When the publisher
+leaves or loses a permission, the next step fails instead of running as the
+service role. The provider's `automation.mayPublish` hook decides each
+publish; [Running a step as the publisher](/docs/blocks/workflow-builder#running-a-step-as-the-publisher)
+has the details, and `testAuthorizationHooks` checks that an unknown
+publisher can neither publish nor run.
+
 ### Credentials
 
 The credential sheet stores a secret in Vault and saves only the

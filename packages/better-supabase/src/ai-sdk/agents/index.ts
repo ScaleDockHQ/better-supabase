@@ -25,3 +25,4 @@ export {
   type AgentToolOperations,
   type AgentToolPermissions,
 } from "./authorization.ts";
+export { type AgentActOptions, agentClaims } from "../../auth/actor.ts";

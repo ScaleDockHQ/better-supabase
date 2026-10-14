@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
 
+import type { AgentActOptions } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
 import type { AuthorizationOperation } from "../../config/authorization.ts";
 
@@ -34,17 +35,25 @@ export type AgentRunContext = {
   readonly userId: string | undefined;
   readonly organizationId: string | undefined;
   readonly actor: AgentActor;
+  /**
+   * The `act` level a tool's database calls carry, with the run's tools:
+   * pass `agentClaims(claims, run.act)` to `asUser` or `forContext`, so a tool
+   * writes as the user, with the agent recorded as the actor.
+   */
+  readonly act: AgentActOptions;
 };
 
-/** The run context for an agent row and its caller, frozen. */
+/** The run context for an agent row, its caller and the tools it may call, frozen. */
 export function agentRunContext(
   agent: Pick<Agent, "id" | "organizationId">,
   caller?: AgentCaller,
+  tools: readonly string[] = [],
 ): AgentRunContext {
   return Object.freeze({
     userId: caller?.userId,
     organizationId: caller?.organizationId ?? agent.organizationId,
     actor: Object.freeze({ kind: "agent", id: agent.id }),
+    act: Object.freeze({ agent: agent.id, tools: Object.freeze([...tools]) }),
   });
 }
 

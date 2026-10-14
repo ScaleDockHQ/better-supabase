@@ -21,12 +21,13 @@ export const inboxBot = inboxAdapter({
 });
 ```
 
-| Option     | Default  | Meaning                                                                         |
-| ---------- | -------- | ------------------------------------------------------------------------------- |
-| `inbox`    | required | `createInbox` on a service transport; the bot writes as the service             |
-| `userName` | `bot`    | The bot's name on its messages and reactions                                    |
-| `verify`   | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401      |
-| `streams`  | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume |
+| Option       | Default  | Meaning                                                                          |
+| ------------ | -------- | -------------------------------------------------------------------------------- |
+| `inbox`      | required | `createInbox` on a service transport; the bot writes as the service              |
+| `userName`   | `bot`    | The bot's name on its messages and reactions                                     |
+| `verify`     | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401       |
+| `streams`    | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume  |
+| `identities` | none     | `principalByIdentity` (or `server`) and `ticketFor`: tickets for linked contacts |
 
 ## Running the bot
 
@@ -55,6 +56,44 @@ bot.onSubscribedMessage(async (thread, message) => {
 
 `conversationIdOf(threadId)` turns a thread id back into a conversation
 id. A staff reply in a bot conversation also switches it to `human`.
+
+## Answering as the linked user
+
+The bot writes its replies as the service, but what it looks up for a
+visitor should stay within what that visitor may see. With `identities`,
+`dispatch` resolves the contact before the handlers run, the same way
+[`botJobs`](/docs/chat-sdk/identities#bot-jobs-as-the-linked-user) does:
+it asks `principalByIdentity` about `inboxIdentityOf(contactId)` (`kind:
+"chat"`, `provider: "inbox"`), and for a contact linked to a signed-in user
+it calls `ticketFor(userId)`. A handler reads the ticket with `ticketOf`
+and runs its lookups through `forContext`:
+
+```ts title="lib/bot.ts"
+export const inboxBot = inboxAdapter({
+  inbox,
+  identities: {
+    server: bs,
+    ticketFor: (userId) => tickets.issue(userId),
+  },
+});
+
+bot.onSubscribedMessage(async (thread, message) => {
+  const ticket = inboxBot.ticketOf(message);
+  if (ticket === undefined) {
+    await thread.post("Sign in to see your orders.");
+    return;
+  }
+  const db = await bs.forContext({ ticket });
+  const orders = await db.orders.findMany().orThrow();
+  await thread.post(`You have ${String(orders.length)} open orders.`);
+});
+```
+
+A contact with no link, or one the resolver maps to a contact, stays a
+visitor: `ticketOf` returns `undefined`, and nothing falls back to the
+service role. When the resolver or `ticketFor` throws, `dispatch` rejects
+before the handlers run. The ticket is only readable while the handlers
+for that dispatch run.
 
 ## Streamed replies
 

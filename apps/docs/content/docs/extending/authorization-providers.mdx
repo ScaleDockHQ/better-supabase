@@ -353,9 +353,10 @@ message naming both versions.
 provider sets against cases every provider must refuse: subscriber and
 audience policies return a subset of their input, an unlinked identity is
 `null`, a requester never approves their own request, a forged ticket is
-`null`, an unknown publisher gets no claims, an unlinked chat author is
-refused, an admin with no claims cannot start a support session, and a
-delegated token with no scopes maps to no permissions.
+`null`, an unknown publisher may not publish and gets no claims, an
+unlinked chat author is refused, an admin with no claims cannot start a
+support session, an admin is never named as their own support approver,
+and a delegated token with no scopes maps to no permissions.
 
 ```ts title="tests/provider.test.ts"
 import { testAuthorizationHooks } from "better-supabase/testing";

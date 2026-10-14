@@ -130,7 +130,10 @@ export function delegatedClaims(
   if (client !== undefined && (typeof client !== "string" || client === ""))
     return INVALID;
   const actor = outcome.actor;
-  const chain = actor?.kind === "oauth-client" ? actor.chain : undefined;
+  const chain =
+    actor?.kind === "oauth-client" || actor?.kind === "agent"
+      ? actor.chain
+      : undefined;
   if (client === undefined && chain === undefined) return { ok: true };
   const scope = scopeOf(claims["scope"]);
   if (scope === false) return INVALID;
