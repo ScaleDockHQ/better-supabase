@@ -81,6 +81,7 @@ import { SUBJECTS } from "./modules/subjects.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
 import { TEAMS } from "./modules/teams.ts";
+import { TEMPLATES } from "./modules/templates.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { TIME_TRACKING } from "./modules/time-tracking.ts";
 import { TRASH } from "./modules/trash.ts";
@@ -212,6 +213,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(TIME_TRACKING),
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
+      built(TEMPLATES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

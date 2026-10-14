@@ -147,6 +147,7 @@ expose the module schema itself.
 | [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                                                                                | `promotions`                           |
 | [Forms](/docs/blocks/forms)                                 | `better-supabase/blocks/forms`, `better-supabase/blocks/forms/react`                                                               | `forms`, `signatures`                  |
 | [Time tracking](/docs/blocks/time-tracking)                 | `better-supabase/blocks/time-tracking`                                                                                             | `time-tracking`                        |
+| [Templates](/docs/blocks/templates)                         | `better-supabase/blocks/templates`                                                                                                 | `templates`                            |
 | [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                                                                                | `identities`                           |
 | [Service principals](/docs/blocks/service-principals)       | `better-supabase/blocks/service-principals`                                                                                        | `service-principals`                   |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
@@ -206,7 +207,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `usage`              | `tenant`, `access`                        | `entitlements`                                                                                                                          |
 | `billing`            | `tenant`, `access`                        | `organizations`                                                                                                                         |
 | `flags`              | `tenant`                                  | `access`, `entitlements`                                                                                                                |
-| `comments`           | `tenant`, `access`                        | `jsonb-schemas`, `notifications`                                                                                                        |
+| `comments`           | `tenant`, `access`                        | `jsonb-schemas`, `notifications`, `subjects`, `audit`                                                                                   |
 | `attachments`        | `tenant`, `access`                        | none                                                                                                                                    |
 | `data-lifecycle`     | `tenant`, `access`                        | every installed module                                                                                                                  |
 | `sso`                | `tenant`, `access`                        | `organizations`                                                                                                                         |
@@ -217,7 +218,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `credentials`        | none                                      | none                                                                                                                                    |
 | `workflows`          | `tenant`, `access`                        | none                                                                                                                                    |
 | `workflow-sdk-world` | `workflows`, `jobs`, `access`             | none                                                                                                                                    |
-| `workflow-builder`   | `workflows`, `tenant`, `access`           | `service-principals`                                                                                                                    |
+| `workflow-builder`   | `workflows`, `tenant`, `access`           | `service-principals`, `subjects`, `teams`                                                                                               |
 | `chat-sdk-state`     | none                                      | none                                                                                                                                    |
 | `inbox`              | `tenant`, `access`, `updated-at`, `teams` | `jobs`, `notifications`, `reactions`                                                                                                    |
 | `ai-chat`            | `tenant`, `access`, `streams`             | `entitlements`, `ai-providers`, `approvals`                                                                                             |
@@ -264,6 +265,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `time-tracking`      | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                                                                       |
 | `identities`         | none                                      | `inbox`                                                                                                                                 |
 | `service-principals` | `tenant`, `access`                        | `audit`                                                                                                                                 |
+| `templates`          | `tenant`, `access`                        | `outbox`, `audit`, `workflow-builder`, `jsonb-schemas`                                                                                  |
 | `ensure-rls`         | none                                      | none                                                                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
