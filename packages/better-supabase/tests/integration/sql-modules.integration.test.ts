@@ -2,6 +2,7 @@ import type { PostgresApi } from "@supabase/server/middleware/postgres";
 
 import { pipeline } from "@supabase/middleware";
 import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
+import { readFileSync } from "node:fs";
 import { Client, Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -57,6 +58,10 @@ const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 
+const FIXTURE_SEARCH = new URL(
+  "../../../../supabase/schemas/900_better_supabase_70_search.sql",
+  import.meta.url,
+);
 const ACME = "00000000-0000-4000-8000-000000000001";
 const RUN = String(Date.now());
 
@@ -142,6 +147,8 @@ async function installSchemaModules(pool: Pool): Promise<void> {
       .map((module) => module.name);
     for (const file of renderModules(names))
       if (file.kind !== "test") await client.query(file.contents);
+    // The default search render has no subjects, and the fixture's customers trigger needs its own.
+    await client.query(readFileSync(FIXTURE_SEARCH, "utf8"));
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {
