@@ -171,8 +171,9 @@ step in `steps` (such as `invoices.void`): the provider's entry for it, or
 the operation name itself as the key. Without either, the step needs the module's `run` key,
 after the rename in `sql.modules.workflow-builder.permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
-one of them in the tenant can't publish the version
-(`WORKFLOW_PUBLISHER_FORBIDDEN`). The operations table reaches SQL only under
+one of them in the tenant can't publish the version: the `forbidden` error
+has `hint: "WORKFLOW_PUBLISHER_FORBIDDEN"` and lists the keys they lack in
+`permissions`. The operations table reaches SQL only under
 the provider access model; see
 [authorization providers](/docs/extending/authorization-providers).
 

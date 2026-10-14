@@ -14,13 +14,15 @@ export interface DbErrorKinds {
    * `required`: the assurance level the route needs, when a second factor is
    * missing. `scopes`: the OAuth scopes the route needs, when a delegated
    * token lacks one (`INSUFFICIENT_SCOPE`). `permission`: the key an
-   * `Authorizer` denied. `approval`: the pending approval when the answer is
-   * `APPROVAL_REQUIRED`.
+   * `Authorizer` denied. `permissions`: the keys the caller lacks, such as
+   * the ones a workflow's steps need (`WORKFLOW_PUBLISHER_FORBIDDEN`).
+   * `approval`: the pending approval when the answer is `APPROVAL_REQUIRED`.
    */
   forbidden: {
     required?: "aal1" | "aal2";
     scopes?: readonly string[];
     permission?: string;
+    permissions?: readonly string[];
     approval?: { readonly id: string };
   };
   conflict: { constraint?: string; columns?: readonly string[] };
@@ -290,6 +292,28 @@ function optional(raw: RawDbError): {
   return out;
 }
 
+/**
+ * The `permissions` a `42501` raised with `detail = '{"permissions": [...]}'`
+ * names, so a refusal from SQL carries the keys the caller lacks.
+ */
+function permissionsOf(details: string | undefined): {
+  permissions?: readonly string[];
+} {
+  if (details === undefined || !details.startsWith("{")) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(details);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null) return {};
+  const permissions = "permissions" in parsed ? parsed.permissions : undefined;
+  return Array.isArray(permissions) &&
+    permissions.every((key) => typeof key === "string")
+    ? { permissions }
+    : {};
+}
+
 /** Adds the operation's limit to a `max_affected` error that doesn't name it. */
 export function withMaxAffected(
   error: DbError,
@@ -382,7 +406,10 @@ function mapBuiltin(raw: RawDbError): DbError {
       const object = PERMISSION_DENIED.exec(message);
       const postgrestHint = base.hint?.startsWith("Grant the required");
       if (!object || (base.hint && !postgrestHint))
-        return dbError("forbidden", message, base);
+        return dbError("forbidden", message, {
+          ...base,
+          ...permissionsOf(base.details),
+        });
       const advice =
         object[1] === "table" || object[1] === "view"
           ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`

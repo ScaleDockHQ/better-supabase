@@ -157,14 +157,61 @@ your authorization provider as the `bs.ticket` attribute. Pass
 argument. The ticket is stored in plain text with the run, so make it an
 id the provider looks up, never a bearer secret.
 
-| Helper                                     | Does                                                                                                   |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `workflowStarter({ name: workflow })`      | The `start` callback for `schedules.tick` and `admission.tick`, as the schedule's or request's creator |
-| `startOnEvent(workflow, { types })`        | An outbox handler that starts the workflow per matching event (`invoice.paid`, `invoice.*`, `*`), once |
-| `hookMetadata(ctx, permission?)`           | Metadata for `createHook`, naming the actor and the permission a tenant member needs to resume it      |
-| `authorizeHook(token, ctx, { can })`       | The hook, when the caller created it or holds its permission; `HookForbiddenError` (403) otherwise     |
-| `protectWebHandler(handler, key, { can })` | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream          |
-| `approvalWaiter.wait` and `.wake`          | Pauses a run on an approval token until a deadline, and resumes it by token                            |
+### Event and schedule starts run as a publisher
+
+Nobody is signed in when an event or a schedule starts a run, so
+`startOnEvent` and the schedules of `workflowStarter` need `runAs`: the
+publisher, a user who holds the permissions the run needs, and the
+permission keys its steps may use. The context the run starts with is the
+publisher's, capped to those keys, so `bs.forContext(context)` in a step
+runs as the publisher and refuses every other key. A publisher who loses a
+permission fails the step that needs it. The event's actor or the
+schedule's creator is recorded as `bs.trigger` for audit and grants
+nothing; the publisher is recorded as `bs.publisher`.
+
+```ts title="workflows/start.ts"
+import { startOnEvent, workflowStarter } from "better-supabase/workflow-sdk";
+
+const runAs = {
+  publisher: automationUserId,
+  permissions: ["invoices.read", "invoices.approve"],
+};
+
+outbox.consume(
+  "invoice-approval",
+  startOnEvent(approveInvoice, {
+    types: ["invoice.paid"],
+    runAs,
+    args: (event, context) => [context, event.payload],
+  }),
+);
+
+await workflows.schedules
+  .tick({
+    start: workflowStarter(
+      { weeklyDigest },
+      { runAs, args: (call, context) => [context, call.input] },
+    ),
+  })
+  .orThrow();
+```
+
+`runAs` can also be a function of the event or the start call, for a
+publisher per tenant; `null` starts nothing for that event and fails that
+schedule start, which runs again once its lease ends. A schedule start
+without `runAs` throws. Admission requests run as the actor that queued
+them unless you set `runAs`. A
+[service principal](/docs/blocks/service-principals) is the usual
+publisher for work an organization owns.
+
+| Helper                                      | Does                                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `workflowStarter({ name: workflow }, opts)` | The `start` callback for `schedules.tick` and `admission.tick`; schedules run as `runAs`                          |
+| `startOnEvent(workflow, { types, runAs })`  | An outbox handler that starts the workflow as `runAs` per matching event (`invoice.paid`, `invoice.*`, `*`), once |
+| `hookMetadata(ctx, permission?)`            | Metadata for `createHook`, naming the actor and the permission a tenant member needs to resume it                 |
+| `authorizeHook(token, ctx, { can })`        | The hook, when the caller created it or holds its permission; `HookForbiddenError` (403) otherwise                |
+| `protectWebHandler(handler, key, { can })`  | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream                     |
+| `approvalWaiter.wait` and `.wake`           | Pauses a run on an approval token until a deadline, and resumes it by token                                       |
 
 ## Approvals with hooks
 

@@ -122,6 +122,18 @@ describe("max_affected", () => {
   });
 });
 
+describe("forbidden permissions", () => {
+  it("round-trips the keys a caller lacks through Problem Details", async () => {
+    const error = dbError("forbidden", "steps need crm.read", {
+      hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
+      permissions: ["crm.read"],
+    });
+    const response = problemResponse(error);
+    expect(toProblem(error)).toMatchObject({ permissions: ["crm.read"] });
+    expect(fromProblem(await response.json())).toEqual(error);
+  });
+});
+
 describe("problemResponse format", () => {
   it("rewrites the body and keeps the status and headers", async () => {
     const response = problemResponse(

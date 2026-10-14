@@ -547,7 +547,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -592,12 +592,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
@@ -1923,7 +1924,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1968,12 +1969,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'
@@ -3312,7 +3314,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3357,12 +3359,13 @@ begin
   end if;
   v_permissions := "app_private"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "app_private"."workflow_versions" x set "status" = 'archived'
@@ -4688,7 +4691,7 @@ declare
   v_tenant uuid;
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4733,12 +4736,13 @@ begin
   end if;
   v_permissions := "better_supabase"."workflow_graph_permissions"(v_row."graph");
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not coalesce(better_supabase.can('tenant', v_tenant, p), false);
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update "better_supabase"."workflow_versions" x set "status" = 'archived'

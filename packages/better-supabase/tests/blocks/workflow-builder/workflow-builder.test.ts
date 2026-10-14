@@ -391,9 +391,12 @@ describe("createBuilder", () => {
       "WORKFLOW_PUBLISHER_FORBIDDEN",
     );
     answer = () => false;
-    expect(await hint(builder.versions.publish("v1", { claims }))).toBe(
-      "WORKFLOW_PUBLISHER_FORBIDDEN",
-    );
+    const refused = await builder.versions.publish("v1", { claims });
+    expect(!refused.ok && refused.error).toMatchObject({
+      kind: "forbidden",
+      hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
+      permissions: ["crm.read", "workflow.run"],
+    });
     answer = () => {
       throw new Error("provider down");
     };
@@ -698,6 +701,7 @@ describe("createBuilder", () => {
     const fallback = vi.fn(async () => "other");
     const starter = builder.triggers.starter(fallback);
     const scheduled = {
+      source: "schedule" as const,
       workflow: "builder:d1",
       input: { a: 1 },
       idempotencyKey: "k",

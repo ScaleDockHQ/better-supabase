@@ -11,8 +11,15 @@ import { isRecord, optionalText, recordOf, stringsOf } from "../shared.ts";
 import { graphOf } from "./graph.ts";
 import { definitionOf } from "./rows.ts";
 
-const forbidden = (message: string, hint: string): DbError =>
-  dbError("forbidden", message, { hint });
+const forbidden = (
+  message: string,
+  hint: string,
+  permissions?: readonly string[],
+): DbError =>
+  dbError("forbidden", message, {
+    hint,
+    ...(permissions === undefined ? {} : { permissions }),
+  });
 
 /** A hook's answer, with a throw or a rejection as `undefined`. */
 async function settled<T>(run: () => T | Promise<T>): Promise<T | undefined> {
@@ -69,6 +76,7 @@ export function mayPublishRefusal(
         : forbidden(
             "The authorization provider refused to publish this workflow",
             "WORKFLOW_PUBLISHER_FORBIDDEN",
+            permissions.data,
           ),
     );
   });

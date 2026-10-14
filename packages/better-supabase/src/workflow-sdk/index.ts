@@ -21,4 +21,7 @@ export {
   type StartOnEventOptions,
   type WorkflowContextOptions,
   type WorkflowFn,
+  type WorkflowRunAs,
+  type WorkflowRunAsFor,
+  type WorkflowStarterOptions,
 } from "./workflow-sdk.ts";

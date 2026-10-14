@@ -159,11 +159,25 @@ describe("startFor", () => {
   });
 });
 
+const publisher = { publisher: "p1", permissions: ["invoice.approve"] };
+const asPublisher = {
+  actor: { id: "p1", kind: "user" as const },
+  tenant: "t1",
+  claims: { bs_permission_cap: ["invoice.approve"] },
+};
+
 describe("workflowStarter", () => {
-  it("starts the named workflow as the schedule's creator", async () => {
-    const starter = workflowStarter({ approve });
+  it("starts a schedule as its runAs publisher, with the creator as the trigger", async () => {
+    const starter = workflowStarter(
+      { approve },
+      {
+        runAs: publisher,
+        args: (call, context) => [context, ...(call.input as unknown[])],
+      },
+    );
     expect(
       await starter({
+        source: "schedule",
         workflow: "approve",
         input: ["i1"],
         tenant: "t1",
@@ -171,20 +185,59 @@ describe("workflowStarter", () => {
         idempotencyKey: "schedule:s1:x",
       }),
     ).toBe("wrun_new");
-    expect(start.mock.calls[0]?.[1]).toEqual(["i1"]);
-    expect(start.mock.calls[0]?.[2]).toMatchObject({
-      attributes: { "bs.key": "schedule:s1:x", "bs.actor": "u1" },
+    expect(start.mock.calls[0]?.[1]).toEqual([asPublisher, "i1"]);
+    expect(start.mock.calls[0]?.[2]).toEqual({
+      attributes: {
+        "bs.publisher": "p1",
+        "bs.trigger": "u1",
+        "bs.tenant": "t1",
+        "bs.actor": "p1",
+        "bs.key": "schedule:s1:x",
+      },
     });
+  });
+
+  it("refuses a schedule without runAs, or when runAs returns null", async () => {
+    const call = {
+      source: "schedule" as const,
+      workflow: "approve",
+      input: [],
+      tenant: "t1",
+      actor: "u1",
+      idempotencyKey: "schedule:s1:x",
+    };
+    await expect(workflowStarter({ approve })(call)).rejects.toThrow(
+      "needs a runAs publisher",
+    );
+    await expect(
+      workflowStarter({ approve }, { runAs: () => null })(call),
+    ).rejects.toThrow("runAs refused");
+    await expect(
+      workflowStarter(
+        { approve },
+        { runAs: { publisher: "", permissions: [] } },
+      )(call),
+    ).rejects.toThrow("needs a publisher");
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("starts an admission request as its actor", async () => {
+    const starter = workflowStarter({ approve });
     await starter({
+      source: "admission",
       workflow: "approve",
       input: "single",
-      tenant: undefined,
-      actor: undefined,
+      tenant: "t1",
+      actor: "u1",
       idempotencyKey: "admission:q1",
     });
-    expect(start.mock.calls[1]?.[1]).toEqual(["single"]);
+    expect(start.mock.calls[0]?.[1]).toEqual(["single"]);
+    expect(start.mock.calls[0]?.[2]).toMatchObject({
+      attributes: { "bs.actor": "u1", "bs.key": "admission:q1" },
+    });
     await expect(
       starter({
+        source: "admission",
         workflow: "missing",
         input: [],
         tenant: undefined,
@@ -244,8 +297,11 @@ describe("authorizeHook", () => {
 });
 
 describe("startOnEvent", () => {
-  it("starts matching events once each, as their actor", async () => {
-    const handler = startOnEvent(approve, { types: ["invoice.*"] });
+  it("starts matching events once each, as the runAs publisher", async () => {
+    const handler = startOnEvent(approve, {
+      types: ["invoice.*"],
+      runAs: publisher,
+    });
     await handler([
       event(),
       event({ id: "e2", type: "customer.created" }),
@@ -254,30 +310,46 @@ describe("startOnEvent", () => {
     expect(start).toHaveBeenCalledTimes(2);
     expect(start.mock.calls[0]?.[1]).toEqual([{ invoice: "i1" }]);
     expect(start.mock.calls[0]?.[2]).toEqual({
-      attributes: { "bs.tenant": "t1", "bs.actor": "u1", "bs.key": "event:e1" },
+      attributes: {
+        "bs.publisher": "p1",
+        "bs.trigger": "u1",
+        "bs.tenant": "t1",
+        "bs.actor": "p1",
+        "bs.key": "event:e1",
+      },
     });
     expect(start.mock.calls[1]?.[2]).toEqual({
-      attributes: { "bs.key": "event:e3" },
+      attributes: {
+        "bs.publisher": "p1",
+        "bs.actor": "p1",
+        "bs.key": "event:e3",
+      },
     });
   });
 
-  it("maps arguments and matches every type with *", async () => {
+  it("maps arguments, matches every type with * and skips a refused event", async () => {
     const handler = startOnEvent(approve, {
       types: ["*"],
       args: (entry): [string] => [entry.id],
+      runAs: (entry) => (entry.id === "e1" ? publisher : null),
       world: world as never,
     });
-    await handler([event({ type: "anything" })]);
+    await handler([event({ type: "anything" }), event({ id: "e2" })]);
+    expect(start).toHaveBeenCalledOnce();
     expect(start.mock.calls[0]?.[1]).toEqual(["e1"]);
-    const exact = startOnEvent(approve, { types: ["invoice.paid"] });
+    const exact = startOnEvent(approve, {
+      types: ["invoice.paid"],
+      runAs: publisher,
+    });
     await exact([event({ type: "invoice.paidx" })]);
     expect(start).toHaveBeenCalledOnce();
   });
 
-  it("records a ticket per event and passes the context to args", async () => {
+  it("records a ticket per event and passes the publisher's context to args", async () => {
     const seen: unknown[] = [];
     const handler = startOnEvent(approve, {
       types: ["*"],
+      runAs: publisher,
       ticket: (entry) => (entry.id === "e1" ? `ticket:${entry.id}` : undefined),
       args: (entry, context): [string] => {
         seen.push(context);
@@ -285,11 +357,16 @@ describe("startOnEvent", () => {
       },
     });
     await handler([event(), event({ id: "e2" })]);
-    expect(seen).toEqual([{ ...user, ticket: "ticket:e1" }, { ...user }]);
+    expect(seen).toEqual([
+      { ...asPublisher, ticket: "ticket:e1" },
+      asPublisher,
+    ]);
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
+        "bs.publisher": "p1",
+        "bs.trigger": "u1",
         "bs.tenant": "t1",
-        "bs.actor": "u1",
+        "bs.actor": "p1",
         "bs.ticket": "ticket:e1",
         "bs.key": "event:e1",
       },

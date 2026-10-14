@@ -101,9 +101,15 @@ export interface WorkflowScheduleInput {
 
 /** One start the tick asks the engine for. */
 export interface WorkflowStartCall {
+  /** A due schedule or a queued admission request. */
+  readonly source: "schedule" | "admission";
   readonly workflow: string;
   readonly input: unknown;
   readonly tenant: string | undefined;
+  /**
+   * The schedule's creator or the request's actor. For a schedule it is the
+   * trigger, recorded for audit; the run needs a `runAs` publisher.
+   */
   readonly actor: string | undefined;
   /** Pass to the engine so a repeated tick doesn't start the run twice. */
   readonly idempotencyKey: string;
@@ -395,6 +401,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
             temporal().Instant.compare(fireAt, now()) > 0 ? fireAt : now();
           return {
             call: {
+              source: "schedule",
               workflow: schedule.workflow,
               input: schedule.input,
               tenant: schedule.tenant,
@@ -467,6 +474,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
           const id = textOf(row["id"]);
           return {
             call: {
+              source: "admission",
               workflow: textOf(row["workflow"]),
               input: row["input"],
               tenant: optionalText(row["tenant"]),

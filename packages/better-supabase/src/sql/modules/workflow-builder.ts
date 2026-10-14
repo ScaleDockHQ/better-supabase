@@ -590,7 +590,7 @@ declare
   v_tenant ${id};
   v_errors jsonb;
   v_permissions text[];
-  v_missing text;
+  v_missing text[];
   v_service boolean := ${SERVICE_CALLER};
 begin
   select * into v_row from ${v} x where x.${cv("id")} = version for update;
@@ -619,12 +619,13 @@ begin
   end if;
   v_permissions := ${fn("workflow_graph_permissions")}(v_row.${cv("graph")});
   if not v_service then
-    select string_agg(p, ', ' order by p) into v_missing
+    select array_agg(p order by p) into v_missing
     from unnest(v_permissions) p
     where not ${holds("v_tenant", "p")};
     if v_missing is not null then
-      raise exception 'You may not publish a workflow whose steps need %', v_missing
-        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN';
+      raise exception 'You may not publish a workflow whose steps need %', array_to_string(v_missing, ', ')
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_FORBIDDEN',
+          detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
   update ${v} x set ${cv("status")} = 'archived'
