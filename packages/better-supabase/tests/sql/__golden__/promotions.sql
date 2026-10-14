@@ -357,7 +357,7 @@ begin
     raise exception 'pass codes or a count' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.count is not null and (create_promotion_codes.count < 1 or create_promotion_codes.count > 10000) then
-    raise exception 'count is from 1 to ${MAX_GENERATED}' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
+    raise exception 'count is from 1 to 10000' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.usage_limit is not null and create_promotion_codes.usage_limit < 1 then
     raise exception 'a usage limit is a whole number above zero' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -477,7 +477,7 @@ begin
     raise exception 'this code was used up' using errcode = '55000', hint = 'PROMOTIONS_LIMIT_REACHED';
   end if;
   if (select count(*) from "better_supabase"."cart_promotion_codes" x where x."cart_id" = apply_promotion_code.cart and x."code_id" <> v_code.id) >= 5 then
-    raise exception 'a cart holds up to ${MAX_CART_CODES} codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
+    raise exception 'a cart holds up to 5 codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
   end if;
   insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
   values (v_cart.tenant, apply_promotion_code.cart, v_code.id)
@@ -751,6 +751,31 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."release_promotions"(uuid) from public, anon, authenticated;
+
+-- Moves the codes of a cart merged into another, up to what a cart
+-- holds. Internal: the orders merge_carts calls it.
+create or replace function "better_supabase"."move_cart_codes"(p_from uuid, p_to uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
+  select x."tenant_id", p_to, x."code_id"
+  from "better_supabase"."cart_promotion_codes" x
+  where x."cart_id" = p_from
+    and not exists (select 1 from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to and y."code_id" = x."code_id")
+  order by x."created_at"
+  limit greatest(5 - (select count(*) from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to), 0);
+  get diagnostics v_count = row_count;
+  delete from "better_supabase"."cart_promotion_codes" x where x."cart_id" = p_from;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -1136,7 +1161,7 @@ begin
     raise exception 'pass codes or a count' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.count is not null and (create_promotion_codes.count < 1 or create_promotion_codes.count > 10000) then
-    raise exception 'count is from 1 to ${MAX_GENERATED}' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
+    raise exception 'count is from 1 to 10000' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.usage_limit is not null and create_promotion_codes.usage_limit < 1 then
     raise exception 'a usage limit is a whole number above zero' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -1256,7 +1281,7 @@ begin
     raise exception 'this code was used up' using errcode = '55000', hint = 'PROMOTIONS_LIMIT_REACHED';
   end if;
   if (select count(*) from "better_supabase"."cart_promotion_codes" x where x."cart_id" = apply_promotion_code.cart and x."code_id" <> v_code.id) >= 5 then
-    raise exception 'a cart holds up to ${MAX_CART_CODES} codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
+    raise exception 'a cart holds up to 5 codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
   end if;
   insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
   values (v_cart.tenant, apply_promotion_code.cart, v_code.id)
@@ -1530,6 +1555,31 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."release_promotions"(uuid) from public, anon, authenticated;
+
+-- Moves the codes of a cart merged into another, up to what a cart
+-- holds. Internal: the orders merge_carts calls it.
+create or replace function "better_supabase"."move_cart_codes"(p_from uuid, p_to uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
+  select x."tenant_id", p_to, x."code_id"
+  from "better_supabase"."cart_promotion_codes" x
+  where x."cart_id" = p_from
+    and not exists (select 1 from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to and y."code_id" = x."code_id")
+  order by x."created_at"
+  limit greatest(5 - (select count(*) from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to), 0);
+  get diagnostics v_count = row_count;
+  delete from "better_supabase"."cart_promotion_codes" x where x."cart_id" = p_from;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -1917,7 +1967,7 @@ begin
     raise exception 'pass codes or a count' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.count is not null and (create_promotion_codes.count < 1 or create_promotion_codes.count > 10000) then
-    raise exception 'count is from 1 to ${MAX_GENERATED}' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
+    raise exception 'count is from 1 to 10000' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.usage_limit is not null and create_promotion_codes.usage_limit < 1 then
     raise exception 'a usage limit is a whole number above zero' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -2037,7 +2087,7 @@ begin
     raise exception 'this code was used up' using errcode = '55000', hint = 'PROMOTIONS_LIMIT_REACHED';
   end if;
   if (select count(*) from "app_private"."cart_promotion_codes" x where x."cart_id" = apply_promotion_code.cart and x."code_id" <> v_code.id) >= 5 then
-    raise exception 'a cart holds up to ${MAX_CART_CODES} codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
+    raise exception 'a cart holds up to 5 codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
   end if;
   insert into "app_private"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
   values (v_cart.tenant, apply_promotion_code.cart, v_code.id)
@@ -2311,6 +2361,31 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."release_promotions"(uuid) from public, anon, authenticated;
+
+-- Moves the codes of a cart merged into another, up to what a cart
+-- holds. Internal: the orders merge_carts calls it.
+create or replace function "app_private"."move_cart_codes"(p_from uuid, p_to uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "app_private"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
+  select x."tenant_id", p_to, x."code_id"
+  from "app_private"."cart_promotion_codes" x
+  where x."cart_id" = p_from
+    and not exists (select 1 from "app_private"."cart_promotion_codes" y where y."cart_id" = p_to and y."code_id" = x."code_id")
+  order by x."created_at"
+  limit greatest(5 - (select count(*) from "app_private"."cart_promotion_codes" y where y."cart_id" = p_to), 0);
+  get diagnostics v_count = row_count;
+  delete from "app_private"."cart_promotion_codes" x where x."cart_id" = p_from;
+  return v_count;
+end;
+$$;
+revoke execute on function "app_private"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -2696,7 +2771,7 @@ begin
     raise exception 'pass codes or a count' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.count is not null and (create_promotion_codes.count < 1 or create_promotion_codes.count > 10000) then
-    raise exception 'count is from 1 to ${MAX_GENERATED}' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
+    raise exception 'count is from 1 to 10000' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;
   if create_promotion_codes.usage_limit is not null and create_promotion_codes.usage_limit < 1 then
     raise exception 'a usage limit is a whole number above zero' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -2816,7 +2891,7 @@ begin
     raise exception 'this code was used up' using errcode = '55000', hint = 'PROMOTIONS_LIMIT_REACHED';
   end if;
   if (select count(*) from "better_supabase"."cart_promotion_codes" x where x."cart_id" = apply_promotion_code.cart and x."code_id" <> v_code.id) >= 5 then
-    raise exception 'a cart holds up to ${MAX_CART_CODES} codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
+    raise exception 'a cart holds up to 5 codes' using errcode = '55000', hint = 'PROMOTIONS_TOO_MANY_CODES';
   end if;
   insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
   values (v_cart.tenant, apply_promotion_code.cart, v_code.id)
@@ -3090,6 +3165,31 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."release_promotions"(uuid) from public, anon, authenticated;
+
+-- Moves the codes of a cart merged into another, up to what a cart
+-- holds. Internal: the orders merge_carts calls it.
+create or replace function "better_supabase"."move_cart_codes"(p_from uuid, p_to uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."cart_promotion_codes" ("tenant_id", "cart_id", "code_id")
+  select x."tenant_id", p_to, x."code_id"
+  from "better_supabase"."cart_promotion_codes" x
+  where x."cart_id" = p_from
+    and not exists (select 1 from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to and y."code_id" = x."code_id")
+  order by x."created_at"
+  limit greatest(5 - (select count(*) from "better_supabase"."cart_promotion_codes" y where y."cart_id" = p_to), 0);
+  get diagnostics v_count = row_count;
+  delete from "better_supabase"."cart_promotion_codes" x where x."cart_id" = p_from;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
 -- sql.modules.promotions.api: entry points for the Data API.
 create schema if not exists "api";

@@ -781,7 +781,8 @@ grant execute on function "better_supabase"."price_cart"(uuid) to authenticated,
 
 -- Moves a user's open carts to another user, such as an anonymous user who
 -- signed up or signed in. A cart in the same organization and currency
--- takes the lines, adding up quantities. Returns the carts moved or merged.
+-- takes the lines, adding up quantities, and its promotion codes. Returns
+-- the carts moved or merged.
 create or replace function "better_supabase"."merge_carts"(from_user uuid, to_user uuid)
 returns integer
 language plpgsql
@@ -2549,7 +2550,8 @@ grant execute on function "better_supabase"."price_cart"(uuid) to authenticated,
 
 -- Moves a user's open carts to another user, such as an anonymous user who
 -- signed up or signed in. A cart in the same organization and currency
--- takes the lines, adding up quantities. Returns the carts moved or merged.
+-- takes the lines, adding up quantities, and its promotion codes. Returns
+-- the carts moved or merged.
 create or replace function "better_supabase"."merge_carts"(from_user uuid, to_user uuid)
 returns integer
 language plpgsql
@@ -2584,6 +2586,7 @@ begin
       from "better_supabase"."cart_lines" l where l."cart_id" = v_from.id
       on conflict ("cart_id", "variant_id") do update
         set "quantity" = least(x."quantity" + excluded."quantity", 10000), "updated_at" = now();
+      perform "better_supabase"."move_cart_codes"(v_from.id, v_to);
       update "better_supabase"."carts" x set "status" = 'abandoned', "updated_at" = now() where x."id" = v_from.id;
     end if;
     v_to := null;
@@ -4382,7 +4385,8 @@ grant execute on function "app_private"."price_cart"(uuid) to authenticated, ser
 
 -- Moves a user's open carts to another user, such as an anonymous user who
 -- signed up or signed in. A cart in the same organization and currency
--- takes the lines, adding up quantities. Returns the carts moved or merged.
+-- takes the lines, adding up quantities, and its promotion codes. Returns
+-- the carts moved or merged.
 create or replace function "app_private"."merge_carts"(from_user uuid, to_user uuid)
 returns integer
 language plpgsql
@@ -6143,7 +6147,8 @@ grant execute on function "better_supabase"."price_cart"(uuid) to authenticated,
 
 -- Moves a user's open carts to another user, such as an anonymous user who
 -- signed up or signed in. A cart in the same organization and currency
--- takes the lines, adding up quantities. Returns the carts moved or merged.
+-- takes the lines, adding up quantities, and its promotion codes. Returns
+-- the carts moved or merged.
 create or replace function "better_supabase"."merge_carts"(from_user uuid, to_user uuid)
 returns integer
 language plpgsql

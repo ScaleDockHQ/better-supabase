@@ -284,6 +284,10 @@ export function cartFunctions(ctx: ModuleContext, names: OrdersNames): string {
   const cl = columns(ctx, "cartLines");
   const s = columns(ctx, "shippingRates");
   const catalog = ctx.of("catalog");
+  const moveCodes = ctx.installed("promotions")
+    ? `
+      perform ${ctx.of("promotions").fn("move_cart_codes")}(v_from.id, v_to);`
+    : "";
   const lists =
     catalog.hasTable("priceLists") && catalog.has("prices", "priceList");
   const priceListCheck = lists
@@ -502,7 +506,8 @@ ${userGrant(`${fn("price_cart")}(uuid)`)}
 
 -- Moves a user's open carts to another user, such as an anonymous user who
 -- signed up or signed in. A cart in the same organization and currency
--- takes the lines, adding up quantities. Returns the carts moved or merged.
+-- takes the lines, adding up quantities, and its promotion codes. Returns
+-- the carts moved or merged.
 create or replace function ${fn("merge_carts")}(from_user uuid, to_user uuid)
 returns integer
 language plpgsql
@@ -534,7 +539,7 @@ begin
       select l.${cl("tenant")}, v_to, l.${cl("variant")}, l.${cl("quantity")}, l.${cl("unitAmount")}
       from ${lines} l where l.${cl("cart")} = v_from.id
       on conflict (${cl("cart")}, ${cl("variant")}) do update
-        set ${cl("quantity")} = least(x.${cl("quantity")} + excluded.${cl("quantity")}, ${MAX_QUANTITY}), ${cl("updatedAt")} = now();
+        set ${cl("quantity")} = least(x.${cl("quantity")} + excluded.${cl("quantity")}, ${MAX_QUANTITY}), ${cl("updatedAt")} = now();${moveCodes}
       update ${carts} x set ${c("status")} = 'abandoned', ${c("updatedAt")} = now() where x.${c("id")} = v_from.id;
     end if;
     v_to := null;

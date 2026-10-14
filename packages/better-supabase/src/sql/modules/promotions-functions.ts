@@ -264,7 +264,7 @@ begin
     ${fail("PROMOTIONS_INVALID", "pass codes or a count", "22023")}
   end if;
   if create_promotion_codes.count is not null and (create_promotion_codes.count < 1 or create_promotion_codes.count > ${MAX_GENERATED}) then
-    ${fail("PROMOTIONS_INVALID", "count is from 1 to ${MAX_GENERATED}", "22023")}
+    ${fail("PROMOTIONS_INVALID", `count is from 1 to ${MAX_GENERATED}`, "22023")}
   end if;
   if create_promotion_codes.usage_limit is not null and create_promotion_codes.usage_limit < 1 then
     ${fail("PROMOTIONS_INVALID", "a usage limit is a whole number above zero", "22023")}
@@ -374,7 +374,7 @@ begin
     ${fail("PROMOTIONS_LIMIT_REACHED", "this code was used up", "55000")}
   end if;
   if (select count(*) from ${ctx.table("cartCodes")} x where x.${cc("cart")} = apply_promotion_code.cart and x.${cc("code")} <> v_code.id) >= ${MAX_CART_CODES} then
-    ${fail("PROMOTIONS_TOO_MANY_CODES", "a cart holds up to ${MAX_CART_CODES} codes", "55000")}
+    ${fail("PROMOTIONS_TOO_MANY_CODES", `a cart holds up to ${MAX_CART_CODES} codes`, "55000")}
   end if;
   insert into ${ctx.table("cartCodes")} (${cc("tenant")}, ${cc("cart")}, ${cc("code")})
   values (v_cart.tenant, apply_promotion_code.cart, v_code.id)
@@ -690,5 +690,30 @@ begin
 end;
 $$;
 revoke execute on function ${fn("release_promotions")}(uuid) from public, anon, authenticated;
+
+-- Moves the codes of a cart merged into another, up to what a cart
+-- holds. Internal: the orders merge_carts calls it.
+create or replace function ${fn("move_cart_codes")}(p_from uuid, p_to uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into ${ctx.table("cartCodes")} (${cc("tenant")}, ${cc("cart")}, ${cc("code")})
+  select x.${cc("tenant")}, p_to, x.${cc("code")}
+  from ${ctx.table("cartCodes")} x
+  where x.${cc("cart")} = p_from
+    and not exists (select 1 from ${ctx.table("cartCodes")} y where y.${cc("cart")} = p_to and y.${cc("code")} = x.${cc("code")})
+  order by x.${cc("createdAt")}
+  limit greatest(${MAX_CART_CODES} - (select count(*) from ${ctx.table("cartCodes")} y where y.${cc("cart")} = p_to), 0);
+  get diagnostics v_count = row_count;
+  delete from ${ctx.table("cartCodes")} x where x.${cc("cart")} = p_from;
+  return v_count;
+end;
+$$;
+revoke execute on function ${fn("move_cart_codes")}(uuid, uuid) from public, anon, authenticated;
 `;
 }

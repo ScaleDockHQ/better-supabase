@@ -465,6 +465,28 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     ).toBe(0);
   });
 
+  it("moves a cart's codes when carts merge", async () => {
+    await reset();
+    const welcome = await promotion({
+      name: "Welcome",
+      kind: "percentage",
+      percent: "10",
+    });
+    await codes(welcome, ["MERGE10"]);
+    const anonymous = await cart(other, "merge@example.test");
+    await apply(anonymous, "MERGE10");
+    const target = await cart(shopper);
+    await session.service();
+    expect(
+      await call("better_supabase.merge_carts($1, $2)", [other.id, shopper.id]),
+    ).toBe(1);
+    await session.as(shopper);
+    expect(await price(target)).toMatchObject({
+      discountTotal: "1000",
+      promotions: [{ code: "MERGE10" }],
+    });
+  });
+
   it("checks who manages promotions and what they save", async () => {
     await reset();
     await session.as(member);

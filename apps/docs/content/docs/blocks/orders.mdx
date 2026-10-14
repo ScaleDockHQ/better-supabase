@@ -89,7 +89,8 @@ them a different user id. Move their carts on the server:
 await orders.mergeCarts(anonymousUserId, signedInUserId).orThrow();
 ```
 
-Lines for the same variant add up. Linking an identity to the anonymous user
+Lines for the same variant add up, and the cart's promotion codes move
+with them. Linking an identity to the anonymous user
 (`supabase.auth.linkIdentity`) keeps the id, so it needs no merge.
 
 ## Shipping
