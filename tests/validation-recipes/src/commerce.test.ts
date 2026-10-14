@@ -20,9 +20,12 @@ import {
   ORDER_METRIC_EVENTS,
 } from "better-supabase/blocks/orders";
 import { createPromotions } from "better-supabase/blocks/promotions";
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+import { createSearch } from "better-supabase/blocks/search";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { orderList } from "./commerce-lists.ts";
 import { received, watching } from "./flow.ts";
 import { commerce, commerceMetrics } from "./recipes.ts";
 import { dbUrl, reachable, withRecipe } from "./stack.ts";
@@ -377,6 +380,72 @@ describe.skipIf(!live)("commerce recipe", () => {
       expect(
         await promotions.setPromotionActive(draft.id, true).orThrow(),
       ).toBe(true);
+    });
+  }, 30_000);
+
+  it("finds products for staff and keeps saved views of the order grid", async () => {
+    await withRecipe(pool, commerce, async (s) => {
+      const owner = await s.user("owner");
+      const stranger = await s.user("stranger");
+      const organizationId = await s.organization(owner);
+      await s.organization(stranger);
+      const transport = sqlTransport(s.sql);
+      const catalog = createCatalog({ transport });
+      const search = createSearch({
+        transport,
+        service: sqlTransport(s.serviceSql),
+      });
+      const savedViews = createSavedViews({
+        transport,
+        lists: { orders: orderList },
+      });
+
+      await s.as(owner);
+      const tee = await catalog
+        .createProduct(organizationId, {
+          title: "Linen tee",
+          description: "Washed linen with a relaxed fit",
+        })
+        .orThrow();
+      await catalog
+        .createProduct(organizationId, { title: "Wool scarf" })
+        .orThrow();
+      // "relaxed" is in the description; "linnen" is a typo of the title.
+      for (const q of ["relaxed", "linnen"]) {
+        expect(
+          (await search.search(q, { types: ["product"] }).orThrow()).map(
+            (hit) => [hit.subjectId, hit.url],
+          ),
+        ).toEqual([[tee.id, `/admin/products/${tee.id}`]]);
+      }
+      await s.as(stranger);
+      expect(await search.search("linen").orThrow()).toEqual([]);
+
+      await s.as(owner);
+      const invalid = await savedViews.save({
+        organizationId,
+        list: "orders",
+        name: "Broken",
+        scope: "tenant",
+        state: { query: { sort: "cheapest" } },
+      });
+      expect(invalid.ok ? undefined : invalid.error.kind).toBe("validation");
+      await savedViews
+        .save({
+          organizationId,
+          list: "orders",
+          name: "To ship",
+          scope: "tenant",
+          state: {
+            query: { facets: { status: ["paid"] }, sort: "oldest" },
+            columns: { visible: ["number", "email", "placed_at"] },
+          },
+        })
+        .orThrow();
+      const views = await savedViews.list(organizationId, "orders").orThrow();
+      expect(views.map((view) => [view.name, view.state.query])).toEqual([
+        ["To ship", { facets: { status: ["paid"] }, sort: "oldest" }],
+      ]);
     });
   }, 30_000);
 });

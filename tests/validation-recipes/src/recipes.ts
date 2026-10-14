@@ -312,6 +312,14 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
         tenant: "tenant_id",
         title: "name",
       },
+      product: {
+        table: "better_supabase.products",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "title",
+        url: "/admin/products/{id}",
+        search: { body: ["description"] },
+      },
     },
     sql: {
       modules: {
@@ -331,6 +339,8 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
         },
         orders: {},
         promotions: {},
+        search: {},
+        "saved-views": {},
         metrics: { options: { metrics: commerceMetrics } },
         approvals: {
           options: {

@@ -9,7 +9,8 @@ discount, inventory reserves the stock, and the order gets a gapless order
 number and, once paid, an invoice number. The people watching the order
 hear when it is paid and when it ships. Revenue, average order value and
 units sold chart from paid orders, and a large refund or a large discount
-waits for an admin to approve it.
+waits for an admin to approve it. Staff search the products from the admin
+and keep saved views of the order grid.
 
 ## Tables
 
@@ -18,7 +19,7 @@ app adds none of its own. Orders are subjects of type `order`: their events
 carry `subjectType: "order"` and the order id, so `watcherHandler` and
 `notifications.subscribe` work on them like on any app row. Registering
 `order` and `promotion` in `subjects` let approvals file requests on orders
-and promotions.
+and promotions, and the `search` entry on `product` indexes the catalog.
 
 Three pieces of app SQL read the module tables, so they go in a schema file
 that runs after the modules. Order lines carry no time, so units sold reads
@@ -113,6 +114,14 @@ export default defineConfig({
       tenant: "tenant_id",
       title: "name",
     },
+    product: {
+      table: "better_supabase.products",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "title",
+      url: "/admin/products/{id}",
+      search: { body: ["description"] },
+    },
   },
   sql: {
     modules: {
@@ -132,6 +141,8 @@ export default defineConfig({
       },
       orders: {},
       promotions: {},
+      search: {},
+      "saved-views": {},
       metrics: { options: { metrics } },
       approvals: {
         options: {
@@ -342,6 +353,69 @@ export const GET = outbox.relayRoute({
 Stat cards read `kpi("revenue", range, { organizationId })` and charts read
 `series`, as the caller.
 
+## Admin search
+
+[Search](/docs/blocks/search) indexes each product's title and description
+as it is saved. `search(q)` runs as the caller and only returns rows of the
+caller's organizations, so it belongs in the admin: a shopper who isn't a
+member gets no hits. The storefront lists products through the catalog.
+
+```ts
+const search = createSearch({ transport, service });
+
+const hits = await search
+  .search("linnen", { types: ["product"], limit: 10 })
+  .orThrow();
+// [{ subjectType: "product", subjectId, title: "Linen tee", url: "/admin/products/..." }]
+```
+
+The query matches words in the description and typos in the title, and
+`useCommandSearch` puts it behind Cmd+K.
+
+## Saved views of the order grid
+
+Add `better_supabase` to `schemas` in the config so `gen` types the module
+tables, then define the order grid as a [list query](/docs/platform/list)
+and pass it to [saved views](/docs/blocks/saved-views), which checks each
+view against it before saving:
+
+```ts title="lib/orders-list.ts"
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+import { defineListQuery } from "better-supabase/list";
+
+export const orderList = defineListQuery(
+  betterSupabase,
+  "betterSupabaseOrders",
+  {
+    search: ["number", "email"],
+    facets: { status: "status" },
+    sorts: {
+      newest: [{ placedAt: "desc" }, { id: "asc" }],
+      oldest: [{ placedAt: "asc" }, { id: "asc" }],
+    },
+    defaultSort: "newest",
+  },
+);
+
+export const savedViews = createSavedViews({
+  transport,
+  lists: { orders: orderList },
+});
+
+await savedViews
+  .save({
+    organizationId,
+    list: "orders",
+    name: "To ship",
+    scope: "tenant",
+    state: { query: { facets: { status: ["paid"] }, sort: "oldest" } },
+  })
+  .orThrow();
+```
+
+A view with a sort or facet the list doesn't define returns a `validation`
+error and isn't saved.
+
 ## Event flow
 
 | What happens         | Call                            | Event                 | Watchers get    |
@@ -364,11 +438,6 @@ const watchers = watcherHandler(notifications, {
 `promotion.redeemed` has no subject, so it goes to a consumer of its own,
 such as a marketing sink, instead of to watchers.
 
-## Not included yet
-
-Product search and saved views for the order grid come with their blocks,
-but the recipe doesn't wire them yet.
-
 ## With ReUI
 
 - Product grid and product detail for the storefront, from the catalog's
@@ -380,6 +449,8 @@ but the recipe doesn't wire them yet.
 - The inventory blocks for stock levels, from `inventory`.
 - Stat cards and charts for revenue, average order value and units sold,
   from `metrics.kpi` and `metrics.series`.
+- A command menu for product search, from `useCommandSearch`, and a data
+  grid with a views menu for orders, from `orderList` and `useSavedViews`.
 
 Pro ecommerce blocks are licensed per user; copy them from
 [reui.io](https://reui.io).
