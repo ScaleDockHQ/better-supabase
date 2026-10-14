@@ -329,6 +329,44 @@ describe("doctor rules", () => {
       );
     });
 
+    it("leaves out a single-column primary key and a column pinned to the request's tenant", async () => {
+      const pinned =
+        "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)";
+      const snap = withTable("memberships", (memberships) => {
+        memberships.primaryKey = ["user_id"];
+        memberships.policies = [
+          ...memberships.policies,
+          { ...updatePolicy, using: pinned, check: pinned },
+        ];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+      const findings = await runRules(context(snap), only);
+      expect(findings[0]?.message).toContain("authenticated may update role.");
+      expect(findings[0]?.message).toContain(
+        "grant update (org_id, user_id, created_at) on better_supabase.memberships to authenticated;",
+      );
+    });
+
+    it("keeps a tenant column that an or lets the caller write elsewhere", async () => {
+      const loose =
+        "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id) or true";
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [
+          ...memberships.policies,
+          { ...updatePolicy, using: loose, check: loose },
+        ];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+      const findings = await runRules(context(snap), only);
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, role, user_id",
+      );
+    });
+
     it("flags a column-level grant on a grant column", async () => {
       const snap = withTable("memberships", (memberships) => {
         memberships.policies = [...memberships.policies, updatePolicy];

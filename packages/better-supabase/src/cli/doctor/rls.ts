@@ -321,20 +321,64 @@ const policyAllows = (
 const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
   grant.role === role || grant.role === "PUBLIC";
 
-/** The grant columns `role` may write with `command`, through a table-level or a column-level grant. */
+/**
+ * Whether every permissive policy that lets `role` run `command` holds
+ * `column` to the request's tenant in its check, with no `or` around it, so
+ * a write can only name the tenant the caller already acts in.
+ */
+function pinnedToTenant(
+  table: CatalogTable,
+  column: string,
+  command: (typeof WRITES)[number],
+  role: string,
+): boolean {
+  if (!table.rls) return false;
+  const pin = new RegExp(
+    `(?<![\\w."])"?${escape(column)}"?\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
+    "i",
+  );
+  const applying = table.policies.filter(
+    (policy) =>
+      policy.permissive &&
+      (policy.command === "all" || policy.command === command) &&
+      appliesTo(policy, role),
+  );
+  return (
+    applying.length > 0 &&
+    applying.every((policy) => {
+      const check = policy.check ?? policy.using;
+      return check !== null && !/\bor\b/i.test(check) && pin.test(check);
+    })
+  );
+}
+
+/**
+ * The grant columns `role` may write with `command`, through a table-level
+ * or a column-level grant. A single-column primary key is left out (its
+ * uniqueness stops a write from taking over another row), and so is a
+ * column every policy pins to the request's tenant, unless the provider
+ * lists it in `deciding`.
+ */
 function writableColumns(
   table: CatalogTable,
   columns: readonly string[],
   command: (typeof WRITES)[number],
   role: string,
+  deciding: ReadonlySet<string> = new Set(),
 ): string[] {
   if (!policyAllows(table, command, role)) return [];
   const privilege = command.toUpperCase();
   const tableLevel = table.grants.some(
     (grant) => grantsTo(grant, role) && grant.privileges.includes(privilege),
   );
-  if (tableLevel) return [...columns];
-  return columns.filter((column) =>
+  const risky = columns.filter(
+    (column) =>
+      deciding.has(column) ||
+      (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
+        !pinnedToTenant(table, column, command, role)),
+  );
+  if (tableLevel) return risky;
+  return risky.filter((column) =>
     (table.columnGrants ?? []).some(
       (grant) =>
         grantsTo(grant, role) &&
@@ -468,7 +512,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, and a tenant column every write policy pins to `current_tenant_id()`, don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
@@ -481,12 +525,22 @@ export const RLS_RULES: readonly Rule[] = [
             .map((column) => column.name)
             .filter((column) => byColumn.has(column))
             .sort();
+          const deciding = new Set(
+            columns.filter((column) => byColumn.get(column)!.provider),
+          );
           const writes: string[] = [];
           const fix: string[] = [];
           for (const role of API_ROLES) {
             const tableLevel: string[] = [];
+            const revoked = new Set<string>();
             for (const command of WRITES) {
-              const writable = writableColumns(table, columns, command, role);
+              const writable = writableColumns(
+                table,
+                columns,
+                command,
+                role,
+                deciding,
+              );
               if (writable.length === 0) continue;
               writes.push(`${role} may ${command} ${writable.join(", ")}`);
               const privilege = command.toUpperCase();
@@ -496,6 +550,7 @@ export const RLS_RULES: readonly Rule[] = [
               );
               if (grantedTable) {
                 tableLevel.push(command);
+                for (const column of writable) revoked.add(column);
                 continue;
               }
               const fromPublic = (table.columnGrants ?? []).some(
@@ -521,7 +576,7 @@ export const RLS_RULES: readonly Rule[] = [
             );
             const rest = table.columns
               .map((column) => column.name)
-              .filter((column) => !byColumn.has(column));
+              .filter((column) => !revoked.has(column));
             if (rest.length > 0)
               fix.push(
                 `grant ${tableLevel.map((command) => `${command} (${rest.join(", ")})`).join(", ")} on ${name} to ${role};`,
@@ -533,18 +588,16 @@ export const RLS_RULES: readonly Rule[] = [
               columns.flatMap((column) => [...byColumn.get(column)!.helpers]),
             ),
           ].sort();
-          const deciding = columns.filter(
-            (column) => byColumn.get(column)!.provider,
-          );
+          const listed = [...deciding];
           const readers = [
             ...(helpers.length > 0
               ? [
                   `${helpers.join(", ")} read${helpers.length === 1 ? "s" : ""} them to decide access`,
                 ]
               : []),
-            ...(deciding.length > 0
+            ...(listed.length > 0
               ? [
-                  `the authorization provider lists ${deciding.join(", ")} as deciding columns`,
+                  `the authorization provider lists ${listed.join(", ")} as deciding columns`,
                 ]
               : []),
           ].join(", and ");

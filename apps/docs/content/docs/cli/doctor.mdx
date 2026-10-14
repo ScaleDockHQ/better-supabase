@@ -416,6 +416,12 @@ those columns and a policy lets them write the row: a member who can update
 their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
 
+Two columns don't count: a single-column primary key, whose uniqueness stops
+a write from taking over another row, and a tenant column that every policy
+for the write pins to `better_supabase.current_tenant_id()` without an `or`,
+so a write can only name the tenant the caller already acts in. A column the
+provider lists in `decidingColumns` always counts.
+
 A table-level grant counts even after a column-level revoke, because
 Postgres checks the table grant first. A grant to `public` counts for both
 roles, and the SQL then revokes it from `public` too. The finding lists the SQL that keeps
