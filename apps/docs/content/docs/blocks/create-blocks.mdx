@@ -56,6 +56,7 @@ factory, typed from what the factory returns, plus `sinks` and `close()`.
 | `aiTaskNotification`   | The notification type ai-tasks sends through the `notifications` block for each finished run         |
 | `reminderNotification` | The notification type a delivered reminder sends through the `notifications` block                   |
 | `metricEvents`         | Event type to the metrics it adds rows to, for `sinks.metrics`; needs a `metrics` factory            |
+| `metricTime`           | When an event's rows sit in time, such as `timeEntryMetricTime`; default the event's `time`          |
 
 ## Transports
 

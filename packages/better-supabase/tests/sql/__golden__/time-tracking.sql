@@ -53,6 +53,8 @@ create table if not exists "better_supabase"."time_entries" (
   "note" text check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  -- What metrics sum: the length of a finished entry, null while it runs.
+  "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored,
   check ("ended_at" is null or "ended_at" > "started_at"),
   check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
@@ -813,6 +815,8 @@ create table if not exists "better_supabase"."time_entries" (
   "note" text check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  -- What metrics sum: the length of a finished entry, null while it runs.
+  "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored,
   check ("ended_at" is null or "ended_at" > "started_at"),
   check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
@@ -939,7 +943,7 @@ begin
     where x."tenant_id" = start_timer.tenant and x."user_id" = v_me and x."ended_at" is null
     returning * into v_row;
   if found then
-    perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+    perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   end if;
   v_row := null;
   v_row."id" := gen_random_uuid();
@@ -969,7 +973,7 @@ begin
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "note")
   values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."note")
   returning * into v_row;
-  perform "better_supabase".emit_event('time_entry.started', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.started', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -1008,7 +1012,7 @@ begin
   update "better_supabase"."time_entries" x set "ended_at" = v_at, "updated_at" = v_at
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -1103,7 +1107,7 @@ begin
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "note")
   values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."note")
   returning * into v_row;
-  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -1198,7 +1202,7 @@ begin
       "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('time_entry.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -1234,7 +1238,7 @@ begin
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('time_entry.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform "better_supabase".emit_event('time_entry.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1602,6 +1606,8 @@ create table if not exists "app_private"."time_entries" (
   "note" text check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  -- What metrics sum: the length of a finished entry, null while it runs.
+  "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored,
   check ("ended_at" is null or "ended_at" > "started_at"),
   check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
@@ -2362,6 +2368,8 @@ create table if not exists "better_supabase"."time_entries" (
   "note" text check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  -- What metrics sum: the length of a finished entry, null while it runs.
+  "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored,
   check ("ended_at" is null or "ended_at" > "started_at"),
   check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.

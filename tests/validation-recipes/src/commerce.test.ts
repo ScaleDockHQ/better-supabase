@@ -15,7 +15,10 @@ import {
 } from "better-supabase/blocks/imports";
 import { createInventory } from "better-supabase/blocks/inventory";
 import { createMetrics } from "better-supabase/blocks/metrics";
-import { createOrders } from "better-supabase/blocks/orders";
+import {
+  createOrders,
+  ORDER_METRIC_EVENTS,
+} from "better-supabase/blocks/orders";
 import { createPromotions } from "better-supabase/blocks/promotions";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -264,7 +267,8 @@ describe.skipIf(!live)("commerce recipe", () => {
           transport,
           service,
           metricEvents: {
-            "order.paid": ["revenue", "average_order_value", "units_sold"],
+            ...ORDER_METRIC_EVENTS,
+            "order.paid": [...ORDER_METRIC_EVENTS["order.paid"], "units_sold"],
           },
         },
         {
@@ -281,6 +285,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       };
       const kpi = async (key: (typeof commerceMetrics)[number]["key"]) =>
         (await app.metrics.kpi(key, today, { organizationId }).orThrow()).value;
+      expect(await kpi("orders")).toBe(1);
       expect(await kpi("revenue")).toBe(Number(order.total.amount));
       expect(await kpi("average_order_value")).toBe(Number(order.total.amount));
       expect(await kpi("units_sold")).toBe(3);

@@ -1,4 +1,4 @@
-import type { EventSink } from "../../events/cloud-event.ts";
+import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { Metrics } from "./metrics.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
@@ -13,14 +13,20 @@ export interface MetricsSinkOptions {
   readonly on: Readonly<Record<string, string | readonly string[] | undefined>>;
   /** Stripped from each event type. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * When the event's rows sit in time, for events about rows bucketed by
+   * another time than when the event happened, such as time logged for a
+   * past day (`timeEntryMetricTime`). Default: the event's `time`.
+   */
+  readonly time?: (event: CloudEvent) => string | undefined;
 }
 
 /**
  * An outbox sink that re-aggregates the buckets an event's rows fall in,
  * so charts catch up without waiting for the periodic rollup:
  * `outbox.relay('metrics', metricsSink(metrics, { on }))`. It reads the
- * event's `time` (now when it has none) and runs one rollup per metric over
- * the batch's window. Build `metrics` with a service transport.
+ * event's `time` (or `options.time`, now when neither has one) and runs one
+ * rollup per metric over the batch's window. Build `metrics` with a service transport.
  */
 export function metricsSink(
   metrics: Pick<Metrics, "rollup">,
@@ -36,10 +42,9 @@ export function metricsSink(
         const entry =
           options.on[stripTypePrefix(event.type, options.typePrefix)];
         if (entry === undefined) continue;
+        const time = options.time?.(event) ?? event.time;
         const at =
-          event.time === undefined
-            ? nowInstant()
-            : temporal().Instant.from(event.time);
+          time === undefined ? nowInstant() : temporal().Instant.from(time);
         for (const metric of typeof entry === "string" ? [entry] : entry) {
           const window = windows.get(metric);
           windows.set(metric, {

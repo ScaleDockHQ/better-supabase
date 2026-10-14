@@ -3,9 +3,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
 
+import { createMetrics, metricsSink } from "../../src/blocks/metrics/index.ts";
 import {
   createTimeTracking,
   sqlTransport,
+  TIME_TRACKING_METRIC_EVENTS,
+  timeEntryMetricTime,
+  timeTrackingMetrics,
   toWeeklyGrid,
 } from "../../src/blocks/time-tracking/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -263,6 +267,83 @@ describe.skipIf(!live)("time-tracking", () => {
         "timesheet.reopened",
         "time_entry.deleted",
       ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("rolls tracked seconds up by the day each entry started", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const ada = await s.user("ada");
+      await s.install([...MODULES, "metrics"], {
+        modules: { metrics: { options: { metrics: timeTrackingMetrics() } } },
+      });
+      const tenant = await s.organization(owner, { member: ada });
+      const time = createTimeTracking({ transport: sqlTransport(s.sql) });
+      await s.as(ada);
+      await time
+        .log(tenant, {
+          startedAt: at("2026-10-06T09:00:00Z"),
+          endedAt: at("2026-10-06T10:30:00Z"),
+          billable: true,
+        })
+        .orThrow();
+      await time
+        .log(tenant, {
+          startedAt: at("2026-10-07T09:00:00Z"),
+          endedAt: at("2026-10-07T09:30:00Z"),
+        })
+        .orThrow();
+      await time.start(tenant).orThrow();
+
+      await s.service();
+      const metrics = createMetrics({
+        transport: sqlTransport(s.sql),
+        metrics: timeTrackingMetrics(),
+      });
+      const events = await s.rows<{
+        type: string;
+        payload: unknown;
+        created_at: Date;
+      }>(
+        "select type, payload, created_at from better_supabase.outbox_events where organization_id = $1 and type like 'time_entry.%' order by position",
+        [tenant],
+      );
+      await metricsSink(metrics, {
+        on: TIME_TRACKING_METRIC_EVENTS,
+        time: timeEntryMetricTime,
+      }).send(
+        events.map((row, n) => ({
+          specversion: "1.0",
+          id: `e${n}`,
+          source: "/test",
+          type: `dev.better-supabase.${row.type}`,
+          time: row.created_at.toISOString(),
+          data: row.payload,
+        })),
+      );
+
+      await s.as(owner);
+      const week = {
+        from: at("2026-10-05T00:00:00Z"),
+        until: at("2026-10-12T00:00:00Z"),
+      };
+      const series = await metrics
+        .series("time_tracked", week, { organizationId: tenant, grain: "day" })
+        .orThrow();
+      expect(series.points.slice(1, 3).map((p) => p.value)).toEqual([
+        5400, 1800,
+      ]);
+      expect(
+        await metrics
+          .kpi("time_tracked", week, {
+            organizationId: tenant,
+            filter: { billable: true },
+          })
+          .orThrow(),
+      ).toMatchObject({ value: 5400, count: 1 });
     } finally {
       await s.close();
     }

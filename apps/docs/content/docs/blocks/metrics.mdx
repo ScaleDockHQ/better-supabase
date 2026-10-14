@@ -124,6 +124,14 @@ outbox.relay(
 );
 ```
 
+The sink reads each event's `time`. When rows sit at another time than the
+event, such as time logged for a past day, pass `time`, a function that
+returns the timestamp to bucket by, or undefined to keep the event's own.
+[Time tracking](/docs/blocks/time-tracking#metrics) exports
+`timeEntryMetricTime` for its entries, and
+[orders](/docs/blocks/orders#metrics) exports `orderMetrics` with the events
+that feed it.
+
 ## Read series and KPIs
 
 `createMetrics({ transport, metrics })` types the metric keys and each

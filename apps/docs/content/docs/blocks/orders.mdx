@@ -222,6 +222,25 @@ They are subject events on the `order` subject (`organizationId`,
 watchers. The payloads are listed on the [events](/docs/extending/events)
 page.
 
+## Metrics
+
+`orderMetrics({ currency })` defines three [metrics](/docs/blocks/metrics) over the orders table: `orders` counts placed orders by `placed_at`, and `revenue` and `average_order_value` sum and average the `total` of paid orders in that currency by `paid_at`, in minor units. `ORDER_METRIC_EVENTS` maps `order.placed` and `order.paid` to them for the metrics sink.
+
+```ts title="app/api/outbox/route.ts"
+import {
+  ORDER_METRIC_EVENTS,
+  orderMetrics,
+} from "better-supabase/blocks/orders";
+
+const metrics = orderMetrics({ currency: "EUR", tz: "Europe/Amsterdam" });
+const app = createBlocks(
+  { transport: service, metricEvents: ORDER_METRIC_EVENTS },
+  { metrics: (options) => createMetrics({ ...options, metrics }) },
+);
+```
+
+Pass the same definitions to `sql.modules.metrics.options.metrics`. The [commerce recipe](/docs/recipes/commerce#metrics) adds units sold from the order lines.
+
 ## Hooks
 
 The SQL module calls `before_order_place`, `after_order_place`,

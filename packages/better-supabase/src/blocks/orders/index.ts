@@ -22,6 +22,12 @@ export {
   type ShippingOption,
 } from "./codecs.ts";
 export {
+  ORDER_METRIC_EVENTS,
+  orderMetrics,
+  type OrderMetrics,
+  type OrderMetricsOptions,
+} from "./metrics.ts";
+export {
   createOrders,
   type CartDetails,
   type CartInput,

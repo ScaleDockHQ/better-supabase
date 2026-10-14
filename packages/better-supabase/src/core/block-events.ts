@@ -601,6 +601,8 @@ export interface TimeEntryEventData {
   readonly userId: string;
   readonly subjectType: string | null;
   readonly subjectId: string | null;
+  /** When the entry starts, the time metrics bucket its seconds by. */
+  readonly startedAt: string;
   /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
   readonly seconds?: number | null;
   readonly billable?: boolean;

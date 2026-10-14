@@ -90,7 +90,46 @@ Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_
 
 ## Events and hooks
 
-The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable` and `rate`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType` and `subjectId`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
+The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable` and `rate`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
+
+## Metrics
+
+Every entry has a `seconds` column, generated from `ended_at - started_at` and null while the timer runs. `timeTrackingMetrics()` defines `time_tracked` over it for the [metrics](/docs/blocks/metrics) block: the seconds of finished entries per day they start in, filtered or grouped by `billable`, `user_id` and `subject_type`. Running timers count once they stop.
+
+```ts title="better-supabase.config.ts"
+import { timeTrackingMetrics } from "better-supabase/blocks/time-tracking";
+
+sql: {
+  modules: {
+    "time-tracking": {},
+    metrics: { options: { metrics: timeTrackingMetrics({ tz: "Europe/Amsterdam" }) } },
+  },
+},
+```
+
+Time is often logged for a past day, so the metrics sink buckets entry events by the entry's `startedAt` instead of when the event happened. Pass `TIME_TRACKING_METRIC_EVENTS` and `timeEntryMetricTime` to `createBlocks`:
+
+```ts title="app/api/outbox/route.ts"
+import {
+  TIME_TRACKING_METRIC_EVENTS,
+  timeEntryMetricTime,
+  timeTrackingMetrics,
+} from "better-supabase/blocks/time-tracking";
+
+const app = createBlocks(
+  {
+    transport: service,
+    metricEvents: TIME_TRACKING_METRIC_EVENTS,
+    metricTime: timeEntryMetricTime,
+  },
+  {
+    metrics: (options) =>
+      createMetrics({ ...options, metrics: timeTrackingMetrics() }),
+  },
+);
+```
+
+An update that moves an entry to another day rolls up the new day; the old day catches up on the next scheduled `metrics.job` run. In adopt mode, map `seconds` to a column of your own or leave it out and define the metric yourself.
 
 ## With ReUI
 

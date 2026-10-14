@@ -14,6 +14,13 @@ export {
   type TimeTrackingOptions,
 } from "./time-tracking.ts";
 export {
+  TIME_TRACKING_METRIC_EVENTS,
+  timeEntryMetricTime,
+  timeTrackingMetrics,
+  type TimeTrackingMetrics,
+  type TimeTrackingMetricsOptions,
+} from "./metrics.ts";
+export {
   toWeeklyGrid,
   type WeeklyGrid,
   type WeeklyGridDay,

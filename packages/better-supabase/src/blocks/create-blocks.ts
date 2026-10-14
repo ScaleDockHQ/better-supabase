@@ -45,6 +45,8 @@ export interface CreateBlocksOptions extends BlockOptions {
    * `{ "order.placed": ["orders", "revenue"] }`, for `sinks.metrics`.
    */
   readonly metricEvents?: MetricsSinkOptions["on"];
+  /** When an event's rows sit in time, for `sinks.metrics`. Default: the event's `time`. */
+  readonly metricTime?: MetricsSinkOptions["time"];
 }
 
 /**
@@ -122,7 +124,10 @@ const isMetrics = (value: unknown): value is Pick<Metrics, "rollup"> =>
 function sinksOf(
   search: unknown,
   metrics: unknown,
-  metricEvents: MetricsSinkOptions["on"] | undefined,
+  sink: {
+    readonly on: MetricsSinkOptions["on"] | undefined;
+    readonly time: MetricsSinkOptions["time"] | undefined;
+  },
 ): BlockSinks {
   if (search !== undefined && !isSearch(search))
     throw new TypeError("The search block has no remove and refresh methods");
@@ -130,9 +135,14 @@ function sinksOf(
     throw new TypeError("The metrics block has no rollup method");
   return {
     ...(search === undefined ? {} : { search: searchSink(search) }),
-    ...(metrics === undefined || metricEvents === undefined
+    ...(metrics === undefined || sink.on === undefined
       ? {}
-      : { metrics: metricsSink(metrics, { on: metricEvents }) }),
+      : {
+          metrics: metricsSink(metrics, {
+            on: sink.on,
+            ...(sink.time === undefined ? {} : { time: sink.time }),
+          }),
+        }),
   };
 }
 
@@ -161,6 +171,7 @@ export function createBlocks<const F extends BlockFactories>(
     aiTaskNotification,
     reminderNotification,
     metricEvents,
+    metricTime,
     hooks,
     ...shared
   } = options;
@@ -264,11 +275,10 @@ export function createBlocks<const F extends BlockFactories>(
 
   const blocks: Record<string, unknown> = {};
   for (const name of Object.keys(factories)) blocks[name] = build(name);
-  blocks["sinks"] = sinksOf(
-    built.get("search"),
-    built.get("metrics"),
-    metricEvents,
-  );
+  blocks["sinks"] = sinksOf(built.get("search"), built.get("metrics"), {
+    on: metricEvents,
+    time: metricTime,
+  });
   const stop =
     audit === undefined || events === undefined
       ? undefined

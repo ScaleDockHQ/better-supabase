@@ -72,6 +72,27 @@ describe("createBlocks sinks", () => {
     ]);
   });
 
+  it("buckets events by metricTime when it returns a time", async () => {
+    const rollup = vi.fn(
+      (_request: {
+        readonly metric: string;
+        readonly since?: Temporal.Instant;
+      }) => AsyncResult.ok(1),
+    );
+    const blocks = createBlocks(
+      {
+        transport,
+        metricEvents: { "time_entry.recorded": "time_tracked" },
+        metricTime: () => "2026-09-28T09:00:00Z",
+      },
+      { metrics: () => ({ rollup }) },
+    );
+    await blocks.sinks.metrics?.send([event("time_entry.recorded", {})]);
+    expect(rollup.mock.calls[0]?.[0].since?.toString()).toBe(
+      "2026-09-28T09:00:00Z",
+    );
+  });
+
   it("refuses metricEvents without a metrics block and blocks of the wrong shape", () => {
     expect(() =>
       createBlocks({ transport, metricEvents: {} }, { audit: createAuditLog }),

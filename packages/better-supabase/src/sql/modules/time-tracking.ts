@@ -29,6 +29,7 @@ const ENTRY_PAYLOAD = [
   "subjectId",
   "id",
   "userId",
+  "startedAt",
 ] as const;
 const RECORDED_PAYLOAD = [
   ...ENTRY_PAYLOAD,
@@ -86,6 +87,7 @@ const NAMES: ModuleNames = {
         note: "note",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        seconds: "seconds",
       },
     },
     timesheets: {
@@ -191,7 +193,7 @@ function build(ctx: ModuleContext): string {
   const entryRecord = (type: string, row: string, recorded: boolean): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}` : ""})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}, 'startedAt', ${row}.${e("startedAt")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}` : ""})`,
       subject: `'time-entries/' || ${row}.${e("id")}::text`,
       tenant: `${row}.${e("tenant")}`,
       audit: false,
@@ -254,6 +256,8 @@ create table if not exists ${entries} (
   ${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 2000),
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now(),
+  -- What metrics sum: the length of a finished entry, null while it runs.
+  ${e("seconds")} bigint generated always as (extract(epoch from ${e("endedAt")} - ${e("startedAt")})::bigint) stored,
   check (${e("endedAt")} is null or ${e("endedAt")} > ${e("startedAt")}),
   check ((${e("subjectType")} is null) = (${e("subjectId")} is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
@@ -853,6 +857,7 @@ export const TIME_TRACKING: ModuleDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 1,
   names: NAMES,
+  adoptOptional: () => ({ entries: ["seconds"] }),
   contract,
   build,
 };

@@ -59,28 +59,10 @@ revoke execute on function public.after_refund_create(uuid) from public, anon, a
 
 ```ts title="src/metrics.ts"
 import { defineMetric } from "better-supabase/blocks/metrics";
-
-const paid = {
-  table: "better_supabase.orders",
-  tenant: "tenant_id",
-  timeColumn: "paid_at",
-  where: { currency: "EUR" },
-  unit: "EUR",
-} as const;
+import { orderMetrics } from "better-supabase/blocks/orders";
 
 export const metrics = [
-  defineMetric({
-    key: "revenue",
-    label: "Revenue",
-    measure: { sum: "total" },
-    ...paid,
-  }),
-  defineMetric({
-    key: "average_order_value",
-    label: "Average order value",
-    measure: { avg: "total" },
-    ...paid,
-  }),
+  ...orderMetrics({ currency: "EUR" }),
   defineMetric({
     key: "units_sold",
     label: "Units sold",
@@ -275,8 +257,8 @@ succeeds.
 
 ## Metrics
 
-Relay `order.paid` to the metrics sink so the charts include an order as
-soon as it is paid, and run `metrics.job` on a schedule for late changes.
+Relay `order.placed` and `order.paid` to the metrics sink so the charts
+include an order as soon as it is placed and paid, and run `metrics.job` on a schedule for late changes.
 `createBlocks` builds the sink from `metricEvents`:
 
 ```ts title="app/api/outbox/route.ts"
@@ -284,7 +266,8 @@ const app = createBlocks(
   {
     transport: service,
     metricEvents: {
-      "order.paid": ["revenue", "average_order_value", "units_sold"],
+      ...ORDER_METRIC_EVENTS,
+      "order.paid": [...ORDER_METRIC_EVENTS["order.paid"], "units_sold"],
     },
   },
   { metrics: (options) => createMetrics({ ...options, metrics }) },

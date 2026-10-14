@@ -1,4 +1,5 @@
 import { defineMetric } from "better-supabase/blocks/metrics";
+import { orderMetrics } from "better-supabase/blocks/orders";
 import { defineConfig } from "better-supabase/config";
 
 // The configs on the Recipes docs pages, with the app tables in a schema of
@@ -228,28 +229,9 @@ ${readable("recipe_scheduling.bookings")}`,
   }),
 };
 
-/** The commerce page's metrics: revenue and order value from paid orders, units from their lines. */
+/** The commerce page's metrics: orders, revenue and order value from the orders block, units from paid lines. */
 export const commerceMetrics = [
-  defineMetric({
-    key: "revenue",
-    label: "Revenue",
-    table: "better_supabase.orders",
-    tenant: "tenant_id",
-    measure: { sum: "total" },
-    timeColumn: "paid_at",
-    where: { currency: "EUR" },
-    unit: "EUR",
-  }),
-  defineMetric({
-    key: "average_order_value",
-    label: "Average order value",
-    table: "better_supabase.orders",
-    tenant: "tenant_id",
-    measure: { avg: "total" },
-    timeColumn: "paid_at",
-    where: { currency: "EUR" },
-    unit: "EUR",
-  }),
+  ...orderMetrics({ currency: "EUR" }),
   defineMetric({
     key: "units_sold",
     label: "Units sold",
