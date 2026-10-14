@@ -36,11 +36,12 @@ export function moduleFiles(recipe: Recipe) {
   ];
 }
 
-/** The recipe's tables and every module file, as one migration. */
+/** The recipe's tables, every module file and its after SQL, as one migration. */
 export function migration(recipe: Recipe): string {
   return [
     recipe.tables,
     ...moduleFiles(recipe).map((file) => file.contents),
+    recipe.after ?? "",
   ].join("\n\n");
 }
 

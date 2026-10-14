@@ -1,5 +1,6 @@
 import { AsyncResult, type StandardSchemaV1 } from "better-supabase";
-import { sqlTransport } from "better-supabase/blocks";
+import { createBlocks, sqlTransport } from "better-supabase/blocks";
+import { createApprovals } from "better-supabase/blocks/approvals";
 import { createCatalog } from "better-supabase/blocks/catalog";
 import {
   fixedRates,
@@ -13,13 +14,14 @@ import {
   runImport,
 } from "better-supabase/blocks/imports";
 import { createInventory } from "better-supabase/blocks/inventory";
+import { createMetrics } from "better-supabase/blocks/metrics";
 import { createOrders } from "better-supabase/blocks/orders";
 import { createPromotions } from "better-supabase/blocks/promotions";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { received, watching } from "./flow.ts";
-import { commerce } from "./recipes.ts";
+import { commerce, commerceMetrics } from "./recipes.ts";
 import { dbUrl, reachable, withRecipe } from "./stack.ts";
 
 const live = await reachable();
@@ -60,6 +62,7 @@ const productRow: StandardSchemaV1<unknown, ProductRow> = {
 /** A payment provider that settles at once, one payment per idempotency key. */
 function fakePayments(): PaymentProvider {
   const byKey = new Map<string, Payment>();
+  let refunds = 0;
   return {
     apiVersion: 1,
     name: "fake",
@@ -82,7 +85,7 @@ function fakePayments(): PaymentProvider {
     capture: (paymentId) => AsyncResult.ok(byKey.get(paymentId)!),
     refund: (paymentId, input) =>
       AsyncResult.ok({
-        id: `re_${paymentId}`,
+        id: `re_${String((refunds += 1))}`,
         paymentId,
         amount: input?.amount ?? money(0, "EUR"),
         status: "succeeded",
@@ -100,6 +103,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const shopper = await s.user("shopper");
+      const finance = await s.user("finance");
       const visitor = await s.anonymousUser();
       const organizationId = await s.organization(owner, [member]);
 
@@ -253,6 +257,64 @@ describe.skipIf(!live)("commerce recipe", () => {
         "order.paid",
         "order.shipped",
       ]);
+
+      // The metrics sink rolls up the order's day when order.paid is relayed.
+      const app = createBlocks(
+        {
+          transport,
+          service,
+          metricEvents: {
+            "order.paid": ["revenue", "average_order_value", "units_sold"],
+          },
+        },
+        {
+          metrics: (options) =>
+            createMetrics({ ...options, metrics: commerceMetrics }),
+        },
+      );
+      await watchers.send(app.sinks.metrics!);
+      await s.as(owner);
+      const now = Temporal.Now.instant();
+      const today = {
+        from: now.subtract({ hours: 48 }),
+        until: now.add({ hours: 48 }),
+      };
+      const kpi = async (key: (typeof commerceMetrics)[number]["key"]) =>
+        (await app.metrics.kpi(key, today, { organizationId }).orThrow()).value;
+      expect(await kpi("revenue")).toBe(Number(order.total.amount));
+      expect(await kpi("average_order_value")).toBe(Number(order.total.amount));
+      expect(await kpi("units_sold")).toBe(3);
+
+      // A refund above 50.00 needs an admin to approve a refund request first.
+      await s.service();
+      await s.client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
+        [organizationId, finance.id],
+      );
+      const approvals = createApprovals({ transport });
+      await s.as(owner);
+      const small = await orders
+        .refund(order.id, { amount: money(1000, "EUR") })
+        .orThrow();
+      expect(small.status).toBe("succeeded");
+      const blocked = await orders.refund(order.id);
+      expect(blocked.ok ? undefined : blocked.error.hint).toBe(
+        "REFUND_APPROVAL_REQUIRED",
+      );
+      const request = await approvals
+        .request({
+          organizationId,
+          subjectType: "order",
+          subjectId: order.id,
+          action: "refund",
+          reason: "Damaged in transit",
+        })
+        .orThrow();
+      await s.as(finance);
+      await approvals.approve(request.id).orThrow();
+      await s.as(owner);
+      const rest = await orders.refund(order.id).orThrow();
+      expect(rest.amount.amount).toBe(order.total.amount - 1000n);
     });
   }, 30_000);
 });
