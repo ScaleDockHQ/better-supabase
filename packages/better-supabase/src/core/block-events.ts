@@ -367,7 +367,8 @@ export type SubjectEventType =
   | "approval.rejected"
   | "approval.cancelled"
   | "approval.expired"
-  | "approval.delegated";
+  | "approval.delegated"
+  | "stock.reorder_point_reached";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -450,6 +451,37 @@ export interface DocumentEventData extends SubjectEventData {
   readonly id: string;
   readonly name: string;
 }
+
+/**
+ * Events from the catalog and inventory blocks. Amounts and quantities are
+ * text: JSON numbers lose `bigint` precision.
+ */
+export interface CommerceEventData {
+  readonly organizationId: string | null;
+  readonly id?: string;
+  readonly slug?: string;
+  readonly kind?: string | null;
+  readonly from?: string;
+  readonly to?: string;
+  readonly productId?: string;
+  readonly variantId?: string;
+  readonly sku?: string;
+  readonly priceListId?: string | null;
+  readonly currency?: string;
+  readonly amount?: string;
+  readonly previousAmount?: string | null;
+  readonly locationId?: string;
+  readonly quantity?: string;
+  readonly reason?: string;
+  readonly status?: string;
+  readonly available?: string;
+  readonly reorderPoint?: string;
+  readonly supplierType?: string | null;
+  readonly supplierId?: string | null;
+}
+
+/** `CommerceEventData` for an event about one subject, such as a variant. */
+export type CommerceSubjectEventData = CommerceEventData & SubjectEventData;
 
 /** Every block event type and its data. */
 export interface BlockEventMap {
@@ -615,6 +647,27 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "product.created": CommerceEventData;
+  "product.updated": CommerceEventData;
+  "product.status_changed": CommerceEventData;
+  "product.deleted": CommerceEventData;
+  "variant.created": CommerceEventData;
+  "variant.updated": CommerceEventData;
+  "variant.deleted": CommerceEventData;
+  "catalog.price_changed": CommerceEventData;
+  "storefront.published": CommerceEventData;
+  "storefront.unpublished": CommerceEventData;
+  "stock.adjusted": CommerceEventData;
+  "stock.reorder_point_reached": CommerceSubjectEventData;
+  "reservation.created": CommerceEventData;
+  "reservation.committed": CommerceEventData;
+  "reservation.released": CommerceEventData;
+  "transfer.shipped": CommerceEventData;
+  "transfer.received": CommerceEventData;
+  "transfer.cancelled": CommerceEventData;
+  "purchase_order.placed": CommerceEventData;
+  "purchase_order.received": CommerceEventData;
+  "purchase_order.cancelled": CommerceEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

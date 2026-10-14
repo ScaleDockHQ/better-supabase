@@ -23,6 +23,7 @@ import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
+import { CATALOG } from "./modules/catalog.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
@@ -37,6 +38,7 @@ import { GRANTS } from "./modules/grants.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
+import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
@@ -191,6 +193,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(APPROVALS),
       built(ACCESS_REQUESTS),
       built(DOCUMENTS),
+      built(CATALOG),
+      built(INVENTORY),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

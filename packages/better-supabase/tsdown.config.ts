@@ -96,6 +96,8 @@ const entries = [
   "blocks/documents/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
+  "blocks/catalog/index",
+  "blocks/inventory/index",
   "ai-sdk/index",
   "ai-sdk/chat/index",
   "ai-sdk/files/index",

@@ -1,0 +1,214 @@
+---
+title: Catalog
+description: Products, options and variants, prices in bigint minor units per currency and price list, categories, collections and a public storefront switch.
+---
+
+`catalog` stores what an organization sells. A product has options (size,
+colour), and each variant picks one value per option and carries its own SKU.
+Prices live per variant, currency and optional price list, as `bigint` minor
+units next to an ISO 4217 code, so an amount never passes through a float.
+Categories form a tree, and collections are either a ranked list of products
+or a saved filter.
+
+```bash
+better-supabase sql add catalog
+```
+
+```ts
+import { catalogSubjects, createCatalog } from "better-supabase/blocks/catalog";
+import { money } from "better-supabase/blocks/commerce";
+```
+
+## Permissions
+
+Every write checks `catalog.manage` in the product's organization, and the
+read policies check `catalog.read`. The owner role holds `*`. Give the roles
+that work on the catalog these keys:
+
+```ts title="better-supabase.config.ts"
+roles: {
+  admin: ["catalog.*", "members.*"],
+  merchandiser: ["catalog.read", "catalog.manage"],
+  member: ["catalog.read"],
+},
+```
+
+The service role passes every check, for imports and sync jobs.
+
+## Products
+
+```ts
+const catalog = createCatalog({ transport });
+
+const shirt = await catalog
+  .createProduct(organizationId, { title: "Linen Shirt", kind: "physical" })
+  .orThrow();
+// { id, slug: "linen-shirt", status: "draft" }
+
+await catalog.setProductStatus(shirt.id, "active").orThrow();
+```
+
+The slug comes from the title when you leave it out, and it is unique per
+organization (`CATALOG_SLUG_TAKEN`). `kind` is `physical`, `digital` or
+`service`.
+
+A product starts as `draft`. The built-in transitions are draft to active or
+archived, active to draft or archived, and archived back to draft; anything
+else fails with `CATALOG_TRANSITION_INVALID`. When a
+[state machine](/docs/blocks/state-machine) is declared on the products
+table's `status` column, the machine owns the transitions instead, so you can
+add a `review` state.
+
+## Options and variants
+
+```ts
+const size = await catalog
+  .saveOption(shirt.id, { name: "Size", values: ["S", "M", "L"] })
+  .orThrow();
+
+await catalog
+  .createVariant(shirt.id, {
+    sku: "SHIRT-LINEN-S",
+    optionValues: [size.values[0].id],
+    weightGrams: 220,
+  })
+  .orThrow();
+```
+
+A variant names exactly one value of every option of its product
+(`CATALOG_VARIANT_OPTIONS`), and two variants can't pick the same values
+(`CATALOG_VARIANT_DUPLICATE`). SKUs are unique per organization
+(`CATALOG_SKU_TAKEN`). A product without options has one variant.
+
+Once a product has variants, its options can't gain or lose an option
+(`CATALOG_OPTION_HAS_VARIANTS`), and a value a variant uses can't be removed
+(`CATALOG_OPTION_VALUE_IN_USE`). Variants keep a rank key, and
+`reorderVariant(id, { previous, next })` computes a new one with
+[`rankBetween`](/docs/blocks/rank).
+
+`trackInventory` and `allowBackorder` are read by the
+[inventory](/docs/blocks/inventory) block when it is installed.
+
+## Prices
+
+```ts
+await catalog
+  .setPrice(variantId, {
+    amount: money(4900n, "EUR"),
+    compareAt: money(5900n, "EUR"),
+  })
+  .orThrow();
+
+const price = await catalog.variantPrice(variantId, "EUR").orThrow();
+// { id, variantId, amount: { amount: 4900n, currency: "EUR" }, compareAt, priceListId: null }
+```
+
+Amounts travel as strings and come back as `bigint`, so values beyond
+`Number.MAX_SAFE_INTEGER` stay exact. The database checks the currency against
+the pinned ISO 4217 list (`CATALOG_CURRENCY_INVALID`) and refuses a
+compare-at amount that isn't above the price.
+
+A price can belong to a price list (for a customer group or a market) and can
+have a validity window. Two prices for the same variant, currency and list
+can't overlap in time (`CATALOG_PRICE_OVERLAP`). `variantPrice` returns the
+list price when you pass `priceListId` and one is valid, and the base price
+otherwise; `asOf` resolves a price at another instant.
+
+Every change to an amount emits `catalog.price_changed` with the previous
+amount, when `outbox` is installed.
+
+## Categories and collections
+
+Categories form a tree per organization. `moveCategory` refuses a move under
+its own descendant (`CATALOG_CATEGORY_CYCLE`), and a category with children
+can't be deleted (`CATALOG_CATEGORY_HAS_CHILDREN`).
+`setProductCategories(productId, ids)` replaces a product's categories.
+
+A manual collection is a ranked list: `addToCollection` appends a product, or
+places it between two neighbours. A rule collection stores a filter tree, the
+same `FilterQuery` the [list query](/docs/platform/list) reads, so the app
+renders it with the filter UI it already has:
+
+```ts
+await catalog
+  .saveCollection(organizationId, {
+    title: "Digital",
+    kind: "rule",
+    rule: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "kind",
+          type: "rule",
+          path: ["kind"],
+          operator: "is",
+          value: "digital",
+        },
+      ],
+    },
+  })
+  .orThrow();
+```
+
+## Storefront
+
+Set the `storefront` option to `public` to let anyone read the published
+catalog of an organization:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: { catalog: { options: { storefront: "public" } } },
+},
+```
+
+With it, `anon` can read the active products of organizations that called
+`publishStorefront(organizationId, true)`, their variants, options,
+categories and collections, and their base prices (prices without a price
+list). Price lists stay private. The default, `private`, adds no `anon`
+policies.
+
+## Subjects
+
+`catalogSubjects()` returns `config.subjects` entries for products
+(`product`) and variants (`product_variant`), so comments, tags, attachments
+and search work on them:
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  ...catalogSubjects({ productUrl: "/admin/products/{id}" }),
+},
+```
+
+## Events
+
+| Event                                                   | When                                      |
+| ------------------------------------------------------- | ----------------------------------------- |
+| `product.created`, `product.updated`                    | `createProduct`, `updateProduct`          |
+| `product.status_changed`                                | A status transition, with `from` and `to` |
+| `product.deleted`                                       | `deleteProduct`                           |
+| `variant.created`, `variant.updated`, `variant.deleted` | A variant change                          |
+| `catalog.price_changed`                                 | A price's amount changes                  |
+| `storefront.published`, `storefront.unpublished`        | `publishStorefront`                       |
+
+## Hooks
+
+The SQL module calls `before_product_save`, `after_product_save`,
+`before_variant_save`, `after_variant_save`, `before_price_set` and
+`after_price_set` when you define them (see [blocks](/docs/extending/blocks)).
+The TypeScript client takes `hooks` keyed by method name.
+
+## Adopting existing tables
+
+In `adopt` mode, map `products`, `variants` and `prices` to your tables. Every
+other table is optional: set it to `null` and the functions that need it are
+left out. Columns such as `description`, `barcode`, `compareAt` or
+`validFrom` can also be `null`.
+
+## Not included
+
+Product import from CSV goes through the [imports](/docs/blocks/imports)
+block with a mapping you write. Rule collections are not evaluated in SQL;
+the app runs the stored filter through its list query. Price lists don't
+know who belongs to a customer group yet, so only base prices are public.

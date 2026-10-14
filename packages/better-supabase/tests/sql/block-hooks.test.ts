@@ -51,6 +51,20 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_access_grant",
   ],
   documents: ["before_document_create", "after_document_create"],
+  catalog: [
+    "before_product_save",
+    "after_product_save",
+    "before_variant_save",
+    "after_variant_save",
+    "before_price_set",
+    "after_price_set",
+  ],
+  inventory: [
+    "before_stock_adjust",
+    "after_stock_adjust",
+    "before_stock_reserve",
+    "after_stock_reserve",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

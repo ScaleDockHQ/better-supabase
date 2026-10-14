@@ -65,6 +65,8 @@
     "reactions",
     "approvals",
     "access-requests",
-    "documents"
+    "documents",
+    "catalog",
+    "inventory"
   ]
 }

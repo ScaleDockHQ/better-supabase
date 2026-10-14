@@ -261,7 +261,8 @@ describe("bundle", () => {
     if (!existsSync(CLI_BIN))
       throw new Error(`${CLI_BIN} is missing. Run \`pnpm build\` first.`);
     closures.set(CLI_STARTUP, await closure(CLI_BIN, false));
-  });
+    // Bundles every entry in turn; under `pnpm verify` it shares the CPU with the other tasks.
+  }, 60_000);
 
   it("keeps runtime entries free of Node built-ins (WinterTC)", () => {
     const offenders = [...closures]

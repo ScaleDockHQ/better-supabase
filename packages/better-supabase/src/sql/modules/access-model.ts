@@ -218,6 +218,13 @@ export const MODULE_PERMISSIONS = {
   "number-sequences": { assign: "number_sequences.assign" },
   teams: { manage: "teams.manage", read: "teams.read" },
   tags: { manage: "tags.manage", read: "tags.read" },
+  catalog: { manage: "catalog.manage", read: "catalog.read" },
+  inventory: {
+    manage: "inventory.manage",
+    read: "inventory.read",
+    reserve: "inventory.reserve",
+    purchase: "inventory.purchase",
+  },
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
@@ -370,6 +377,13 @@ export const MODULE_PERMISSION_SCOPES: {
   "number-sequences": { assign: "tenant" },
   teams: { manage: "tenant", read: "tenant" },
   tags: { manage: "tenant", read: "tenant" },
+  catalog: { manage: "tenant", read: "tenant" },
+  inventory: {
+    manage: "tenant",
+    read: "tenant",
+    reserve: "tenant",
+    purchase: "tenant",
+  },
   "custom-fields": {
     manage: "tenant",
     read: "tenant",
