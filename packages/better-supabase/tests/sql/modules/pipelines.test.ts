@@ -163,3 +163,29 @@ describe("pipelines module", () => {
     expect(() => render(subjects)).toThrow(message);
   });
 });
+
+describe("pipelines module, other layouts", () => {
+  it("renders nothing in custom mode and no watch without a subscriptions table", () => {
+    expect(
+      renderModules(["pipelines"], {
+        subjects: SUBJECTS,
+        modules: { pipelines: { mode: "custom" } },
+      })
+        .filter((file) => file.module === "pipelines")
+        .map((file) => file.contents)
+        .join(""),
+    ).not.toContain("create table");
+    const sql = renderModules(["pipelines", "notifications"], {
+      subjects: SUBJECTS,
+      modules: {
+        pipelines: { options: { subjects: { deal: DEAL } } },
+        notifications: { tables: { subscriptions: null } },
+      },
+    })
+      .filter((file) => file.module === "pipelines")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(sql).not.toContain("The owner watches the record");
+    expect(sql).toContain("'type', 'pipeline.stage_changed'");
+  });
+});

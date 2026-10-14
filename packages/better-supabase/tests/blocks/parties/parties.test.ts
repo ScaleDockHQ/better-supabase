@@ -155,3 +155,76 @@ describe("parties block", () => {
     expect(subjects.person.url).toBeUndefined();
   });
 });
+
+describe("parties block, optional fields", () => {
+  it("reads every optional field of a person and a company", async () => {
+    const t = transport({
+      save_person: () => ({
+        ...PERSON,
+        phone: "+31",
+        owner_user_id: "u2",
+        user_id: "u3",
+        merged_into: "p9",
+        archived_at: "2026-10-14T00:00:00Z",
+      }),
+      save_company: () => ({
+        ...COMPANY,
+        website: "https://acme.com",
+        vat_id: "NL1",
+        address: null,
+      }),
+    });
+    const parties = createParties({
+      transport: t,
+      logger: {
+        error: () => undefined,
+        warn: () => undefined,
+        info: () => undefined,
+        debug: () => undefined,
+      },
+      hooks: { savePerson: { after: () => undefined } },
+    });
+    expect(
+      await parties.savePerson("o", { name: "Ada" }).orThrow(),
+    ).toMatchObject({
+      phone: "+31",
+      ownerId: "u2",
+      userId: "u3",
+      mergedInto: "p9",
+      archived: true,
+    });
+    const company = await parties.saveCompany("o", { name: "Acme" }).orThrow();
+    expect(company).toMatchObject({
+      website: "https://acme.com",
+      vatId: "NL1",
+    });
+    expect(company.address).toBeUndefined();
+    expect([t.calls[0]?.[1]["person"], t.calls[1]?.[1]["company"]]).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it("passes list filters and restores an archived company", async () => {
+    const t = transport({
+      list_companies: () => [],
+      archive_company: () => true,
+    });
+    const parties = createParties({ transport: t });
+    await parties
+      .listCompanies("o", {
+        lifecycle: "customer",
+        ownerId: "u1",
+        cursor: { name: "Acme", id: "c1" },
+      })
+      .orThrow();
+    await parties.archiveCompany("c1", false).orThrow();
+    expect(t.calls[0]?.[1]).toMatchObject({
+      lifecycle: "customer",
+      owner: "u1",
+      after_name: "Acme",
+      after_id: "c1",
+    });
+    expect(t.calls[1]?.[1]).toEqual({ id: "c1", archived: false });
+  });
+});

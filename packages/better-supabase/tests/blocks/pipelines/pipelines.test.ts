@@ -244,3 +244,95 @@ describe("pipelines block", () => {
     expect(seen).toEqual(["before p1"]);
   });
 });
+
+describe("pipelines block, optional fields", () => {
+  it("reads optional stage and column fields and empty stats", async () => {
+    const t = transport({
+      save_pipeline_stage: () => ({
+        ...STAGE,
+        system_key: null,
+        color: "#f00",
+        probability: null,
+        rotting_after_days: null,
+        wip_limit: 5,
+      }),
+      save_pipeline: () => ({ ...PIPELINE, scope_id: "job-1", stages: [] }),
+      pipeline_board: () => [
+        {
+          stageId: "s1",
+          key: "lead",
+          name: "Lead",
+          color: "#f00",
+          category: "open",
+          outcome: "open",
+          probability: null,
+          wipLimit: null,
+          count: null,
+          overLimit: false,
+          totals: [{ currency: "EUR", amount: 5, weighted: null }],
+        },
+      ],
+      pipeline_stats: () => ({
+        won: null,
+        lost: null,
+        winRate: null,
+        stages: [
+          { stageId: "s1", key: "lead", entered: null, averageSeconds: 60 },
+        ],
+      }),
+    });
+    const pipelines = createPipelines({
+      transport: t,
+      logger: {
+        error: () => undefined,
+        warn: () => undefined,
+        info: () => undefined,
+        debug: () => undefined,
+      },
+      hooks: { board: { after: () => undefined } },
+    });
+    expect(
+      await pipelines
+        .saveStage("p1", {
+          id: "s1",
+          key: "lead",
+          name: "Lead",
+          category: "open",
+          probability: 10,
+          rottingAfterDays: 7,
+          wipLimit: 5,
+          color: "#f00",
+        })
+        .orThrow(),
+    ).toMatchObject({ color: "#f00", wipLimit: 5 });
+    expect(
+      (
+        await pipelines
+          .save("o", {
+            id: "p1",
+            subjectType: "deal",
+            key: "k",
+            name: "N",
+            scopeId: "job-1",
+            isDefault: true,
+          })
+          .orThrow()
+      ).scopeId,
+    ).toBe("job-1");
+    const [column] = await pipelines.board("deal", "p1").orThrow();
+    expect(column).toMatchObject({
+      color: "#f00",
+      count: 0,
+      totals: [{ currency: "EUR", amount: 5n, weighted: 0n }],
+    });
+    expect(column?.probability).toBeUndefined();
+    const since = Temporal.Instant.from("2026-10-01T00:00:00Z");
+    expect(
+      await pipelines.stats("p1", { since, until: since }).orThrow(),
+    ).toEqual({
+      won: 0,
+      lost: 0,
+      stages: [{ stageId: "s1", key: "lead", entered: 0, averageSeconds: 60 }],
+    });
+  });
+});

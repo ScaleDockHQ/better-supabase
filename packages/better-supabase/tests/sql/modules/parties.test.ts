@@ -51,3 +51,15 @@ describe("parties module", () => {
     expect(() => sqlOf({ companyLifecycles: [] })).toThrow(/non-empty/);
   });
 });
+
+describe("parties module, custom mode", () => {
+  it("renders no tables or functions", () => {
+    const sql = renderModules(["parties"], {
+      modules: { parties: { mode: "custom" } },
+    })
+      .filter((file) => file.module === "parties")
+      .map((file) => file.contents)
+      .join("");
+    expect(sql).not.toContain("save_company");
+  });
+});

@@ -125,3 +125,85 @@ describe("engagements block", () => {
     ]);
   });
 });
+
+describe("engagements block, optional fields", () => {
+  it("reads every optional field and reopens with done false", async () => {
+    const full = {
+      ...ROW,
+      body: "Notes",
+      outcome: "connected",
+      done_at: "2026-10-14T10:00:00Z",
+      duration_seconds: 900,
+      external_ref: "msg-1",
+      overdue: true,
+    };
+    const t = transport({
+      complete_engagement: () => full,
+      next_engagement: () => full,
+    });
+    const logged: unknown[] = [];
+    const engagements = createEngagements({
+      transport: t,
+      logger: {
+        error: (...args: unknown[]) => void logged.push(args),
+        warn: () => undefined,
+        info: () => undefined,
+        debug: () => undefined,
+      },
+      hooks: { next: { after: () => undefined } },
+    });
+    const done = await engagements.complete("e1", { done: false }).orThrow();
+    expect(done).toMatchObject({
+      body: "Notes",
+      outcome: "connected",
+      durationSeconds: 900,
+      externalRef: "msg-1",
+      overdue: true,
+    });
+    expect(
+      (await engagements.next({ type: "deal", id: "d1" }).orThrow())?.id,
+    ).toBe("e1");
+    expect(t.calls[0]?.[1]).toEqual({
+      engagement: "e1",
+      done: false,
+      outcome: null,
+    });
+  });
+
+  it("passes list windows and owners", async () => {
+    const t = transport({
+      engagements_of: () => [],
+      open_engagements: () => [],
+      update_engagement: () => ROW,
+    });
+    const engagements = createEngagements({ transport: t });
+    const at = Temporal.Instant.from("2026-10-14T00:00:00Z");
+    await engagements.of({ type: "deal", id: "d1" }, { before: at }).orThrow();
+    await engagements
+      .open("o", { ownerId: "u2", dueBefore: at, limit: 5 })
+      .orThrow();
+    await engagements
+      .update("e1", { doneAt: at }, [{ type: "deal", id: "d1" }])
+      .orThrow();
+    expect(t.calls.map(([, args]) => args)).toEqual([
+      {
+        subject_type: "deal",
+        subject_id: "d1",
+        types: null,
+        before: "2026-10-14T00:00:00Z",
+        page_size: null,
+      },
+      {
+        tenant: "o",
+        owner: "u2",
+        due_before: "2026-10-14T00:00:00Z",
+        page_size: 5,
+      },
+      {
+        engagement: "e1",
+        attrs: { doneAt: "2026-10-14T00:00:00Z" },
+        subjects: [{ type: "deal", id: "d1" }],
+      },
+    ]);
+  });
+});
