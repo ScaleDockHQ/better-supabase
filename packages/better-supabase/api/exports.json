@@ -1546,6 +1546,7 @@
       "AuditPage",
       "AuditRecord",
       "AuditRetentionSource",
+      "AuditReverted",
       "AuditSinkOptions",
       "AuditSort",
       "BlockTransport",
@@ -3365,6 +3366,34 @@
       "TeamsOptions"
     ]
   },
+  "./blocks/undo": {
+    "values": [
+      "createUndo",
+      "dbTransport",
+      "isUndoToken",
+      "rpcTransport",
+      "sqlTransport",
+      "UNDO_FUNCTIONS",
+      "undoToken"
+    ],
+    "types": [
+      "BlockTransport",
+      "Undo",
+      "UndoCall",
+      "UndoOptions",
+      "UndoToken"
+    ]
+  },
+  "./blocks/undo/react": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "UndoEntry",
+      "UndoStack",
+      "UseUndoStackOptions"
+    ]
+  },
   "./blocks/tags": {
     "values": [
       "createTags"
@@ -3457,6 +3486,88 @@
       "RankNeighbors",
       "RankOptions",
       "RankRebalancePayload"
+    ]
+  },
+  "./blocks/saved-views": {
+    "values": [
+      "createSavedViews",
+      "defaultView",
+      "queryFromUrlState",
+      "sameQuery",
+      "SAVED_VIEW_DENSITIES",
+      "SAVED_VIEW_KINDS",
+      "SAVED_VIEW_SCOPES",
+      "savedViewIssues",
+      "savedViewStateSchema",
+      "urlStateFromQuery"
+    ],
+    "types": [
+      "ListUrlState",
+      "SavedView",
+      "SavedViewColumns",
+      "SavedViewDensity",
+      "SavedViewKind",
+      "SavedViewList",
+      "SavedViews",
+      "SavedViewScope",
+      "SavedViewsOptions",
+      "SavedViewState",
+      "SaveViewInput"
+    ]
+  },
+  "./blocks/relations": {
+    "values": [
+      "createRelations",
+      "toGanttTasks",
+      "toTreeItems"
+    ],
+    "types": [
+      "GanttDependency",
+      "GanttDependencyType",
+      "LinkInput",
+      "LinkResult",
+      "Relation",
+      "RelationEdge",
+      "RelationNode",
+      "RelationRollup",
+      "Relations",
+      "RelationsOptions",
+      "RollupInput",
+      "SubjectRef",
+      "TreeItem",
+      "UnlinkInput",
+      "UnlinkResult"
+    ]
+  },
+  "./blocks/bulk": {
+    "values": [
+      "createBulk"
+    ],
+    "types": [
+      "BuiltInBulkAction",
+      "Bulk",
+      "BulkActionArgs",
+      "BulkDrainOptions",
+      "BulkInput",
+      "BulkOptions",
+      "BulkOutcome",
+      "BulkProgress",
+      "BulkResult",
+      "BulkRowResult",
+      "BulkRows",
+      "BulkRun",
+      "BulkStarted",
+      "BulkStatus"
+    ]
+  },
+  "./blocks/saved-views/react": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "SavedViewLike",
+      "SavedViewsState",
+      "UseSavedViewsOptions"
     ]
   },
   "./blocks/announcements/react": {

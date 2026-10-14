@@ -50,6 +50,10 @@
     "share-links",
     "reminders",
     "imports",
-    "rank"
+    "rank",
+    "saved-views",
+    "relations",
+    "bulk",
+    "undo"
   ]
 }

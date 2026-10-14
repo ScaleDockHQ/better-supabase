@@ -28,6 +28,11 @@ function fake(pages: unknown[][], fail = false) {
           metadata: "not an object",
         };
       if (fn === "count_audit_events") return "3";
+      if (fn === "revert_audit_entries")
+        return {
+          reverted: (args["entries"] as string[]).length,
+          entries: (args["entries"] as string[]).length > 1 ? ["9", 10] : [],
+        };
       if (fn === "reveal_audit_entries")
         return (args["entries"] as string[])
           .filter((id) => id !== "1")
@@ -177,6 +182,26 @@ describe("createAuditLog", () => {
         .slice(1)
         .map(([, args]) => args["skip"]),
     ).toEqual([1, undefined]);
+  });
+
+  it("reverts entries and returns an undo token for the writes", async () => {
+    const { transport, calls } = fake([]);
+    const audit = createAuditLog({ transport });
+    expect(await audit.revert(["1", "2"]).orThrow()).toEqual({
+      reverted: 2,
+      undo: {
+        v: 1,
+        calls: [{ fn: "revert_audit_entries", args: { entries: ["9"] } }],
+      },
+    });
+    expect(calls).toContainEqual([
+      "revert_audit_entries",
+      { entries: ["1", "2"] },
+    ]);
+    expect(await audit.revert(["3"]).orThrow()).toEqual({
+      reverted: 1,
+      undo: null,
+    });
   });
 
   it("reveals details and maps errors", async () => {

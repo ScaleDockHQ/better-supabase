@@ -576,6 +576,17 @@
       "types": "./dist/blocks/teams/index.d.ts",
       "default": "./dist/blocks/teams/index.js"
     },
+    "./blocks/undo": {
+      "@better-supabase/source": "./src/blocks/undo/index.ts",
+      "types": "./dist/blocks/undo/index.d.ts",
+      "default": "./dist/blocks/undo/index.js"
+    },
+    "./blocks/undo/react": {
+      "@better-supabase/source": "./src/blocks/undo/react/index.ts",
+      "types": "./dist/blocks/undo/react/index.d.ts",
+      "react-server": "./dist/blocks/undo/react/server.js",
+      "default": "./dist/blocks/undo/react/index.js"
+    },
     "./blocks/tags": {
       "@better-supabase/source": "./src/blocks/tags/index.ts",
       "types": "./dist/blocks/tags/index.d.ts",
@@ -610,6 +621,27 @@
       "@better-supabase/source": "./src/blocks/rank/index.ts",
       "types": "./dist/blocks/rank/index.d.ts",
       "default": "./dist/blocks/rank/index.js"
+    },
+    "./blocks/saved-views": {
+      "@better-supabase/source": "./src/blocks/saved-views/index.ts",
+      "types": "./dist/blocks/saved-views/index.d.ts",
+      "default": "./dist/blocks/saved-views/index.js"
+    },
+    "./blocks/relations": {
+      "@better-supabase/source": "./src/blocks/relations/index.ts",
+      "types": "./dist/blocks/relations/index.d.ts",
+      "default": "./dist/blocks/relations/index.js"
+    },
+    "./blocks/bulk": {
+      "@better-supabase/source": "./src/blocks/bulk/index.ts",
+      "types": "./dist/blocks/bulk/index.d.ts",
+      "default": "./dist/blocks/bulk/index.js"
+    },
+    "./blocks/saved-views/react": {
+      "@better-supabase/source": "./src/blocks/saved-views/react/index.ts",
+      "types": "./dist/blocks/saved-views/react/index.d.ts",
+      "react-server": "./dist/blocks/saved-views/react/server.js",
+      "default": "./dist/blocks/saved-views/react/index.js"
     },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
@@ -1147,6 +1179,15 @@
         "types": "./dist/blocks/teams/index.d.ts",
         "default": "./dist/blocks/teams/index.js"
       },
+      "./blocks/undo": {
+        "types": "./dist/blocks/undo/index.d.ts",
+        "default": "./dist/blocks/undo/index.js"
+      },
+      "./blocks/undo/react": {
+        "types": "./dist/blocks/undo/react/index.d.ts",
+        "react-server": "./dist/blocks/undo/react/server.js",
+        "default": "./dist/blocks/undo/react/index.js"
+      },
       "./blocks/tags": {
         "types": "./dist/blocks/tags/index.d.ts",
         "default": "./dist/blocks/tags/index.js"
@@ -1174,6 +1215,23 @@
       "./blocks/rank": {
         "types": "./dist/blocks/rank/index.d.ts",
         "default": "./dist/blocks/rank/index.js"
+      },
+      "./blocks/saved-views": {
+        "types": "./dist/blocks/saved-views/index.d.ts",
+        "default": "./dist/blocks/saved-views/index.js"
+      },
+      "./blocks/relations": {
+        "types": "./dist/blocks/relations/index.d.ts",
+        "default": "./dist/blocks/relations/index.js"
+      },
+      "./blocks/bulk": {
+        "types": "./dist/blocks/bulk/index.d.ts",
+        "default": "./dist/blocks/bulk/index.js"
+      },
+      "./blocks/saved-views/react": {
+        "types": "./dist/blocks/saved-views/react/index.d.ts",
+        "react-server": "./dist/blocks/saved-views/react/server.js",
+        "default": "./dist/blocks/saved-views/react/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",

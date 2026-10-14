@@ -16,6 +16,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "organization.update",
     "members.*",
     "audit.read",
+    "audit.revert",
     "webhooks.*",
     "notifications.*",
     "billing.*",
@@ -36,6 +37,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "share_links.*",
     "reminders.*",
     "imports.*",
+    "views.*",
+    "relations.*",
+    "bulk.*",
   ],
   member: [
     "organization.read",
@@ -62,6 +66,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "tags.read",
     "share_links.read",
     "reminders.read",
+    "views.read",
+    "relations.read",
+    "bulk.run",
   ],
   viewer: ["organization.read"],
 };
@@ -87,7 +94,7 @@ export const MODULE_PERMISSIONS = {
     view: "members.invite",
     invitePlatform: "platform.invite",
   },
-  audit: { view: "audit.read", viewAll: "audit.read" },
+  audit: { view: "audit.read", viewAll: "audit.read", revert: "audit.revert" },
   "support-sessions": {
     start: "support.start",
     view: "support.read",
@@ -190,6 +197,9 @@ export const MODULE_PERMISSIONS = {
   "share-links": { create: "share_links.create", read: "share_links.read" },
   reminders: { manage: "reminders.manage", read: "reminders.read" },
   imports: { manage: "imports.manage" },
+  "saved-views": { read: "views.read", share: "views.share" },
+  relations: { read: "relations.read", manage: "relations.manage" },
+  bulk: { run: "bulk.run" },
 } as const;
 
 /**
@@ -216,7 +226,7 @@ export const MODULE_PERMISSION_SCOPES: {
     view: "tenant",
     invitePlatform: "platform",
   },
-  audit: { view: "tenant", viewAll: "platform" },
+  audit: { view: "tenant", viewAll: "platform", revert: "tenant" },
   "support-sessions": {
     start: "platform",
     view: "platform",
@@ -295,6 +305,9 @@ export const MODULE_PERMISSION_SCOPES: {
   "share-links": { create: "tenant", read: "tenant" },
   reminders: { manage: "tenant", read: "tenant" },
   imports: { manage: "tenant" },
+  "saved-views": { read: "tenant", share: "tenant" },
+  relations: { read: "tenant", manage: "tenant" },
+  bulk: { run: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

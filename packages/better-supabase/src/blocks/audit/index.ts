@@ -12,6 +12,7 @@ export type {
   AuditLogOptions,
   AuditPage,
   AuditRecord,
+  AuditReverted,
 } from "./client.ts";
 export type { AuditCsvColumn, AuditCsvOptions } from "./csv.ts";
 export { auditEventOf, auditSink } from "./sink.ts";
