@@ -192,6 +192,40 @@ describe("configIssues for authorization", () => {
     expect(configIssues({ claims: { memberships: "orgs" } })).toEqual([]);
   });
 
+  it("accepts isApprover, holdersOf, actorMayWrite and an operations table", () => {
+    expect(
+      issues({
+        functions: {
+          ...stubProvider.functions,
+          isApprover: "authz.is_approver({kind}, {subject}, {tenant})",
+          holdersOf: "authz.holders({permission}, {tenant})",
+          actorMayWrite: "authz.actor_may_write()",
+        },
+        operations: {
+          "workflow.node.http": {
+            permission: "documents.write",
+            meta: { risk: "high", effects: ["external"], title: "HTTP" },
+          },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      issues({
+        operations: { "mcp.tool.search": { permission: "" } },
+      }).join("\n"),
+    ).toMatch(/operations/);
+    expect(
+      issues({
+        operations: {
+          "mcp.tool.search": {
+            permission: "documents.read",
+            meta: { risk: "extreme" },
+          },
+        },
+      }).join("\n"),
+    ).toMatch(/risk/);
+  });
+
   it("names a wrong apiVersion instead of listing every field", () => {
     expect(issues({ apiVersion: 2 })).toEqual([
       expect.stringMatching(

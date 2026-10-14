@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImpersonationOptions } from "../auth/impersonation.ts";
 import type { CookieWrite } from "../auth/session.ts";
 import type { AnyAuthorizer } from "../core/authorizer.ts";
+import type { AuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
@@ -149,6 +150,12 @@ export interface ServerOptions {
    * declared permission denies.
    */
   readonly authorizer?: AnyAuthorizer;
+  /**
+   * The runtime hooks of an authorization provider (`AuthorizationHooks`
+   * v1). Support sessions read `support.authorize` and `approverOf`, and
+   * `forContext` reads `tickets.subject`, when their own options are unset.
+   */
+  readonly authorization?: AuthorizationHooks;
 }
 
 export interface ForContextOptions {
@@ -331,6 +338,8 @@ export interface BetterServer<
   readonly support: SupportApi;
   /** `options.authorizer`, when the server has one. */
   readonly authorizer: AnyAuthorizer | undefined;
+  /** `options.authorization`, when the server has one. */
+  readonly authorization: AuthorizationHooks | undefined;
 }
 
 export type ServerKeys = keyof BetterServer<AnyModels, AnyFunctions, unknown>;

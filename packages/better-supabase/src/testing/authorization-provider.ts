@@ -196,6 +196,27 @@ export function testAuthorizationProvider(
         }
       },
     ],
+    provider.operations && [
+      "operations name listed permissions",
+      () => {
+        const keys =
+          provider.permissions === undefined
+            ? undefined
+            : new Set(provider.permissions.map((entry) => entry.key));
+        for (const [name, operation] of Object.entries(provider.operations!)) {
+          expect(name !== "", "an operation name is empty");
+          expect(
+            operation.permission !== "",
+            `operation "${name}" names no permission`,
+          );
+          if (keys)
+            expect(
+              keys.has(operation.permission),
+              `operation "${name}" needs "${operation.permission}", which permissions doesn't list`,
+            );
+        }
+      },
+    ],
     provider.memberships && [
       "memberships name known scopes",
       () => {

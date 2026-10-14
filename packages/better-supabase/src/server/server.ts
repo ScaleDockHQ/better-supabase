@@ -26,6 +26,7 @@ import {
   type AuthState,
 } from "../auth/resolve.ts";
 import { sessionCookieName, type SessionEncoding } from "../auth/session.ts";
+import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
 import {
   postgrestExecutor,
@@ -243,6 +244,11 @@ export function createServer<
       "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
     );
   }
+  const hooksProblem =
+    options.authorization === undefined
+      ? undefined
+      : hooksApiProblem(options.authorization);
+  if (hooksProblem !== undefined) throw new TypeError(hooksProblem);
   const audit = serverAudit(betterSupabase, options.audit);
   const support = options.support
     ? options.support.create(
@@ -609,6 +615,7 @@ export function createServer<
     },
     events: betterSupabase.events,
     authorizer: options.authorizer,
+    authorization: options.authorization,
     resolve,
     supabaseFor,
     dbFor: (auth, context, dbOptions) =>

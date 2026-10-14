@@ -22,6 +22,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   canAssignFor: ["user", "role", "tenant", "scope"],
   permissionsFor: ["user", "tenant", "scope"],
   canApprove: ["tool", "tenant", "scope"],
+  isApprover: ["kind", "subject", "tenant", "scope"],
   holdersOf: ["permission", "tenant", "scope"],
   actorMayWrite: [],
 };

@@ -41,6 +41,26 @@ export type {
   SupportStartRequest,
 } from "./support.ts";
 export { supportSessions } from "./support.ts";
+export { defineAuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
+export type {
+  Approver,
+  ApproverOf,
+  ApprovalRequestRef,
+  AuthorizationHooks,
+  AutomationHooks,
+  AutomationRef,
+  ChatAction,
+  ChatActionHook,
+  IdentityRef,
+  IdentityTarget,
+  PrincipalByIdentity,
+  Subscriber,
+  SubscriberEvent,
+  SubscriberPolicy,
+  SupportAuthorize,
+  SupportDecision,
+  TicketSubject,
+} from "../core/contracts/authorization-hooks.ts";
 export { supportStorage } from "./support-storage.ts";
 export type { SupportStorageOptions } from "./support-storage.ts";
 export {

@@ -226,6 +226,7 @@ describe("ai-chat tool approvals with the provider's canApprove", () => {
         functions: {
           idsWith: "authz.ids_with({permission}, {scope})",
           isPlatform: "authz.is_platform({permission})",
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still works.
           canApprove: "authz.can_approve({tool}, {tenant})",
         },
         ...(distinctApprover === undefined

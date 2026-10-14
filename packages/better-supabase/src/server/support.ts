@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SupportAuthorizeInput } from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 
 import {
@@ -40,14 +41,7 @@ export interface SupportPolicy {
   readonly readOnly?: "always" | "default";
 }
 
-export interface SupportAuthorizeInput {
-  readonly admin: UserAuth;
-  readonly targetUserId: string;
-  readonly reason: string;
-  readonly readOnly: boolean;
-  readonly tenant?: string;
-  readonly metadata: Readonly<Record<string, unknown>>;
-}
+export type { SupportAuthorizeInput };
 
 export interface SupportOptions {
   readonly store: SupportSessionStore;

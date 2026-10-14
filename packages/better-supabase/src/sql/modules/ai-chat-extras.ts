@@ -46,6 +46,7 @@ function approvalProvider(
     }
   | undefined {
   const provider = layout.accessProvider;
+  // oxlint-disable-next-line typescript/no-deprecated -- read until every provider sets isApprover.
   const canApprove = provider?.functions.canApprove;
   if (canApprove === undefined || accessModel(ctx) !== "provider")
     return undefined;
