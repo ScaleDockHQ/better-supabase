@@ -27,6 +27,7 @@ as $$
       'api_keys.manage', 'api_keys.own',
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
+      'search.read', 'metrics.read',
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
       'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage',
@@ -36,7 +37,7 @@ as $$
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
-      'onboarding.read', 'usage.read', 'usage.record',
+      'onboarding.read', 'usage.read', 'usage.record', 'search.read', 'metrics.read',
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
       'ai_chat.read', 'ai_chat.create', 'ai_chat.share',

@@ -240,3 +240,13 @@ the badge.
 `before_metric_rollup` and `after_metric_rollup` run around each metric's
 rollup with its key and window. `createMetrics` takes `hooks` around its
 methods, as every block does.
+
+## Example
+
+The Next.js example defines one metric in `src/metrics.ts`, customers counted
+by `created_at` with a `status` dimension and `rollup: false`, and passes the
+same array to `sql.modules.metrics.options.metrics` and to `createMetrics`.
+The dashboard's New customers card reads three KPIs in one
+`"use cache: private"` function with `bs.cached()`: the last 30 days against
+the 30 before, and the leads and active customers among them. See
+`getCustomerCounts` in `apps/examples/nextjs/src/features/dashboard`.

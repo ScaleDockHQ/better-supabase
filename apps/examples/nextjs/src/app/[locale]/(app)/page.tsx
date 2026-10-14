@@ -3,6 +3,10 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import {
+  CustomersCard,
+  CustomersCardSkeleton,
+} from "@/features/dashboard/components/customers-card";
+import {
   OnboardingCard,
   OnboardingCardSkeleton,
 } from "@/features/dashboard/components/onboarding-card";
@@ -35,6 +39,9 @@ export default function DashboardPage() {
         </Suspense>
         <Suspense fallback={<UsageCardSkeleton />}>
           <UsageCard />
+        </Suspense>
+        <Suspense fallback={<CustomersCardSkeleton />}>
+          <CustomersCard />
         </Suspense>
       </div>
     </>

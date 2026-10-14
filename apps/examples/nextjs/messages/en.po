@@ -1064,6 +1064,32 @@ msgctxt "customers.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
 
+#: src/features/dashboard/components/customers-card.tsx
+msgctxt "dashboard.2PTEWU"
+msgid "Leads"
+msgstr "Leads"
+
+#: src/features/dashboard/components/customers-card.tsx
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/dashboard/components/customers-card.tsx
+msgctxt "dashboard.Tk_BFR"
+msgid "New customers"
+msgstr "New customers"
+
+#: src/features/dashboard/components/customers-card.tsx
+msgctxt "dashboard.gwWBn6"
+msgid "The last 30 days, from the metrics module."
+msgstr "The last 30 days, from the metrics module."
+
+#: src/features/dashboard/components/customers-card.tsx
+msgctxt "dashboard.8O8AYG"
+msgid "{previous} in the 30 days before"
+msgstr "{previous} in the 30 days before"
+
 #: src/features/dashboard/components/onboarding-card.tsx
 msgctxt "dashboard.rBq8VO"
 msgid "Add your first customer"
@@ -1138,11 +1164,6 @@ msgstr "Resets {date}"
 msgctxt "dashboard.TkYZBT"
 msgid "Customers"
 msgstr "Customers"
-
-#: src/features/dashboard/components/workspace-summary.tsx
-msgctxt "dashboard.3a5wL8"
-msgid "Active"
-msgstr "Active"
 
 #: src/features/dashboard/components/workspace-summary.tsx
 msgctxt "dashboard.nnI4gk"
@@ -1997,6 +2018,51 @@ msgstr "Owner"
 msgctxt "organization.iHN12u"
 msgid "Admin"
 msgstr "Admin"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.SMrXWc"
+msgid "Favorites"
+msgstr "Favorites"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.iXpep1"
+msgid "Recent"
+msgstr "Recent"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.xmcVZ0"
+msgid "Search"
+msgstr "Search"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.sOh6hT"
+msgid "Find a customer by name, even with a typo."
+msgstr "Find a customer by name, even with a typo."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.bVjFta"
+msgid "Search customers"
+msgstr "Search customers"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.mUocSC"
+msgid "Search failed. Try again."
+msgstr "Search failed. Try again."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.aiy3-p"
+msgid "Type to search."
+msgstr "Type to search."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.wLCEuv"
+msgid "No matches."
+msgstr "No matches."
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.itPgxd"
