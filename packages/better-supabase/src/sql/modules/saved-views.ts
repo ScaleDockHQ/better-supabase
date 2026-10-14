@@ -64,6 +64,20 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
     },
+    preferences: {
+      name: "saved_view_preferences",
+      lifecycle: { user: "user", tenant: "tenant" },
+      optionalTable: true,
+      columns: {
+        view: "view_id",
+        user: "user_id",
+        tenant: "tenant_id",
+        isDefault: "is_default",
+        hidden: "hidden",
+        pinned: "pinned",
+        updatedAt: "updated_at",
+      },
+    },
   },
 };
 
@@ -133,11 +147,22 @@ ${lockTable(views, { read: true })}
     `(auth.role() = 'service_role'
     or (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
     or (${alias}.${scope} <> 'user' and ${canIn(`${alias}.${tenant}`, share)}))`;
+  // `visible` for a row a security definer function has read.
+  const maySee = (alias: string): string =>
+    `(auth.role() = 'service_role'
+    or (${canIn(`${alias}.${tenant}`, read)} and (
+      (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
+      or (${alias}.${scope} = 'team' and ${inTeam(`${alias}.${team}`)})
+      or ${alias}.${scope} = 'tenant')))`;
+  const preferences = ctx.hasTable("preferences")
+    ? preferenceParts(ctx, { views, maySee })
+    : undefined;
   return `${schemaPreamble(ctx)}
 ${tables}
 drop policy if exists saved_views_read on ${views};
 create policy saved_views_read on ${views} for select to authenticated
 using (${visible});
+${preferences?.ddl ?? ""}
 
 create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
@@ -247,9 +272,9 @@ as $$
     'state', v.${state},
     'rank', v.${rank},
     'isDefault', v.${isDefault},
-    'updatedAt', v.${updatedAt}
+    'updatedAt', v.${updatedAt}${preferences?.json ?? ""}
   ) order by v.${rank} collate "C", v.${id}), '[]'::jsonb)
-  from ${views} v
+  from ${views} v${preferences?.join ?? ""}
   where v.${tenant} = list_views.tenant and v.${list} = list_views.list
 $$;
 ${userGrant(`${fn("list_views")}(${ctx.idType}, text)`)}
@@ -338,10 +363,138 @@ begin
 end;
 $$;
 ${userGrant(`${fn("delete_view")}(uuid)`)}
-`;
+
+-- A copy of a view the caller sees, saved through save_view, so the copy
+-- needs the same rights as a new view of that scope.
+create or replace function ${fn("duplicate_view")}(view_id uuid, scope text, name text, team text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${views};
+begin
+  select * into v_row from ${views} where ${id} = duplicate_view.view_id;
+  if not found or not ${maySee("v_row")} then
+    ${fail("SAVED_VIEW_NOT_FOUND", "saved view not found", "P0002")}
+  end if;
+  return ${fn("save_view")}(v_row.${tenant}, v_row.${list},
+    coalesce(duplicate_view.name, v_row.${name}), v_row.${kind},
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row.${state}, null);
+end;
+$$;
+${userGrant(`${fn("duplicate_view")}(uuid, text, text, text)`)}
+${preferences?.functions ?? ""}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+interface PreferenceParts {
+  /** The table, its policy. */
+  readonly ddl: string;
+  /** `set_view_preference`. */
+  readonly functions: string;
+  /** The caller's preference row, joined to `v` in `list_views`. */
+  readonly join: string;
+  /** The `preference` key of a `list_views` row. */
+  readonly json: string;
+}
+
+function preferenceParts(
+  ctx: ModuleContext,
+  shared: {
+    readonly views: string;
+    readonly maySee: (alias: string) => string;
+  },
+): PreferenceParts {
+  const prefs = ctx.table("preferences");
+  const p = (column: string): string => ctx.col("preferences", column);
+  const v = (column: string): string => ctx.col("views", column);
+  const [view, user, tenant, isDefault, hidden, pinned, updatedAt] = [
+    p("view"),
+    p("user"),
+    p("tenant"),
+    p("isDefault"),
+    p("hidden"),
+    p("pinned"),
+    p("updatedAt"),
+  ];
+  const table = ctx.manages
+    ? `create table if not exists ${prefs} (
+  ${view} uuid not null references ${shared.views} (${v("id")}) on delete cascade,
+  ${user} uuid not null references auth.users (id) on delete cascade,
+  ${tenant} ${ctx.idType} not null,
+  ${isDefault} boolean not null default false,
+  ${hidden} boolean not null default false,
+  ${pinned} boolean not null default false,
+  ${updatedAt} timestamptz not null default now(),
+  primary key (${view}, ${user})
+);
+create index if not exists saved_view_preferences_user_idx on ${prefs} (${user}, ${tenant});
+${lockTable(prefs, { read: true })}
+`
+    : "";
+  const fn = ctx.fn("set_view_preference");
+  const json = (alias: string): string =>
+    `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
+  return {
+    ddl: `${table}drop policy if exists saved_view_preferences_read on ${prefs};
+create policy saved_view_preferences_read on ${prefs} for select to authenticated
+using (${user} = (select auth.uid()));
+`,
+    functions: `
+-- The caller's own default, hidden and pinned flags for a view they see, so
+-- a member can open a shared view by default without the right to change it.
+-- A null argument keeps the current value; one default per user and list.
+create or replace function ${fn}(view_id uuid, make_default boolean, hide boolean, pin boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_row ${shared.views};
+  v_pref ${prefs};
+begin
+  if v_user is null then
+    ${fail("SAVED_VIEW_INVALID", "a preference needs a signed-in user", "22023")}
+  end if;
+  select * into v_row from ${shared.views} where ${v("id")} = set_view_preference.view_id;
+  if not found or not ${shared.maySee("v_row")} then
+    ${fail("SAVED_VIEW_NOT_FOUND", "saved view not found", "P0002")}
+  end if;
+  if set_view_preference.make_default then
+    update ${prefs} p set ${isDefault} = false, ${updatedAt} = now()
+    from ${shared.views} o
+    where p.${user} = v_user and p.${isDefault} and p.${view} <> v_row.${v("id")}
+      and o.${v("id")} = p.${view}
+      and o.${v("tenant")} = v_row.${v("tenant")} and o.${v("list")} = v_row.${v("list")};
+  end if;
+  insert into ${prefs} as p (${view}, ${user}, ${tenant}, ${isDefault}, ${hidden}, ${pinned})
+  values (v_row.${v("id")}, v_user, v_row.${v("tenant")},
+    coalesce(set_view_preference.make_default, false),
+    coalesce(set_view_preference.hide, false),
+    coalesce(set_view_preference.pin, false))
+  on conflict (${view}, ${user}) do update set
+    ${isDefault} = coalesce(set_view_preference.make_default, p.${isDefault}),
+    ${hidden} = coalesce(set_view_preference.hide, p.${hidden}),
+    ${pinned} = coalesce(set_view_preference.pin, p.${pinned}),
+    ${updatedAt} = now()
+  returning * into v_pref;
+  return jsonb_build_object('viewId', v_pref.${view}) || ${json("v_pref")};
+end;
+$$;
+${userGrant(`${fn}(uuid, boolean, boolean, boolean)`)}
+`,
+    join: `
+  left join ${prefs} p on p.${view} = v.${v("id")} and p.${user} = (select auth.uid())`,
+    json: `,
+    'preference', ${json("p")}`,
+  };
+}
+
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_view",
@@ -352,6 +505,20 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "rank_view", args: ["uuid", "text"], returns: "boolean" },
     { name: "set_default_view", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "delete_view", args: ["uuid"], returns: "boolean" },
+    {
+      name: "duplicate_view",
+      args: ["uuid", "text", "text", "text"],
+      returns: "jsonb",
+    },
+    ...(ctx.hasTable("preferences")
+      ? [
+          {
+            name: "set_view_preference",
+            args: ["uuid", "boolean", "boolean", "boolean"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -364,7 +531,15 @@ export const SAVED_VIEWS: ModuleDefinition = {
   integrates: ["outbox", "teams"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "saved_view_preferences stores each member's default, hidden and pinned flags; set_view_preference and duplicate_view are new.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

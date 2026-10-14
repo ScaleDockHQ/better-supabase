@@ -8,11 +8,16 @@ export {
   savedViewStateSchema,
 } from "./saved-views.ts";
 export type {
+  DefaultViewCandidate,
+  DuplicateViewInput,
   SavedView,
   SavedViewColumns,
   SavedViewDensity,
+  SavedViewDisplayState,
   SavedViewKind,
   SavedViewList,
+  SavedViewPreference,
+  SavedViewPreferenceInput,
   SavedViews,
   SavedViewScope,
   SavedViewsOptions,
@@ -20,7 +25,9 @@ export type {
   SaveViewInput,
 } from "./saved-views.ts";
 export {
+  displayStateOf,
   queryFromUrlState,
+  sameDisplayState,
   sameQuery,
   urlStateFromQuery,
 } from "./query-state.ts";

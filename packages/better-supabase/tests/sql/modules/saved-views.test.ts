@@ -53,6 +53,45 @@ describe("saved-views module", () => {
     expect(sql).toMatch(/save_view[\s\S]*actor_may_write/);
   });
 
+  it("keeps per-user preferences that only their user reads", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      `"view_id" uuid not null references "better_supabase"."saved_views" ("id") on delete cascade`,
+    );
+    expect(sql).toContain(`primary key ("view_id", "user_id")`);
+    expect(sql).toContain(`using ("user_id" = (select auth.uid()));`);
+    expect(sql).toContain(
+      `left join "better_supabase"."saved_view_preferences" p on p."view_id" = v."id" and p."user_id" = (select auth.uid())`,
+    );
+    expect(sql).toMatch(
+      /set_view_preference"\(view_id uuid, make_default boolean, hide boolean, pin boolean\)[\s\S]*views\.read[\s\S]*SAVED_VIEW_NOT_FOUND/,
+    );
+  });
+
+  it("clears the caller's other preferred default of the same list", () => {
+    expect(sqlOf()).toContain(
+      `and o."tenant_id" = v_row."tenant_id" and o."list" = v_row."list";`,
+    );
+  });
+
+  it("duplicates a visible view through save_view", () => {
+    const sql = sqlOf();
+    expect(sql).toMatch(
+      /duplicate_view"\(view_id uuid, scope text, name text, team text\)[\s\S]*SAVED_VIEW_NOT_FOUND[\s\S]*return "better_supabase"\."save_view"\(v_row\."tenant_id", v_row\."list",/,
+    );
+  });
+
+  it("leaves preferences out when the app maps no table", () => {
+    const sql = sqlOf(["saved-views"], {
+      modules: {
+        "saved-views": { mode: "adopt", tables: { preferences: null } },
+      },
+    });
+    expect(sql).not.toContain("saved_view_preferences");
+    expect(sql).not.toContain("set_view_preference");
+    expect(sql).toContain("duplicate_view");
+  });
+
   it("renders nothing in custom mode", () => {
     expect(
       sqlOf(["saved-views"], {

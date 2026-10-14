@@ -1,6 +1,6 @@
 ---
 title: Saved views
-description: Named list views per user, team or organization, with the filter tree, sort, columns, grouping and density checked against the list definition, and useSavedViews for nuqs.
+description: Named list views per user, team or organization, with the filter tree, sort, columns, grouping and density checked against the list definition, personal defaults, duplicates, and useSavedViews for nuqs.
 ---
 
 `saved-views` stores named views of a list: a filter tree, a sort, the
@@ -77,17 +77,58 @@ forms.
 | `list(organizationId, l)` | The caller's views of list `l`, in rank order                       |
 | `reorder(id, neighbors)`  | Moves a view between its neighbours' rank keys                      |
 | `setDefault(id, on)`      | Makes a view the default of its slot, clearing the slot's other one |
+| `setPreference(id, p)`    | Sets the caller's own default, hidden and pinned flags on a view    |
+| `duplicate(id, input)`    | Copies a view the caller sees into a new view                       |
 | `delete(id)`              | Deletes a view                                                      |
 
-`defaultView(views)` picks the view to open: the user's default, then a team
-default, then the organization's, then the first view.
+`defaultView(views)` picks the view to open: the caller's preferred view,
+then the user's default, a team default, the organization's, and then the
+first view. It skips views the caller hid.
 
-| Hint                      | When                                                                     |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `SAVED_VIEW_INVALID`      | A name, list, kind or scope is out of range, or `state` is not an object |
-| `SAVED_VIEW_FORBIDDEN`    | The caller can't read, share or change the view                          |
-| `SAVED_VIEW_NOT_FOUND`    | The view doesn't exist or isn't visible                                  |
-| `SAVED_VIEW_RANK_INVALID` | `reorder` was given a key that is not a rank key                         |
+## Personal preferences
+
+Changing a shared view's slot default needs `views.share`. A member who only
+reads a team or organization view can still make it their own default, hide
+it from their menu or pin it. `setPreference` stores those flags in
+`saved_view_preferences`, one row per view and user, and needs only that the
+caller sees the view. A flag you leave out keeps its value, and each user has
+one preferred default per list.
+
+```ts
+await savedViews
+  .setPreference(viewId, { isDefault: true, pinned: true })
+  .orThrow();
+
+const views = await savedViews.list(organizationId, "tasks").orThrow();
+// views[0].preference: { isDefault: true, hidden: false, pinned: true }
+```
+
+`list` returns the caller's `preference` with every view, hidden ones
+included, so a menu can offer to show them again. Only the user reads their
+own rows, and deleting a view deletes its preferences. An adopted setup can
+leave the table out with `tables: { preferences: null }`; `preference` is
+then always false.
+
+## Duplicate a view
+
+`duplicate(id, { name, scope, teamId })` copies the state, kind and list of
+a view the caller sees. The copy is a personal view unless you pass `scope`,
+and it goes through the same checks as `save`, so a `team` or `tenant` copy
+needs `views.share`. A member can copy a shared view to change it on their
+own.
+
+```ts
+const copy = await savedViews
+  .duplicate(viewId, { name: "My open bugs" })
+  .orThrow();
+```
+
+| Hint                      | When                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SAVED_VIEW_INVALID`      | A name, list, kind or scope is out of range, `state` is not an object, or a preference has no signed-in user |
+| `SAVED_VIEW_FORBIDDEN`    | The caller can't read, share or change the view                                                              |
+| `SAVED_VIEW_NOT_FOUND`    | The view doesn't exist or isn't visible                                                                      |
+| `SAVED_VIEW_RANK_INVALID` | `reorder` was given a key that is not a rank key                                                             |
 
 ## Sync with the URL
 
@@ -95,37 +136,74 @@ default, then the organization's, then the first view.
 opens the default view when the URL holds no query, reports which view the
 URL matches, and saves the URL's query as a view.
 
+The columns, grouping, density and layout live outside the URL. Pass
+`getState` to return what the table shows now and `onApplyState` to show a
+view's state: `saveCurrent` then stores the query and that state together,
+`apply` puts the query in the URL and passes everything else to
+`onApplyState`, and `active` and `isDirty` compare both. Without `getState`
+only the query counts.
+
 ```tsx title="app/tasks/views-menu.tsx"
 "use client";
 
+import { useState } from "react";
 import { useQueryStates, createParser } from "nuqs";
 import { useSavedViews } from "better-supabase/blocks/saved-views/react";
+import type {
+  SavedViewColumns,
+  SavedViewDensity,
+} from "better-supabase/blocks/saved-views";
 
 import { tasksList } from "@/lib/lists";
-import { listViews, saveView, deleteView } from "./actions";
+import {
+  listViews,
+  saveView,
+  deleteView,
+  duplicateView,
+  setViewPreference,
+} from "./actions";
 
 export function ViewsMenu({ organizationId }: { organizationId: string }) {
   const [urlState, setUrlState] = useQueryStates(tasksList.nuqs(createParser));
+  const [columns, setColumns] = useState<SavedViewColumns>({});
+  const [density, setDensity] = useState<SavedViewDensity>("default");
   const views = useSavedViews({
     load: () => listViews(organizationId, "tasks"),
-    save: (input) => saveView({ organizationId, list: "tasks", ...input }),
+    save: ({ name, state, id }) =>
+      saveView({ organizationId, list: "tasks", name, state, id }),
     remove: deleteView,
+    duplicate: ({ id, name }) => duplicateView(id, { name }),
+    setPreference: setViewPreference,
     urlState,
     setUrlState,
+    getState: () => ({ columns, density }),
+    onApplyState: (state) => {
+      setColumns(state.columns ?? {});
+      setDensity(state.density ?? "default");
+    },
   });
-  // views.views, views.active, views.isDirty, views.apply(view), views.saveCurrent(name)
+  // views.views, views.active, views.isDirty, views.apply(view),
+  // views.saveCurrent(name), views.duplicate(id, name),
+  // views.setPreference(id, { isDefault: true })
 }
 ```
 
+`apply` calls `onApplyState` with every key the view stores except `query`,
+so reset each part the view leaves out. The `save` callback receives the
+query alone as `query` and the whole state as `state`.
+
 `queryFromUrlState` and `urlStateFromQuery` convert between nuqs values and a
 stored query outside React, and `sameQuery` compares two queries while
-ignoring the page and empty facets.
+ignoring the page and empty facets. `displayStateOf` drops `query` from a
+state, and `sameDisplayState` compares the rest.
 
 ## Events
 
 `save` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
-outbox when it is installed, and call the `before_view_save` and
-`after_view_save` hooks.
+outbox when it is installed, and `save` calls the `before_view_save` and
+`after_view_save` hooks. `duplicate` saves through the same function, so a
+copy records `saved_view.saved` and runs both hooks. Preferences record no
+event.
 
 ## With ReUI
 
