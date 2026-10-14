@@ -29,7 +29,7 @@ import {
   searchTool,
   type SearchToolOptions,
 } from "../embeddings/embeddings.ts";
-import { gatewayOptions, type GatewayOptions } from "../gateway.ts";
+import { gatewayOptions, type GatewayOptions } from "../gateway-options.ts";
 import {
   type AgentCaller,
   type AgentModelAuthorizer,
