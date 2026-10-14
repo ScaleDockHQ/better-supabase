@@ -135,7 +135,9 @@ export async function requestApproval(invoiceId: string) {
 
 `startFor` starts the run with the `bs.tenant` and `bs.actor` attributes
 of the caller, which the World copies into `workflow_runs.tenant_id` and
-`actor_id`. With `idempotencyKey`, it returns the run that already has the
+`actor_id`. Pass `subject: { type: "deal", id }` to store the record the
+run belongs to (the `bs.subject` attribute, copied into `subject_type` and
+`subject_id`; see [runs on a record](/docs/blocks/workflows#runs-on-a-record)). With `idempotencyKey`, it returns the run that already has the
 key instead of starting another. To act as the user inside a step, pass
 `workflowContext(ctx)` as an argument and call `bs.forContext(context)` in
 the step. It keeps the actor and tenant and drops the claims, so no token
@@ -167,7 +169,13 @@ publisher's, capped to those keys, so `bs.forContext(context)` in a step
 runs as the publisher and refuses every other key. A publisher who loses a
 permission fails the step that needs it. The event's actor or the
 schedule's creator is recorded as `bs.trigger` for audit and grants
-nothing; the publisher is recorded as `bs.publisher`.
+nothing; the publisher is recorded as `bs.publisher`. The run's `actor_id`
+is the user who triggered it (none for an event without an actor), so they
+see the run they caused, and `principal_kind` and `principal_id` record the
+publisher. Set `principalKind: "service_principal"` in `runAs` when the
+publisher is a [service principal](/docs/blocks/service-principals). The
+World records the principal only from these trusted starts: `startFor`
+drops `bs.principal_kind` and `bs.principal` from caller attributes.
 
 ```ts title="workflows/start.ts"
 import { startOnEvent, workflowStarter } from "better-supabase/workflow-sdk";
@@ -325,6 +333,7 @@ export async function requestApproval(call: GraphApprovalCall) {
 ```ts title="workflows/graph.ts"
 import {
   executeGraph,
+  graphRunFields,
   type GraphStepCall,
   type WorkflowGraph,
 } from "better-supabase/blocks/workflow-builder";
@@ -336,11 +345,11 @@ import { steps } from "./steps";
 export async function graphExecutor(
   graph: WorkflowGraph,
   input: unknown,
-  meta: { runKey: string },
+  meta: unknown,
 ) {
   "use workflow";
   return executeGraph(graph, input, {
-    runKey: meta.runKey,
+    ...graphRunFields(meta),
     step: (call: GraphStepCall) => steps[call.step](call),
     sleep: (ms) => sleep(ms),
     requestApproval: (call) => requestApproval(call),
@@ -348,6 +357,11 @@ export async function graphExecutor(
   });
 }
 ```
+
+`graphRunFields(meta)` passes the run key, version, tenant, subject, start
+trigger node and, for a test run, the stubs. Pass `executorRunsTests: true`
+to `graphStarter` once your executor spreads it; test runs on the static
+executor are refused without it.
 
 The executor imports `executeGraph` from the block rather than from
 `workflow-sdk/builder`, so the workflow bundle doesn't load `workflow/api`,

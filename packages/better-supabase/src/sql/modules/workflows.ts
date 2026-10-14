@@ -17,6 +17,7 @@ import {
   revokeTable,
   lockTable,
   fail,
+  ensureCheck,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
@@ -31,6 +32,8 @@ const EVENTS: ModuleEvents = {
       "definition",
       "status",
       "error",
+      "subjectType",
+      "subjectId",
     ],
     retries: true,
   },
@@ -44,6 +47,8 @@ const EVENTS: ModuleEvents = {
       "definition",
       "status",
       "error",
+      "subjectType",
+      "subjectId",
     ],
     retries: true,
   },
@@ -57,6 +62,8 @@ const EVENTS: ModuleEvents = {
       "definition",
       "status",
       "error",
+      "subjectType",
+      "subjectId",
     ],
     retries: true,
   },
@@ -83,6 +90,12 @@ const NAMES: ModuleNames = {
         startedAt: "started_at",
         completedAt: "completed_at",
         cancelRequestedAt: "cancel_requested_at",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        principalKind: "principal_kind",
+        principalId: "principal_id",
+        mode: "mode",
+        triggerNode: "trigger_node",
       },
     },
     schedules: {
@@ -130,6 +143,8 @@ const NAMES: ModuleNames = {
         runId: "run_id",
         createdAt: "created_at",
         startedAt: "started_at",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
       },
     },
   },
@@ -142,6 +157,14 @@ const WORKFLOW_RUN_STATUSES = [
   "completed",
   "failed",
   "cancelled",
+] as const;
+
+/** Who a run's steps act as: `principal_kind` on `workflow_runs`. */
+const PRINCIPAL_KINDS = [
+  "user",
+  "service_principal",
+  "system",
+  "external",
 ] as const;
 
 const TERMINAL = "('completed', 'failed', 'cancelled')";
@@ -178,7 +201,13 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'updatedAt', ${alias}.${cr("updatedAt")},
     'startedAt', ${alias}.${cr("startedAt")},
     'completedAt', ${alias}.${cr("completedAt")},
-    'cancelRequestedAt', ${alias}.${cr("cancelRequestedAt")}
+    'cancelRequestedAt', ${alias}.${cr("cancelRequestedAt")},
+    'subjectType', ${alias}.${cr("subjectType")},
+    'subjectId', ${alias}.${cr("subjectId")},
+    'principalKind', ${alias}.${cr("principalKind")},
+    'principalId', ${alias}.${cr("principalId")},
+    'mode', ${alias}.${cr("mode")},
+    'triggerNode', ${alias}.${cr("triggerNode")}
   )`;
   const scheduleJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cs("id")},
@@ -197,7 +226,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const emitTerminal = (status: string): string =>
     ctx.record({
       type: `workflow_run.${status}`,
-      payload: `jsonb_build_object('runId', new.${cr("id")}, 'organizationId', new.${cr("tenant")}::text, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")})`,
+      payload: `jsonb_build_object('runId', new.${cr("id")}, 'organizationId', new.${cr("tenant")}::text, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")}, 'subjectType', new.${cr("subjectType")}, 'subjectId', new.${cr("subjectId")})`,
       subject: `'workflow-runs/' || new.${cr("id")}`,
       tenant: `new.${cr("tenant")}`,
       key: `'workflow_run.${status}:' || new.${cr("id")}`,
@@ -240,6 +269,18 @@ create table if not exists ${r} (
 create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_actor_idx on ${r} (${cr("actor")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${cr("completedAt")});
+-- The record a run belongs to (subject_type and subject_id, both or
+-- neither), who its steps run as (principal_kind and principal_id), whether
+-- it is a test run, and the trigger node it started from. Test runs write
+-- no outbox events and fire no alerts.
+alter table ${r} add column if not exists ${cr("subjectType")} text check (length(${cr("subjectType")}) between 1 and 100);
+alter table ${r} add column if not exists ${cr("subjectId")} text check (length(${cr("subjectId")}) between 1 and 200);
+alter table ${r} add column if not exists ${cr("principalKind")} text check (${cr("principalKind")} in (${PRINCIPAL_KINDS.map(sqlString).join(", ")}));
+alter table ${r} add column if not exists ${cr("principalId")} text check (length(${cr("principalId")}) between 1 and 200);
+alter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));
+alter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);
+${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}
+create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;
 alter table ${r} enable row level security;
 ${revokeTable(r)}
 grant select on ${r} to authenticated;
@@ -312,10 +353,14 @@ create table if not exists ${q} (
 create index if not exists workflow_start_requests_key_idx on ${q} (${cq("key")}, ${cq("status")});
 create index if not exists workflow_start_requests_due_idx on ${q} (${cq("notBefore")}) where ${cq("status")} = 'pending';
 create index if not exists workflow_start_requests_actor_idx on ${q} (${cq("actor")});
+alter table ${q} add column if not exists ${cq("subjectType")} text check (length(${cq("subjectType")}) between 1 and 100);
+alter table ${q} add column if not exists ${cq("subjectId")} text check (length(${cq("subjectId")}) between 1 and 200);
+${ensureCheck(q, "workflow_start_requests_subject_check", `(${cq("subjectType")} is null) = (${cq("subjectId")} is null)`)}
 ${lockTable(q)}
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow_run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox (not
+-- for test runs).
 create or replace function ${fn("workflow_runs_changed")}()
 returns trigger
 language plpgsql
@@ -335,6 +380,9 @@ begin
     terminalEvents === ""
       ? ""
       : `
+  if new.${cr("mode")} = 'test' then
+    return null;
+  end if;
   case new.${cr("status")}${terminalEvents}
     else null;
   end case;`
@@ -347,8 +395,10 @@ drop trigger if exists ${statusTrigger} on ${r};
 create trigger ${statusTrigger} after insert or update of ${cr("status")} on ${r}
   for each row execute function ${fn("workflow_runs_changed")}();
 
--- Creates or updates the run an engine reports. tenant, actor and started_at
--- keep their first non-null value; attributes merge.
+-- Creates or updates the run an engine reports. tenant, actor, the subject,
+-- the principal, the trigger node and started_at keep their first non-null
+-- value, mode keeps the first report's (default live); attributes merge.
+drop function if exists ${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz);
 create or replace function ${fn("record_workflow_run")}(
   engine text,
   external_id text,
@@ -359,7 +409,13 @@ create or replace function ${fn("record_workflow_run")}(
   attributes jsonb default '{}'::jsonb,
   error text default null,
   started_at timestamptz default null,
-  completed_at timestamptz default null
+  completed_at timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  mode text default null,
+  trigger_node text default null
 )
 returns uuid
 language plpgsql
@@ -369,8 +425,8 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into ${r} as x (${cr("engine")}, ${cr("externalId")}, ${cr("definition")}, ${cr("status")}, ${cr("tenant")}, ${cr("actor")}, ${cr("attributes")}, ${cr("error")}, ${cr("startedAt")}, ${cr("completedAt")})
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at)
+  insert into ${r} as x (${cr("engine")}, ${cr("externalId")}, ${cr("definition")}, ${cr("status")}, ${cr("tenant")}, ${cr("actor")}, ${cr("attributes")}, ${cr("error")}, ${cr("startedAt")}, ${cr("completedAt")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("principalKind")}, ${cr("principalId")}, ${cr("mode")}, ${cr("triggerNode")})
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
   on conflict on constraint workflow_runs_engine_external_key do update set
     ${cr("definition")} = excluded.${cr("definition")},
     ${cr("status")} = excluded.${cr("status")},
@@ -380,20 +436,31 @@ begin
     ${cr("error")} = coalesce(excluded.${cr("error")}, x.${cr("error")}),
     ${cr("startedAt")} = coalesce(x.${cr("startedAt")}, excluded.${cr("startedAt")}),
     ${cr("completedAt")} = coalesce(excluded.${cr("completedAt")}, x.${cr("completedAt")}),
+    ${cr("subjectType")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectType")} else x.${cr("subjectType")} end,
+    ${cr("subjectId")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectId")} else x.${cr("subjectId")} end,
+    ${cr("principalKind")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalKind")} else x.${cr("principalKind")} end,
+    ${cr("principalId")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalId")} else x.${cr("principalId")} end,
+    ${cr("triggerNode")} = coalesce(x.${cr("triggerNode")}, excluded.${cr("triggerNode")}),
     ${cr("updatedAt")} = now()
   returning x.${cr("id")} into v_id;
   return v_id;
 end;
 $$;
-${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz)`)}
+${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text)`)}
 
 -- The runs the caller may read, newest first: max rows created before before.
+-- subject_type and subject_id narrow to one record's runs; mode is live
+-- (the default), test, or null for both.
+drop function if exists ${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz);
 create or replace function ${fn("workflow_runs_list")}(
   tenant ${id} default null,
   definition text default null,
   status text default null,
   max integer default 50,
-  before timestamptz default null
+  before timestamptz default null,
+  subject_type text default null,
+  subject_id text default null,
+  mode text default 'live'
 )
 returns jsonb
 language sql
@@ -407,11 +474,14 @@ as $$
       and (workflow_runs_list.definition is null or y.${cr("definition")} = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y.${cr("status")} = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y.${cr("createdAt")} < workflow_runs_list.before)
+      and (workflow_runs_list.subject_type is null or y.${cr("subjectType")} = workflow_runs_list.subject_type)
+      and (workflow_runs_list.subject_id is null or y.${cr("subjectId")} = workflow_runs_list.subject_id)
+      and (workflow_runs_list.mode is null or y.${cr("mode")} = workflow_runs_list.mode)
     order by y.${cr("createdAt")} desc
     limit ${pageSize("workflow_runs_list.max", 50, 500)}
   ) x;
 $$;
-${callable(`${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz)`)}
+${callable(`${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz, text, text, text)`)}
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function ${fn("workflow_run_get")}(run text)
@@ -687,7 +757,9 @@ ${serviceGrant(`${fn("workflow_admission_active")}(text)`)}
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
 -- is active; debounce replaces the waiting request and waits that long;
--- concurrency caps the runs started at once.
+-- concurrency caps the runs started at once. subject_type and subject_id
+-- name the record the run belongs to.
+drop function if exists ${fn("request_workflow_start")}(text, text, jsonb, ${id}, uuid, integer, interval, boolean);
 create or replace function ${fn("request_workflow_start")}(
   key text,
   workflow text,
@@ -696,7 +768,9 @@ create or replace function ${fn("request_workflow_start")}(
   actor uuid default null,
   concurrency integer default null,
   debounce interval default null,
-  singleton boolean default false
+  singleton boolean default false,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -718,16 +792,16 @@ begin
     where x.${cq("key")} = key and x.${cq("status")} = 'pending'
       and (x.${cq("claimedUntil")} is null or x.${cq("claimedUntil")} < now());
   end if;
-  insert into ${q} (${cq("key")}, ${cq("workflow")}, ${cq("input")}, ${cq("tenant")}, ${cq("actor")}, ${cq("concurrency")}, ${cq("notBefore")})
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'))
+  insert into ${q} (${cq("key")}, ${cq("workflow")}, ${cq("input")}, ${cq("tenant")}, ${cq("actor")}, ${cq("concurrency")}, ${cq("notBefore")}, ${cq("subjectType")}, ${cq("subjectId")})
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning ${cq("id")} into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-${serviceGrant(`${fn("request_workflow_start")}(text, text, jsonb, ${id}, uuid, integer, interval, boolean)`)}
+${serviceGrant(`${fn("request_workflow_start")}(text, text, jsonb, ${id}, uuid, integer, interval, boolean, text, text)`)}
 
 -- Leases up to batch start requests whose time came and whose key has room:
--- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
+-- [{ id, key, workflow, input, tenant, actor, subjectType, subjectId }]. Start each, then call
 -- mark_workflow_start_request; a lease that runs out frees the request.
 create or replace function ${fn("claim_workflow_start_requests")}(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -759,7 +833,9 @@ begin
         'workflow', v_row.${cq("workflow")},
         'input', v_row.${cq("input")},
         'tenant', v_row.${cq("tenant")},
-        'actor', v_row.${cq("actor")}
+        'actor', v_row.${cq("actor")},
+        'subjectType', v_row.${cq("subjectType")},
+        'subjectId', v_row.${cq("subjectId")}
       ));
       v_taken := v_taken + 1;
     end if;
@@ -829,12 +905,27 @@ function contract(): readonly ModuleContractFunction[] {
         "text",
         "timestamptz",
         "timestamptz",
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
       ],
       returns: "uuid",
     },
     {
       name: "workflow_runs_list",
-      args: ["{id}", "text", "text", "integer", "timestamptz"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "integer",
+        "timestamptz",
+        "text",
+        "text",
+        "text",
+      ],
       returns: "jsonb",
     },
     { name: "workflow_run_get", args: ["text"], returns: "jsonb" },
@@ -887,6 +978,8 @@ function contract(): readonly ModuleContractFunction[] {
         "integer",
         "interval",
         "boolean",
+        "text",
+        "text",
       ],
       returns: "jsonb",
     },
@@ -911,7 +1004,15 @@ export const WORKFLOWS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "workflow_runs and workflow_start_requests gain subject_type and subject_id; runs gain principal_kind, principal_id, mode and trigger_node; record_workflow_run, request_workflow_start and workflow_runs_list take the new arguments, and workflow_run.* events carry the subject.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

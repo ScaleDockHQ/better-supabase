@@ -11,14 +11,16 @@ import { getWorld } from "workflow/runtime";
 
 import type { OutboxEvent, OutboxHandler } from "../blocks/outbox/outbox.ts";
 import type {
+  WorkflowPrincipalKind,
   WorkflowStartCall,
   WorkflowStarter,
+  WorkflowSubject,
 } from "../blocks/workflows/workflows.ts";
 import type { Actor, RequestContext } from "../core/plugin.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
 import { unwrap, withContext } from "../blocks/jobs/envelope.ts";
-import { WORKFLOW_ATTRIBUTES } from "./attributes.ts";
+import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 
 /** A workflow function (a `"use workflow"` export), typed structurally. */
 export type WorkflowFn<
@@ -73,8 +75,13 @@ export interface StartForOptions {
    * `schedule:{id}:{fireAt}` and `admission:{id}`.
    */
   readonly idempotencyKey?: string;
-  /** More attributes for the run; `bs.*` keys are set from the context. */
+  /**
+   * More attributes for the run; `bs.*` keys are set from the context, and
+   * `bs.principal_kind` and `bs.principal` only by `runAs` starts.
+   */
   readonly attributes?: Readonly<Record<string, string>>;
+  /** The record the run belongs to, stored as `bs.subject`. */
+  readonly subject?: WorkflowSubject;
   /** The World to look the key up in. Defaults to the configured one. */
   readonly world?: World;
   /**
@@ -106,26 +113,58 @@ export async function runForKey(
  * is returned instead of starting another (the key lookup needs a World with
  * `analytics`, as the Supabase World has).
  */
-export async function startFor<TArgs extends unknown[], TResult>(
+export function startFor<TArgs extends unknown[], TResult>(
   context: RequestContext,
   workflow: WorkflowFn<TArgs, TResult>,
   args: TArgs,
   options: StartForOptions = {},
+): Promise<Run<TResult>> {
+  return startRun(context, workflow, args, options, {});
+}
+
+const RUN_AS_ATTRIBUTES: ReadonlySet<string> = new Set([
+  WORKFLOW_ATTRIBUTES.principalKind,
+  WORKFLOW_ATTRIBUTES.principal,
+]);
+
+/**
+ * `startFor` with `trusted` applied last: a `runAs` start sets the
+ * principal and replaces `bs.actor` with the user who triggered it
+ * (`undefined` removes a key).
+ */
+async function startRun<TArgs extends unknown[], TResult>(
+  context: RequestContext,
+  workflow: WorkflowFn<TArgs, TResult>,
+  args: TArgs,
+  options: StartForOptions,
+  trusted: Readonly<Record<string, string | undefined>>,
 ): Promise<Run<TResult>> {
   const key = options.idempotencyKey;
   if (key !== undefined) {
     const existing = await runForKey(key, options.world);
     if (existing !== undefined) return getRun<TResult>(existing);
   }
+  const attributes: Record<string, string> = {};
+  for (const [name, value] of Object.entries(options.attributes ?? {})) {
+    if (!RUN_AS_ATTRIBUTES.has(name)) attributes[name] = value;
+  }
+  Object.assign(
+    attributes,
+    contextAttributes(
+      context,
+      options.ticket === undefined ? {} : { ticket: options.ticket },
+    ),
+    options.subject === undefined
+      ? {}
+      : { [WORKFLOW_ATTRIBUTES.subject]: subjectAttribute(options.subject) },
+    key === undefined ? {} : { [WORKFLOW_ATTRIBUTES.key]: key },
+  );
+  for (const [name, value] of Object.entries(trusted)) {
+    if (value === undefined) delete attributes[name];
+    else attributes[name] = value;
+  }
   return start(workflow, args, {
-    attributes: {
-      ...options.attributes,
-      ...contextAttributes(
-        context,
-        options.ticket === undefined ? {} : { ticket: options.ticket },
-      ),
-      ...(key === undefined ? {} : { [WORKFLOW_ATTRIBUTES.key]: key }),
-    },
+    attributes,
     ...(options.world === undefined ? {} : { world: options.world }),
   });
 }
@@ -135,13 +174,20 @@ export async function startFor<TArgs extends unknown[], TResult>(
  * the permissions, and the permission keys its steps may use. A step's
  * `bs.forContext(context)` runs as the publisher, capped to `permissions`,
  * so a publisher who lost one fails the step. The event actor or schedule
- * creator is recorded as `bs.trigger` and grants nothing.
+ * creator is the run's actor (and `bs.trigger`) and grants nothing; the
+ * publisher is recorded as the run's principal.
  */
 export interface WorkflowRunAs {
   readonly publisher: string;
   readonly permissions: readonly string[];
   /** The tenant the steps run in. Defaults to the event's or schedule's. */
   readonly tenant?: string;
+  /**
+   * What the publisher is, recorded as the run's `principal_kind`:
+   * `user` (default), or `service_principal` for the app's service
+   * principal (an auth user too, so steps still run as it).
+   */
+  readonly principalKind?: WorkflowPrincipalKind;
 }
 
 /** A fixed `WorkflowRunAs`, or one per start; `null` refuses the start. */
@@ -155,6 +201,13 @@ export type WorkflowRunAsFor<T> =
       | undefined
       | Promise<WorkflowRunAs | null | undefined>);
 
+const PRINCIPAL_KINDS: readonly string[] = [
+  "user",
+  "service_principal",
+  "system",
+  "external",
+] satisfies readonly WorkflowPrincipalKind[];
+
 async function resolveRunAs<T>(
   runAs: WorkflowRunAsFor<T>,
   source: T,
@@ -165,7 +218,9 @@ async function resolveRunAs<T>(
     typeof resolved.publisher !== "string" ||
     resolved.publisher === "" ||
     !Array.isArray(resolved.permissions) ||
-    !resolved.permissions.every((key) => typeof key === "string")
+    !resolved.permissions.every((key) => typeof key === "string") ||
+    (resolved.principalKind !== undefined &&
+      !PRINCIPAL_KINDS.includes(resolved.principalKind))
   ) {
     throw new TypeError(
       "better-supabase: runAs needs a publisher and a list of permission keys",
@@ -174,7 +229,11 @@ async function resolveRunAs<T>(
   return resolved;
 }
 
-/** The context and attributes of a start that runs as `runAs`. */
+/**
+ * The context and attributes of a start that runs as `runAs`; `trusted`
+ * replaces the context's `bs.actor` with the trigger and records the
+ * principal.
+ */
 function runAsStart(
   runAs: WorkflowRunAs,
   start: {
@@ -185,6 +244,7 @@ function runAsStart(
 ): {
   readonly context: RequestContext;
   readonly attributes: Record<string, string>;
+  readonly trusted: Readonly<Record<string, string | undefined>>;
 } {
   const tenant = runAs.tenant ?? start.tenant;
   return {
@@ -199,6 +259,11 @@ function runAsStart(
       ...(start.trigger === undefined
         ? {}
         : { [WORKFLOW_ATTRIBUTES.trigger]: start.trigger }),
+    },
+    trusted: {
+      [WORKFLOW_ATTRIBUTES.actor]: start.trigger,
+      [WORKFLOW_ATTRIBUTES.principalKind]: runAs.principalKind ?? "user",
+      [WORKFLOW_ATTRIBUTES.principal]: runAs.publisher,
     },
   };
 }
@@ -259,16 +324,23 @@ export function workflowStarter(
     }
     const started =
       runAs === undefined
-        ? { context: userContext(call), attributes: {} }
+        ? { context: userContext(call), attributes: {}, trusted: {} }
         : runAsStart(runAs, { tenant: call.tenant, trigger: call.actor });
     const input = Array.isArray(call.input) ? call.input : [call.input];
     const args = options.args?.(call, started.context) ?? input;
-    // SAFETY: the stored input is the argument list the schedule or request was created with.
-    const run = await startFor(started.context, workflow, args as never[], {
-      idempotencyKey: call.idempotencyKey,
-      attributes: started.attributes,
-      ...(options.world === undefined ? {} : { world: options.world }),
-    });
+    const run = await startRun(
+      started.context,
+      workflow,
+      // SAFETY: the stored input is the argument list the schedule or request was created with.
+      args as never[],
+      {
+        idempotencyKey: call.idempotencyKey,
+        attributes: started.attributes,
+        ...(call.subject === undefined ? {} : { subject: call.subject }),
+        ...(options.world === undefined ? {} : { world: options.world }),
+      },
+      started.trusted,
+    );
     return run.runId;
   };
 }
@@ -387,18 +459,24 @@ export function startOnEvent<TArgs extends unknown[]>(
         continue;
       const runAs = await resolveRunAs(options.runAs, event);
       if (runAs === undefined) continue;
-      const { context, attributes } = runAsStart(runAs, {
+      const { context, attributes, trusted } = runAsStart(runAs, {
         tenant: event.tenant ?? undefined,
         trigger: event.actorId ?? undefined,
         ticket: options.ticket?.(event),
       });
       // SAFETY: without `args`, the workflow takes the event payload as its one argument.
       const args = options.args?.(event, context) ?? ([event.payload] as TArgs);
-      await startFor(context, workflow, args, {
-        idempotencyKey: `event:${event.id}`,
-        attributes,
-        ...(options.world === undefined ? {} : { world: options.world }),
-      });
+      await startRun(
+        context,
+        workflow,
+        args,
+        {
+          idempotencyKey: `event:${event.id}`,
+          attributes,
+          ...(options.world === undefined ? {} : { world: options.world }),
+        },
+        trusted,
+      );
     }
   };
 }

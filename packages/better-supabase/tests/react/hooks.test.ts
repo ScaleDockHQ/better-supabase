@@ -1380,6 +1380,7 @@ describe("workflow run hooks", () => {
       definition: "onboard",
       status: "running",
       max: 10,
+      mode: "live",
     });
 
     rows = [run("a"), run("b")];
@@ -2995,9 +2996,11 @@ describe("useSavedViews", () => {
     expect(view.result.active).toBeUndefined();
     expect(view.result.isDirty).toBe(true);
     await view.result.saveCurrent("Bugs");
+    const bugs = { q: "bug", sort: "name", facets: { status: ["open"] } };
     expect(save).toHaveBeenCalledWith({
       name: "Bugs",
-      query: { q: "bug", sort: "name", facets: { status: ["open"] } },
+      query: bugs,
+      state: { query: bugs },
     });
     expect(load).toHaveBeenCalledTimes(2);
 
@@ -3032,6 +3035,116 @@ describe("useSavedViews", () => {
     expect(view.result.error).toEqual(new Error("down"));
     await expect(view.result.saveCurrent("x")).rejects.toThrow("pass `save`");
     await expect(view.result.remove("x")).rejects.toThrow("pass `remove`");
+    await expect(view.result.duplicate("x", "y")).rejects.toThrow(
+      "pass `duplicate`",
+    );
+    await expect(view.result.setPreference("x", {})).rejects.toThrow(
+      "pass `setPreference`",
+    );
+  });
+
+  it("saves and applies the state outside the URL", async () => {
+    const board = {
+      id: "board",
+      name: "Board",
+      scope: "tenant" as const,
+      isDefault: true,
+      state: {
+        query: { sort: "name" },
+        columns: { visible: ["title"] },
+        density: "compact" as const,
+      },
+    };
+    let urlState: Record<string, unknown> = { q: null, sort: null };
+    let shown: Record<string, unknown> = {};
+    const setUrlState = vi.fn((next: Record<string, unknown>) => {
+      urlState = { ...urlState, ...next };
+    });
+    const onApplyState = vi.fn((state: Record<string, unknown>) => {
+      shown = state;
+    });
+    const save = vi.fn(async () => undefined);
+    const view = renderHook(
+      () =>
+        useSavedViews({
+          load: async () => [board],
+          save,
+          urlState,
+          setUrlState,
+          getState: () => shown,
+          onApplyState,
+        }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(onApplyState).toHaveBeenCalledWith(
+      { columns: { visible: ["title"] }, density: "compact" },
+      board,
+    );
+    view.rerender(undefined);
+    expect(view.result.active?.id).toBe("board");
+    expect(view.result.isDirty).toBe(false);
+
+    shown = { ...shown, density: "comfortable" };
+    view.rerender(undefined);
+    expect(view.result.active).toBeUndefined();
+    expect(view.result.isDirty).toBe(true);
+    expect(view.result.state).toEqual({
+      query: { sort: "name" },
+      columns: { visible: ["title"] },
+      density: "comfortable",
+    });
+    await view.result.saveCurrent("Roomy", "board");
+    expect(save).toHaveBeenCalledWith({
+      name: "Roomy",
+      id: "board",
+      query: { sort: "name" },
+      state: {
+        query: { sort: "name" },
+        columns: { visible: ["title"] },
+        density: "comfortable",
+      },
+    });
+  });
+
+  it("opens the caller's preferred view, then duplicates and pins", async () => {
+    const preferred = {
+      id: "shared",
+      name: "Shared",
+      scope: "tenant" as const,
+      isDefault: false,
+      state: { query: { q: "mine" } },
+      preference: { isDefault: true },
+    };
+    const slot = { ...views[1]!, preference: { isDefault: false } };
+    const setUrlState = vi.fn();
+    const duplicate = vi.fn(async () => undefined);
+    const setPreference = vi.fn(async () => undefined);
+    const load = vi.fn(async () => [slot, preferred]);
+    const view = renderHook(
+      () =>
+        useSavedViews({
+          load,
+          urlState: { q: null },
+          setUrlState,
+          duplicate,
+          setPreference,
+        }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(setUrlState).toHaveBeenCalledWith({ q: "mine" });
+    await view.result.duplicate("shared", "Copy", "user");
+    expect(duplicate).toHaveBeenCalledWith({
+      id: "shared",
+      name: "Copy",
+      scope: "user",
+    });
+    await view.result.setPreference("shared", { pinned: true });
+    expect(setPreference).toHaveBeenCalledWith("shared", { pinned: true });
+    expect(load).toHaveBeenCalledTimes(3);
   });
 });
 

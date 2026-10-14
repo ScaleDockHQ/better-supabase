@@ -26,6 +26,28 @@ import {
 /** A workflow run's state, in the words ai-chat and ai-tasks runs share. */
 export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
+/** The record a run belongs to: a subject type from `config.subjects` and its id. */
+export interface WorkflowSubject {
+  readonly type: string;
+  readonly id: string;
+}
+
+/** Who a run's steps act as. */
+export type WorkflowPrincipalKind =
+  | "user"
+  | "service_principal"
+  | "system"
+  | "external";
+
+export interface WorkflowPrincipal {
+  readonly kind: WorkflowPrincipalKind;
+  /** The user's or service principal's id; absent for `system`. */
+  readonly id: string | undefined;
+}
+
+/** `test` runs come from the builder's test button: no outbox events, no alerts. */
+export type WorkflowRunMode = "live" | "test";
+
 /** A run of any engine, as the `workflows` module records it. */
 export interface WorkflowRun {
   readonly id: string;
@@ -45,6 +67,13 @@ export interface WorkflowRun {
   readonly startedAt: Temporal.Instant | undefined;
   readonly completedAt: Temporal.Instant | undefined;
   readonly cancelRequestedAt: Temporal.Instant | undefined;
+  /** The record it was started on. */
+  readonly subject: WorkflowSubject | undefined;
+  /** Who its steps act as, when the engine reported it. */
+  readonly principal: WorkflowPrincipal | undefined;
+  readonly mode: WorkflowRunMode;
+  /** The trigger node it started from, in a graph with several. */
+  readonly triggerNode: string | undefined;
 }
 
 export interface WorkflowSchedule {
@@ -66,6 +95,10 @@ export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
   readonly tenant?: string;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
+  /** One record's runs. */
+  readonly subject?: WorkflowSubject;
+  /** `live` (the default), `test`, or `all`. */
+  readonly mode?: WorkflowRunMode | "all";
   /** At most this many runs, newest first (default 50, at most 500). */
   readonly limit?: number;
   /** Runs created before this instant, for the next page. */
@@ -84,6 +117,13 @@ export interface WorkflowRunRecord {
   readonly error?: string;
   readonly startedAt?: Temporal.Instant;
   readonly completedAt?: Temporal.Instant;
+  /** Kept from the first report that names one. */
+  readonly subject?: WorkflowSubject;
+  /** Kept from the first report that names one. */
+  readonly principal?: WorkflowPrincipal;
+  /** Set by the first report (default `live`). */
+  readonly mode?: WorkflowRunMode;
+  readonly triggerNode?: string;
 }
 
 export interface WorkflowScheduleInput {
@@ -111,6 +151,8 @@ export interface WorkflowStartCall {
    * trigger, recorded for audit; the run needs a `runAs` publisher.
    */
   readonly actor: string | undefined;
+  /** The record a queued request named. */
+  readonly subject?: WorkflowSubject;
   /** Pass to the engine so a repeated tick doesn't start the run twice. */
   readonly idempotencyKey: string;
 }
@@ -138,6 +180,8 @@ export interface WorkflowStartRequest {
   readonly input?: unknown;
   readonly tenant?: string;
   readonly actor?: string;
+  /** The record the run belongs to. */
+  readonly subject?: WorkflowSubject;
   /** At most this many runs with the key at once. */
   readonly concurrency?: number;
   /** Waits this many seconds and replaces a request with the key still waiting. */
@@ -226,6 +270,35 @@ function statusOf(value: unknown): WorkflowRunStatus {
   return isStatus(text) ? text : "running";
 }
 
+const PRINCIPAL_KINDS: ReadonlySet<string> = new Set<WorkflowPrincipalKind>([
+  "user",
+  "service_principal",
+  "system",
+  "external",
+]);
+
+function isPrincipalKind(text: string): text is WorkflowPrincipalKind {
+  return PRINCIPAL_KINDS.has(text);
+}
+
+/** The subject in `subjectType` and `subjectId`, when both are set. */
+function workflowSubjectOf(
+  row: Record<string, unknown>,
+): WorkflowSubject | undefined {
+  const type = optionalText(row["subjectType"]);
+  const id = optionalText(row["subjectId"]);
+  return type === undefined || id === undefined ? undefined : { type, id };
+}
+
+function principalOf(
+  row: Record<string, unknown>,
+): WorkflowPrincipal | undefined {
+  const kind = textOf(row["principalKind"]);
+  return isPrincipalKind(kind)
+    ? { kind, id: optionalText(row["principalId"]) }
+    : undefined;
+}
+
 /** A run from the jsonb the module returns. */
 export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
   const attributes = row["attributes"];
@@ -244,6 +317,10 @@ export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
     startedAt: optionalInstant(row["startedAt"]),
     completedAt: optionalInstant(row["completedAt"]),
     cancelRequestedAt: optionalInstant(row["cancelRequestedAt"]),
+    subject: workflowSubjectOf(row),
+    principal: principalOf(row),
+    mode: row["mode"] === "test" ? "test" : "live",
+    triggerNode: optionalText(row["triggerNode"]),
   };
 }
 
@@ -263,6 +340,11 @@ function scheduleOf(row: Record<string, unknown>): WorkflowSchedule {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
 }
+
+const subjectField = (
+  subject: WorkflowSubject | undefined,
+): { readonly subject?: WorkflowSubject } =>
+  subject === undefined ? {} : { subject };
 
 const optionalRun = (value: unknown): WorkflowRun | undefined =>
   isRecord(value) ? workflowRunOf(value) : undefined;
@@ -323,6 +405,9 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
             status: query.status,
             max: query.limit,
             before: instantArg(pageOf(query).cursor),
+            subject_type: query.subject?.type,
+            subject_id: query.subject?.id,
+            mode: query.mode === "all" ? null : (query.mode ?? "live"),
           },
           (value) => recordsOf(value, "workflow_runs_list").map(workflowRunOf),
         ),
@@ -343,6 +428,12 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
             error: run.error,
             started_at: instantArg(run.startedAt),
             completed_at: instantArg(run.completedAt),
+            subject_type: run.subject?.type,
+            subject_id: run.subject?.id,
+            principal_kind: run.principal?.kind,
+            principal_id: run.principal?.id,
+            mode: run.mode,
+            trigger_node: run.triggerNode,
           },
           textOf,
         ),
@@ -460,6 +551,8 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
                 ? undefined
                 : seconds(input.debounce),
             singleton: input.singleton,
+            subject_type: input.subject?.type,
+            subject_id: input.subject?.id,
           },
           (value) => {
             const row = recordOf(value, "request_workflow_start");
@@ -479,6 +572,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
               input: row["input"],
               tenant: optionalText(row["tenant"]),
               actor: optionalText(row["actor"]),
+              ...subjectField(workflowSubjectOf(row)),
               idempotencyKey: `admission:${id}`,
             },
             done: (run) =>
