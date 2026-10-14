@@ -757,6 +757,8 @@ These functions stay callable so the session can be opened and closed:
 `start_support_session`, `end_support_session` and `expire_support_sessions`.
 `check_request` stays callable too: it counts the request for the rate limit
 and runs before reads.
+`audit_event` stays callable as well, so what a support session does is still
+audited, with the session and impersonator from its `act` claim.
 With an authorization provider, set `authorization.functions.actorMayWrite`
 and the writes call that instead of the built-in check.
 

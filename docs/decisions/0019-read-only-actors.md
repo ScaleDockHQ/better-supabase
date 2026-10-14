@@ -23,7 +23,8 @@ the start of every `security definer` function that writes and is granted
 to `authenticated` or `anon`, and adds it to `using` and `with check` of
 write policies for `authenticated`. `start_support_session`,
 `end_support_session` and `expire_support_sessions` are the exception, so
-a session can still be opened and closed.
+a session can still be opened and closed, and so is `audit_event`, so a
+read-only session's actions are still audited.
 
 `authorization.functions.actorMayWrite` replaces the built-in call. When
 the template is set, the generated SQL calls it and not both. Doctor BS413

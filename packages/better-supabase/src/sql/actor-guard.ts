@@ -13,6 +13,8 @@ export const WRITE_GUARD_ALLOWLIST: ReadonlySet<string> = new Set([
   "expire_support_sessions",
   // Runs for every request, including reads. It only counts the request.
   "check_request",
+  // Records what a read-only session did, with the session from its act claim.
+  "audit_event",
 ]);
 
 /** The built-in check and the raise SQL-language functions call. */

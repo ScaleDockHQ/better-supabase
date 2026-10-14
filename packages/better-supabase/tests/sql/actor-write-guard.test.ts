@@ -76,8 +76,9 @@ describe("actor write guard", () => {
     expect(unguardedWrites(sql)).toEqual([]);
   });
 
-  it("keeps the session functions on the allowlist", () => {
+  it("keeps the session functions and audit_event on the allowlist", () => {
     expect([...WRITE_GUARD_ALLOWLIST].toSorted()).toEqual([
+      "audit_event",
       "check_request",
       "end_support_session",
       "expire_support_sessions",
