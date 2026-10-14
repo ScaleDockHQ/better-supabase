@@ -67,6 +67,7 @@ export type {
 export type {
   AuthorizationFunctions,
   AuthorizationMembership,
+  AuthorizationOperation,
   AuthorizationPermission,
   AuthorizationProvider,
   AuthorizationRequirement,
