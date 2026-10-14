@@ -38,6 +38,7 @@
   "blocks/billing",
   "blocks/bulk",
   "blocks/comments",
+  "blocks/commerce",
   "blocks/connectors",
   "blocks/create-blocks",
   "blocks/custom-fields",

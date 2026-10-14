@@ -659,6 +659,11 @@
       "types": "./dist/blocks/metrics/index.d.ts",
       "default": "./dist/blocks/metrics/index.js"
     },
+    "./blocks/commerce": {
+      "@better-supabase/source": "./src/blocks/commerce/index.ts",
+      "types": "./dist/blocks/commerce/index.d.ts",
+      "default": "./dist/blocks/commerce/index.js"
+    },
     "./blocks/announcements/react": {
       "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
       "types": "./dist/blocks/announcements/react/index.d.ts",
@@ -1261,6 +1266,10 @@
       "./blocks/metrics": {
         "types": "./dist/blocks/metrics/index.d.ts",
         "default": "./dist/blocks/metrics/index.js"
+      },
+      "./blocks/commerce": {
+        "types": "./dist/blocks/commerce/index.d.ts",
+        "default": "./dist/blocks/commerce/index.js"
       },
       "./blocks/announcements/react": {
         "types": "./dist/blocks/announcements/react/index.d.ts",
