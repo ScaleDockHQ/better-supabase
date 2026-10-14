@@ -76,6 +76,7 @@
   "blocks/reminders",
   "blocks/saved-views",
   "blocks/search",
+  "blocks/service-principals",
   "blocks/settings",
   "blocks/share-links",
   "blocks/sql",
