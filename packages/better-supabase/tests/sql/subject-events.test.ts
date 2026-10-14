@@ -33,6 +33,11 @@ const SUBJECT_EVENTS = [
   "form_submission.submitted",
   "form_submission.reviewed",
   "form_submission.deleted",
+  "signature.requested",
+  "signature.signed",
+  "signature.completed",
+  "signature.declined",
+  "signature.cancelled",
 ] as const satisfies readonly SubjectEventType[];
 
 type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;

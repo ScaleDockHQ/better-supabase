@@ -33,6 +33,21 @@ export {
   type QuestionnaireStepView,
 } from "./questionnaire.ts";
 export {
+  createSignatures,
+  type Signature,
+  type SignatureMethod,
+  type SignatureOrder,
+  type SignatureRequest,
+  type SignatureRequestDetail,
+  type SignatureRequestInput,
+  type SignatureRequestListOptions,
+  type SignatureRequestStatus,
+  type Signatures,
+  type SignaturesOptions,
+  type SignatureVerification,
+  type SignInput,
+} from "./signatures.ts";
+export {
   answersSchema,
   type FormAnswers,
   validateAnswers,

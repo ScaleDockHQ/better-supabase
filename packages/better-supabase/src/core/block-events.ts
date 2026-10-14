@@ -368,7 +368,12 @@ export type SubjectEventType =
   | "approval.delegated"
   | "form_submission.submitted"
   | "form_submission.reviewed"
-  | "form_submission.deleted";
+  | "form_submission.deleted"
+  | "signature.requested"
+  | "signature.signed"
+  | "signature.completed"
+  | "signature.declined"
+  | "signature.cancelled";
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -461,6 +466,23 @@ export interface FormSubmissionEventData extends SubjectEventData {
   readonly source?: string;
   /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
   readonly status?: string;
+}
+
+/**
+ * Signature events from the signatures module. The subject is the record the
+ * request asks signers to sign.
+ */
+export interface SignatureEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The signature request. */
+  readonly id: string;
+  readonly versionId?: string;
+  /** For `signature.signed`: the signature. */
+  readonly signatureId?: string;
+  /** For `signature.signed` and `signature.declined`. */
+  readonly signer?: string;
+  /** For `signature.signed`: `drawn`, `typed` or `click`. */
+  readonly method?: string;
 }
 
 /** Every block event type and its data. */
@@ -619,6 +641,11 @@ export interface BlockEventMap {
   "form_submission.submitted": FormSubmissionEventData;
   "form_submission.reviewed": FormSubmissionEventData;
   "form_submission.deleted": FormSubmissionEventData;
+  "signature.requested": SignatureEventData;
+  "signature.signed": SignatureEventData;
+  "signature.completed": SignatureEventData;
+  "signature.declined": SignatureEventData;
+  "signature.cancelled": SignatureEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -48,6 +48,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_form_submission",
     "after_form_submission",
   ],
+  signatures: [
+    "before_signature_request",
+    "after_signature_request",
+    "before_signature_sign",
+    "after_signature_sign",
+  ],
 };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

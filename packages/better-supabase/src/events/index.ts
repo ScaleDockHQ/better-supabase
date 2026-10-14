@@ -288,6 +288,7 @@ export type {
   SaasSubjectEventData,
   ScimEventData,
   SettingEventData,
+  SignatureEventData,
   SsoProviderEventData,
   StorageObjectEventData,
   SubjectEventData,

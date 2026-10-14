@@ -1,6 +1,6 @@
 ---
 title: Forms
-description: Versioned forms with steps and show or skip logic, a JSON Schema 2020-12 per version that Postgres checks on every submission, drafts, public links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+description: Versioned forms with steps and show or skip logic, a JSON Schema 2020-12 per version that Postgres checks on every submission, drafts, public links with a rate limit and a bot-check hook, and handlers that turn a submission into a record, plus simple electronic signatures on a frozen version.
 ---
 
 `forms` stores a form, its published versions and the submissions to them. Each version holds a definition (steps of fields, with `showIf` conditions) and the JSON Schema 2020-12 generated from it, and `pg_jsonschema` checks every submission against that schema inside Postgres. Reading forms needs `forms.read`, submitting needs `forms.submit`, and creating and publishing needs `forms.manage`. Respondents read their own submissions and delete their own drafts; reading anyone else's, reviewing and deleting needs `forms.review`.
@@ -143,9 +143,45 @@ await forms
 
 An unknown, revoked or expired token fails with `FORM_LINK_INVALID`. With the `rate-limit` SQL module, each caller (the user, else the right-most `x-forwarded-for` address) gets 20 public submissions per form per hour, a `BS429` error with `Retry-After` after that. `options.publicLimit` sets `{ max, period }` (an ISO 8601 duration), or `false` to turn it off. To check a bot challenge, implement the `before_public_form_submission(form_id uuid, answers jsonb, bot_token text)` hook and raise when the token fails; Postgres can't call the challenge's API, so verify it in an Edge Function or keep a table of tokens your server has verified.
 
+## Signatures
+
+The `signatures` SQL module asks members to sign one version of a record, kept by the [versions](/docs/blocks/versions) block. It needs `versions` in managed or adopt mode. Requesting needs `signatures.request`, and reading a record's requests needs `signatures.read`; signers always read the requests they are on. The signature is a simple electronic signature: the module records who signed which content, how and when, and the app renders the final document.
+
+```bash
+better-supabase sql add versions signatures
+```
+
+```ts
+import { createSignatures } from "better-supabase/blocks/forms";
+
+const signatures = createSignatures({ transport });
+const request = await signatures
+  .request({
+    organizationId,
+    subjectType: "contract",
+    subjectId: contract.id,
+    signers: [buyerId, sellerId],
+    order: "sequential",
+  })
+  .orThrow();
+await signatures
+  .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
+  .orThrow();
+```
+
+Without `versionId`, the request snapshots the record's versioned columns first. The version is frozen, so retention and `delete_version` keep it. Signers must be members of the organization, at most 20 and each once. With `order: "sequential"` each signs after the one before; `parallel` is the default. A signature is `click`, `typed` (with the typed name) or `drawn` (with the attachment that holds the image, which needs the [attachments](/docs/blocks/attachments) module). The request completes when everyone has signed, and a signer can `decline` it, which closes it for everyone. The requester, or a holder of `signatures.manage`, can `cancel` a pending request.
+
+Each signature stores a SHA-256 hash over the request, the version's content hash, the signer, the method and the time, with the caller's address and user agent. `get` returns the request with its signatures and a `verification`: `contentMatches` recomputes the signed version's hash from its content, each signature's `valid` recomputes its hash, and `changedSince` is true when the record has a newer version than the one signed. A signed record that was edited later shows `changedSince: true`, and a changed signature or version row shows `valid: false`.
+
+With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a pending approval request on the same record. When a signer is an approver for its current step, their signature approves that step, so signing a contract can be the approval that sends it.
+
+Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED` and `SIGNATURE_FORBIDDEN`.
+
 ## Events and hooks
 
 The module records `form.created`, `form_version.published`, `form_submission.submitted` (with `versionId` and `source`: `member`, `public` or `service`), `form_submission.reviewed` (with `status`) and `form_submission.deleted`. The submission events carry the linked `subjectType` and `subjectId`, so an [outbox](/docs/blocks/outbox) consumer can count submissions per record. Creating a form, publishing, reviewing and deleting go to the [audit log](/docs/blocks/audit). It calls `before_form_publish`, `after_form_publish`, `before_form_submission`, `after_form_submission` and `before_public_form_submission`.
+
+The signatures module records `signature.requested`, `signature.signed` (with `signer` and `method`), `signature.completed`, `signature.declined` and `signature.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
 
 ## With ReUI
 
@@ -165,3 +201,5 @@ const q = useQuestionnaire({
 ```
 
 `next()` checks the step's fields against the version's schema and stays on the step when one fails. Answering a field that hides later steps moves past them, and `submit()` sends only the answers of fields still visible. Submissions render in a ReUI data grid from `listSubmissions`, with accept and reject actions that call `review`.
+
+For drawn signatures, ReUI's Signature Pad (free, MIT) captures the image. Upload it with the attachments block, then pass its id to `sign(request.id, { method: "drawn", imageAttachmentId })`. A ReUI timeline renders `get(request.id)`: one item per signer, completed when their signature is in `signatures`, with a warning when `verification.changedSince` is true.

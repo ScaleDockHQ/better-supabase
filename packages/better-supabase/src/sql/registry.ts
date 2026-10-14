@@ -59,6 +59,7 @@ import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
+import { SIGNATURES } from "./modules/signatures.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
@@ -179,6 +180,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ACCESS_REQUESTS),
       built(DOCUMENTS),
       built(FORMS),
+      built(SIGNATURES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
