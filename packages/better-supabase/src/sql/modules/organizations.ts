@@ -187,7 +187,11 @@ export function assignableRole(ctx: ModuleContext, stored: string): string {
 }
 
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
-function checkRole(ctx: ModuleContext, expr: string, tenant: string): string {
+export function checkRole(
+  ctx: ModuleContext,
+  expr: string,
+  tenant: string,
+): string {
   const model = accessModel(ctx);
   const through = roleThrough(ctx.of("tenant")) !== undefined;
   if (!through && (model === "provider" || model === "custom")) return "";

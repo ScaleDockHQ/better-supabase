@@ -217,7 +217,10 @@ export async function crmLookup(call: GraphStepCall) {
 The step fails with `WORKFLOW_PUBLISHER_REVOKED` when:
 
 - the publisher was demoted, lost their membership or was deleted;
-- `runAs` returns `null`, throws, or isn't configured;
+- `runAs` returns `null` or throws;
+- the version is organization-owned and the organization has no default
+  [service principal](/docs/blocks/service-principals), or its role no
+  longer holds every stored permission;
 - the version was published before publishers were recorded (`owner_kind`
   is `null`). Publish it again.
 
@@ -227,9 +230,14 @@ for audit only and never changes whom a step runs as. Nothing falls back to
 the service role or `admin()`; [doctor](/docs/cli/doctor#bs333) reports
 `admin()` in a file that runs builder steps (BS333).
 
-An organization-owned version has no publisher. `runAs` receives
-`publisher: null` and returns the app's service principal for the tenant;
-without one, every step fails.
+Without a `runAs` hook, `versions.runAs` returns the publisher's claims
+capped to the stored permissions: `{ role: "authenticated", sub, tenant_id,
+bs_permission_cap }`. An organization-owned version runs as the
+organization's default [service principal](/docs/blocks/service-principals)
+when that module is installed: the SQL check resolves the principal and
+returns it as the publisher. Without the module, `runAs` receives
+`publisher: null` and must return claims for the tenant, or every step
+fails. A hook always overrides the default.
 
 ## Triggers
 

@@ -54,6 +54,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "forms.*",
     "signatures.*",
     "time_tracking.*",
+    "service_principals.*",
   ],
   member: [
     "organization.read",
@@ -280,6 +281,8 @@ export const OPERATIONS = {
   "time-tracking.track": "time_tracking.track",
   "time-tracking.approve": "time_tracking.approve",
   "time-tracking.manage": "time_tracking.manage",
+  "service-principals.read": "service_principals.read",
+  "service-principals.manage": "service_principals.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -463,6 +466,7 @@ export const MODULE_PERMISSION_SCOPES: {
     approve: "tenant",
     manage: "tenant",
   },
+  "service-principals": { read: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

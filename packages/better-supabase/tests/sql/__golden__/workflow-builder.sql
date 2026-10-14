@@ -491,6 +491,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -519,7 +520,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -1856,8 +1857,9 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- call it for every step). A user-owned version needs its publisher to
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
--- organization-owned version returns publisher null, for the app's service
--- principal. The trigger that started the run never changes the answer.
+-- organization-owned version runs as the tenant's default service
+-- principal, which needs every stored permission through its role; without
+-- one it raises WORKFLOW_PUBLISHER_REVOKED. The trigger that started the run never changes the answer.
 create or replace function "better_supabase"."workflow_run_principal"(version uuid)
 returns jsonb
 language plpgsql
@@ -1868,6 +1870,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -1895,8 +1898,22 @@ begin
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
     end if;
   end if;
+  if v_row."owner_kind" <> 'user' then
+    v_publisher := "better_supabase"."default_service_principal"(v_tenant);
+    if v_publisher is null then
+      raise exception 'This organization has no default service principal'
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(v_row."permissions") p
+    where not coalesce(better_supabase.can_user(v_publisher, 'tenant', v_tenant, p), false);
+    if v_missing is not null then
+      raise exception 'The service principal no longer holds %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+  end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -3258,6 +3275,7 @@ as $$
 declare
   v_row "app_private"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "app_private"."workflow_versions" x where x."id" = version;
@@ -3286,7 +3304,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")
@@ -4635,6 +4653,7 @@ as $$
 declare
   v_row "better_supabase"."workflow_versions"%rowtype;
   v_tenant uuid;
+  v_publisher uuid;
   v_missing text;
 begin
   select * into v_row from "better_supabase"."workflow_versions" x where x."id" = version;
@@ -4663,7 +4682,7 @@ begin
     end if;
   end if;
   return jsonb_build_object(
-    'publisher', v_row."published_by",
+    'publisher', coalesce(v_publisher, v_row."published_by"),
     'tenant', v_tenant,
     'owner', v_row."owner_kind",
     'permissions', to_jsonb(v_row."permissions")

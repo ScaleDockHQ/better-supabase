@@ -57,6 +57,11 @@ export interface BuilderSql {
     tenant: string,
     permission: string,
   ) => string;
+  /**
+   * The tenant's default service principal (a uuid expression), when the
+   * service-principals module is installed.
+   */
+  readonly principal?: (tenant: string) => string;
   readonly allowed: (tenant: string, action: BuilderAction) => string;
   readonly forbidden: (value: string) => string;
   readonly serviceOnly: (value: string) => string;
@@ -276,6 +281,12 @@ grant execute on function ${signature} to authenticated, service_role;`;
     can,
     holds,
     userHolds,
+    ...(ctx.installed("service-principals")
+      ? {
+          principal: (tenant: string) =>
+            `${ctx.of("service-principals").fn("default_service_principal")}(${tenant})`,
+        }
+      : {}),
     allowed,
     forbidden,
     serviceOnly: serviceGrant,

@@ -617,6 +617,11 @@
       "types": "./dist/blocks/identities/index.d.ts",
       "default": "./dist/blocks/identities/index.js"
     },
+    "./blocks/service-principals": {
+      "@better-supabase/source": "./src/blocks/service-principals/index.ts",
+      "types": "./dist/blocks/service-principals/index.d.ts",
+      "default": "./dist/blocks/service-principals/index.js"
+    },
     "./blocks/reminders": {
       "@better-supabase/source": "./src/blocks/reminders/index.ts",
       "types": "./dist/blocks/reminders/index.d.ts",
@@ -1341,6 +1346,10 @@
       "./blocks/identities": {
         "types": "./dist/blocks/identities/index.d.ts",
         "default": "./dist/blocks/identities/index.js"
+      },
+      "./blocks/service-principals": {
+        "types": "./dist/blocks/service-principals/index.d.ts",
+        "default": "./dist/blocks/service-principals/index.js"
       },
       "./blocks/reminders": {
         "types": "./dist/blocks/reminders/index.d.ts",

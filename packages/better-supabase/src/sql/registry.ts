@@ -69,6 +69,7 @@ import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SEARCH } from "./modules/search.ts";
+import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
@@ -210,6 +211,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SIGNATURES),
       built(TIME_TRACKING),
       built(IDENTITIES),
+      built(SERVICE_PRINCIPALS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -842,6 +842,9 @@ export interface BlockEventMap {
   "timesheet.submitted": TimesheetEventData;
   "timesheet.approved": TimesheetEventData;
   "timesheet.reopened": TimesheetEventData;
+  "service_principal.created": SaasEventData;
+  "service_principal.role_changed": SaasEventData;
+  "service_principal.disabled": SaasEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

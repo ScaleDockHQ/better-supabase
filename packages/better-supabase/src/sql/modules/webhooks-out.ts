@@ -391,7 +391,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   description:
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
   requires: ["updated-at"],
-  integrates: ["access"],
+  integrates: ["access", "service-principals"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

@@ -148,6 +148,7 @@ expose the module schema itself.
 | [Forms](/docs/blocks/forms)                                 | `better-supabase/blocks/forms`, `better-supabase/blocks/forms/react`                                                               | `forms`, `signatures`                  |
 | [Time tracking](/docs/blocks/time-tracking)                 | `better-supabase/blocks/time-tracking`                                                                                             | `time-tracking`                        |
 | [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                                                                                | `identities`                           |
+| [Service principals](/docs/blocks/service-principals)       | `better-supabase/blocks/service-principals`                                                                                        | `service-principals`                   |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -262,6 +263,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `signatures`         | `tenant`, `access`, `versions`            | `approvals`, `attachments`, `outbox`, `audit`                                                            |
 | `time-tracking`      | `tenant`, `access`, `approvals`           | `outbox`, `audit`                                                                                        |
 | `identities`         | none                                      | `inbox`                                                                                                  |
+| `service-principals` | `tenant`, `access`                        | `audit`                                                                                                  |
 | `ensure-rls`         | none                                      | none                                                                                                     |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

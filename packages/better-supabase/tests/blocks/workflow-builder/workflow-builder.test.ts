@@ -506,6 +506,18 @@ describe("createBuilder", () => {
     expect(!missing.ok && missing.error.hint).toBe(
       "WORKFLOW_PUBLISHER_REVOKED",
     );
+    principal = {
+      publisher: "sp1",
+      tenant: "t1",
+      owner: "organization",
+      permissions: ["crm.read"],
+    };
+    expect(await unhooked.versions.runAs("v1").orThrow()).toEqual({
+      role: "authenticated",
+      sub: "sp1",
+      tenant_id: "t1",
+      bs_permission_cap: ["crm.read"],
+    });
   });
 
   it("reports missing versions on publish and diff, and diffs two versions", async () => {
