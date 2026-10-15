@@ -11,12 +11,13 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/organizations";
 
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
 import { demoEmbedder } from "./demo-embedder";
 
-/** `blocks.knowledge.api` and `blocks.memory.api`. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the knowledge block. */
+const API_SCHEMA = blockConfig.knowledge.api;
 
 let embedderInstance: Embedder | undefined;
 

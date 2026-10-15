@@ -1,4 +1,4 @@
-import type { BlocksConfig } from "../config/blocks.ts";
+import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleFile, ModuleLayout } from "./module-types.ts";
 import type { SqlModule } from "./module-types.ts";
 
@@ -52,7 +52,7 @@ const isPermissionModule = (name: string): name is OperationModule =>
  * roles.
  */
 export function modulePermissionKeys(
-  config: BlocksConfig,
+  config: AnyBlocksConfig,
   names: readonly string[],
 ): ModulePermissionKey[] {
   const layout: ModuleLayout = { modules: config };

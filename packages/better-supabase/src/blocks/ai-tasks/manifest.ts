@@ -1,7 +1,8 @@
 import type { BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createAiTasks } from "./ai-tasks.ts";
+import { aiTasksSqlOptions } from "./options.ts";
 
 /** The `ai-tasks` block's manifest (ADR 0029). */
 export const aiTasksBlock: BlockOf<
@@ -13,7 +14,7 @@ export const aiTasksBlock: BlockOf<
   name: "ai-tasks",
   sql: ["ai-tasks"],
   options: {
-    "ai-tasks": optionKeys(["queue", "staleAfter", "maxPrompt"]),
+    "ai-tasks": aiTasksSqlOptions,
   },
   consumes: { notifier: "optional" },
   create: createAiTasks,

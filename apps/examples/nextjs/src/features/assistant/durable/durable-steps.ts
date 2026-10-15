@@ -12,13 +12,15 @@ import {
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
 import {
   serviceNotifications,
   serviceSupabase,
 } from "../../workflows/workflow-steps";
 
-/** `blocks["ai-chat"].api`. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the ai-chat block. */
+const API_SCHEMA = blockConfig["ai-chat"].api;
 
 /**
  * Steps run in the workflow's step route, outside any request, so the chat

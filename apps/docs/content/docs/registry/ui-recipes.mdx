@@ -339,9 +339,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** `blocks.search.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the search block. */
+const API_SCHEMA = blockConfig.search.api;
 
 /** Cmd+K over the search index: customers by name, plus recents and favorites. */
 export function CommandSearch() {
@@ -562,9 +563,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** `blocks.onboarding.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the onboarding block. */
+const API_SCHEMA = blockConfig.onboarding.api;
 
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingCard() {
@@ -712,7 +714,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { API_SCHEMA } from "@/lib/blocks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /** A customer's comments, oldest first, through the browser client. */
@@ -738,7 +740,7 @@ export function CommentThread({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
-    schema: API_SCHEMA,
+    schema: blockConfig.comments.api,
   });
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
@@ -909,7 +911,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
-import { API_SCHEMA } from "@/lib/blocks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -955,7 +957,7 @@ export function OrganizationSwitcherMenu({
     load: loadOrganizations,
     initial,
     activeId: serverActiveId,
-    schema: API_SCHEMA,
+    schema: blockConfig.organizations.api,
     onSwitched: () => refreshSession("/"),
   });
 

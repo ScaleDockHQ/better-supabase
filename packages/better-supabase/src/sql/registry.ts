@@ -1,4 +1,4 @@
-import type { BlocksConfig } from "../config/blocks.ts";
+import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout } from "./module-types.ts";
 import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 
@@ -277,7 +277,7 @@ export function resolveModules(
 
 /** Throws on a `blocks` key that names no module, or a mode a module doesn't support. */
 export function checkModules(
-  config: BlocksConfig = {},
+  config: AnyBlocksConfig = {},
   registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,
 ): void {
   for (const [name, entry] of Object.entries(config)) {

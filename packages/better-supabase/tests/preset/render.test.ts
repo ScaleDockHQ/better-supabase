@@ -54,7 +54,7 @@ describe("presetConfigSource", () => {
 });
 
 describe("presetBlocksSource", () => {
-  it("wires the blocks with a client over the API schema", () => {
+  it("wires the blocks with a client through the generated config", () => {
     const source = presetBlocksSource(
       resolvePreset({
         ...DEFAULT_CONVENTIONS,
@@ -65,21 +65,30 @@ describe("presetBlocksSource", () => {
     expect(source).toContain(
       'import { commentsBlock } from "better-supabase/blocks/comments";',
     );
-    expect(source).toContain('export const API_SCHEMA = "api";');
-    expect(source).toContain("      aiChat: aiChatBlock,");
     expect(source).toContain(
-      "transport: rpcTransport(supabase, { schema: API_SCHEMA }),",
+      'import { blockConfig } from "./supabase/blocks.generated";',
     );
+    expect(source).toContain(
+      "export const blockSet = defineBlocks(blockConfig, {",
+    );
+    expect(source).toContain("  aiChat: aiChatBlock,");
+    expect(source).toContain(
+      "return blockSet.create({ transport: rpcTransport(supabase) });",
+    );
+    // The API schema comes from blocks.generated.ts, not the wiring.
+    expect(source).not.toContain("API_SCHEMA");
     // Blocks with only SQL (tenant, access) get no client.
     expect(source).not.toContain("tenantBlock");
   });
 
-  it("calls the module schema without an API schema", () => {
+  it("imports the generated config from the path it is given", () => {
     const source = presetBlocksSource(
       resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["tags"] }),
+      "./db/blocks.generated.ts",
     );
-    expect(source).toContain("    { transport: rpcTransport(supabase) },");
-    expect(source).not.toContain("API_SCHEMA");
+    expect(source).toContain(
+      'import { blockConfig } from "./db/blocks.generated.ts";',
+    );
   });
 });
 

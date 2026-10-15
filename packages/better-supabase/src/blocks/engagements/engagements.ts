@@ -106,7 +106,7 @@ export interface Engagements {
 
 export interface EngagementsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `blocks.engagements.schema`, or the API schema of its wrappers. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
   readonly hooks?: NoInfer<BlockHooks<Engagements>>;
   readonly logger?: Logger;

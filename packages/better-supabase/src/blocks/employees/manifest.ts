@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { EmployeesEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createEmployees } from "./employees.ts";
 import { employeesEvents } from "./events.ts";
+import { employeesSqlOptions } from "./options.ts";
 
 /** The `employees` block's manifest (ADR 0029). */
 export const employeesBlock: BlockOf<
@@ -14,7 +15,7 @@ export const employeesBlock: BlockOf<
   name: "employees",
   sql: ["employees"],
   options: {
-    employees: optionKeys(["employmentTypes", "extraColumns"]),
+    employees: employeesSqlOptions,
   },
   events: employeesEvents,
   create: createEmployees,

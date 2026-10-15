@@ -15,6 +15,7 @@ export type {
 } from "./errors.ts";
 export type { CliEnv } from "./env.ts";
 export { renderFiles } from "./gen/render.ts";
+export { emitBlockConfig } from "./gen/blocks.ts";
 export { runGen } from "./gen/run.ts";
 export {
   loadSnapshot,

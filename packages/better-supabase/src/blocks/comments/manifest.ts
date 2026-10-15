@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { CommentsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createComments } from "./comments.ts";
 import { commentsEvents } from "./events.ts";
+import { commentsSqlOptions } from "./options.ts";
 
 /** The `comments` block's manifest (ADR 0029). */
 export const commentsBlock: BlockOf<
@@ -14,14 +15,7 @@ export const commentsBlock: BlockOf<
   name: "comments",
   sql: ["comments"],
   options: {
-    comments: optionKeys([
-      "subjects",
-      "maxBodyLength",
-      "documentSchema",
-      "notify",
-      "follow",
-      "mentionGroups",
-    ]),
+    comments: commentsSqlOptions,
   },
   events: commentsEvents,
   create: createComments,

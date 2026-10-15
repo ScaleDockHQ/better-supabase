@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { API_SCHEMA } from "@/lib/blocks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /** A customer's comments, oldest first, through the browser client. */
@@ -35,7 +35,7 @@ export function CommentThread({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
-    schema: API_SCHEMA,
+    schema: blockConfig.comments.api,
   });
   const visible = comments?.filter((comment) => !comment.deletedAt);
 

@@ -135,10 +135,13 @@ const app = createBlocks(
 ```tsx
 import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
 
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
 const sheet = await time.timesheet(organizationId, week).orThrow();
 const grid = toWeeklyGrid(sheet.entries, {
   week,
-  timeZone: "Europe/Amsterdam",
+  // The module's timeZone option, as `better-supabase gen` wrote it.
+  timeZone: blockConfig["time-tracking"].options.timeZone,
 });
 // columns: a subject column, then grid.days (header day.date, footer day.seconds), then a total column
 // <DataGrid data={grid.rows}>: row.days[i] seconds per day, row.seconds for the total

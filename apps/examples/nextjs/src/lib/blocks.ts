@@ -1,6 +1,6 @@
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -25,44 +25,48 @@ import {
 } from "@/features/notifications/notification-types";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { metrics } from "@/metrics";
 
-/** `blocks.<module>.api` in better-supabase.config.ts. */
-export const API_SCHEMA = "api";
+/** `sql.api` in better-supabase.config.ts, as `gen` wrote it. */
+const API_SCHEMA = blockConfig.organizations.api;
 
 /**
- * The SQL modules as typed clients over the Data API, acting as the caller
- * of `supabase` (its token, so RLS and each function's checks apply).
+ * The blocks the app uses. Each one's schema (the `api` wrappers) and the
+ * options its SQL half shares come from `blocks.generated.ts`.
+ */
+const blockSet = defineBlocks(blockConfig, {
+  organizations: organizationsBlock,
+  apiKeys: apiKeysBlock,
+  audit: auditBlock,
+  comments: commentsBlock,
+  notifications: notificationsBlock.using((options) =>
+    createNotifications({
+      ...options,
+      types: notificationTypes,
+      render: renderNotification,
+    }),
+  ),
+  inbox: inboxBlock,
+  search: searchBlock,
+  metrics: metricsBlock.using((options) =>
+    createMetrics({ ...options, metrics }),
+  ),
+  usage: usageBlock,
+  workflows: workflowsBlock,
+  onboarding: onboardingBlock.using((options) =>
+    gettingStarted.connect(options),
+  ),
+  settings: settingsBlock.using((options) => settings.connect(options)),
+});
+
+/**
+ * The blocks as typed clients over the Data API, acting as the caller of
+ * `supabase` (its token, so RLS and each function's checks apply).
  */
 export function blocks(supabase: RpcClient) {
-  const transport = rpcTransport(supabase, { schema: API_SCHEMA });
-  const built = createBlocks(
-    { transport, schema: API_SCHEMA },
-    {
-      organizations: organizationsBlock,
-      apiKeys: apiKeysBlock,
-      audit: auditBlock,
-      comments: commentsBlock,
-      notifications: notificationsBlock.using((options) =>
-        createNotifications({
-          ...options,
-          types: notificationTypes,
-          render: renderNotification,
-        }),
-      ),
-      inbox: inboxBlock,
-      search: searchBlock,
-      metrics: metricsBlock.using((options) =>
-        createMetrics({ ...options, metrics }),
-      ),
-      usage: usageBlock,
-      workflows: workflowsBlock,
-      onboarding: onboardingBlock.using((options) =>
-        gettingStarted.connect(options),
-      ),
-      settings: settingsBlock.using((options) => settings.connect(options)),
-    },
-  );
+  const transport = rpcTransport(supabase);
+  const built = blockSet.create({ transport });
   return {
     ...built,
     /** A module function without a typed client, such as `flag_enabled`. */

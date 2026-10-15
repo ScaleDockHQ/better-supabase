@@ -12,6 +12,7 @@ import type { BlockHooks } from "../core/block-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
+import type { GeneratedBlocks } from "./block-config.ts";
 import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
@@ -19,6 +20,7 @@ import { onBlockEvent } from "../core/block-events.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks } from "../core/block-hooks.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
+import { generatedOptions } from "./block-config.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
 export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
@@ -31,7 +33,14 @@ export interface BlockContext extends BlockOptions {
   readonly events?: EventHub;
 }
 
-export interface CreateBlocksOptions extends BlockContext {
+export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
+  /**
+   * `blockConfig` from `blocks.generated.ts`: each block gets its schema
+   * (the API schema when the module has one) and the options its SQL half
+   * shares, such as `attachments.requireScan`, under its own name. Blocks
+   * without an entry use the module defaults.
+   */
+  readonly config?: GeneratedBlocks;
   /**
    * Where block events go, such as `auditLog.sink()`. Needs `events`; the
    * forwarding lasts until `close()`, so build these blocks once rather than
@@ -91,11 +100,15 @@ export type Blocks<B extends BlockMap> = BuiltBlocks<B> & {
 /** A set of blocks and the app's own events, from `defineBlocks`. */
 export interface BlockSet<B extends BlockMap, M extends EventMap> {
   readonly blocks: B;
+  /** The generated config the blocks are built with. */
+  readonly config: GeneratedBlocks;
   /** Every block's events and the app's, typed. */
   readonly events: Events<M>;
-  /** Builds the blocks: `createBlocks(options, blocks)`. */
+  /** Builds the blocks with the generated config: `createBlocks({ ...options, config }, blocks)`. */
   create(
-    options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
+    options: Omit<CreateBlocksOptions, "config"> & {
+      readonly hooks?: BlocksHooks<B>;
+    },
   ): Blocks<B>;
   /** `onBlockEvent` typed by these blocks' events and the app's. */
   on<const P extends BlockEventPattern<M>>(
@@ -106,14 +119,18 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
 }
 
 /**
- * The blocks an app uses, and its own events (`defineEvents`). The event
- * types are the union of every block's events, so `on` and `events` type
- * each one's data without `declare module` (invariant 2).
+ * The blocks an app uses, built with `blockConfig` from
+ * `blocks.generated.ts` (`better-supabase gen`), so each block's schema
+ * and the options its SQL half shares come from the `blocks` config, and
+ * the app's own events (`defineEvents`). The event types are the union of
+ * every block's events, so `on` and `events` type each one's data without
+ * `declare module` (invariant 2).
  */
 export function defineBlocks<
   const B extends BlockMap,
   const E extends readonly Events[] = [],
 >(
+  config: GeneratedBlocks,
   blocks: B,
   ...appEvents: E
 ): BlockSet<B, BlocksEventMap<B> & MergedEventMap<E>> {
@@ -128,16 +145,19 @@ export function defineBlocks<
   const events = { types } as Events<BlocksEventMap<B> & MergedEventMap<E>>;
   return {
     blocks,
+    config,
     events,
-    create: (options) => buildBlocks(options, blocks),
+    create: (options) => buildBlocks({ ...options, config }, blocks),
     on: (betterSupabase, pattern, handler) =>
       onBlockEvent(betterSupabase, events, pattern, handler),
   };
 }
 
 /**
- * Builds `blocks` with one set of options and wires them on their ports:
- * each block that consumes a port (`notifier`, `files`, `attachments`,
+ * Builds `blocks` with one set of options and wires them on their ports.
+ * Each block gets its schema and shared options from its entry in
+ * `config` (`blocks.generated.ts`), keyed by the block's name. Each block
+ * that consumes a port (`notifier`, `files`, `attachments`,
  * `workflows`) gets it from the one block in the set that provides it, and
  * `sinks` holds the outbox sinks the blocks provide. `credentials` reaches
  * every block, and block events go to `audit`. Only the blocks you pass are
@@ -176,7 +196,7 @@ function buildBlocks<B extends BlockMap>(
   options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
   blocks: B,
 ): Blocks<B> {
-  const { audit, hooks, ...shared } = options;
+  const { audit, hooks, config, ...shared } = options;
   if (audit !== undefined && shared.events === undefined)
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
   const providers = new Map<string, string>();
@@ -211,7 +231,10 @@ function buildBlocks<B extends BlockMap>(
     return block;
   };
 
-  /** The options `key`'s creator gets: shared, then ports, then `with` settings. */
+  /**
+   * The options `key`'s creator gets: shared, then its generated config,
+   * then ports, then `with` settings.
+   */
   const optionsOf = (key: string): Record<string, unknown> => {
     const ports: Record<string, unknown> = {};
     for (const port of UNIQUE_PORTS) {
@@ -221,7 +244,14 @@ function buildBlocks<B extends BlockMap>(
       const value = portOf(provider, port);
       if (value !== undefined) ports[port] = value;
     }
-    return { ...shared, ...ports, ...blockOf(key).settings };
+    const block = blockOf(key);
+    const entry = config?.[block.name];
+    return {
+      ...shared,
+      ...(entry === undefined ? {} : generatedOptions(entry)),
+      ...ports,
+      ...block.settings,
+    };
   };
 
   function portOf<P extends PortName>(

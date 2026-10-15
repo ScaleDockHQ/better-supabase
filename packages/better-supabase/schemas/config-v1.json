@@ -944,7 +944,9 @@
               "description": "OAuth scope to the permission keys it grants a delegated token.",
               "additionalProperties": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -1048,7 +1050,9 @@
     "subjects": {
       "description": "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it.",
       "type": "object",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -1058,13 +1062,23 @@
             "type": "string",
             "description": "`schema.table`, or a table in `public`."
           },
-          "id": { "type": "string", "default": "id" },
+          "id": {
+            "type": "string",
+            "default": "id"
+          },
           "idType": {
             "type": "string",
             "description": "The id column's type, such as `uuid` or `bigint`."
           },
           "tenant": {
-            "oneOf": [{ "type": "string" }, { "const": false }],
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": false
+              }
+            ],
             "default": "organization_id",
             "description": "The tenant column, or `false` for a subject without a tenant."
           },
@@ -1078,14 +1092,19 @@
           },
           "permissions": {
             "type": "object",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "description": "A permission key per action that `can_subject` checks in the subject's tenant."
           },
           "scope": {
             "type": "string",
             "description": "An authorization provider scope whose ids are this subject's ids."
           },
-          "cascade": { "type": "boolean", "default": false },
+          "cascade": {
+            "type": "boolean",
+            "default": false
+          },
           "deletedAt": {
             "type": "string",
             "description": "The soft-delete column."
@@ -1094,8 +1113,15 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "title": { "type": "string" },
-              "body": { "type": "array", "items": { "type": "string" } }
+              "title": {
+                "type": "string"
+              },
+              "body": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           },
           "rank": {
@@ -1104,8 +1130,12 @@
             "required": ["column"],
             "description": "The rank key column and the column it is grouped by, for `move()`.",
             "properties": {
-              "column": { "type": "string" },
-              "group": { "type": "string" }
+              "column": {
+                "type": "string"
+              },
+              "group": {
+                "type": "string"
+              }
             }
           }
         }
@@ -1203,18 +1233,430 @@
         {
           "type": "array",
           "items": {
-            "type": "string"
+            "enum": [
+              "access",
+              "access-requests",
+              "actor",
+              "agents",
+              "ai-cache",
+              "ai-chat",
+              "ai-files",
+              "ai-providers",
+              "ai-tasks",
+              "announcements",
+              "api-keys",
+              "approvals",
+              "attachments",
+              "audit",
+              "billing",
+              "bookings",
+              "bulk",
+              "calendar",
+              "catalog",
+              "chat-sdk-state",
+              "collections",
+              "comments",
+              "connectors",
+              "credentials",
+              "custom-fields",
+              "data-lifecycle",
+              "deals",
+              "documents",
+              "drive",
+              "drive-files",
+              "employees",
+              "engagements",
+              "ensure-rls",
+              "entitlements",
+              "flags",
+              "forms",
+              "grants",
+              "hiring",
+              "idempotency",
+              "identities",
+              "imports",
+              "inbox",
+              "inventory",
+              "invitations",
+              "invoices",
+              "jobs",
+              "jsonb-schemas",
+              "knowledge",
+              "memory",
+              "metrics",
+              "mfa",
+              "notifications",
+              "number-sequences",
+              "onboarding",
+              "orders",
+              "organizations",
+              "outbox",
+              "parties",
+              "pgtap",
+              "pipelines",
+              "profiles",
+              "promotions",
+              "push",
+              "quotes",
+              "rank",
+              "rate-limit",
+              "reactions",
+              "read-sets",
+              "realtime-tables",
+              "relations",
+              "reminders",
+              "reserved-slugs",
+              "saved-views",
+              "search",
+              "service-principals",
+              "sessions",
+              "settings",
+              "share-links",
+              "signatures",
+              "sla",
+              "sso",
+              "state-machine",
+              "streams",
+              "subjects",
+              "support-sessions",
+              "tags",
+              "targets",
+              "teams",
+              "templates",
+              "tenant",
+              "time-tracking",
+              "trash",
+              "updated-at",
+              "usage",
+              "vector-search",
+              "versions",
+              "waitlist",
+              "webhook-inbox",
+              "webhooks-in",
+              "webhooks-out",
+              "work-items",
+              "workflow-builder",
+              "workflow-sdk-world",
+              "workflows"
+            ]
           }
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "access": {
-              "$ref": "#/$defs/accessBlock"
+              "$ref": "#/$defs/blocks/access"
+            },
+            "access-requests": {
+              "$ref": "#/$defs/blocks/access-requests"
+            },
+            "actor": {
+              "$ref": "#/$defs/blocks/actor"
+            },
+            "agents": {
+              "$ref": "#/$defs/blocks/agents"
+            },
+            "ai-cache": {
+              "$ref": "#/$defs/blocks/ai-cache"
+            },
+            "ai-chat": {
+              "$ref": "#/$defs/blocks/ai-chat"
+            },
+            "ai-files": {
+              "$ref": "#/$defs/blocks/ai-files"
+            },
+            "ai-providers": {
+              "$ref": "#/$defs/blocks/ai-providers"
+            },
+            "ai-tasks": {
+              "$ref": "#/$defs/blocks/ai-tasks"
+            },
+            "announcements": {
+              "$ref": "#/$defs/blocks/announcements"
+            },
+            "api-keys": {
+              "$ref": "#/$defs/blocks/api-keys"
+            },
+            "approvals": {
+              "$ref": "#/$defs/blocks/approvals"
+            },
+            "attachments": {
+              "$ref": "#/$defs/blocks/attachments"
+            },
+            "audit": {
+              "$ref": "#/$defs/blocks/audit"
+            },
+            "billing": {
+              "$ref": "#/$defs/blocks/billing"
+            },
+            "bookings": {
+              "$ref": "#/$defs/blocks/bookings"
+            },
+            "bulk": {
+              "$ref": "#/$defs/blocks/bulk"
+            },
+            "calendar": {
+              "$ref": "#/$defs/blocks/calendar"
+            },
+            "catalog": {
+              "$ref": "#/$defs/blocks/catalog"
+            },
+            "chat-sdk-state": {
+              "$ref": "#/$defs/blocks/chat-sdk-state"
+            },
+            "collections": {
+              "$ref": "#/$defs/blocks/collections"
+            },
+            "comments": {
+              "$ref": "#/$defs/blocks/comments"
+            },
+            "connectors": {
+              "$ref": "#/$defs/blocks/connectors"
+            },
+            "credentials": {
+              "$ref": "#/$defs/blocks/credentials"
+            },
+            "custom-fields": {
+              "$ref": "#/$defs/blocks/custom-fields"
+            },
+            "data-lifecycle": {
+              "$ref": "#/$defs/blocks/data-lifecycle"
+            },
+            "deals": {
+              "$ref": "#/$defs/blocks/deals"
+            },
+            "documents": {
+              "$ref": "#/$defs/blocks/documents"
+            },
+            "drive": {
+              "$ref": "#/$defs/blocks/drive"
+            },
+            "drive-files": {
+              "$ref": "#/$defs/blocks/drive-files"
+            },
+            "employees": {
+              "$ref": "#/$defs/blocks/employees"
+            },
+            "engagements": {
+              "$ref": "#/$defs/blocks/engagements"
+            },
+            "ensure-rls": {
+              "$ref": "#/$defs/blocks/ensure-rls"
+            },
+            "entitlements": {
+              "$ref": "#/$defs/blocks/entitlements"
+            },
+            "flags": {
+              "$ref": "#/$defs/blocks/flags"
+            },
+            "forms": {
+              "$ref": "#/$defs/blocks/forms"
+            },
+            "grants": {
+              "$ref": "#/$defs/blocks/grants"
+            },
+            "hiring": {
+              "$ref": "#/$defs/blocks/hiring"
+            },
+            "idempotency": {
+              "$ref": "#/$defs/blocks/idempotency"
+            },
+            "identities": {
+              "$ref": "#/$defs/blocks/identities"
+            },
+            "imports": {
+              "$ref": "#/$defs/blocks/imports"
+            },
+            "inbox": {
+              "$ref": "#/$defs/blocks/inbox"
+            },
+            "inventory": {
+              "$ref": "#/$defs/blocks/inventory"
+            },
+            "invitations": {
+              "$ref": "#/$defs/blocks/invitations"
+            },
+            "invoices": {
+              "$ref": "#/$defs/blocks/invoices"
+            },
+            "jobs": {
+              "$ref": "#/$defs/blocks/jobs"
+            },
+            "jsonb-schemas": {
+              "$ref": "#/$defs/blocks/jsonb-schemas"
+            },
+            "knowledge": {
+              "$ref": "#/$defs/blocks/knowledge"
+            },
+            "memory": {
+              "$ref": "#/$defs/blocks/memory"
+            },
+            "metrics": {
+              "$ref": "#/$defs/blocks/metrics"
+            },
+            "mfa": {
+              "$ref": "#/$defs/blocks/mfa"
+            },
+            "notifications": {
+              "$ref": "#/$defs/blocks/notifications"
+            },
+            "number-sequences": {
+              "$ref": "#/$defs/blocks/number-sequences"
+            },
+            "onboarding": {
+              "$ref": "#/$defs/blocks/onboarding"
+            },
+            "orders": {
+              "$ref": "#/$defs/blocks/orders"
+            },
+            "organizations": {
+              "$ref": "#/$defs/blocks/organizations"
+            },
+            "outbox": {
+              "$ref": "#/$defs/blocks/outbox"
+            },
+            "parties": {
+              "$ref": "#/$defs/blocks/parties"
+            },
+            "pgtap": {
+              "$ref": "#/$defs/blocks/pgtap"
+            },
+            "pipelines": {
+              "$ref": "#/$defs/blocks/pipelines"
+            },
+            "profiles": {
+              "$ref": "#/$defs/blocks/profiles"
+            },
+            "promotions": {
+              "$ref": "#/$defs/blocks/promotions"
+            },
+            "push": {
+              "$ref": "#/$defs/blocks/push"
+            },
+            "quotes": {
+              "$ref": "#/$defs/blocks/quotes"
+            },
+            "rank": {
+              "$ref": "#/$defs/blocks/rank"
+            },
+            "rate-limit": {
+              "$ref": "#/$defs/blocks/rate-limit"
+            },
+            "reactions": {
+              "$ref": "#/$defs/blocks/reactions"
+            },
+            "read-sets": {
+              "$ref": "#/$defs/blocks/read-sets"
+            },
+            "realtime-tables": {
+              "$ref": "#/$defs/blocks/realtime-tables"
+            },
+            "relations": {
+              "$ref": "#/$defs/blocks/relations"
+            },
+            "reminders": {
+              "$ref": "#/$defs/blocks/reminders"
+            },
+            "reserved-slugs": {
+              "$ref": "#/$defs/blocks/reserved-slugs"
+            },
+            "saved-views": {
+              "$ref": "#/$defs/blocks/saved-views"
+            },
+            "search": {
+              "$ref": "#/$defs/blocks/search"
+            },
+            "service-principals": {
+              "$ref": "#/$defs/blocks/service-principals"
+            },
+            "sessions": {
+              "$ref": "#/$defs/blocks/sessions"
+            },
+            "settings": {
+              "$ref": "#/$defs/blocks/settings"
+            },
+            "share-links": {
+              "$ref": "#/$defs/blocks/share-links"
+            },
+            "signatures": {
+              "$ref": "#/$defs/blocks/signatures"
+            },
+            "sla": {
+              "$ref": "#/$defs/blocks/sla"
+            },
+            "sso": {
+              "$ref": "#/$defs/blocks/sso"
+            },
+            "state-machine": {
+              "$ref": "#/$defs/blocks/state-machine"
+            },
+            "streams": {
+              "$ref": "#/$defs/blocks/streams"
+            },
+            "subjects": {
+              "$ref": "#/$defs/blocks/subjects"
+            },
+            "support-sessions": {
+              "$ref": "#/$defs/blocks/support-sessions"
+            },
+            "tags": {
+              "$ref": "#/$defs/blocks/tags"
+            },
+            "targets": {
+              "$ref": "#/$defs/blocks/targets"
+            },
+            "teams": {
+              "$ref": "#/$defs/blocks/teams"
+            },
+            "templates": {
+              "$ref": "#/$defs/blocks/templates"
+            },
+            "tenant": {
+              "$ref": "#/$defs/blocks/tenant"
+            },
+            "time-tracking": {
+              "$ref": "#/$defs/blocks/time-tracking"
+            },
+            "trash": {
+              "$ref": "#/$defs/blocks/trash"
+            },
+            "updated-at": {
+              "$ref": "#/$defs/blocks/updated-at"
+            },
+            "usage": {
+              "$ref": "#/$defs/blocks/usage"
+            },
+            "vector-search": {
+              "$ref": "#/$defs/blocks/vector-search"
+            },
+            "versions": {
+              "$ref": "#/$defs/blocks/versions"
+            },
+            "waitlist": {
+              "$ref": "#/$defs/blocks/waitlist"
+            },
+            "webhook-inbox": {
+              "$ref": "#/$defs/blocks/webhook-inbox"
+            },
+            "webhooks-in": {
+              "$ref": "#/$defs/blocks/webhooks-in"
+            },
+            "webhooks-out": {
+              "$ref": "#/$defs/blocks/webhooks-out"
+            },
+            "work-items": {
+              "$ref": "#/$defs/blocks/work-items"
+            },
+            "workflow-builder": {
+              "$ref": "#/$defs/blocks/workflow-builder"
+            },
+            "workflow-sdk-world": {
+              "$ref": "#/$defs/blocks/workflow-sdk-world"
+            },
+            "workflows": {
+              "$ref": "#/$defs/blocks/workflows"
             }
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/moduleConfig"
           }
         }
       ]
@@ -1312,7 +1754,9 @@
               },
               "overlays": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Overlay files (JSON or YAML), applied in order."
               },
               "serialize": {
@@ -1513,41 +1957,111 @@
       "description": "Keys an environment block overrides. Objects merge into the config; arrays and other values replace.",
       "additionalProperties": false,
       "properties": {
-        "source": { "$ref": "#/properties/source" },
-        "schemas": { "$ref": "#/properties/schemas" },
-        "casing": { "$ref": "#/properties/casing" },
-        "tables": { "$ref": "#/properties/tables" },
-        "output": { "$ref": "#/properties/output" },
-        "postgrestVersion": { "$ref": "#/properties/postgrestVersion" },
-        "codecs": { "$ref": "#/properties/codecs" },
-        "relations": { "$ref": "#/properties/relations" },
-        "json": { "$ref": "#/properties/json" },
-        "generators": { "$ref": "#/properties/generators" },
-        "plugins": { "$ref": "#/properties/plugins" },
-        "claims": { "$ref": "#/properties/claims" },
-        "buckets": { "$ref": "#/properties/buckets" },
-        "topics": { "$ref": "#/properties/topics" },
-        "sensitive": { "$ref": "#/properties/sensitive" },
-        "storagePaths": { "$ref": "#/properties/storagePaths" },
-        "functions": { "$ref": "#/properties/functions" },
-        "expose": { "$ref": "#/properties/expose" },
-        "readSets": { "$ref": "#/properties/readSets" },
-        "entitlements": { "$ref": "#/properties/entitlements" },
-        "authorization": { "$ref": "#/properties/authorization" },
-        "vectorSearch": { "$ref": "#/properties/vectorSearch" },
-        "subjects": { "$ref": "#/properties/subjects" },
-        "realtime": { "$ref": "#/properties/realtime" },
-        "sql": { "$ref": "#/properties/sql" },
-        "seed": { "$ref": "#/properties/seed" },
-        "openapi": { "$ref": "#/properties/openapi" },
-        "specs": { "$ref": "#/properties/specs" },
-        "doctor": { "$ref": "#/properties/doctor" },
-        "gen": { "$ref": "#/properties/gen" },
-        "env": { "$ref": "#/properties/env" },
-        "scaffold": { "$ref": "#/properties/scaffold" },
-        "integrations": { "$ref": "#/properties/integrations" },
-        "skills": { "$ref": "#/properties/skills" },
-        "keys": { "$ref": "#/properties/keys" }
+        "source": {
+          "$ref": "#/properties/source"
+        },
+        "schemas": {
+          "$ref": "#/properties/schemas"
+        },
+        "casing": {
+          "$ref": "#/properties/casing"
+        },
+        "tables": {
+          "$ref": "#/properties/tables"
+        },
+        "output": {
+          "$ref": "#/properties/output"
+        },
+        "postgrestVersion": {
+          "$ref": "#/properties/postgrestVersion"
+        },
+        "codecs": {
+          "$ref": "#/properties/codecs"
+        },
+        "relations": {
+          "$ref": "#/properties/relations"
+        },
+        "json": {
+          "$ref": "#/properties/json"
+        },
+        "generators": {
+          "$ref": "#/properties/generators"
+        },
+        "plugins": {
+          "$ref": "#/properties/plugins"
+        },
+        "claims": {
+          "$ref": "#/properties/claims"
+        },
+        "buckets": {
+          "$ref": "#/properties/buckets"
+        },
+        "topics": {
+          "$ref": "#/properties/topics"
+        },
+        "sensitive": {
+          "$ref": "#/properties/sensitive"
+        },
+        "storagePaths": {
+          "$ref": "#/properties/storagePaths"
+        },
+        "functions": {
+          "$ref": "#/properties/functions"
+        },
+        "expose": {
+          "$ref": "#/properties/expose"
+        },
+        "readSets": {
+          "$ref": "#/properties/readSets"
+        },
+        "entitlements": {
+          "$ref": "#/properties/entitlements"
+        },
+        "authorization": {
+          "$ref": "#/properties/authorization"
+        },
+        "vectorSearch": {
+          "$ref": "#/properties/vectorSearch"
+        },
+        "subjects": {
+          "$ref": "#/properties/subjects"
+        },
+        "realtime": {
+          "$ref": "#/properties/realtime"
+        },
+        "sql": {
+          "$ref": "#/properties/sql"
+        },
+        "seed": {
+          "$ref": "#/properties/seed"
+        },
+        "openapi": {
+          "$ref": "#/properties/openapi"
+        },
+        "specs": {
+          "$ref": "#/properties/specs"
+        },
+        "doctor": {
+          "$ref": "#/properties/doctor"
+        },
+        "gen": {
+          "$ref": "#/properties/gen"
+        },
+        "env": {
+          "$ref": "#/properties/env"
+        },
+        "scaffold": {
+          "$ref": "#/properties/scaffold"
+        },
+        "integrations": {
+          "$ref": "#/properties/integrations"
+        },
+        "skills": {
+          "$ref": "#/properties/skills"
+        },
+        "keys": {
+          "$ref": "#/properties/keys"
+        }
       }
     },
     "stringRecord": {
@@ -1733,7 +2247,9 @@
           "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
           "additionalProperties": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         },
         "disabled": {
@@ -1850,6 +2366,2035 @@
             "pattern": "^(select|insert|update)\\s*\\(\\s*[a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*\\s*\\)$"
           }
         ]
+      }
+    },
+    "blocks": {
+      "access": {
+        "$ref": "#/$defs/accessBlock",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "platformRoleScope": {
+                "type": "string",
+                "default": "platform"
+              },
+              "scope": {
+                "type": "string",
+                "default": "organization"
+              },
+              "tenantRoleScope": {
+                "type": "string",
+                "default": "tenant"
+              }
+            }
+          }
+        }
+      },
+      "access-requests": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "roles": {},
+              "policy": {},
+              "maxDuration": {},
+              "join": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
+      "actor": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "agents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxInstructions": {
+                "type": "number",
+                "default": 100000
+              }
+            }
+          }
+        }
+      },
+      "ai-cache": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxTtl": {
+                "type": "number"
+              },
+              "maxBytes": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "ai-chat": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "ai-chat"
+              },
+              "listTopic": {
+                "type": "string",
+                "default": "ai-chats"
+              },
+              "temporaryTtl": {},
+              "staleAfter": {},
+              "sandboxIdleAfter": {
+                "type": "number",
+                "default": 600
+              }
+            }
+          }
+        }
+      },
+      "ai-files": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bucket": {
+                "type": "string",
+                "default": "ai-files"
+              },
+              "maxSize": {
+                "type": "number"
+              },
+              "allowedMimeTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "pendingTtl": {
+                "type": "string",
+                "default": "1 day"
+              }
+            }
+          }
+        }
+      },
+      "ai-providers": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "pollEvery": {
+                "type": "number",
+                "default": 60
+              }
+            }
+          }
+        }
+      },
+      "ai-tasks": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "queue": {
+                "type": "string",
+                "default": "ai_task_run"
+              },
+              "staleAfter": {
+                "type": "string",
+                "default": "30 minutes"
+              },
+              "maxPrompt": {
+                "type": "number",
+                "default": 20000
+              }
+            }
+          }
+        }
+      },
+      "announcements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "announcements"
+              },
+              "event": {
+                "type": "string",
+                "default": "announcement_changed"
+              }
+            }
+          }
+        }
+      },
+      "api-keys": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scopes": {},
+              "touchInterval": {
+                "type": "number",
+                "default": 60
+              },
+              "prefix": {
+                "type": "string",
+                "default": "bs"
+              }
+            }
+          }
+        }
+      },
+      "approvals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "policies": {}
+            }
+          }
+        }
+      },
+      "attachments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bucket": {
+                "type": "string",
+                "default": "attachments"
+              },
+              "requireScan": {
+                "type": "boolean",
+                "default": true
+              },
+              "maxSize": {
+                "type": "number"
+              },
+              "allowedMimeTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "subjects": {},
+              "path": {
+                "type": "string",
+                "default": "{organization_id}/attachments/{id}"
+              },
+              "scanBuckets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            }
+          }
+        }
+      },
+      "audit": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "appendOnly": {
+                "type": "boolean"
+              },
+              "correlationIdHeader": {
+                "type": "string",
+                "default": "x-correlation-id"
+              },
+              "eventCategory": {
+                "type": "string",
+                "default": "system"
+              },
+              "eventRoles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["service_role"]
+              },
+              "trustedRoles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "eventSource": {
+                "type": "string",
+                "default": "app"
+              },
+              "exempt": {},
+              "impersonators": {
+                "type": "string",
+                "default": "show"
+              },
+              "keepMappedMetadata": {
+                "type": "boolean",
+                "default": false
+              },
+              "metadataColumns": {},
+              "readPolicy": {
+                "type": "boolean",
+                "default": false
+              },
+              "requestIdHeader": {
+                "type": "string",
+                "default": "x-request-id"
+              },
+              "restricted": {
+                "type": "boolean",
+                "default": false
+              },
+              "tenantColumn": {
+                "type": "string"
+              },
+              "tenantLabel": {},
+              "tenantLabelKey": {
+                "type": "string",
+                "default": "id"
+              },
+              "values": {}
+            }
+          }
+        }
+      },
+      "billing": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "seatRoles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "plans": {},
+              "tenantKey": {}
+            }
+          }
+        }
+      },
+      "bookings": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "bulk": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "limit": {
+                "type": "number",
+                "default": 500
+              },
+              "actions": {}
+            }
+          }
+        }
+      },
+      "calendar": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "catalog": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "storefront": {
+                "type": "string",
+                "default": "private"
+              }
+            }
+          }
+        }
+      },
+      "chat-sdk-state": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "collections": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "comments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "maxBodyLength": {
+                "type": "number",
+                "default": 10000
+              },
+              "documentSchema": {},
+              "notify": {
+                "type": "boolean",
+                "default": true
+              },
+              "follow": {
+                "type": "boolean",
+                "default": true
+              },
+              "mentionGroups": {}
+            }
+          }
+        }
+      },
+      "connectors": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allowHttp": {
+                "type": "boolean",
+                "default": false
+              },
+              "trustFirstUse": {
+                "type": "boolean",
+                "default": true
+              },
+              "sessionTtl": {
+                "type": "string",
+                "default": "1 hour"
+              }
+            }
+          }
+        }
+      },
+      "credentials": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "secretStorage": {
+                "type": "string",
+                "default": "vault"
+              }
+            }
+          }
+        }
+      },
+      "custom-fields": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "layout": {
+                "type": "string",
+                "default": "normalized"
+              }
+            }
+          }
+        }
+      },
+      "data-lifecycle": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bucket": {
+                "type": "string",
+                "default": "data-exports"
+              },
+              "grace": {
+                "type": "string",
+                "default": "30 days"
+              },
+              "exportTtl": {
+                "type": "string",
+                "default": "7 days"
+              },
+              "tables": {},
+              "autoTables": {},
+              "tenantRow": {},
+              "anonymize": {}
+            }
+          }
+        }
+      },
+      "deals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "company": {
+                "type": "string",
+                "default": "company"
+              },
+              "contact": {
+                "type": "string",
+                "default": "person"
+              },
+              "motions": {},
+              "priorities": {},
+              "prefix": {
+                "type": "string",
+                "default": "DEAL-"
+              },
+              "readAll": {
+                "type": "boolean",
+                "default": true
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "documents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "topic": {
+                "type": "string",
+                "default": "documents"
+              },
+              "maxUpdateBytes": {
+                "type": "number",
+                "default": 1048576
+              },
+              "compactAfter": {
+                "type": "number",
+                "default": 200
+              }
+            }
+          }
+        }
+      },
+      "drive": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["viewer", "editor", "owner"]
+              },
+              "writeRole": {},
+              "shareRole": {},
+              "memberRole": {},
+              "subjectType": {
+                "type": "string",
+                "default": "drive_node"
+              },
+              "conflict": {
+                "type": "string",
+                "default": "fail"
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "drive-files": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "employees": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "employmentTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "engagements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ensure-rls": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "entitlements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "flags": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "forms": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "handlers": {},
+              "publicLimit": {}
+            }
+          }
+        }
+      },
+      "grants": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fromPolicies": {}
+            }
+          }
+        }
+      },
+      "hiring": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "candidate": {
+                "type": "string",
+                "default": "person"
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "idempotency": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "identities": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codeMinutes": {
+                "type": "number",
+                "default": 10
+              },
+              "verifiedEmails": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      },
+      "imports": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "inbox": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "inbox"
+              },
+              "bucket": {
+                "type": "string",
+                "default": "inbox-files"
+              },
+              "maxBodyLength": {
+                "type": "number",
+                "default": 20000
+              },
+              "botQueue": {},
+              "outboundQueue": {},
+              "notify": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      },
+      "inventory": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "invitations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxValidFor": {
+                "type": "string",
+                "default": "30 days"
+              },
+              "platformRoles": {},
+              "prefill": {
+                "type": "boolean",
+                "default": false
+              },
+              "previewColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["name"]
+              },
+              "requireConfirmedEmail": {
+                "type": "boolean",
+                "default": true
+              },
+              "tokenBytes": {
+                "type": "number",
+                "default": 24
+              },
+              "tokenStorage": {
+                "type": "string",
+                "default": "sha256"
+              },
+              "validFor": {
+                "type": "string",
+                "default": "7 days"
+              }
+            }
+          }
+        }
+      },
+      "invoices": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "company": {
+                "type": "string",
+                "default": "company"
+              },
+              "contact": {
+                "type": "string",
+                "default": "person"
+              },
+              "prefix": {
+                "type": "string",
+                "default": "INV-"
+              },
+              "creditPrefix": {
+                "type": "string",
+                "default": "CN-"
+              },
+              "termsDays": {
+                "type": "number",
+                "default": 30
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "jobs": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "type": "string",
+                "default": "pgmq"
+              },
+              "scheduler": {
+                "type": "string",
+                "default": "pg_cron"
+              }
+            }
+          }
+        }
+      },
+      "jsonb-schemas": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "knowledge": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dimensions": {
+                "type": "number",
+                "default": 1536
+              },
+              "type": {
+                "type": "string",
+                "default": "vector"
+              },
+              "textSearch": {
+                "type": "string",
+                "default": "simple"
+              },
+              "embedQueue": {
+                "type": "string",
+                "default": "knowledge_embed"
+              }
+            }
+          }
+        }
+      },
+      "memory": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dimensions": {},
+              "type": {},
+              "textSearch": {},
+              "maxContent": {
+                "type": "number",
+                "default": 100000
+              }
+            }
+          }
+        }
+      },
+      "metrics": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "metrics": {},
+              "window": {
+                "type": "string",
+                "default": "3 days"
+              }
+            }
+          }
+        }
+      },
+      "mfa": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "notifications": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "channelDefaults": {},
+              "channels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["in_app"]
+              },
+              "createdEvent": {
+                "type": "string",
+                "default": "notification_created"
+              },
+              "maxRecipients": {
+                "type": "number",
+                "default": 1000
+              },
+              "priorities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["low", "normal", "high", "urgent"]
+              },
+              "realtime": {
+                "type": "string",
+                "default": "broadcast"
+              },
+              "topic": {
+                "type": "string",
+                "default": "notifications:{userId}"
+              },
+              "updatedEvent": {
+                "type": "string",
+                "default": "notification_updated"
+              }
+            }
+          }
+        }
+      },
+      "number-sequences": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "entities": {}
+            }
+          }
+        }
+      },
+      "onboarding": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checklists": {}
+            }
+          }
+        }
+      },
+      "orders": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "paymentWindowMinutes": {
+                "type": "number",
+                "default": 30
+              }
+            }
+          }
+        }
+      },
+      "organizations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "assignmentGuard": {
+                "type": "string",
+                "default": "module"
+              },
+              "attributes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "auditCategory": {},
+              "deleteMode": {
+                "type": "string",
+                "default": "hard"
+              },
+              "extraColumns": {},
+              "formerOwnerRole": {
+                "type": "string",
+                "default": "admin"
+              },
+              "ownerInvariant": {
+                "type": "boolean",
+                "default": true
+              },
+              "ownerRole": {
+                "type": "string",
+                "default": "owner"
+              },
+              "reservedSlugs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "slugCitext": {
+                "type": "boolean",
+                "default": false
+              },
+              "slugMaxLength": {
+                "type": "number",
+                "default": 48
+              },
+              "slugMinLength": {
+                "type": "number",
+                "default": 2
+              },
+              "slugPattern": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "outbox": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "defaultSource": {
+                "type": "string",
+                "default": ""
+              },
+              "emitRoles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["service_role"]
+              },
+              "blockSource": {},
+              "retention": {
+                "type": "string",
+                "default": "30 days"
+              },
+              "settle": {
+                "type": "string",
+                "default": "5 seconds"
+              }
+            }
+          }
+        }
+      },
+      "parties": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "companyLifecycles": {},
+              "personLifecycles": {},
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "pgtap": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "pipelines": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "profiles": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "columnGrants": {
+                "type": "boolean"
+              },
+              "extraColumns": {},
+              "metadata": {},
+              "mirrorEmail": {
+                "type": "boolean",
+                "default": true
+              },
+              "readPolicy": {},
+              "reservedUsernames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "serviceColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "splitName": {
+                "type": "boolean",
+                "default": true
+              },
+              "syncTrigger": {
+                "type": "boolean",
+                "default": true
+              },
+              "updatable": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "username": {
+                "type": "boolean",
+                "default": true
+              },
+              "usernameFrom": {},
+              "usernameMaxLength": {
+                "type": "number",
+                "default": 32
+              },
+              "usernameMinLength": {
+                "type": "number",
+                "default": 3
+              }
+            }
+          }
+        }
+      },
+      "promotions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "push": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "quotes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "company": {
+                "type": "string",
+                "default": "company"
+              },
+              "contact": {
+                "type": "string",
+                "default": "person"
+              },
+              "prefix": {
+                "type": "string",
+                "default": "Q-"
+              },
+              "validDays": {
+                "type": "number",
+                "default": 30
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "rank": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "rate-limit": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "preRequest": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      },
+      "reactions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "topic": {
+                "type": "string",
+                "default": "reactions"
+              }
+            }
+          }
+        }
+      },
+      "read-sets": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "realtime-tables": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "relations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kinds": {},
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "reminders": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleFormat": {
+                "type": "string",
+                "default": "rrule"
+              }
+            }
+          }
+        }
+      },
+      "reserved-slugs": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxLength": {
+                "type": "number",
+                "default": 63
+              },
+              "minLength": {
+                "type": "number",
+                "default": 1
+              },
+              "slugs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            }
+          }
+        }
+      },
+      "saved-views": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "search": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "config": {
+                "type": "string",
+                "default": "simple"
+              },
+              "dimensions": {
+                "type": "number",
+                "default": 0
+              }
+            }
+          }
+        }
+      },
+      "service-principals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "sessions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exclude": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "policies": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
+      "settings": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemas": {},
+              "platform": {}
+            }
+          }
+        }
+      },
+      "share-links": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "signatures": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "sla": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "businessHours": {},
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "sso": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "txtPrefix": {
+                "type": "string",
+                "default": "_better-supabase"
+              },
+              "defaultRole": {
+                "type": "string",
+                "default": "member"
+              },
+              "roleOrder": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groupRoles": {}
+            }
+          }
+        }
+      },
+      "state-machine": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "machines": {}
+            }
+          }
+        }
+      },
+      "streams": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "stream"
+              }
+            }
+          }
+        }
+      },
+      "subjects": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "support-sessions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allowPlatformTargets": {},
+              "allowWrites": {},
+              "approval": {},
+              "approvalTtl": {},
+              "auditCategory": {},
+              "claimsHook": {},
+              "maxTtl": {},
+              "requireReason": {}
+            }
+          }
+        }
+      },
+      "tags": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "targets": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "teams": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "teamIdType": {}
+            }
+          }
+        }
+      },
+      "templates": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "tenant": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claimFormat": {
+                "type": "string",
+                "default": "array"
+              },
+              "roleThrough": {},
+              "sameTenant": {}
+            }
+          }
+        }
+      },
+      "time-tracking": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "policy": {},
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              }
+            }
+          }
+        }
+      },
+      "trash": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "retentionDays": {
+                "type": "number",
+                "default": 30
+              }
+            }
+          }
+        }
+      },
+      "updated-at": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "usage": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "meters": {},
+              "history": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
+      "vector-search": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "versions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {},
+              "keep": {
+                "type": "number",
+                "default": 50
+              },
+              "debounce": {
+                "type": "number",
+                "default": 300
+              }
+            }
+          }
+        }
+      },
+      "waitlist": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "defaultRole": {
+                "type": "string",
+                "default": "member"
+              },
+              "codeField": {
+                "type": "string",
+                "default": "invite_code"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "webhook-inbox": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "webhooks-in": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBodyBytes": {
+                "type": "number",
+                "default": 1048576
+              },
+              "secretStorage": {
+                "type": "string",
+                "default": "vault"
+              },
+              "subjects": {}
+            }
+          }
+        }
+      },
+      "webhooks-out": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allowHttp": {
+                "type": "boolean",
+                "default": false
+              },
+              "disableAfter": {
+                "type": "string",
+                "default": "5 days"
+              },
+              "eventIdType": {},
+              "runIdType": {},
+              "secretStorage": {
+                "type": "string",
+                "default": "vault"
+              },
+              "statuses": {}
+            }
+          }
+        }
+      },
+      "work-items": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "prefix": {
+                "type": "string",
+                "default": "TASK-"
+              },
+              "maxAssignees": {
+                "type": "number",
+                "default": 0
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "workflow-builder": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "workflow-sdk-world": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "delivery": {
+                "type": "string",
+                "default": "poll"
+              },
+              "queue": {
+                "type": "string"
+              },
+              "batch": {
+                "type": "number",
+                "default": 20
+              },
+              "timeout": {
+                "type": "number",
+                "default": 30000
+              },
+              "schedule": {
+                "type": "string",
+                "default": "1 seconds"
+              }
+            }
+          }
+        }
+      },
+      "workflows": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
       }
     }
   }

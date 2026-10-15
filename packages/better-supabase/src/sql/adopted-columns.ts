@@ -1,4 +1,4 @@
-import type { BlocksConfig } from "../config/blocks.ts";
+import type { AnyBlocksConfig } from "../config/blocks.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
@@ -18,7 +18,9 @@ export interface AdoptedTable {
  * Every table the adopt-mode modules in `modules` use, with the columns
  * their SQL names: mapped to `null` and unused optional columns are left out.
  */
-export function adoptedTables(modules: BlocksConfig): readonly AdoptedTable[] {
+export function adoptedTables(
+  modules: AnyBlocksConfig,
+): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
   for (const name of Object.keys(modules)) {
     if ((modules[name]?.mode ?? "managed") !== "adopt") continue;
@@ -60,7 +62,7 @@ export function adoptedTables(modules: BlocksConfig): readonly AdoptedTable[] {
  * those configs so `has()` does not treat a missing column as present.
  */
 export function adoptedColumnProblems(
-  modules: BlocksConfig,
+  modules: AnyBlocksConfig,
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): readonly string[] {

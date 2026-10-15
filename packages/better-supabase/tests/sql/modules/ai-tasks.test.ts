@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
-const body = (modules: BlocksConfig = {}) =>
+const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-tasks", { modules })!;
 
 const rendered = (names: readonly string[]) =>

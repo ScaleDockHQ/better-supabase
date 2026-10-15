@@ -28,7 +28,7 @@ import {
 
 export interface FormsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `blocks.forms.schema`, or the API schema of its wrappers. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Forms>;

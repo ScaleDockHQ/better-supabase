@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { CatalogEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createCatalog } from "./catalog.ts";
 import { catalogEvents } from "./events.ts";
+import { catalogSqlOptions } from "./options.ts";
 
 /** The `catalog` block's manifest (ADR 0029). */
 export const catalogBlock: BlockOf<
@@ -14,7 +15,7 @@ export const catalogBlock: BlockOf<
   name: "catalog",
   sql: ["catalog"],
   options: {
-    catalog: optionKeys(["storefront"]),
+    catalog: catalogSqlOptions,
   },
   events: catalogEvents,
   create: createCatalog,

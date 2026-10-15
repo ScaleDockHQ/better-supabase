@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { NotificationsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { notificationsEvents } from "./events.ts";
 import { createNotifications } from "./notifications.ts";
+import { notificationsSqlOptions } from "./options.ts";
 
 /** The `notifications` block's manifest (ADR 0029). */
 export const notificationsBlock: BlockOf<
@@ -16,16 +17,7 @@ export const notificationsBlock: BlockOf<
   name: "notifications",
   sql: ["notifications"],
   options: {
-    notifications: optionKeys([
-      "channelDefaults",
-      "channels",
-      "createdEvent",
-      "maxRecipients",
-      "priorities",
-      "realtime",
-      "topic",
-      "updatedEvent",
-    ]),
+    notifications: notificationsSqlOptions,
   },
   events: notificationsEvents,
   provides: {

@@ -94,8 +94,13 @@ block with only SQL gets a directory with just the manifest (and
 `events.ts` when it records events).
 
 - `sql` lists the SQL modules it installs; every module belongs to exactly
-  one block. `options` holds `optionKeys([...])` per module, matching
-  `NAMES.options`.
+  one block. `options` holds the module's schema from the block's
+  `options.ts` (`blockOptions`), with one `option.*` per key in
+  `NAMES.options`, and `src/blocks/options-registry.ts` lists it. Mark an
+  option `client: true` when the TypeScript side reads it too: `gen`
+  writes it to `blocks.generated.ts` and `defineBlocks` passes it to the
+  creator. Run `pnpm --filter better-supabase gen:config-schema` after a
+  change, which rewrites `schemas/config-v1.json`.
 - `events` is the block's own map from `events.ts`. Never add a type to a
   shared map in core.
 - `consumes` and `provides` name ports from `src/blocks/ports.ts`

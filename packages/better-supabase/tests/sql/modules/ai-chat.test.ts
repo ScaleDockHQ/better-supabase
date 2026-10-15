@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   moduleBody,
@@ -9,7 +9,7 @@ import {
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-const body = (modules: BlocksConfig = {}) =>
+const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules })!;
 
 const withModules = (names: readonly string[]): string =>

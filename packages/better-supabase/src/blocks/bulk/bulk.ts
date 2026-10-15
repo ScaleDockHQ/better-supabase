@@ -113,7 +113,11 @@ export interface BulkOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** The module's `limit` option: more rows than this start a background run. Defaults to 500. */
+  /**
+   * `blocks.bulk.options.limit`, which `defineBlocks` passes from
+   * `blocks.generated.ts`: more rows than this start a background run.
+   * Defaults to 500.
+   */
   readonly limit?: number;
 }
 

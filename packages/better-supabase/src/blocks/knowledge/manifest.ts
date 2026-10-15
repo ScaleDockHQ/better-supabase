@@ -1,7 +1,8 @@
 import type { BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createKnowledge } from "./knowledge.ts";
+import { knowledgeSqlOptions } from "./options.ts";
 
 /** The `knowledge` block's manifest (ADR 0029). */
 export const knowledgeBlock: BlockOf<
@@ -13,7 +14,7 @@ export const knowledgeBlock: BlockOf<
   name: "knowledge",
   sql: ["knowledge"],
   options: {
-    knowledge: optionKeys(["dimensions", "type", "textSearch", "embedQueue"]),
+    knowledge: knowledgeSqlOptions,
   },
   consumes: { files: "optional" },
   create: createKnowledge,

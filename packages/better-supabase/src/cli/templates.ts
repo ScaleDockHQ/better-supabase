@@ -55,7 +55,7 @@ function importLib(context: TemplateContext, from: string): string {
 }
 
 /** Relative import from one project file to another, following the project's extension style. */
-function importFrom(
+export function importFrom(
   context: TemplateContext,
   from: string,
   to: string,

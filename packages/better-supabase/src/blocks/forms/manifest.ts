@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { FormsEvents, SignaturesEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { formsEvents, signaturesEvents } from "./events.ts";
 import { createForms } from "./forms.ts";
+import { formsSqlOptions, signaturesSqlOptions } from "./options.ts";
 import { createSignatures } from "./signatures.ts";
 
 /** The `forms` block's manifest (ADR 0029). */
@@ -12,7 +13,7 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
     name: "forms",
     sql: ["forms"],
     options: {
-      forms: optionKeys(["subjects", "handlers", "publicLimit"]),
+      forms: formsSqlOptions,
     },
     events: formsEvents,
     create: createForms,
@@ -29,7 +30,7 @@ export const signaturesBlock: BlockOf<
   name: "signatures",
   sql: ["signatures"],
   options: {
-    signatures: optionKeys(["subjects"]),
+    signatures: signaturesSqlOptions,
   },
   events: signaturesEvents,
   create: createSignatures,

@@ -40,7 +40,7 @@ export interface DriveOptions extends BlockTemporalOptions {
    * which downloads the files. `createBlocks` passes it.
    */
   readonly attachments?: Pick<Attachments, "download">;
-  /** `blocks.drive.schema`, or the API schema of its wrappers. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Drive>;

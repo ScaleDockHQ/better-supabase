@@ -15,6 +15,9 @@ export {
 } from "./introspect.ts";
 export { moduleVersion } from "./module-types.ts";
 export { resolveModules, SQL_MODULES } from "./registry.ts";
+export { resolveModule } from "../config/blocks.ts";
+export { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
+export type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
 export type { InstalledModule, ModuleUpgradePlan } from "./upgrade.ts";
 export type {
   ModuleDeprecation,

@@ -259,7 +259,7 @@ export interface Templates {
 
 export interface TemplatesOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `blocks.templates.schema`, or the API schema of its wrappers. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
   /** The template types, by name. A type without `apply` can't be applied. */
   readonly types?: Readonly<Record<string, TemplateType>>;

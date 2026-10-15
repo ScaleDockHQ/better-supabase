@@ -1,8 +1,9 @@
 import type { BlockOf } from "../define-block.ts";
 import type { PartiesEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { partiesEvents } from "./events.ts";
+import { partiesSqlOptions } from "./options.ts";
 import { createParties } from "./parties.ts";
 
 /** The `parties` block's manifest (ADR 0029). */
@@ -14,11 +15,7 @@ export const partiesBlock: BlockOf<
   name: "parties",
   sql: ["parties"],
   options: {
-    parties: optionKeys([
-      "companyLifecycles",
-      "personLifecycles",
-      "extraColumns",
-    ]),
+    parties: partiesSqlOptions,
   },
   events: partiesEvents,
   create: createParties,

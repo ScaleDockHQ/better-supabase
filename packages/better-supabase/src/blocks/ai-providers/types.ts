@@ -131,7 +131,7 @@ export interface AiProvidersOptions extends BlockTemporalOptions {
   readonly service?: BlockTransport;
   /** Resolves and revokes the keys' credential refs. */
   readonly credentials?: CredentialProvider;
-  /** The module schema (`blocks.ai-providers.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

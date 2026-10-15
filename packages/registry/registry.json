@@ -22,7 +22,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the blocks it wires: `npx better-supabase sql add organizations notifications search audit`. Add a block to `blocks()` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
+      "docs": "Needs the blocks it wires: `npx better-supabase sql add organizations notifications search audit`, then `npx better-supabase gen` for `lib/supabase/blocks.generated.ts`. Add a block to `blockSet` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
       "categories": ["wiring"],
       "meta": {
         "block": ["organizations", "notifications", "search", "audit"],
@@ -255,7 +255,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the organizations block (`npx better-supabase sql add organizations`) and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
+      "docs": "Needs the organizations block (`npx better-supabase sql add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
       "categories": ["hook"],
       "meta": {
         "block": "organizations",

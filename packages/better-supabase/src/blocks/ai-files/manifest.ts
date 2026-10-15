@@ -1,7 +1,8 @@
 import type { BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createAiFiles } from "./ai-files.ts";
+import { aiFilesSqlOptions } from "./options.ts";
 
 /** The `ai-files` block's manifest (ADR 0029). */
 export const aiFilesBlock: BlockOf<
@@ -14,12 +15,7 @@ export const aiFilesBlock: BlockOf<
   name: "ai-files",
   sql: ["ai-files"],
   options: {
-    "ai-files": optionKeys([
-      "bucket",
-      "maxSize",
-      "allowedMimeTypes",
-      "pendingTtl",
-    ]),
+    "ai-files": aiFilesSqlOptions,
   },
   provides: {
     files: (client) => client,

@@ -83,7 +83,7 @@ export interface ConnectorsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** Calls as the service role, for grants and renewals. */
   readonly service?: BlockTransport;
-  /** The module schema (`blocks.connectors.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Revokes a grant's credential when the grant or its server goes away. */

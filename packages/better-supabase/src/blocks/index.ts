@@ -13,7 +13,23 @@ export type {
   BlocksHooks,
   CreateBlocksOptions,
 } from "./create-blocks.ts";
-export { defineBlock, optionKeys } from "./define-block.ts";
+export { defineBlock } from "./define-block.ts";
+export {
+  blockOptions,
+  NO_OPTIONS,
+  option,
+  optionsJsonSchema,
+} from "./options.ts";
+export type {
+  BlockOptionsSchema,
+  OptionBuilders,
+  OptionInput,
+  OptionKind,
+  OptionSpecs,
+  OptionSpec,
+} from "./options.ts";
+export { fillTopic, generatedOptions } from "./block-config.ts";
+export type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 export type {
   AnyBlock,
   Block,

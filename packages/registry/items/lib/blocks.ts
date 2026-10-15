@@ -1,6 +1,6 @@
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -12,29 +12,29 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { searchBlock } from "better-supabase/blocks/search";
 
 import { notificationTypes } from "@/lib/notification-types";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** The schema the blocks expose through the Data API (`sql.api` in the config). */
-export const API_SCHEMA = "api";
+/**
+ * The blocks the app uses. Each one's schema (the API schema when `sql.api`
+ * is set) and the options its SQL half shares come from
+ * `blocks.generated.ts`, which `better-supabase gen` writes from the config.
+ * Add a block here after `npx better-supabase sql add <block>`.
+ */
+export const blockSet = defineBlocks(blockConfig, {
+  organizations: organizationsBlock,
+  audit: auditBlock,
+  search: searchBlock,
+  notifications: notificationsBlock.using((options) =>
+    createNotifications({ ...options, types: notificationTypes }),
+  ),
+});
 
 /**
  * The blocks as typed clients over the Data API, acting as the caller of
  * `supabase`: its token, so RLS and each function's checks apply. Pass the
  * server client in a server action and the browser or native client in a
- * hook. Add a block here after `npx better-supabase sql add <block>`.
+ * hook.
  */
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    {
-      transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-      schema: API_SCHEMA,
-    },
-    {
-      organizations: organizationsBlock,
-      audit: auditBlock,
-      search: searchBlock,
-      notifications: notificationsBlock.using((options) =>
-        createNotifications({ ...options, types: notificationTypes }),
-      ),
-    },
-  );
+  return blockSet.create({ transport: rpcTransport(supabase) });
 }

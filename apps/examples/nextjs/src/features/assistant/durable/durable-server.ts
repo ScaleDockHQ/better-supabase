@@ -7,6 +7,8 @@ import {
 import { postgresStreamStore } from "better-supabase/streams";
 import * as v from "valibot";
 
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
 import {
   assistant,
   assistantContext,
@@ -14,8 +16,8 @@ import {
 } from "../assistant-server";
 import { assistantTurn, researchTurn } from "./durable-workflows";
 
-/** `blocks["ai-chat"].api` and `streams.api`. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the ai-chat block. */
+const API_SCHEMA = blockConfig["ai-chat"].api;
 
 /** The agents a durable chat can run; the client sends one as `agent`. */
 export type DurableAgent = "assistant" | "research";
