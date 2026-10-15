@@ -85,5 +85,5 @@ disables a block.
 | `presetInstallCommand` | `npx better-supabase sql add` with the selected blocks, which brings what they require |
 
 `scripts/build-catalog.ts` writes the catalog (`src/preset/catalog.generated.ts`)
-from the SQL module registry and the block manifests, and a package test
-fails when it is stale.
+from the SQL module registry and the block manifests, and
+`pnpm catalog:check` fails when it is stale.

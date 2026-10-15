@@ -4,8 +4,8 @@
  * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
  * writes the preset catalog (`src/preset/catalog.generated.ts`), which
  * `better-supabase/preset` resolves against without importing the SQL
- * renderers; that file is committed, and a package test fails when it is
- * stale (`--check` exits 1 the same way).
+ * renderers. That file is committed, and `pnpm catalog:check` (`--check`,
+ * part of `pnpm verify`) fails when it is stale.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -375,9 +375,9 @@ if (import.meta.main) {
       }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
+      mkdirSync(dirname(CATALOG_FILE), { recursive: true });
+      writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
     }
-    mkdirSync(dirname(CATALOG_FILE), { recursive: true });
-    writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     exit(1);

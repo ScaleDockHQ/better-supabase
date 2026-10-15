@@ -1,21 +1,16 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import {
-  buildPresetCatalog,
-  formatPresetCatalog,
-  PRESET_CATALOG_FILE,
-} from "../../../../scripts/build-catalog.ts";
 import { INTEGRATION_NAMES } from "../../src/config/names.ts";
 import { PRESET_BLOCKS } from "../../src/preset/blocks.ts";
 import { PRESET_CATALOG } from "../../src/preset/catalog.generated.ts";
 import { PRESET_FIELDS } from "../../src/preset/fields.ts";
 import { SQL_MODULES } from "../../src/sql/index.ts";
 
+// `pnpm catalog:check` fails when catalog.generated.ts is stale.
 describe("the preset catalog", () => {
-  it("is current with SQL_MODULES and the manifests (`pnpm catalog`)", () => {
-    expect(readFileSync(PRESET_CATALOG_FILE, "utf8")).toBe(
-      formatPresetCatalog(buildPresetCatalog()),
+  it("has a block for every SQL module", () => {
+    expect(PRESET_CATALOG.blocks.map((block) => block.name).toSorted()).toEqual(
+      Object.keys(SQL_MODULES).toSorted(),
     );
   });
 

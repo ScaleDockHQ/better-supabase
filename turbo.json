@@ -196,6 +196,14 @@
       ],
       "outputs": ["apps/marketing/lib/catalog.json"]
     },
+    "//#catalog:check": {
+      "inputs": [
+        "scripts/build-catalog.ts",
+        "packages/better-supabase/package.json",
+        "packages/better-supabase/src/**",
+        "apps/docs/content/docs/blocks/**"
+      ]
+    },
     "//#recipes": {
       "inputs": [
         "scripts/build-recipes.ts",
