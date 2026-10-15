@@ -335,6 +335,13 @@ export default defineConfig({
 | `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                       |
 | `api`         | a schema for the Data API that gets entry points for the module's functions (`sql.api` by default; see below), or `false` for none                                       |
 
+[`better-supabase adopt <block> --from <schema.table>`](/docs/cli/presets#adopt)
+writes the `tables` and `columns` of an adopt-mode entry from the tables in
+the database and reports what can't map, and
+[`apply --preset <code> --adopt`](/docs/cli/presets#adopting-existing-tables)
+does the same for every block of a preset that has tables under its default
+names.
+
 `organizations` and `profiles` also take `options.extraColumns`: your own
 columns, keyed by name with their SQL type, which the module adds to its
 managed table, copies on writes and returns from its reads. A name the module
