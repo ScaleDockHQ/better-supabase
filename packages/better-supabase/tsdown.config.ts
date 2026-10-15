@@ -109,6 +109,8 @@ const entries = [
   "blocks/work-items/index",
   "blocks/quotes/index",
   "blocks/invoices/index",
+  "blocks/sla/index",
+  "blocks/targets/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

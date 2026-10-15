@@ -358,6 +358,9 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "sla.warned"
+  | "sla.breached"
+  | "sla.completed"
   | "quote.created"
   | "quote.updated"
   | "quote.sent"
@@ -694,6 +697,17 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly reason?: string | null;
 }
 
+/** Events from the sla module: a clock on a record warned, breached or was met. */
+export interface SlaEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly clockId: string;
+  /** `first_response`, `next_response` or `resolution`. */
+  readonly metric: string;
+  readonly dueAt: string;
+  /** For `sla.completed`: whether it was met after its due time. */
+  readonly late?: boolean;
+}
+
 /** `pipeline.stage_changed`: the record that moved and its stages. */
 export type PipelineStageEventData = PipelineEventData & SubjectEventData;
 
@@ -1008,6 +1022,9 @@ export interface BlockEventMap {
   "invoice.credited": InvoiceEventData;
   "invoice.voided": InvoiceEventData;
   "invoice.uncollected": InvoiceEventData;
+  "sla.warned": SlaEventData;
+  "sla.breached": SlaEventData;
+  "sla.completed": SlaEventData;
   "work_item.created": WorkItemEventData;
   "work_item.updated": WorkItemEventData;
   "work_item.assigned": WorkItemEventData;

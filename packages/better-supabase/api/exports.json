@@ -2035,6 +2035,7 @@
       "ScimEventData",
       "SettingEventData",
       "SignatureEventData",
+      "SlaEventData",
       "SsoProviderEventData",
       "StorageObjectEventData",
       "SubjectEventData",
@@ -4521,6 +4522,54 @@
       "RecordRef",
       "RpcClient",
       "Totals"
+    ]
+  },
+  "./blocks/sla": {
+    "values": [
+      "createSla",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Sla",
+      "SlaClock",
+      "SlaEvent",
+      "SlaMetric",
+      "SlaOptions",
+      "SlaPolicy",
+      "SlaPolicyInput",
+      "SlaState"
+    ]
+  },
+  "./blocks/targets": {
+    "values": [
+      "createTargets",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Target",
+      "TargetInput",
+      "TargetMetric",
+      "TargetProgress",
+      "Targets",
+      "TargetsOptions"
     ]
   },
   "./blocks/reactions/react": {

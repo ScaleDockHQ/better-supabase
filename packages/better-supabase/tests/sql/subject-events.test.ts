@@ -5,6 +5,9 @@ import type { SubjectEventType } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const SUBJECT_EVENTS = [
+  "sla.warned",
+  "sla.breached",
+  "sla.completed",
   "quote.created",
   "quote.updated",
   "quote.sent",

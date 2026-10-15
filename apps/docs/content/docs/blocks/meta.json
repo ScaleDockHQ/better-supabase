@@ -81,6 +81,8 @@
     "work-items",
     "quotes",
     "invoices",
+    "sla",
+    "targets",
     "identities",
     "service-principals"
   ]

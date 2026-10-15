@@ -277,6 +277,7 @@ export type {
   DealEventData,
   InvoiceEventData,
   QuoteEventData,
+  SlaEventData,
   WorkItemEventData,
   EngagementEventData,
   PartyEventData,

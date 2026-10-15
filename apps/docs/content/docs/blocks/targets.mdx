@@ -1,0 +1,56 @@
+---
+title: Targets
+description: Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
+---
+
+`targets` keeps goals: a sales quota per rep per quarter, a number of completed work items per team per sprint, cash collected per month. Each target names a metric, a period, an owner or team when it isn't for the whole organization, and a goal. The database computes the progress of the metrics the other blocks own, and the app keeps the value of any other metric.
+
+Reading needs `targets.read`, and setting targets needs `targets.manage`. Admins get both, and members get `targets.read`.
+
+```bash
+better-supabase sql add targets
+```
+
+The module needs `tenant` and `access`.
+
+```ts
+import { createTargets } from "better-supabase/blocks/targets";
+
+const targets = createTargets({ transport });
+await targets
+  .save(organizationId, {
+    name: "Q4 quota",
+    metric: "deals.won_amount",
+    ownerId: repId,
+    currency: "EUR",
+    goal: 60_000_000n,
+    periodStart: Temporal.PlainDate.from("2026-10-01"),
+    periodEnd: Temporal.PlainDate.from("2026-12-31"),
+  })
+  .orThrow();
+
+const running = await targets
+  .progress(organizationId, { ownerId: repId })
+  .orThrow();
+// [{ name: "Q4 quota", progress: 18_400_000n, attainment: 0.3067, ... }]
+```
+
+## Metrics
+
+| Metric                 | Progress                                                                      | Needs        |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------ |
+| `deals.won_amount`     | the amount of deals won in the period, in the target's currency, by its owner | `deals`      |
+| `deals.won_count`      | the number of deals won in the period, by its owner                           | `deals`      |
+| `work_items.completed` | the work items completed in the period, by its team and assignee              | `work-items` |
+| `invoices.paid_amount` | payments recorded in the period, in the target's currency                     | `invoices`   |
+| anything else          | the `actual` value the app saves                                              |              |
+
+`progress(organizationId, { on, ownerId })` returns the targets whose period contains `on` (today by default), with `progress` and `attainment` (progress over goal). Amounts are minor units, and progress reads run as the caller, so they count what the caller can see. The [deals](/docs/blocks/deals) forecast takes a target as its period goal.
+
+## Errors
+
+| Hint               | Cause                                                         |
+| ------------------ | ------------------------------------------------------------- |
+| `TARGET_FORBIDDEN` | the caller lacks `targets.manage`                             |
+| `TARGET_INVALID`   | a target needs a name, a metric, a period and a positive goal |
+| `TARGET_NOT_FOUND` | no such target                                                |
