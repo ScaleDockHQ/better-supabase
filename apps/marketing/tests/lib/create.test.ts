@@ -89,7 +89,7 @@ describe("blockGroups", () => {
 
   test("disables a block that can't install, with the reason", () => {
     const preset: Preset = { ...minimal, scope: "user" };
-    const state = rowOf(preset, "comments")?.state;
+    const state = rowOf(preset, "organizations")?.state;
     expect(state).toEqual({
       kind: "conflict",
       reason: 'it needs tenants, and scope "user" has none',
