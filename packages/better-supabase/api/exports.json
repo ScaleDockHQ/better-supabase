@@ -1984,6 +1984,7 @@
       "AiToolEventData",
       "AnnouncementEventData",
       "ApiKeyEventData",
+      "ApplicationEventData",
       "AttachmentEventData",
       "AuditRevealEventData",
       "BillingEventData",
@@ -2018,6 +2019,7 @@
       "InvitationEventData",
       "InviteCodeEventData",
       "InvoiceEventData",
+      "JobEventData",
       "NotificationDeliveryEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
@@ -4570,6 +4572,35 @@
       "TargetProgress",
       "Targets",
       "TargetsOptions"
+    ]
+  },
+  "./blocks/hiring": {
+    "values": [
+      "createHiring",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Application",
+      "ApplicationDetail",
+      "ApplicationState",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Candidate",
+      "Hiring",
+      "HiringOptions",
+      "Interview",
+      "Job",
+      "JobInput",
+      "JobStatus",
+      "Recommendation",
+      "RpcClient",
+      "Scorecard"
     ]
   },
   "./blocks/reactions/react": {

@@ -111,6 +111,7 @@ const entries = [
   "blocks/invoices/index",
   "blocks/sla/index",
   "blocks/targets/index",
+  "blocks/hiring/index",
   "blocks/reactions/react/index",
   "blocks/reactions/react/server",
   "blocks/catalog/index",

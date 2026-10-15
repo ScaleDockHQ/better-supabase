@@ -802,6 +802,11 @@
       "types": "./dist/blocks/targets/index.d.ts",
       "default": "./dist/blocks/targets/index.js"
     },
+    "./blocks/hiring": {
+      "@better-supabase/source": "./src/blocks/hiring/index.ts",
+      "types": "./dist/blocks/hiring/index.d.ts",
+      "default": "./dist/blocks/hiring/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1545,6 +1550,10 @@
       "./blocks/targets": {
         "types": "./dist/blocks/targets/index.d.ts",
         "default": "./dist/blocks/targets/index.js"
+      },
+      "./blocks/hiring": {
+        "types": "./dist/blocks/hiring/index.d.ts",
+        "default": "./dist/blocks/hiring/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",
