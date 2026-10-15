@@ -1,0 +1,11 @@
+{
+  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["tooling"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/marketing/public/r/**"]
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "jobs-drain-next",
+  "title": "Jobs drain cron route (Next.js)",
+  "description": "lib/jobs.ts and app/api/jobs/drain/route.ts: the queues and the cron route that runs schedules and drains them.",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "server-only"
+  ],
+  "registryDependencies": [
+    "@better-supabase/postgres"
+  ],
+  "files": [
+    {
+      "path": "items/lib/jobs.ts",
+      "content": "import { createJobs } from \"better-supabase/blocks/jobs\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * The job queues, one Standard Schema per queue for its payload. Add a\n * queue here and its handler in the drain route:\n * `createJobs(postgres.admin, { send_email: SendEmail })`.\n */\nexport const jobs = createJobs(postgres.admin, {});\n",
+      "type": "registry:lib",
+      "target": "@lib/jobs.ts"
+    },
+    {
+      "path": "items/app/api/jobs/drain/route.ts",
+      "content": "import \"server-only\";\nimport { jobs } from \"@/lib/jobs\";\n\n/**\n * Enqueues due schedules, then drains each queue in `handlers`. Call it\n * from a cron, such as `{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }`\n * in `vercel.json`, which sends `Authorization: Bearer <CRON_SECRET>`.\n */\nexport const GET = jobs.drainRoute({\n  secret: process.env.CRON_SECRET,\n  budgetMs: 50_000,\n  handlers: {},\n  onError: (error, job) => {\n    console.error(error.message, job?.id);\n  },\n});\n",
+      "type": "registry:file",
+      "target": "~/app/api/jobs/drain/route.ts"
+    }
+  ],
+  "envVars": {
+    "CRON_SECRET": "development-cron-secret"
+  },
+  "meta": {
+    "block": "jobs",
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ]
+  },
+  "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase sql add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+  "categories": [
+    "route"
+  ],
+  "type": "registry:file"
+}

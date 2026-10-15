@@ -1,0 +1,49 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "blocks",
+  "title": "Block clients",
+  "description": "lib/blocks.ts: the blocks as typed clients over the Data API, acting as the caller, plus the notification types.",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "valibot"
+  ],
+  "files": [
+    {
+      "path": "items/lib/blocks.ts",
+      "content": "import {\n  type RpcClient,\n  createBlocks,\n  rpcTransport,\n} from \"better-supabase/blocks\";\nimport { createAuditLog } from \"better-supabase/blocks/audit\";\nimport { createNotifications } from \"better-supabase/blocks/notifications\";\nimport { createOrganizations } from \"better-supabase/blocks/organizations\";\nimport { createSearch } from \"better-supabase/blocks/search\";\n\nimport { notificationTypes } from \"@/lib/notification-types\";\n\n/** The schema the blocks expose through the Data API (`sql.api` in the config). */\nexport const API_SCHEMA = \"api\";\n\n/**\n * The blocks as typed clients over the Data API, acting as the caller of\n * `supabase`: its token, so RLS and each function's checks apply. Pass the\n * server client in a server action and the browser or native client in a\n * hook. Add a block here after `npx better-supabase sql add <block>`.\n */\nexport function blocks(supabase: RpcClient) {\n  return createBlocks(\n    {\n      transport: rpcTransport(supabase, { schema: API_SCHEMA }),\n      schema: API_SCHEMA,\n    },\n    {\n      organizations: createOrganizations,\n      audit: createAuditLog,\n      search: createSearch,\n      notifications: (options) =>\n        createNotifications({ ...options, types: notificationTypes }),\n    },\n  );\n}\n",
+      "type": "registry:lib",
+      "target": "@lib/blocks.ts"
+    },
+    {
+      "path": "items/lib/notification-types.ts",
+      "content": "import * as v from \"valibot\";\n\n/**\n * Each notification type and the Standard Schema `send` checks its `data`\n * against. Replace the example with your own types; zod and arktype schemas\n * work too.\n */\nexport const notificationTypes = {\n  \"member.joined\": v.object({ name: v.pipe(v.string(), v.minLength(1)) }),\n};\n",
+      "type": "registry:lib",
+      "target": "@lib/notification-types.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": [
+      "organizations",
+      "notifications",
+      "search",
+      "audit"
+    ],
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the blocks it wires: `npx better-supabase sql add organizations notifications search audit`. Add a block to `blocks()` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
+  "categories": [
+    "wiring"
+  ],
+  "type": "registry:lib"
+}

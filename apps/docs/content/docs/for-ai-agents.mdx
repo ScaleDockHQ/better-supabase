@@ -72,6 +72,28 @@ skills explain the policies in depth:
 npx skills add supabase/agent-skills
 ```
 
+## shadcn registry
+
+The glue items (block wiring, server actions, hooks, route handlers and Expo
+config) are a shadcn registry under the `@better-supabase` namespace, at
+`https://bettersupabase.com/r/{name}.json`. Add it to `components.json` and the
+[shadcn MCP server](https://ui.shadcn.com/docs/mcp) lists, searches and
+installs them next to your other registries:
+
+```json title="components.json"
+{
+  "registries": {
+    "@better-supabase": "https://bettersupabase.com/r/{name}.json"
+  }
+}
+```
+
+There are no UI items: an agent builds the interface from the app's shadcn
+components and a block's hook, following the
+[UI recipes](/docs/registry/ui-recipes). The `better-supabase` skill carries
+the same recipes in `references/ui-recipes.md`. See [Registry](/docs/registry)
+for every item.
+
 ## Docs as Markdown
 
 - [`/llms.txt`](/llms.txt) is an index of every page with absolute links to

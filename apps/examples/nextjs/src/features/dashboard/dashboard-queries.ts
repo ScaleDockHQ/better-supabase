@@ -18,33 +18,6 @@ export async function getWorkspaceSummary() {
   return db.$many(workspaceSummary, {}).orThrow();
 }
 
-export type OnboardingStepId = "customer" | "invite" | "api-key" | "plan";
-
-export interface OnboardingStep {
-  readonly id: OnboardingStepId;
-  readonly href: string;
-  readonly completed: boolean;
-}
-
-/** The getting-started checklist of an organization (the onboarding SQL module). */
-export async function getOnboarding(organizationId: string) {
-  "use cache: private";
-  const { supabase } = await bs.cached();
-  const progress = await blocks(supabase)
-    .onboarding.progress(organizationId)
-    .orThrow();
-  return {
-    completed: progress.completed,
-    total: progress.total,
-    done: progress.done,
-    steps: progress.steps.map((step): OnboardingStep => ({
-      id: step.id,
-      href: step.href ?? "/",
-      completed: step.completed,
-    })),
-  };
-}
-
 export interface UsageMeter {
   readonly meter: string;
   readonly used: number;

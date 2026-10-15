@@ -1,6 +1,10 @@
-import { tenantOf } from "better-supabase/next";
+// #region recipe:onboarding-checklist
+"use client";
+
+import { useOnboarding } from "better-supabase/blocks/onboarding/react";
+import { tenantOf } from "better-supabase/react";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
-import { getExtracted } from "next-intl/server";
+import { useExtracted } from "next-intl";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -12,27 +16,30 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSession } from "@/features/user/user-queries";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { Link } from "@/i18n/navigation";
+import { useAuth } from "@/lib/hooks";
 
-import { type OnboardingStepId, getOnboarding } from "../dashboard-queries";
+/** `sql.modules.onboarding.api` in better-supabase.config.ts. */
+const API_SCHEMA = "api";
 
-/** Render inside `<Suspense>`; hidden once every step is done. */
-export async function OnboardingCard() {
-  const [session, t] = await Promise.all([
-    getSession(),
-    getExtracted("dashboard"),
-  ]);
-  const organizationId = tenantOf(session);
+/** The organization's getting-started checklist; hidden once every step is done. */
+export function OnboardingCard() {
+  const t = useExtracted("dashboard");
+  const organizationId = tenantOf(useAuth()) ?? null;
+  const { progress } = useOnboarding(gettingStarted, {
+    organizationId,
+    schema: API_SCHEMA,
+  });
   if (!organizationId) return null;
-  const progress = await getOnboarding(organizationId);
+  if (progress === undefined) return <OnboardingCardSkeleton />;
   if (progress.done) return null;
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
     "api-key": t("Create an API key"),
     plan: t("Review your plan"),
-  } satisfies Record<OnboardingStepId, string>;
+  };
   return (
     <Card data-testid="onboarding">
       <CardHeader>
@@ -65,7 +72,7 @@ export async function OnboardingCard() {
               </span>
               {step.completed ? null : (
                 <Link
-                  href={step.href}
+                  href={step.href ?? "/"}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   {t("Start")}
@@ -82,3 +89,4 @@ export async function OnboardingCard() {
 export function OnboardingCardSkeleton() {
   return <Skeleton className="h-64 rounded-xl" aria-busy="true" />;
 }
+// #endregion recipe:onboarding-checklist

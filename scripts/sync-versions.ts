@@ -1,6 +1,7 @@
 // Copies the better-supabase version into the files `changeset version` does
-// not touch: both VERSION constants, the plugin manifests and server.json.
-// `pnpm version-packages` runs it after `changeset version`.
+// not touch: both VERSION constants, the plugin manifests, server.json and
+// the registry items' `better-supabase@^` range. `pnpm version-packages` runs
+// it after `changeset version`, then rebuilds the registry.
 import { getPackages } from "@manypkg/get-packages";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,6 +21,9 @@ const MANIFEST_VERSION = /("version":\s*")[^"]+(")/g;
 const constant = (): string => `export const VERSION = "${version}";\n`;
 const manifestVersion = (source: string): string =>
   source.replace(MANIFEST_VERSION, `$1${version}$2`);
+const REGISTRY_RANGE = /("better-supabase@\^)[^"]+(")/g;
+const registryRange = (source: string): string =>
+  source.replace(REGISTRY_RANGE, `$1${version}$2`);
 
 const files = {
   "packages/better-supabase/src/core/version.ts": constant,
@@ -28,6 +32,7 @@ const files = {
   ".claude-plugin/marketplace.json": manifestVersion,
   ".cursor-plugin/plugin.json": manifestVersion,
   "server.json": manifestVersion,
+  "packages/registry/registry.json": registryRange,
 } satisfies Record<string, (source: string) => string>;
 
 const written: string[] = [];

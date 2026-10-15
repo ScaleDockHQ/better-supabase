@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "expo-config-native",
+  "title": "Expo config",
+  "description": "app.config.ts: the URL scheme for auth deep links, secure session storage and push, on top of app.json.",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "expo-secure-store",
+    "expo-notifications"
+  ],
+  "files": [
+    {
+      "path": "items/expo/app.config.ts",
+      "content": "import type { ConfigContext, ExpoConfig } from \"expo/config\";\n\n/**\n * Adds what better-supabase needs on iOS and Android to the config in\n * `app.json`: a URL scheme for the magic-link and OAuth deep links\n * (`handleAuthDeepLink`), secure storage for the session, and push.\n */\nexport default ({ config }: ConfigContext): ExpoConfig => ({\n  ...config,\n  name: config.name ?? \"app\",\n  slug: config.slug ?? \"app\",\n  scheme: config.scheme ?? \"app\",\n  plugins: [\n    ...(config.plugins ?? []),\n    \"expo-secure-store\",\n    \"expo-notifications\",\n  ],\n});\n",
+      "type": "registry:file",
+      "target": "~/app.config.ts"
+    }
+  ],
+  "envVars": {
+    "EXPO_PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321"
+  },
+  "meta": {
+    "block": "push",
+    "platforms": [
+      "native"
+    ],
+    "frameworks": [
+      "expo"
+    ]
+  },
+  "docs": "Set `scheme` in `app.json` to your app's scheme; magic links and OAuth redirect to it, and `handleAuthDeepLink` from `better-supabase/client/native` finishes the sign-in. See https://bettersupabase.com/docs/frameworks/expo.",
+  "categories": [
+    "config",
+    "native"
+  ],
+  "type": "registry:file"
+}

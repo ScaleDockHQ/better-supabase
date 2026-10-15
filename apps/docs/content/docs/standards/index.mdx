@@ -24,7 +24,7 @@ explicit change.
 Each adopted standard has a conformance test in
 `packages/better-supabase/tests/standards`. Where an official JSON Schema
 exists (OpenAPI, Overlay, Arazzo, AsyncAPI, SARIF, CloudEvents, MCP, the MCP
-Registry), the test
+Registry, the shadcn registry), the test
 validates the output against a vendored copy of it.
 
 | Standard                                                                                                                                                                                                 | Posture          | Where                                                                                                                                           | Tests                                                      |
@@ -59,6 +59,7 @@ validates the output against a vendored copy of it.
 | [Agent Skills](https://agentskills.io)                                                                                                                                                                   | Adopted          | `skills/` in the package, `npx skills add ScaleDockHQ/better-supabase`, `better-supabase skills install` ([for AI agents](/docs/for-ai-agents)) | `agent-standards.test.ts`                                  |
 | [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org)                                                                                                                                       | Adopted          | repo root and these docs (`/llms.txt`, `/llms-full.txt`, `/docs/<page>.md`)                                                                     | `agent-standards.test.ts`                                  |
 | [MCP Registry `server.json`](https://github.com/modelcontextprotocol/registry)                                                                                                                           | Adopted          | the read-only docs MCP server at `/mcp` ([for AI agents](/docs/for-ai-agents#docs-mcp-server))                                                  | `mcp-registry-server-json.test.ts`                         |
+| [shadcn registry schema (shadcn 4.21.4)](https://ui.shadcn.com/docs/registry)                                                                                                                            | Adopted (pinned) | the `@better-supabase` glue items at `https://bettersupabase.com/r/{name}.json` ([registry](/docs/registry))                                    | `shadcn-registry.test.ts`                                  |
 | [npm provenance](https://docs.npmjs.com/generating-provenance-statements)                                                                                                                                | Adopted          | release workflow                                                                                                                                | `npm-provenance.test.ts`                                   |
 | [OCSF 1.9.0](https://schema.ocsf.io/1.9.0)                                                                                                                                                               | Adopted (pinned) | `exportAuditLog({ format: "ocsf" })` in the [audit block](/docs/blocks/audit)                                                                   | `ocsf.test.ts`                                             |
 | [OpenFeature 0.9.0](https://github.com/open-feature/spec/tree/v0.9.0)                                                                                                                                    | Adopted (pinned) | `createFlagsProvider()` and `createFlagClient()` in the [flags block](/docs/blocks/flags)                                                       | `openfeature.test.ts`                                      |
@@ -115,4 +116,5 @@ SPEC_PINS.rfc4180; // RFC 4180 CSV that parseCsv reads and toCsv writes
 SPEC_PINS.iso4217; // ISO 4217 List One publication the commerce block's minor units follow
 SPEC_PINS.rfc6902; // RFC 6902 JSON Patch that the versions block writes and applies
 SPEC_PINS.rfc9396; // RFC 9396 authorization_details that delegated tokens and job envelopes carry
+SPEC_PINS.shadcnRegistry; // shadcn release whose registry.json and registry-item.json schemas the registry items follow
 ```

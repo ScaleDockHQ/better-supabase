@@ -17,6 +17,7 @@ import {
   getBlock,
   installCommand,
 } from "@/lib/blocks";
+import { recipePath, recipesFor } from "@/lib/recipes";
 import { site } from "@/lib/site";
 
 interface BlockPageProps {
@@ -133,6 +134,33 @@ function EventsPanel({ block }: { block: CatalogBlock }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+function RecipeLinks({ block }: { block: string }) {
+  const recipes = recipesFor(block);
+  if (recipes.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">No UI recipe uses it yet.</p>
+    );
+  }
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {recipes.map((recipe) => (
+        <li key={recipe.slug} className="flex items-center gap-2 text-sm">
+          {recipe.status === "available" ? (
+            <SiteLink href={recipePath(recipe.slug)} className="underline">
+              {recipe.title}
+            </SiteLink>
+          ) : (
+            <>
+              <span className="text-muted-foreground">{recipe.title}</span>
+              <Badge variant="outline">planned</Badge>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -279,6 +307,10 @@ export default async function BlockPage({ params }: BlockPageProps) {
               names={block.integrates}
               empty="No optional integrations."
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold">Recipes</h2>
+            <RecipeLinks block={block.name} />
           </div>
         </aside>
       </div>

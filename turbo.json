@@ -196,8 +196,27 @@
       ],
       "outputs": ["apps/marketing/lib/catalog.json"]
     },
+    "//#recipes": {
+      "inputs": [
+        "scripts/build-recipes.ts",
+        "apps/examples/nextjs/src/**",
+        "apps/examples/expo-powersync/src/**",
+        "apps/marketing/public/recipes/**"
+      ],
+      "outputs": ["apps/marketing/lib/recipes.json"]
+    },
+    "//#recipes:check": {
+      "inputs": [
+        "scripts/build-recipes.ts",
+        "apps/examples/nextjs/src/**",
+        "apps/examples/expo-powersync/src/**",
+        "apps/marketing/public/recipes/**",
+        "apps/docs/content/docs/registry/ui-recipes.mdx",
+        "packages/better-supabase/skills/better-supabase/references/ui-recipes.md"
+      ]
+    },
     "//#knip": {
-      "dependsOn": ["//#catalog"]
+      "dependsOn": ["//#catalog", "//#recipes"]
     },
     "test": {
       "dependsOn": ["transit"]

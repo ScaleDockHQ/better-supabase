@@ -1,0 +1,43 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "postgres",
+  "title": "Server Postgres pool",
+  "description": "lib/postgres.ts: one Postgres pool for the server-side blocks (outbox, jobs, webhook inbox, billing).",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "pg"
+  ],
+  "files": [
+    {
+      "path": "items/lib/postgres.ts",
+      "content": "import { createPostgres } from \"better-supabase/postgres\";\n\n/**\n * One pool for the server-side blocks. It reads `SUPABASE_DB_URL`, then\n * `DATABASE_URL`. `postgres.admin` bypasses RLS: use it only in route\n * handlers that check their own secret, never with a user's input.\n */\nexport const postgres = createPostgres();\n",
+      "type": "registry:lib",
+      "target": "@lib/postgres.ts"
+    }
+  ],
+  "envVars": {
+    "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+  },
+  "meta": {
+    "block": [
+      "jobs",
+      "outbox",
+      "billing"
+    ],
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next",
+      "hono",
+      "tanstack-start",
+      "react-router"
+    ]
+  },
+  "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/jobs.",
+  "categories": [
+    "wiring",
+    "server"
+  ],
+  "type": "registry:lib"
+}

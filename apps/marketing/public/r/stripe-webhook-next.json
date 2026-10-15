@@ -1,0 +1,56 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "stripe-webhook-next",
+  "title": "Stripe webhook routes (Next.js)",
+  "description": "A Stripe webhook route that stores verified events, and a cron route that hands them to the billing block.",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "server-only",
+    "stripe"
+  ],
+  "registryDependencies": [
+    "@better-supabase/postgres"
+  ],
+  "files": [
+    {
+      "path": "items/lib/stripe.ts",
+      "content": "import {\n  createBilling,\n  stripeInboxVerify,\n} from \"better-supabase/blocks/billing\";\nimport { createWebhookInbox, sqlTransport } from \"better-supabase/blocks/jobs\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/** Stores each verified Stripe event once; the process route hands it to billing. */\nexport const stripeInbox = createWebhookInbox(postgres.admin, {\n  source: \"stripe\",\n  verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET ?? \"\"),\n});\n\n/** The billing block on the service connection, which links customers and syncs seats. */\nexport const billing = createBilling({\n  stripe: { secretKey: process.env.STRIPE_SECRET_KEY ?? \"\" },\n  transport: sqlTransport(postgres.admin),\n});\n",
+      "type": "registry:lib",
+      "target": "@lib/stripe.ts"
+    },
+    {
+      "path": "items/app/api/stripe/route.ts",
+      "content": "import \"server-only\";\nimport { stripeInbox } from \"@/lib/stripe\";\n\n/** Stripe's webhook endpoint: verifies the signature and stores the event once. */\nexport const POST = (request: Request): Promise<Response> =>\n  stripeInbox.receive(request);\n",
+      "type": "registry:file",
+      "target": "~/app/api/stripe/route.ts"
+    },
+    {
+      "path": "items/app/api/stripe/process/route.ts",
+      "content": "import \"server-only\";\nimport { billing, stripeInbox } from \"@/lib/stripe\";\n\n/**\n * Hands the stored Stripe events to the billing block. Call it from a cron\n * that sends `Authorization: Bearer <CRON_SECRET>`; a failed event stays in\n * the inbox for the next run.\n */\nexport async function GET(request: Request): Promise<Response> {\n  const secret = process.env.CRON_SECRET;\n  if (!secret || request.headers.get(\"authorization\") !== `Bearer ${secret}`) {\n    return new Response(null, { status: 401 });\n  }\n  const result = await stripeInbox.process((message) =>\n    billing.handleStripeEvent(message.payload).orThrow(),\n  );\n  return Response.json(result);\n}\n",
+      "type": "registry:file",
+      "target": "~/app/api/stripe/process/route.ts"
+    }
+  ],
+  "envVars": {
+    "STRIPE_SECRET_KEY": "sk_test_replace_me",
+    "STRIPE_WEBHOOK_SECRET": "whsec_replace_me",
+    "CRON_SECRET": "development-cron-secret"
+  },
+  "meta": {
+    "block": [
+      "billing",
+      "webhook-inbox"
+    ],
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ]
+  },
+  "docs": "Needs the billing block and the webhook inbox: `npx better-supabase sql add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
+  "categories": [
+    "route"
+  ],
+  "type": "registry:file"
+}

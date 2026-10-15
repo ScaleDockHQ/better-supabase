@@ -1,0 +1,35 @@
+{
+  "name": "@better-supabase/registry",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The @better-supabase shadcn registry: glue items (wiring, hooks, route handlers, Expo config) built into apps/marketing/public/r.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "registry:build": "shadcn build ./registry.json --output ../../apps/marketing/public/r",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "better-supabase": "workspace:*",
+    "expo": "catalog:",
+    "expo-notifications": "catalog:",
+    "hono": "catalog:",
+    "next": "catalog:",
+    "oxlint": "catalog:",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "server-only": "catalog:",
+    "shadcn": "catalog:",
+    "typescript": "catalog:",
+    "valibot": "catalog:",
+    "vitest": "catalog:"
+  }
+}

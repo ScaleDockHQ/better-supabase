@@ -219,6 +219,8 @@
   "recipes/drive",
   "recipes/project-management",
   "recipes/scheduling",
+  "registry",
+  "registry/ui-recipes",
   "repository",
   "repository/aggregates",
   "repository/expo-sqlite",

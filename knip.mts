@@ -72,6 +72,11 @@ const config: KnipConfig = {
     },
     "packages/typescript-config": {},
     "packages/next-config": {},
+    // Registry items are copied into apps by the shadcn CLI, so each one is
+    // an entry; the stubs stand in for the app files they import.
+    "packages/registry": {
+      entry: ["items/**/*.ts"],
+    },
     "apps/docs": {},
     "apps/marketing": {
       ignore: ["components/ui/**", "components/reui/**"],

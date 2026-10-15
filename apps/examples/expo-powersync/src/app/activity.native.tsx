@@ -1,0 +1,26 @@
+import { useState } from "react";
+import { View } from "react-native";
+
+import { CommandSearch } from "../components/command-search";
+import { NotificationBell } from "../components/notification-bell";
+import { NotificationList } from "../components/notification-list";
+import { OnboardingChecklist } from "../components/onboarding-checklist";
+
+/** iOS and Android: the UI recipes, with the same hooks as the Next.js example. */
+export default function ActivityScreen() {
+  const [showList, setShowList] = useState(false);
+  return (
+    <View style={{ flex: 1, gap: 16, padding: 16 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <CommandSearch />
+        <NotificationBell
+          onPress={() => {
+            setShowList((current) => !current);
+          }}
+        />
+      </View>
+      <OnboardingChecklist />
+      {showList ? <NotificationList /> : null}
+    </View>
+  );
+}
