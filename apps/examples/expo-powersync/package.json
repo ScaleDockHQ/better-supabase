@@ -40,7 +40,8 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
     "react-native-web": "catalog:",
-    "temporal-polyfill": "catalog:"
+    "temporal-polyfill": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

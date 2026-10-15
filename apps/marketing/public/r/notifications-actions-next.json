@@ -1,0 +1,35 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "notifications-actions-next",
+  "title": "Notification server actions (Next.js)",
+  "description": "Server actions that list, count and mark the caller's notifications, for useNotifications on the web.",
+  "dependencies": [
+    "better-supabase@^0.8.0"
+  ],
+  "registryDependencies": [
+    "@better-supabase/blocks"
+  ],
+  "files": [
+    {
+      "path": "items/lib/notifications-actions.ts",
+      "content": "\"use server\";\n\nimport { ok } from \"better-supabase\";\n\nimport { blocks } from \"@/lib/blocks\";\nimport { bs } from \"@/lib/supabase/server\";\n\n/** A notification as plain data, so it crosses the server boundary. */\nexport interface NotificationRow {\n  readonly id: string;\n  readonly title: string;\n  readonly readAt: string | null;\n  readonly createdAt: string;\n}\n\n/** The caller's latest notifications in the active organization, for `useNotifications`. */\nexport const loadNotifications = bs.action(\n  { requireTenant: true },\n  async (_input, { tenant, supabase }) => {\n    const items = await blocks(supabase).notifications.list({\n      tenant,\n      limit: 20,\n    });\n    if (!items.ok) return items;\n    return ok(\n      items.data.map((item): NotificationRow => ({\n        id: item.id,\n        title: item.text?.title ?? item.summary ?? item.type,\n        readAt: item.readAt?.toString() ?? null,\n        createdAt: item.createdAt.toString(),\n      })),\n    );\n  },\n);\n\n/** The badge numbers, loaded again after each broadcast on the caller's topic. */\nexport const loadNotificationCounts = bs.action(\n  { requireTenant: true },\n  async (_input, { tenant, supabase }) =>\n    blocks(supabase).notifications.counts({ tenant }),\n);\n\n/** Marks the caller's notifications in the active organization read. */\nexport const markAllRead = bs.action(\n  { requireTenant: true },\n  async (_input, { tenant, supabase }) => {\n    const updated = await blocks(supabase).notifications.markRead({ tenant });\n    return updated.ok ? ok(updated.data.count) : updated;\n  },\n);\n",
+      "type": "registry:lib",
+      "target": "@lib/notifications-actions.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "notifications",
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ]
+  },
+  "docs": "Needs the notifications block (`npx better-supabase sql add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
+  "categories": [
+    "server-actions"
+  ],
+  "type": "registry:lib"
+}

@@ -5,7 +5,12 @@
   "tasks": {
     "test": {
       "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
-      "dependsOn": ["transit", "build"]
+      "dependsOn": ["transit", "build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/registry/registry.json",
+        "$TURBO_ROOT$/apps/marketing/public/r/**"
+      ]
     }
   }
 }

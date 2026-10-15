@@ -4,25 +4,29 @@
   "tags": ["app"],
   "tasks": {
     "dev": {
-      "dependsOn": ["//#catalog"],
+      "dependsOn": ["//#catalog", "//#recipes"],
       "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     },
     "build": {
-      "dependsOn": ["^build", "//#catalog"],
+      "dependsOn": ["^build", "//#catalog", "//#recipes"],
       "env": ["DOCS_ORIGIN", "NEXT_PUBLIC_SITE_URL"]
     },
     "dev:portless": {
-      "dependsOn": ["//#catalog"],
+      "dependsOn": ["//#catalog", "//#recipes"],
       "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     },
     "lint": {
-      "dependsOn": ["transit", "//#catalog"]
+      "dependsOn": ["transit", "//#catalog", "//#recipes"]
     },
     "typecheck": {
-      "dependsOn": ["transit", "//#catalog"]
+      "dependsOn": ["transit", "//#catalog", "//#recipes"]
     },
     "test": {
-      "dependsOn": ["transit", "//#catalog"]
+      "dependsOn": ["transit", "//#catalog", "//#recipes"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/registry/registry.json"
+      ]
     }
   }
 }

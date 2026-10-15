@@ -1,3 +1,4 @@
+// #region recipe:command-search
 "use client";
 
 import { useCommandSearch } from "better-supabase/blocks/search/react";
@@ -99,3 +100,4 @@ export function CommandSearch() {
     </>
   );
 }
+// #endregion recipe:command-search

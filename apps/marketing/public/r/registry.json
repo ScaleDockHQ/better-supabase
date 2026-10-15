@@ -1,0 +1,385 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "better-supabase",
+  "homepage": "https://bettersupabase.com/docs/registry",
+  "items": [
+    {
+      "name": "blocks",
+      "type": "registry:lib",
+      "title": "Block clients",
+      "description": "lib/blocks.ts: the blocks as typed clients over the Data API, acting as the caller, plus the notification types.",
+      "dependencies": ["better-supabase@^0.8.0", "valibot"],
+      "files": [
+        {
+          "path": "items/lib/blocks.ts",
+          "type": "registry:lib",
+          "target": "@lib/blocks.ts"
+        },
+        {
+          "path": "items/lib/notification-types.ts",
+          "type": "registry:lib",
+          "target": "@lib/notification-types.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the blocks it wires: `npx better-supabase sql add organizations notifications search audit`. Add a block to `blocks()` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
+      "categories": ["wiring"],
+      "meta": {
+        "block": ["organizations", "notifications", "search", "audit"],
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "postgres",
+      "type": "registry:lib",
+      "title": "Server Postgres pool",
+      "description": "lib/postgres.ts: one Postgres pool for the server-side blocks (outbox, jobs, webhook inbox, billing).",
+      "dependencies": ["better-supabase@^0.8.0", "pg"],
+      "files": [
+        {
+          "path": "items/lib/postgres.ts",
+          "type": "registry:lib",
+          "target": "@lib/postgres.ts"
+        }
+      ],
+      "envVars": {
+        "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+      },
+      "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/jobs.",
+      "categories": ["wiring", "server"],
+      "meta": {
+        "block": ["jobs", "outbox", "billing"],
+        "platforms": ["web"],
+        "frameworks": ["next", "hono", "tanstack-start", "react-router"]
+      }
+    },
+    {
+      "name": "notifications-actions-next",
+      "type": "registry:lib",
+      "title": "Notification server actions (Next.js)",
+      "description": "Server actions that list, count and mark the caller's notifications, for useNotifications on the web.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "registryDependencies": ["@better-supabase/blocks"],
+      "files": [
+        {
+          "path": "items/lib/notifications-actions.ts",
+          "type": "registry:lib",
+          "target": "@lib/notifications-actions.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the notifications block (`npx better-supabase sql add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
+      "categories": ["server-actions"],
+      "meta": {
+        "block": "notifications",
+        "platforms": ["web"],
+        "frameworks": ["next"]
+      }
+    },
+    {
+      "name": "onboarding-checklist",
+      "type": "registry:lib",
+      "title": "Onboarding checklist",
+      "description": "lib/onboarding.ts: a getting-started checklist definition to edit, shared by the config and useOnboarding.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "files": [
+        {
+          "path": "items/lib/onboarding.ts",
+          "type": "registry:lib",
+          "target": "@lib/onboarding.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the onboarding block: `npx better-supabase sql add onboarding`, with the checklist in its `checklists` option. See https://bettersupabase.com/recipes/onboarding-checklist.",
+      "categories": ["wiring"],
+      "meta": {
+        "block": "onboarding",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "outbox",
+      "type": "registry:lib",
+      "title": "Outbox client",
+      "description": "lib/outbox.ts: the outbox on the server connection, which the relay routes use.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "registryDependencies": ["@better-supabase/postgres"],
+      "files": [
+        {
+          "path": "items/lib/outbox.ts",
+          "type": "registry:lib",
+          "target": "@lib/outbox.ts"
+        }
+      ],
+      "envVars": {
+        "APP_URL": "http://localhost:3000"
+      },
+      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. `APP_URL` becomes each CloudEvent's `source`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "categories": ["server"],
+      "meta": {
+        "block": "outbox",
+        "platforms": ["web"],
+        "frameworks": ["next", "hono", "tanstack-start", "react-router"]
+      }
+    },
+    {
+      "name": "outbox-relay-next",
+      "type": "registry:file",
+      "title": "Outbox relay route (Next.js)",
+      "description": "app/api/outbox/route.ts: a cron route that relays each registered consumer's events.",
+      "dependencies": ["better-supabase@^0.8.0", "server-only"],
+      "registryDependencies": ["@better-supabase/outbox"],
+      "files": [
+        {
+          "path": "items/app/api/outbox/route.ts",
+          "type": "registry:file",
+          "target": "~/app/api/outbox/route.ts"
+        }
+      ],
+      "envVars": {
+        "CRON_SECRET": "development-cron-secret"
+      },
+      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "categories": ["route"],
+      "meta": {
+        "block": "outbox",
+        "platforms": ["web"],
+        "frameworks": ["next"]
+      }
+    },
+    {
+      "name": "outbox-relay-hono",
+      "type": "registry:file",
+      "title": "Outbox relay route (Hono)",
+      "description": "routes/outbox.ts: a Hono route that relays each registered consumer's events.",
+      "dependencies": ["better-supabase@^0.8.0", "hono"],
+      "registryDependencies": ["@better-supabase/outbox"],
+      "files": [
+        {
+          "path": "items/routes/outbox.ts",
+          "type": "registry:file",
+          "target": "~/src/routes/outbox.ts"
+        }
+      ],
+      "envVars": {
+        "CRON_SECRET": "development-cron-secret"
+      },
+      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Mount it with `app.route(\"/outbox\", outboxRoutes)` and call it from a cron that sends `Authorization: Bearer <CRON_SECRET>`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "categories": ["route"],
+      "meta": {
+        "block": "outbox",
+        "platforms": ["web"],
+        "frameworks": ["hono"]
+      }
+    },
+    {
+      "name": "stripe-webhook-next",
+      "type": "registry:file",
+      "title": "Stripe webhook routes (Next.js)",
+      "description": "A Stripe webhook route that stores verified events, and a cron route that hands them to the billing block.",
+      "dependencies": ["better-supabase@^0.8.0", "server-only", "stripe"],
+      "registryDependencies": ["@better-supabase/postgres"],
+      "files": [
+        {
+          "path": "items/lib/stripe.ts",
+          "type": "registry:lib",
+          "target": "@lib/stripe.ts"
+        },
+        {
+          "path": "items/app/api/stripe/route.ts",
+          "type": "registry:file",
+          "target": "~/app/api/stripe/route.ts"
+        },
+        {
+          "path": "items/app/api/stripe/process/route.ts",
+          "type": "registry:file",
+          "target": "~/app/api/stripe/process/route.ts"
+        }
+      ],
+      "envVars": {
+        "STRIPE_SECRET_KEY": "sk_test_replace_me",
+        "STRIPE_WEBHOOK_SECRET": "whsec_replace_me",
+        "CRON_SECRET": "development-cron-secret"
+      },
+      "docs": "Needs the billing block and the webhook inbox: `npx better-supabase sql add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
+      "categories": ["route"],
+      "meta": {
+        "block": ["billing", "webhook-inbox"],
+        "platforms": ["web"],
+        "frameworks": ["next"]
+      }
+    },
+    {
+      "name": "jobs-drain-next",
+      "type": "registry:file",
+      "title": "Jobs drain cron route (Next.js)",
+      "description": "lib/jobs.ts and app/api/jobs/drain/route.ts: the queues and the cron route that runs schedules and drains them.",
+      "dependencies": ["better-supabase@^0.8.0", "server-only"],
+      "registryDependencies": ["@better-supabase/postgres"],
+      "files": [
+        {
+          "path": "items/lib/jobs.ts",
+          "type": "registry:lib",
+          "target": "@lib/jobs.ts"
+        },
+        {
+          "path": "items/app/api/jobs/drain/route.ts",
+          "type": "registry:file",
+          "target": "~/app/api/jobs/drain/route.ts"
+        }
+      ],
+      "envVars": {
+        "CRON_SECRET": "development-cron-secret"
+      },
+      "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase sql add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+      "categories": ["route"],
+      "meta": {
+        "block": "jobs",
+        "platforms": ["web"],
+        "frameworks": ["next"]
+      }
+    },
+    {
+      "name": "use-current-organization",
+      "type": "registry:hook",
+      "title": "useCurrentOrganization",
+      "description": "The signed-in user's active organization and a switchTo action, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-current-organization.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-current-organization.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the organizations block (`npx better-supabase sql add organizations`) and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "organizations",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "push-native",
+      "type": "registry:hook",
+      "title": "usePushRegistration (Expo)",
+      "description": "Registers the device's Expo push token for the signed-in user with the push block.",
+      "dependencies": ["better-supabase@^0.8.0", "expo-notifications"],
+      "registryDependencies": ["@better-supabase/expo-config-native"],
+      "files": [
+        {
+          "path": "items/hooks/use-push-registration.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-push-registration.ts"
+        }
+      ],
+      "envVars": {
+        "EXPO_PUBLIC_EAS_PROJECT_ID": ""
+      },
+      "docs": "Needs the push block (`npx better-supabase sql add push`) and the `src/lib/supabase/native.ts` that `npx better-supabase init` writes for Expo. Push tokens need the EAS project id outside Expo Go. See https://bettersupabase.com/docs/blocks/push.",
+      "categories": ["hook", "native"],
+      "meta": {
+        "block": "push",
+        "platforms": ["native"],
+        "frameworks": ["expo"]
+      }
+    },
+    {
+      "name": "expo-config-native",
+      "type": "registry:file",
+      "title": "Expo config",
+      "description": "app.config.ts: the URL scheme for auth deep links, secure session storage and push, on top of app.json.",
+      "dependencies": [
+        "better-supabase@^0.8.0",
+        "expo-secure-store",
+        "expo-notifications"
+      ],
+      "files": [
+        {
+          "path": "items/expo/app.config.ts",
+          "type": "registry:file",
+          "target": "~/app.config.ts"
+        }
+      ],
+      "envVars": {
+        "EXPO_PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321"
+      },
+      "docs": "Set `scheme` in `app.json` to your app's scheme; magic links and OAuth redirect to it, and `handleAuthDeepLink` from `better-supabase/client/native` finishes the sign-in. See https://bettersupabase.com/docs/frameworks/expo.",
+      "categories": ["config", "native"],
+      "meta": {
+        "block": "push",
+        "platforms": ["native"],
+        "frameworks": ["expo"]
+      }
+    },
+    {
+      "name": "saas-next",
+      "type": "registry:item",
+      "title": "SaaS glue (Next.js)",
+      "description": "The glue for the saas preset on Next.js: block clients, notification actions, onboarding, the organization hook and the outbox, jobs and Stripe routes.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "registryDependencies": [
+        "@better-supabase/blocks",
+        "@better-supabase/notifications-actions-next",
+        "@better-supabase/onboarding-checklist",
+        "@better-supabase/use-current-organization",
+        "@better-supabase/outbox-relay-next",
+        "@better-supabase/jobs-drain-next",
+        "@better-supabase/stripe-webhook-next"
+      ],
+      "envVars": {},
+      "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+      "categories": ["preset"],
+      "meta": {
+        "block": [
+          "organizations",
+          "notifications",
+          "search",
+          "audit",
+          "onboarding",
+          "outbox",
+          "jobs",
+          "billing",
+          "webhook-inbox"
+        ],
+        "platforms": ["web"],
+        "frameworks": ["next"],
+        "preset": "saas"
+      }
+    },
+    {
+      "name": "saas-expo",
+      "type": "registry:item",
+      "title": "SaaS glue (Expo)",
+      "description": "The glue for the saas preset on Expo: block clients, onboarding, the organization hook, push registration and the Expo config.",
+      "dependencies": ["better-supabase@^0.8.0"],
+      "registryDependencies": [
+        "@better-supabase/blocks",
+        "@better-supabase/onboarding-checklist",
+        "@better-supabase/use-current-organization",
+        "@better-supabase/push-native",
+        "@better-supabase/expo-config-native"
+      ],
+      "envVars": {},
+      "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding push`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+      "categories": ["preset", "native"],
+      "meta": {
+        "block": [
+          "organizations",
+          "notifications",
+          "search",
+          "audit",
+          "onboarding",
+          "push"
+        ],
+        "platforms": ["native"],
+        "frameworks": ["expo"],
+        "preset": "saas"
+      }
+    }
+  ]
+}

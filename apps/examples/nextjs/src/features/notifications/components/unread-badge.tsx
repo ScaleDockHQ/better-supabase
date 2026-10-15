@@ -1,3 +1,4 @@
+// #region recipe:notification-bell
 "use client";
 
 import type { NotificationCounts } from "better-supabase/blocks/notifications";
@@ -64,6 +65,8 @@ export function UnreadBadge() {
     </Link>
   );
 }
+
+// #endregion recipe:notification-bell
 
 /** The summary on /notifications, live on the same topic as the badge. */
 export function UnreadSummary() {

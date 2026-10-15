@@ -29,6 +29,8 @@ the matching `SPEC_PINS` entry in one change.
 | `rfc7643.txt` | RFC 7643, SCIM Core Schema | https://www.rfc-editor.org/rfc/rfc7643.txt | `df799c112a3fa5be3c0fe054c08b1f4eb5d07590c4c8343a014c4537bf638ae3` |
 | `rfc7644.txt` | RFC 7644, SCIM Protocol | https://www.rfc-editor.org/rfc/rfc7644.txt | `b9078e016c98b86934a23c80926b74fc8b59885ab2943729ec2493c17488a09b` |
 | `iso-4217-list-one-2026-09-17.xml` | ISO 4217 List One, published 2026-09-17 (SIX, the maintenance agency) | https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml | `33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff` |
+| `shadcn-registry-4.21.4.json` | shadcn registry schema, release `shadcn@4.21.4` (commit `3464245`) | https://raw.githubusercontent.com/shadcn-ui/ui/3464245c4513b7998b1d11fa9c67b71cc1534dc7/apps/v4/public/schema/registry.json | `e716ebe595bbc189db2627cb75f0484cd765a09eb397a89b1f1c49074220d4bb` |
+| `shadcn-registry-item-4.21.4.json` | shadcn registry item schema, release `shadcn@4.21.4` (commit `3464245`) | https://raw.githubusercontent.com/shadcn-ui/ui/3464245c4513b7998b1d11fa9c67b71cc1534dc7/apps/v4/public/schema/registry-item.json | `cdf0fba75a26ebf594018264eff2d55407ec14deb3071d0fce0e2b20848e5d44` |
 
 The SARIF and OpenAPI 3.0 schemas are draft-04. Draft-04 and draft-07 differ
 in those files only in the `id` keyword (draft-07 calls it `$id`) and in the
@@ -37,7 +39,11 @@ bound itself), so the loader rewrites both and compiles the schema as
 draft-07. The AsyncAPI schemas are draft-07 bundles whose definitions carry
 their own `$id`, including a copy of the draft-07 meta-schema; Ajv already
 registers that one, so the loader drops the copy. The JSON Schema 2020-12
-meta-schema comes from `ajv/dist/2020`.
+meta-schema comes from `ajv/dist/2020`. The shadcn registry schema refers to
+the item schema by its URL, `https://ui.shadcn.com/schema/registry-item.json`,
+so the loader registers the vendored item schema under that URL first. Both
+shadcn schemas name draft-07 as `https://json-schema.org/draft-07/schema#`;
+Ajv knows the meta-schema as `http://`, so the loader uses that name.
 
 Ajv resolves `$dynamicRef` against the wrong scope in the OpenAPI schemas.
 Each of them has one `$dynamicAnchor: meta`, so the loader rewrites

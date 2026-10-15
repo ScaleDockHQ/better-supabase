@@ -36,6 +36,9 @@
     "lint": "turbo run lint lint:root",
     "lint:root": "oxlint -c oxlint.config.ts commitlint.config.ts knip.mts oxlint.config.ts oxfmt.config.ts vitest.config.ts scripts",
     "prepare": "node scripts/prepare.ts",
+    "recipes": "node scripts/build-recipes.ts --write",
+    "recipes:check": "node scripts/build-recipes.ts --check",
+    "registry:build": "pnpm --filter @better-supabase/registry registry:build",
     "release": "pnpm run build && changeset publish",
     "size": "turbo run test --filter=@better-supabase/bundle",
     "supabase:reset": "supabase db reset",
@@ -51,8 +54,8 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "pnpm run format:check && turbo run lint lint:root typecheck typecheck:tooling test check:prose check:no-permdock docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries && pnpm run audit:high",
-    "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run format"
+    "verify": "pnpm run format:check && turbo run lint lint:root typecheck typecheck:tooling test check:prose check:no-permdock recipes:check docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries && pnpm run audit:high",
+    "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

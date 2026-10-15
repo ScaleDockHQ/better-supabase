@@ -100,6 +100,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Astro: `bs.locals(Astro).db`; SolidStart: `(await bs.require()).db`
 - Browser: `bs.db`, or the hooks from `createHooks<typeof bs>()`
 - Vue, Solid and Svelte, TanStack DB collections and a local expo-sqlite database: [references/frontend.md](references/frontend.md)
+- UI for a block (notification bell, notification list, command search, onboarding checklist): build it from the app's shadcn or React Native components and the block's hook, following [references/ui-recipes.md](references/ui-recipes.md). There is no better-supabase UI package; install glue with `npx shadcn add @better-supabase/<item>`.
 
 For who the caller is (sessions, claims, OAuth clients, agents, scopes), use
 the `better-supabase-auth` skill.

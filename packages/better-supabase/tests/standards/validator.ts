@@ -89,6 +89,26 @@ function builtInDraft07(schema: Json): void {
       delete definitions![key];
 }
 
+/**
+ * The shadcn registry schema refers to the item schema by its published
+ * URL, so register the vendored item schema of the same release under it.
+ */
+function shadcnItemSchema(engine: Ajv | Ajv2020, file: string): void {
+  const url = "https://ui.shadcn.com/schema/registry-item.json";
+  if (!engine.getSchema(url))
+    engine.addSchema(shadcnDraft07(vendored(file)), url);
+}
+
+/**
+ * The shadcn schemas name draft-07 by its `https` URL; Ajv registers the
+ * meta-schema under `http`. Same dialect, so use Ajv's name for it.
+ */
+function shadcnDraft07(schema: Json): Json {
+  if (schema["$schema"] === "https://json-schema.org/draft-07/schema#")
+    schema["$schema"] = "http://json-schema.org/draft-07/schema#";
+  return schema;
+}
+
 function load(file: string): { engine: Ajv | Ajv2020; key: string } {
   const schema = vendored(file);
   const engine = engineFor(schema);
@@ -101,6 +121,12 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
     }
     if (file.startsWith("openapi-")) staticDynamicRefs(schema);
     if (file.startsWith("asyncapi-")) builtInDraft07(schema);
+    if (file.startsWith("shadcn-registry-")) shadcnDraft07(schema);
+    if (file.startsWith("shadcn-registry-") && !file.includes("-item-"))
+      shadcnItemSchema(
+        engine,
+        file.replace("shadcn-registry-", "shadcn-registry-item-"),
+      );
     engine.addSchema(schema, file);
   }
   return { engine, key: file };

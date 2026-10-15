@@ -1,0 +1,64 @@
+---
+title: Registry
+description: Install better-supabase glue (block wiring, server actions, hooks, route handlers and Expo config) with the shadcn CLI from the @better-supabase registry.
+---
+
+The `@better-supabase` registry serves glue as [shadcn registry](https://ui.shadcn.com/docs/registry) items: the code that wires blocks into your app and that you are expected to edit. The shadcn CLI copies an item into your project, so it becomes yours.
+
+The registry holds no UI. better-supabase ships no visible components: the interface comes from your own shadcn components and a block's hook, following a [UI recipe](/docs/registry/ui-recipes). It holds no config or SQL either: install a block with `npx better-supabase sql add <block>`, which writes its migration and config, and each item's docs say which blocks it needs.
+
+## Add the namespace
+
+Add the registry to `components.json`:
+
+```json title="components.json"
+{
+  "registries": {
+    "@better-supabase": "https://bettersupabase.com/r/{name}.json"
+  }
+}
+```
+
+Then install items by name:
+
+```bash
+npx better-supabase sql add outbox
+npx shadcn add @better-supabase/outbox-relay-next
+```
+
+Without the namespace, install an item by its URL: `npx shadcn add https://bettersupabase.com/r/outbox-relay-next.json`.
+
+The shadcn MCP server reads the same namespace, so an agent connected to it can search and install the items ([for AI agents](/docs/for-ai-agents#shadcn-registry)).
+
+## Items
+
+| Item                         | Type            | What it installs                                                                                  | Blocks                                      |
+| ---------------------------- | --------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `blocks`                     | `registry:lib`  | `lib/blocks.ts`: typed block clients over the Data API as the caller, and the notification types  | organizations, notifications, search, audit |
+| `postgres`                   | `registry:lib`  | `lib/postgres.ts`: one server pool for the outbox, jobs, webhook inbox and billing                | jobs, outbox, billing                       |
+| `notifications-actions-next` | `registry:lib`  | server actions that list, count and mark the caller's notifications                               | notifications                               |
+| `onboarding-checklist`       | `registry:lib`  | `lib/onboarding.ts`: a getting-started checklist definition                                       | onboarding                                  |
+| `outbox`                     | `registry:lib`  | `lib/outbox.ts`: the outbox on the server connection                                              | outbox                                      |
+| `use-current-organization`   | `registry:hook` | the active organization and `switchTo`, for React DOM and React Native                            | organizations                               |
+| `push-native`                | `registry:hook` | `usePushRegistration`: registers the Expo push token                                              | push                                        |
+| `outbox-relay-next`          | `registry:file` | `app/api/outbox/route.ts`: the cron route that relays outbox events                               | outbox                                      |
+| `outbox-relay-hono`          | `registry:file` | `src/routes/outbox.ts`: the same relay as a Hono route                                            | outbox                                      |
+| `stripe-webhook-next`        | `registry:file` | the Stripe webhook route, a cron route that hands stored events to billing, and `lib/stripe.ts`   | billing, webhook-inbox                      |
+| `jobs-drain-next`            | `registry:file` | `lib/jobs.ts` and `app/api/jobs/drain/route.ts`: the queues and their cron route                  | jobs                                        |
+| `expo-config-native`         | `registry:file` | `app.config.ts`: the URL scheme for auth deep links, secure storage and push on top of `app.json` | push                                        |
+| `saas-next`                  | `registry:item` | the glue of the `saas` preset on Next.js, as registry dependencies                                | the `saas` blocks                           |
+| `saas-expo`                  | `registry:item` | the glue of the `saas` preset on Expo                                                             | the `saas` blocks                           |
+
+A framework or platform variant is its own item, named after it (`outbox-relay-next`, `outbox-relay-hono`, `push-native`). The `registry:file` items target your project root (`~/app/api/...`); with a `src/` folder, move the file under `src/`.
+
+## What every item carries
+
+| Field                  | Content                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `dependencies`         | `better-supabase@^<version>` of the release that built the registry, plus the packages the code imports |
+| `registryDependencies` | other `@better-supabase/*` items only                                                                   |
+| `envVars`              | development values only, such as the local stack's database URL; set real values in your deployment     |
+| `docs`                 | the blocks to install and a link to their docs page                                                     |
+| `meta`                 | `block` (one block or a list), `platforms` (`web`, `native`) and `frameworks`                           |
+
+`packages/registry` in the repository holds the sources. Every item typechecks against the package, a test validates the built items against the shadcn registry schema of the release pinned in `SPEC_PINS.shadcnRegistry` ([standards](/docs/standards)), and each `meta.block` must name a block in the catalog.

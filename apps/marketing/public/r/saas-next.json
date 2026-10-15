@@ -1,0 +1,44 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "saas-next",
+  "title": "SaaS glue (Next.js)",
+  "description": "The glue for the saas preset on Next.js: block clients, notification actions, onboarding, the organization hook and the outbox, jobs and Stripe routes.",
+  "dependencies": [
+    "better-supabase@^0.8.0"
+  ],
+  "registryDependencies": [
+    "@better-supabase/blocks",
+    "@better-supabase/notifications-actions-next",
+    "@better-supabase/onboarding-checklist",
+    "@better-supabase/use-current-organization",
+    "@better-supabase/outbox-relay-next",
+    "@better-supabase/jobs-drain-next",
+    "@better-supabase/stripe-webhook-next"
+  ],
+  "envVars": {},
+  "meta": {
+    "block": [
+      "organizations",
+      "notifications",
+      "search",
+      "audit",
+      "onboarding",
+      "outbox",
+      "jobs",
+      "billing",
+      "webhook-inbox"
+    ],
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ],
+    "preset": "saas"
+  },
+  "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+  "categories": [
+    "preset"
+  ],
+  "type": "registry:item"
+}

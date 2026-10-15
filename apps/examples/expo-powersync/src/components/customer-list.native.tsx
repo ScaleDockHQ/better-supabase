@@ -1,5 +1,6 @@
 import { useConflicts, useWatch } from "better-supabase/powersync/react";
 import { useDebouncedSearch } from "better-supabase/react";
+import { router } from "expo-router";
 import { useState } from "react";
 import { Button, Text, TextInput, View } from "react-native";
 
@@ -68,6 +69,12 @@ export function CustomerList() {
                   }}
                 />
               ) : null}
+              <Button
+                title="Notifications and search"
+                onPress={() => {
+                  router.push("/activity");
+                }}
+              />
               <Button title="Sign out" onPress={() => void signOut()} />
             </View>
           }

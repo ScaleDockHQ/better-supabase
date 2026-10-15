@@ -1,0 +1,38 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "outbox-relay-next",
+  "title": "Outbox relay route (Next.js)",
+  "description": "app/api/outbox/route.ts: a cron route that relays each registered consumer's events.",
+  "dependencies": [
+    "better-supabase@^0.8.0",
+    "server-only"
+  ],
+  "registryDependencies": [
+    "@better-supabase/outbox"
+  ],
+  "files": [
+    {
+      "path": "items/app/api/outbox/route.ts",
+      "content": "import \"server-only\";\nimport { outbox } from \"@/lib/outbox\";\n\n/**\n * Relays each registered consumer's events. Call it from a cron, such as\n * `{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }` in `vercel.json`,\n * which sends `Authorization: Bearer <CRON_SECRET>`.\n */\nexport const GET = outbox.relayRoute({\n  secret: process.env.CRON_SECRET,\n  consumers: {\n    log: (events) => {\n      for (const event of events) console.info(event.type, event.id);\n    },\n  },\n  onError: (error, consumer) => {\n    console.error(consumer, error.message);\n  },\n});\n",
+      "type": "registry:file",
+      "target": "~/app/api/outbox/route.ts"
+    }
+  ],
+  "envVars": {
+    "CRON_SECRET": "development-cron-secret"
+  },
+  "meta": {
+    "block": "outbox",
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ]
+  },
+  "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
+  "categories": [
+    "route"
+  ],
+  "type": "registry:file"
+}

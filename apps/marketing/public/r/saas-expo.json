@@ -1,0 +1,40 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "saas-expo",
+  "title": "SaaS glue (Expo)",
+  "description": "The glue for the saas preset on Expo: block clients, onboarding, the organization hook, push registration and the Expo config.",
+  "dependencies": [
+    "better-supabase@^0.8.0"
+  ],
+  "registryDependencies": [
+    "@better-supabase/blocks",
+    "@better-supabase/onboarding-checklist",
+    "@better-supabase/use-current-organization",
+    "@better-supabase/push-native",
+    "@better-supabase/expo-config-native"
+  ],
+  "envVars": {},
+  "meta": {
+    "block": [
+      "organizations",
+      "notifications",
+      "search",
+      "audit",
+      "onboarding",
+      "push"
+    ],
+    "platforms": [
+      "native"
+    ],
+    "frameworks": [
+      "expo"
+    ],
+    "preset": "saas"
+  },
+  "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding push`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+  "categories": [
+    "preset",
+    "native"
+  ],
+  "type": "registry:item"
+}

@@ -7,6 +7,8 @@ import * as v from "valibot";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import { toNotificationRow } from "./notification-types";
+
 /**
  * Sends the caller a notification (the notifications SQL module checks
  * `notifications.send`); the badge updates on `notifications:<user id>`.
@@ -50,4 +52,16 @@ export const loadNotificationCounts = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) =>
     blocks(supabase).notifications.counts({ tenant }),
+);
+
+/** The caller's latest notifications, loaded by `useNotifications` after each broadcast. */
+export const loadNotifications = bs.action(
+  { requireTenant: true },
+  async (_input, { tenant, supabase }) => {
+    const items = await blocks(supabase).notifications.list({
+      tenant,
+      limit: 20,
+    });
+    return items.ok ? ok(items.data.map(toNotificationRow)) : items;
+  },
 );
