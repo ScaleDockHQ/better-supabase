@@ -347,6 +347,19 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
         (await asTarget.move(source, `${OTHER}/${RUN}/w/out.txt`)).error,
       ).kind,
     ).toBe("forbidden");
+
+    const unowned = own("unowned.txt");
+    const claimed = own("claimed.txt");
+    const { error } = await service.storage
+      .from(files.id)
+      .upload(unowned, text("service"));
+    if (error) throw error;
+    expect(await row(files.id, unowned)).toMatchObject({ owner_id: null });
+    expect((await asTarget.move(unowned, claimed)).error).toBeNull();
+    expect(await row(files.id, claimed)).toMatchObject({
+      owner_id: USER,
+      user_metadata: { supportSessionId: SESSION.id },
+    });
   });
 
   it("surfaces the bucket's allowed MIME types", async () => {

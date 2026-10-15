@@ -58,12 +58,15 @@ const SAVEPOINT = "better_supabase_support_write";
 const INSERT_OBJECT = `insert into storage.objects (bucket_id, name, owner, owner_id, user_metadata)
 values ($1, $2, $3::uuid, $4, $5::jsonb)`;
 
-const UPSERT_OBJECT = `${INSERT_OBJECT}
-on conflict (bucket_id, name) do update
+const CURRENT_VERSION_INDEX = `select exists (select 1 from pg_indexes
+where schemaname = 'storage' and tablename = 'objects' and indexname = 'idx_objects_current_version') as versioned`;
+
+const upsertObject = (versioned: boolean): string => `${INSERT_OBJECT}
+on conflict ${versioned ? '(bucket_id, name collate "C") where archived_at is null' : "(bucket_id, name)"} do update
 set owner = excluded.owner, owner_id = excluded.owner_id, user_metadata = excluded.user_metadata`;
 
 const SOURCE_OBJECT =
-  "select name from storage.objects where bucket_id = $1 and name = $2";
+  "select name, owner_id from storage.objects where bucket_id = $1 and name = $2";
 
 const MOVE_OBJECT = `update storage.objects
 set bucket_id = $3, name = $4, owner = $5::uuid, owner_id = $6
@@ -82,6 +85,10 @@ where bucket_id = $1 and name = $2 and user_metadata ->> 'supportSessionId' = $5
 const OWN_COPY = `update storage.objects
 set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
 where bucket_id = $1 and name = $2 and owner_id is null`;
+
+const OWN_MOVE = `update storage.objects
+set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
+where bucket_id = $1 and name = $2 and owner_id is not distinct from $6`;
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -213,7 +220,9 @@ function refusedWrite(cause: unknown): StorageFailure | undefined {
   if (raw?.code === "42501")
     return apiError(
       403,
-      raw.message ?? "new row violates row-level security policy",
+      raw.message === undefined || raw.message.includes("row-level security")
+        ? "new row violates row-level security policy"
+        : raw.message,
       "AccessDenied",
     );
   if (raw?.code === "23505")
@@ -441,6 +450,14 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     Promise.resolve(failed(signedRefusal));
   const rows = (query: string, values: unknown[]): Promise<Row[]> =>
     sql.queryRaw<Row>(query, values);
+  let versioned: Promise<boolean> | undefined;
+  const upsertStatement = (): Promise<string> =>
+    (versioned ??= rows(CURRENT_VERSION_INDEX, [])
+      .then(([row]) => row?.["versioned"] === true)
+      .catch((cause: unknown) => {
+        versioned = undefined;
+        throw cause;
+      })).then(upsertObject);
   const rehearse = async (
     run: (client: SqlClient) => Promise<StorageFailure | null>,
   ): Promise<StorageFailure | null> => {
@@ -593,8 +610,9 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             const owner = ownerOf(active.targetUserId);
             const metadata = { ...fileOptions.metadata, ...stampOf(active) };
             const upsert = method === "update" || fileOptions.upsert === true;
+            const statement = upsert ? await upsertStatement() : INSERT_OBJECT;
             const refused = await rehearse(async (client) => {
-              await client.queryRaw(upsert ? UPSERT_OBJECT : INSERT_OBJECT, [
+              await client.queryRaw(statement, [
                 bucket,
                 name,
                 owner,
@@ -640,12 +658,14 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             const target = destination.destinationBucket ?? bucket;
             const owner = ownerOf(active.targetUserId);
             const stamp = JSON.stringify(stampOf(active));
+            let previousOwner: string | null = null;
             const refused = await rehearse(async (client) => {
-              const [found] = await client.queryRaw(SOURCE_OBJECT, [
+              const [found] = await client.queryRaw<Row>(SOURCE_OBJECT, [
                 bucket,
                 source,
               ]);
               if (!found) return NOT_FOUND;
+              previousOwner = text(found["owner_id"]) ?? null;
               if (method === "copy") {
                 await client.queryRaw(INSERT_OBJECT, [
                   target,
@@ -675,13 +695,22 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             )) as StorageResponse<T>;
             if (reply.error) return reply;
             try {
-              await ownerSql.queryRaw(OWN_COPY, [
-                target,
-                name,
-                owner,
-                active.targetUserId,
-                stamp,
-              ]);
+              await (method === "copy"
+                ? ownerSql.queryRaw(OWN_COPY, [
+                    target,
+                    name,
+                    owner,
+                    active.targetUserId,
+                    stamp,
+                  ])
+                : ownerSql.queryRaw(OWN_MOVE, [
+                    target,
+                    name,
+                    owner,
+                    active.targetUserId,
+                    stamp,
+                    previousOwner,
+                  ]));
             } catch (cause) {
               const written = options.admin.from(target);
               await (method === "copy"

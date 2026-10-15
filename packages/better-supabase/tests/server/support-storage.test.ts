@@ -599,14 +599,14 @@ function writableOf(
   ownerRules: readonly SqlRule[] = [],
 ) {
   const sql = targetSql(visible, [
+    ...rules,
     [
-      "select name from storage.objects",
+      "select name, owner_id from storage.objects",
       (call) =>
         visible.includes(String(call.values[1]))
-          ? [{ name: call.values[1] }]
+          ? [{ name: call.values[1], owner_id: null }]
           : [],
     ],
-    ...rules,
   ]);
   const owner = fakeSql(ownerRules);
   const service = fakeAdmin();
@@ -708,7 +708,7 @@ describe("supportStorage writes", () => {
       data: null,
       error: {
         name: "StorageApiError",
-        message: RLS,
+        message: "new row violates row-level security policy",
         status: 403,
         statusCode: "403",
         code: "AccessDenied",
@@ -813,7 +813,7 @@ describe("supportStorage writes", () => {
     ).toEqual({ data: { path: "docs/org/b" }, error: null });
     expect(sql.calls.slice(1, 3)).toEqual([
       {
-        text: "select name from storage.objects where bucket_id = $1 and name = $2",
+        text: "select name, owner_id from storage.objects where bucket_id = $1 and name = $2",
         values: ["docs", "org/a"],
       },
       {
@@ -854,8 +854,52 @@ describe("supportStorage writes", () => {
         SESSION.targetUserId,
       ],
     });
-    expect(owner.calls[1]?.values.slice(0, 2)).toEqual(["docs", "org/b"]);
+    expect(owner.calls[1]).toEqual({
+      text: "update storage.objects\nset owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb\nwhere bucket_id = $1 and name = $2 and owner_id is not distinct from $6",
+      values: [
+        "docs",
+        "org/b",
+        SESSION.targetUserId,
+        SESSION.targetUserId,
+        JSON.stringify(STAMP),
+        null,
+      ],
+    });
     expect(calls.map((call) => call.method)).toEqual(["copy", "move"]);
+  });
+
+  it("claims a moved object by the owner it had before the move", async () => {
+    const { docs, owner } = writableOf(
+      [],
+      [
+        [
+          "select name, owner_id from storage.objects",
+          [{ name: "org/a", owner_id: "someone-else" }],
+        ],
+        ["update storage.objects", [{ name: "org/b" }]],
+      ],
+    );
+    expect((await docs.move("org/a", "org/b")).error).toBeNull();
+    expect(owner.calls[0]?.values.at(-1)).toBe("someone-else");
+  });
+
+  it("upserts against the current-version index once Storage versions objects", async () => {
+    const { docs, sql } = writableOf(
+      [],
+      [["from pg_indexes", [{ versioned: true }]]],
+    );
+    await docs.upload("a", "x", { upsert: true });
+    await docs.update("b", "y");
+    await docs.upload("c", "z");
+    expect(
+      sql.texts().filter((text) => text.includes("from pg_indexes")),
+    ).toHaveLength(1);
+    const upserts = sql.texts().filter((text) => text.includes("on conflict"));
+    expect(upserts).toHaveLength(2);
+    for (const text of upserts)
+      expect(text).toContain(
+        'on conflict (bucket_id, name collate "C") where archived_at is null do update',
+      );
   });
 
   it("answers a hidden or unmovable source like a missing one", async () => {
