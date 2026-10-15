@@ -1,5 +1,7 @@
 import type {
   ApplicationEventData,
+  CollectionEntryEventData,
+  CollectionEventData,
   EmployeeEventData,
   DealEventData,
   EngagementEventData,
@@ -418,6 +420,8 @@ export type SubjectEventType =
   | "engagement.updated"
   | "engagement.completed"
   | "engagement.deleted"
+  | "collection.entry_added"
+  | "collection.entry_removed"
   | "pipeline.stage_changed"
   | "comment.created"
   | "comment.mentioned"
@@ -960,6 +964,10 @@ export interface BlockEventMap {
   "engagement.updated": EngagementEventData;
   "engagement.completed": EngagementEventData;
   "engagement.deleted": EngagementEventData;
+  "collection.created": CollectionEventData;
+  "collection.archived": CollectionEventData;
+  "collection.entry_added": CollectionEntryEventData;
+  "collection.entry_removed": CollectionEntryEventData;
   "company.created": PartyEventData;
   "company.updated": PartyEventData;
   "company.archived": PartyEventData;
@@ -1202,6 +1210,8 @@ export function onBlockEvent<P extends BlockEventPattern>(
 
 export type {
   ApplicationEventData,
+  CollectionEntryEventData,
+  CollectionEventData,
   EmployeeEventData,
   DealEventData,
   EngagementEventData,

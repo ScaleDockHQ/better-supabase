@@ -33,6 +33,7 @@ describe("bulk client", () => {
       "stateMachine.transition",
       "relations.link",
       "trash.trash",
+      "collections.add",
     ];
     expect(Object.keys(BULK_ACTIONS)).toEqual(actions);
   });

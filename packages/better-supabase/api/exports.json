@@ -1997,6 +1997,8 @@
       "CloudEvent",
       "CloudEventOptions",
       "CollaborationEventData",
+      "CollectionEntryEventData",
+      "CollectionEventData",
       "CommentEventData",
       "CommerceEventData",
       "CommerceSubjectEventData",
@@ -4383,6 +4385,37 @@
       "Person",
       "PersonInput",
       "RpcClient"
+    ]
+  },
+  "./blocks/collections": {
+    "values": [
+      "COLLECTION_SCOPES",
+      "createCollections",
+      "dbTransport",
+      "extendBlock",
+      "MAX_COLLECTION_IDS",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Collection",
+      "CollectionEntry",
+      "CollectionEntryCursor",
+      "CollectionEntryPage",
+      "CollectionListOptions",
+      "Collections",
+      "CollectionScope",
+      "CollectionsOptions",
+      "CollectionSubject",
+      "CreateCollectionInput",
+      "RenameCollectionInput",
+      "RpcClient",
+      "Star"
     ]
   },
   "./blocks/engagements": {

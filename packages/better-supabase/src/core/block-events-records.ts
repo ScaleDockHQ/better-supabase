@@ -24,6 +24,23 @@ export interface EngagementEventData extends SubjectEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
+/** `collection.created` and `collection.archived`: a list of one subject type. */
+export interface CollectionEventData {
+  readonly organizationId: string;
+  readonly collectionId: string;
+  /** The type of the records the collection holds. */
+  readonly subjectType: string;
+  readonly name: string;
+  /** For `collection.created`: `user`, `team` or `tenant`. */
+  readonly scope?: string;
+}
+
+/** `collection.entry_added` and `collection.entry_removed`: a record in a list. */
+export interface CollectionEntryEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly collectionId: string;
+}
+
 /** Events from the deals module. Amounts are minor units as text. */
 export interface DealEventData extends SubjectEventData {
   readonly organizationId: string;

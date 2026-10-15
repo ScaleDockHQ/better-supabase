@@ -549,6 +549,17 @@ begin
   if not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'views.read'), false)) then
     raise exception 'not allowed to save views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
+  if save_view.state ? 'collectionId' and (
+    jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
+    or (save_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    or not exists (
+      select 1 from "better_supabase"."subject_collections" c
+      where c."id" = (save_view.state ->> 'collectionId')::uuid
+        and c."tenant_id" = save_view.tenant
+        and (v_service or c."scope" <> 'user' or c."owner_id" = auth.uid())
+    )) then
+    raise exception 'the view''s collection is not found' using errcode = 'P0002', hint = 'SAVED_VIEW_COLLECTION_NOT_FOUND';
+  end if;
   if save_view.scope = 'user' and auth.uid() is null then
     raise exception 'a personal view needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;

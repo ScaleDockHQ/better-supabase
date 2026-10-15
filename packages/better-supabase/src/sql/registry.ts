@@ -25,6 +25,7 @@ import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CATALOG } from "./modules/catalog.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
+import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
@@ -236,6 +237,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(TARGETS),
       built(HIRING),
       built(EMPLOYEES),
+      built(COLLECTIONS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

@@ -77,6 +77,7 @@
     "pipelines",
     "parties",
     "engagements",
+    "collections",
     "deals",
     "work-items",
     "quotes",

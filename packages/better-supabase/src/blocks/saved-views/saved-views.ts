@@ -55,6 +55,12 @@ export interface SavedViewState<
   readonly density?: SavedViewDensity;
   /** Settings of the layout, such as a board's group column or a calendar's date field. */
   readonly layout?: Readonly<Record<string, unknown>>;
+  /**
+   * Keeps the view to the records of a collection
+   * (`better-supabase/blocks/collections`): pass `collections.where(id)` as
+   * the list's `where`.
+   */
+  readonly collectionId?: string;
 }
 
 /** The part of a view's state that lives outside the URL. */
@@ -236,6 +242,15 @@ export function savedViewIssues(
   if (state["layout"] !== undefined && !isRecord(state["layout"])) {
     issues.push({ message: "layout must be an object", path: ["layout"] });
   }
+  if (
+    state["collectionId"] !== undefined &&
+    typeof state["collectionId"] !== "string"
+  ) {
+    issues.push({
+      message: "collectionId must be a collection id",
+      path: ["collectionId"],
+    });
+  }
   const query = state["query"];
   if (query !== undefined) {
     if (!isRecord(query)) {
@@ -280,6 +295,7 @@ export function savedViewStateSchema(
       grouping: ids,
       density: { enum: [...SAVED_VIEW_DENSITIES] },
       layout: { type: "object" },
+      collectionId: { type: "string", format: "uuid" },
     },
   };
 }

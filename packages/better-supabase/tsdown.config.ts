@@ -104,6 +104,7 @@ const entries = [
   "blocks/templates/index",
   "blocks/pipelines/index",
   "blocks/parties/index",
+  "blocks/collections/index",
   "blocks/engagements/index",
   "blocks/deals/index",
   "blocks/work-items/index",

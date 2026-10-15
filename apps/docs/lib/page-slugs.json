@@ -42,6 +42,7 @@
   "blocks/bulk",
   "blocks/calendar",
   "blocks/catalog",
+  "blocks/collections",
   "blocks/comments",
   "blocks/commerce",
   "blocks/connectors",

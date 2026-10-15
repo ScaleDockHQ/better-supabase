@@ -1,0 +1,139 @@
+---
+title: Collections
+description: Favorites (a member's starred records, ranked for a sidebar) and lists (named, static collections of one record type owned by a user, a team or the organization) on any registered record.
+---
+
+`collections` keeps two kinds of hand-picked record sets. Favorites are a member's own stars: any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can be starred, and the stars keep a rank so a sidebar shows them in the order the member drags them into. Lists are named, static collections of one record type, such as "Key accounts" or "Conference leads": a member adds records by hand or in bulk, and the list keeps them until someone removes them.
+
+A list is the static counterpart of a [saved view](/docs/blocks/saved-views). A saved view stores a filter, so its rows change as the data changes; a list stores the records themselves. Like a saved view, a list belongs to one user, a team (with the [teams](/docs/blocks/teams) module) or the whole organization.
+
+Reading needs `collections.read`, and starring, creating personal lists and changing entries need `collections.write`. Creating, renaming or archiving a team or organization list needs `collections.share`. Admins get every permission, and members get `collections.read` and `collections.write`.
+
+```bash
+better-supabase sql add collections
+```
+
+The module needs `tenant`, `access` and `subjects`, and uses `teams` for team lists and `outbox` for its events.
+
+```ts
+import { createCollections } from "better-supabase/blocks/collections";
+
+const collections = createCollections({ transport });
+
+await collections.star(organizationId, { type: "deal", id: dealId }).orThrow();
+const stars = await collections.starred(organizationId).orThrow();
+
+const keyAccounts = await collections
+  .create(organizationId, {
+    name: "Key accounts",
+    subjectType: "company",
+    scope: "team",
+    teamId,
+  })
+  .orThrow();
+await collections.add(keyAccounts.id, [acmeId, globexId]).orThrow();
+```
+
+## Favorites
+
+| Method                                     | Does                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| `star(organizationId, subject)`            | Stars a record at the end of the caller's favorites; a starred one stays put |
+| `unstar(subject)`                          | Removes the star; `false` when there was none                                |
+| `starred(organizationId, { type })`        | The caller's stars in rank order, with each record's `title` and `url`       |
+| `reorderStar(subject, { previous, next })` | Moves a star between its neighbours' rank keys                               |
+
+Stars are private: each member reads and changes only their own. The record must belong to the organization and the caller must be able to read it (`FAVORITE_SUBJECT_FORBIDDEN`). `title` and `url` come from the record's `title` and `url` in `config.subjects`.
+
+These stars are separate from the [search](/docs/blocks/search) module's starred results, which only the command palette reads.
+
+## Lists
+
+`create(organizationId, { name, subjectType, scope, teamId, description })` makes a list of one subject type, which must be a registered type with a tenant column (`COLLECTION_SUBJECT_TYPE_UNKNOWN`). The scope defaults to `user`; a `team` list needs a team the caller belongs to.
+
+| Method                                                   | Does                                                                                                        |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `add(id, subjectIds)`                                    | Adds up to 1000 records to the end, in the order given; ids already in the list are skipped                 |
+| `remove(id, subjectIds)`                                 | Removes records; resolves to how many were removed                                                          |
+| `reorder(id, subjectId, neighbors)`                      | Moves an entry between its neighbours' rank keys                                                            |
+| `entries(id, { limit, cursor })`                         | A page of entries in rank order (default 50, at most 200) with `rank`, `addedBy`, `addedAt`, `title`, `url` |
+| `listsOf(subject)`                                       | The active lists the caller sees that hold a record, for a record's "In lists" panel                        |
+| `list(organizationId, { subjectType, includeArchived })` | The lists the caller sees, by name                                                                          |
+| `rename(id, { name, description })`                      | Changes the name or the description (`null` clears it)                                                      |
+| `archive(id, archived?)`                                 | Archives a list, or restores it with `false`; an archived list keeps its entries but takes no changes       |
+
+`add` checks every record before it writes one: a record that is unknown, in another organization or unreadable fails the whole call (`COLLECTION_SUBJECT_FORBIDDEN`). `entries` returns `next` while there may be more; pass it as `cursor`.
+
+Who sees a list follows its scope: the owner, the team's members, or every member with `collections.read`. Anyone who sees a list and holds `collections.write` changes its entries. An entry is visible only when the caller can also read its record through the record table's own policies, so a shared list never shows a record to someone who can't open it.
+
+When a record type sets `cascade: true` in `config.subjects`, deleting a record deletes its entries and its stars.
+
+## Saved views and bulk actions
+
+A saved view can show only the records of a list: store the list's id as `state.collectionId`, and pass `collections.where(id)` as the list query's `where`. With the collections module installed, `save` checks that the list exists in the organization and is shared or the caller's own (`SAVED_VIEW_COLLECTION_NOT_FOUND`).
+
+```ts
+const view = defaultView(
+  await views.list(organizationId, "companies").orThrow(),
+);
+const where = view?.state.collectionId
+  ? await collections.where(view.state.collectionId).orThrow()
+  : undefined;
+const page = await companiesList.run(db, query, { where }).orThrow();
+```
+
+`where` reads up to 500 ids (`max` raises it to 1000) and returns `{ id: { in: ids } }`; pass `column` when the list's rows point at the record through another column. `subjectIds(id)` returns the same ids.
+
+With the [bulk](/docs/blocks/bulk) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
+
+```ts
+await bulk
+  .run({
+    organizationId,
+    subjectType: "person",
+    rows: selectedIds,
+    action: "collections.add",
+    args: { collectionId: list.id },
+  })
+  .orThrow();
+```
+
+## Events
+
+| Event                                                | Data                                                             |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `collection.created`                                 | `organizationId`, `collectionId`, `subjectType`, `name`, `scope` |
+| `collection.archived`                                | `organizationId`, `collectionId`, `subjectType`, `name`          |
+| `collection.entry_added`, `collection.entry_removed` | `organizationId`, `collectionId`, `subjectType`, `subjectId`     |
+
+Stars record no events: they are a member's own bookmarks.
+
+## Hooks
+
+The module calls `before_collection_create(tenant, subject_type text, scope text)`, `after_collection_create(collection uuid)`, `before_collection_add(collection uuid, subject_ids text[])` and `after_collection_add(collection uuid, added text[])`. A `before_` hook raises to refuse the write. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
+
+## Wire it to ReUI
+
+The ReUI Contacts Directory (`solution-crm-3`) has a multi-select toolbar with an "Add to list" action. Fill its list picker from `list(organizationId, { subjectType: "person" })`, offer "New list" through `create`, and run the action through `bulk.run` with `collections.add` so each row reports its own result; a picker without the bulk module calls `add(listId, selectedIds)`. A "Lists" filter on the directory stores the chosen list as a saved view's `state.collectionId`.
+
+The Pipeline Dashboard's deal cards carry a favorite star. Read `starred(organizationId, { type: "deal" })` once into a set of ids, toggle a card's star with `star` or `unstar`, and render the sidebar's "Favorites" group from the same rows, using `title` and `url`. Dragging a favorite calls `reorderStar` with the keys of its new neighbours.
+
+## Errors
+
+| Hint                               | Cause                                                                |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `COLLECTION_FORBIDDEN`             | the caller lacks the permission or can't change this list            |
+| `COLLECTION_NOT_FOUND`             | no list the caller sees                                              |
+| `COLLECTION_INVALID`               | an unknown scope, a team list without a team, or no signed-in user   |
+| `COLLECTION_NAME_REQUIRED`         | the name is empty                                                    |
+| `COLLECTION_SUBJECT_TYPE_UNKNOWN`  | not a registered subject type with a tenant                          |
+| `COLLECTION_SUBJECT_TYPE_MISMATCH` | a bulk run's subject type isn't the list's                           |
+| `COLLECTION_SUBJECT_FORBIDDEN`     | a record is unknown, in another organization or unreadable           |
+| `COLLECTION_ARCHIVED`              | the list is archived                                                 |
+| `COLLECTION_TOO_MANY`              | more than 1000 ids in one call                                       |
+| `COLLECTION_RANK_INVALID`          | not a rank key                                                       |
+| `FAVORITE_FORBIDDEN`               | the caller lacks `collections.read` in the organization              |
+| `FAVORITE_SUBJECT_FORBIDDEN`       | the record is unknown, in another organization or unreadable         |
+| `FAVORITE_INVALID`                 | no signed-in user                                                    |
+| `FAVORITE_RANK_INVALID`            | not a rank key                                                       |
+| `RANK_KEY_INVALID`                 | the neighbours passed to `reorder` or `reorderStar` aren't rank keys |
