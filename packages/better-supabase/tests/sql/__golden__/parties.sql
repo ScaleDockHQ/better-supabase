@@ -1248,6 +1248,125 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+create table if not exists "better_supabase"."person_inbox_contacts" (
+  "tenant_id" uuid not null,
+  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
+  "contact_id" uuid not null unique references "better_supabase"."contacts" ("id") on delete cascade,
+  "created_at" timestamptz not null default now(),
+  primary key ("person_id", "contact_id")
+);
+alter table "better_supabase"."person_inbox_contacts" enable row level security;
+revoke all on "better_supabase"."person_inbox_contacts" from anon, authenticated;
+grant select on "better_supabase"."person_inbox_contacts" to authenticated;
+grant all on "better_supabase"."person_inbox_contacts" to service_role;
+drop policy if exists person_inbox_contacts_read on "better_supabase"."person_inbox_contacts";
+create policy person_inbox_contacts_read on "better_supabase"."person_inbox_contacts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+
+-- Links an inbox contact to a person in the same organization; a contact
+-- linked to someone else moves.
+create or replace function "better_supabase"."link_inbox_contact"(person uuid, contact uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p
+  join "better_supabase"."contacts" k on k."id" = link_inbox_contact.contact and k."tenant_id"::text = p."tenant_id"::text
+  where p."id" = link_inbox_contact.person;
+  if v_tenant is null then
+    raise exception 'person or contact not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."person_inbox_contacts" ("tenant_id", "person_id", "contact_id")
+  values (v_tenant, link_inbox_contact.person, link_inbox_contact.contact)
+  on conflict ("contact_id") do update set "person_id" = excluded."person_id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."link_inbox_contact"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."link_inbox_contact"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."unlink_inbox_contact"(contact uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."person_inbox_contacts" x where x."contact_id" = unlink_inbox_contact.contact;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_inbox_contacts" x where x."contact_id" = unlink_inbox_contact.contact;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."unlink_inbox_contact"(uuid) from public, anon;
+grant execute on function "better_supabase"."unlink_inbox_contact"(uuid) to authenticated, service_role;
+
+-- The person an inbox contact is linked to. Without a link, the active
+-- person with the contact's email is linked first; with create, a contact
+-- with a name and no match becomes a new lead.
+create or replace function "better_supabase"."person_for_inbox_contact"(contact uuid, "create" boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_contact "better_supabase"."contacts";
+  v_person uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_contact from "better_supabase"."contacts" k where k."id" = person_for_inbox_contact.contact;
+  if v_contact."id" is null then
+    raise exception 'contact not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_contact."tenant_id", 'parties.read'), false)) then
+    raise exception 'not allowed to read people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  select x."person_id" into v_person from "better_supabase"."person_inbox_contacts" x where x."contact_id" = v_contact."id";
+  if v_person is null and v_contact."email" is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id"::text = v_contact."tenant_id"::text and p."email" = lower(v_contact."email") and p."archived_at" is null;
+  end if;
+  if v_person is null and person_for_inbox_contact."create" and nullif(trim(v_contact."name"), '') is not null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_contact."tenant_id", 'parties.write'), false)) then
+      raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+    end if;
+    v_person := ("better_supabase"."save_person"(v_contact."tenant_id", null, jsonb_strip_nulls(jsonb_build_object(
+      'name', v_contact."name", 'email', v_contact."email", 'phone', v_contact."phone"))) ->> 'id')::uuid;
+  end if;
+  if v_person is null then
+    return null;
+  end if;
+  insert into "better_supabase"."person_inbox_contacts" ("tenant_id", "person_id", "contact_id")
+  select p."tenant_id", v_person, v_contact."id" from "better_supabase"."people" p where p."id" = v_person
+  on conflict do nothing;
+  return (select to_jsonb(p) from "better_supabase"."people" p where p."id" = v_person);
+end;
+$$;
+revoke execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

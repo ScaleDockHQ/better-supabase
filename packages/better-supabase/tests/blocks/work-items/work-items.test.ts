@@ -227,3 +227,98 @@ describe("work-items block", () => {
     expect(workItemsSubjects().work_item.url).toBeUndefined();
   });
 });
+
+describe("work-items block, sparse rows and options", () => {
+  it("reads numbers given as numbers, missing dates and an empty tree node", async () => {
+    const sparse = {
+      ...ROW,
+      number: 3,
+      estimate: 2,
+      progress: null,
+      start_at: null,
+      end_at: null,
+      due_at: null,
+      parent_id: null,
+      team_id: null,
+      project_id: null,
+      iteration_id: null,
+      pipeline_id: null,
+      stage_id: null,
+      stage_entered_at: null,
+      priority: null,
+      assignees: "u1",
+      archived_at: "2026-10-14T09:00:00Z",
+    };
+    const t = transport({
+      create_work_item: () => sparse,
+      work_item_tree: () => [
+        {
+          id: "w1",
+          parentId: "w0",
+          identifier: "TASK-1",
+          title: "x",
+          state: "backlog",
+          startAt: "2026-10-20T09:00:00Z",
+          endAt: "2026-10-21T09:00:00Z",
+          dueAt: "2026-10-22T09:00:00Z",
+          locked: true,
+          depth: null,
+          progress: null,
+        },
+      ],
+      save_project: () => ({
+        id: "p1",
+        key: "PAY",
+        name: "Payments",
+        owner_user_id: "u1",
+        status: "planned",
+        start_on: null,
+        target_on: "2026-12-31",
+        progress: null,
+      }),
+      save_iteration: () => ({
+        id: "i1",
+        team_id: "t1",
+        name: "Sprint",
+        starts_on: null,
+        ends_on: null,
+      }),
+    });
+    const items = createWorkItems({
+      transport: t,
+      logger: {
+        error: () => undefined,
+        warn: () => undefined,
+        info: () => undefined,
+        debug: () => undefined,
+      },
+      hooks: { tree: { after: () => undefined } },
+    });
+    const item = await items.create("o", { title: "x" }).orThrow();
+    expect(item).toMatchObject({
+      number: 3n,
+      estimate: 2,
+      priority: 0,
+      assigneeIds: [],
+      archived: true,
+    });
+    expect(item.progress).toBeUndefined();
+    expect(t.calls[0]?.[1]).toMatchObject({ assignees: null });
+    const [node] = await items.tree("w1").orThrow();
+    expect(node).toMatchObject({
+      parentId: "w0",
+      locked: true,
+      depth: 0,
+      progress: 0,
+    });
+    expect(node?.dueAt).toBeDefined();
+    const project = await items
+      .saveProject("o", { id: "p1", startOn: null })
+      .orThrow();
+    expect(project).toMatchObject({ ownerId: "u1", status: "planned" });
+    expect(project.startOn).toBeUndefined();
+    const sprint = await items.saveIteration("o", { name: "Sprint" }).orThrow();
+    expect(sprint.teamId).toBe("t1");
+    expect(sprint.startsOn.toString()).toBe("1970-01-01");
+  });
+});
