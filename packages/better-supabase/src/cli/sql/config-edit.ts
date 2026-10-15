@@ -336,11 +336,25 @@ export function addBlocksToJson(
     return { ok: false, reason: "its blocks key isn't an object or a list" };
   }
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
-  return {
-    ok: true,
-    text: `${JSON.stringify({ ...config, blocks: next }, null, indent)}\n`,
-  };
+  return jsonEdit(source, config, { ...config, blocks: next }, indent);
 }
+
+/**
+ * The JSON config with `next` written, or `source` as it is when `next`
+ * holds the same values, so a formatted file isn't rewritten for nothing.
+ */
+const jsonEdit = (
+  source: string,
+  config: unknown,
+  next: unknown,
+  indent: string,
+): ConfigEdit => ({
+  ok: true,
+  text:
+    JSON.stringify(next) === JSON.stringify(config)
+      ? source
+      : `${JSON.stringify(next, null, indent)}\n`,
+});
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -395,10 +409,7 @@ export function setPresetInJson(source: string, value: string): ConfigEdit {
   }
   if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
-  return {
-    ok: true,
-    text: `${JSON.stringify({ ...config, preset: value }, null, indent)}\n`,
-  };
+  return jsonEdit(source, config, { ...config, preset: value }, indent);
 }
 
 /** A block client to wire: `key: exportName`, imported from `subpath`. */
@@ -562,8 +573,10 @@ export function setBlockInJson(
     return { ok: false, reason: "its blocks key isn't an object or a list" };
   }
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
-  return {
-    ok: true,
-    text: `${JSON.stringify({ ...config, blocks: { ...current, [name]: value } }, null, indent)}\n`,
-  };
+  return jsonEdit(
+    source,
+    config,
+    { ...config, blocks: { ...current, [name]: value } },
+    indent,
+  );
 }

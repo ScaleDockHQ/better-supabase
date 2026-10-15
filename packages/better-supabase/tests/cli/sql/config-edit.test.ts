@@ -448,6 +448,14 @@ describe("setBlockInJson", () => {
     });
   });
 
+  it("keeps the file as it is when the entry holds the same values", () => {
+    const source = '{ "blocks": { "teams": { "mode": "adopt" } } }\n';
+    expect(setBlockInJson(source, "teams", { mode: "adopt" })).toEqual({
+      ok: true,
+      text: source,
+    });
+  });
+
   it("refuses what isn't a JSON object with readable blocks", () => {
     expect(setBlockInJson("{", "teams", {}).ok).toBe(false);
     expect(setBlockInJson("[]", "teams", {}).ok).toBe(false);
