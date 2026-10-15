@@ -11,6 +11,8 @@ import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
 import { bs } from "@/lib/supabase/server";
 
+import { toOrganizationSummaries } from "./organization-queries";
+
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(2), v.maxLength(80));
 const Slug = v.pipe(
@@ -31,13 +33,11 @@ function slugify(name: string): string {
 }
 
 /**
- * Makes `organizationId` the active tenant. The tenant is a claim, so the
- * browser refreshes its session afterwards (see `useSwitchOrganization`).
+ * The caller's organizations with their plans, loaded by `useOrganizations`
+ * in the switcher after each switch.
  */
-export const switchOrganization = bs.action(
-  { input: v.object({ organizationId: Id }) },
-  async ({ organizationId }, { supabase }) =>
-    blocks(supabase).organizations.switch(organizationId),
+export const loadMyOrganizations = bs.action({}, async (_input, { db }) =>
+  db.$rpc("my_organizations").map((rows) => toOrganizationSummaries(rows)),
 );
 
 /** Creates an organization owned by the caller, then switches to it. */

@@ -28,7 +28,7 @@ import { settings } from "@/features/settings/settings-definition";
 import { metrics } from "@/metrics";
 
 /** `blocks.<module>.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+export const API_SCHEMA = "api";
 
 /**
  * The SQL modules as typed clients over the Data API, acting as the caller

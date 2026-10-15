@@ -898,12 +898,22 @@ msgctxt "billing.Im0KqV"
 msgid "not in your plan"
 msgstr "niet in je abonnement"
 
-#: src/features/customers/components/comment-form.tsx
+#: src/features/customers/components/comment-thread.tsx
+msgctxt "customers.ZTbdfB"
+msgid "No comments yet."
+msgstr "Nog geen reacties."
+
+#: src/features/customers/components/comment-thread.tsx
+msgctxt "customers.XDWEZM"
+msgid "Someone"
+msgstr "Iemand"
+
+#: src/features/customers/components/comment-thread.tsx
 msgctxt "customers.LgbKvU"
 msgid "Comment"
 msgstr "Reageren"
 
-#: src/features/customers/components/comment-form.tsx
+#: src/features/customers/components/comment-thread.tsx
 msgctxt "customers.Y8zV4A"
 msgid "Write a comment"
 msgstr "Schrijf een reactie"
@@ -963,16 +973,6 @@ msgstr "Reacties"
 msgctxt "customers.p38jo8"
 msgid "Visible to everyone in the organization."
 msgstr "Zichtbaar voor iedereen in de organisatie."
-
-#: src/features/customers/components/customer-detail.tsx
-msgctxt "customers.ZTbdfB"
-msgid "No comments yet."
-msgstr "Nog geen reacties."
-
-#: src/features/customers/components/customer-detail.tsx
-msgctxt "customers.XDWEZM"
-msgid "Someone"
-msgstr "Iemand"
 
 #: src/features/customers/components/customer-detail.tsx
 msgctxt "customers.QwtMmD"

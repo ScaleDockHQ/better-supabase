@@ -5,6 +5,7 @@ import { CommandSearch } from "../components/command-search";
 import { NotificationBell } from "../components/notification-bell";
 import { NotificationList } from "../components/notification-list";
 import { OnboardingChecklist } from "../components/onboarding-checklist";
+import { OrganizationSwitcher } from "../components/organization-switcher";
 
 /** iOS and Android: the UI recipes, with the same hooks as the Next.js example. */
 export default function ActivityScreen() {
@@ -19,6 +20,7 @@ export default function ActivityScreen() {
           }}
         />
       </View>
+      <OrganizationSwitcher />
       <OnboardingChecklist />
       {showList ? <NotificationList /> : null}
     </View>

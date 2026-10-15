@@ -1023,6 +1023,48 @@
       "types": "./dist/blocks/reactions/solid/index.d.ts",
       "default": "./dist/blocks/reactions/solid/index.js"
     },
+    "./blocks/comments/react": {
+      "@better-supabase/source": "./src/blocks/comments/react/index.ts",
+      "types": "./dist/blocks/comments/react/index.d.ts",
+      "react-server": "./dist/blocks/comments/react/server.js",
+      "default": "./dist/blocks/comments/react/index.js"
+    },
+    "./blocks/comments/vue": {
+      "@better-supabase/source": "./src/blocks/comments/vue/index.ts",
+      "types": "./dist/blocks/comments/vue/index.d.ts",
+      "default": "./dist/blocks/comments/vue/index.js"
+    },
+    "./blocks/comments/svelte": {
+      "@better-supabase/source": "./src/blocks/comments/svelte/index.ts",
+      "types": "./dist/blocks/comments/svelte/index.d.ts",
+      "default": "./dist/blocks/comments/svelte/index.js"
+    },
+    "./blocks/comments/solid": {
+      "@better-supabase/source": "./src/blocks/comments/solid/index.ts",
+      "types": "./dist/blocks/comments/solid/index.d.ts",
+      "default": "./dist/blocks/comments/solid/index.js"
+    },
+    "./blocks/organizations/react": {
+      "@better-supabase/source": "./src/blocks/organizations/react/index.ts",
+      "types": "./dist/blocks/organizations/react/index.d.ts",
+      "react-server": "./dist/blocks/organizations/react/server.js",
+      "default": "./dist/blocks/organizations/react/index.js"
+    },
+    "./blocks/organizations/vue": {
+      "@better-supabase/source": "./src/blocks/organizations/vue/index.ts",
+      "types": "./dist/blocks/organizations/vue/index.d.ts",
+      "default": "./dist/blocks/organizations/vue/index.js"
+    },
+    "./blocks/organizations/svelte": {
+      "@better-supabase/source": "./src/blocks/organizations/svelte/index.ts",
+      "types": "./dist/blocks/organizations/svelte/index.d.ts",
+      "default": "./dist/blocks/organizations/svelte/index.js"
+    },
+    "./blocks/organizations/solid": {
+      "@better-supabase/source": "./src/blocks/organizations/solid/index.ts",
+      "types": "./dist/blocks/organizations/solid/index.d.ts",
+      "default": "./dist/blocks/organizations/solid/index.js"
+    },
     "./blocks/catalog": {
       "@better-supabase/source": "./src/blocks/catalog/index.ts",
       "types": "./dist/blocks/catalog/index.d.ts",
@@ -1952,6 +1994,40 @@
       "./blocks/reactions/solid": {
         "types": "./dist/blocks/reactions/solid/index.d.ts",
         "default": "./dist/blocks/reactions/solid/index.js"
+      },
+      "./blocks/comments/react": {
+        "types": "./dist/blocks/comments/react/index.d.ts",
+        "react-server": "./dist/blocks/comments/react/server.js",
+        "default": "./dist/blocks/comments/react/index.js"
+      },
+      "./blocks/comments/vue": {
+        "types": "./dist/blocks/comments/vue/index.d.ts",
+        "default": "./dist/blocks/comments/vue/index.js"
+      },
+      "./blocks/comments/svelte": {
+        "types": "./dist/blocks/comments/svelte/index.d.ts",
+        "default": "./dist/blocks/comments/svelte/index.js"
+      },
+      "./blocks/comments/solid": {
+        "types": "./dist/blocks/comments/solid/index.d.ts",
+        "default": "./dist/blocks/comments/solid/index.js"
+      },
+      "./blocks/organizations/react": {
+        "types": "./dist/blocks/organizations/react/index.d.ts",
+        "react-server": "./dist/blocks/organizations/react/server.js",
+        "default": "./dist/blocks/organizations/react/index.js"
+      },
+      "./blocks/organizations/vue": {
+        "types": "./dist/blocks/organizations/vue/index.d.ts",
+        "default": "./dist/blocks/organizations/vue/index.js"
+      },
+      "./blocks/organizations/svelte": {
+        "types": "./dist/blocks/organizations/svelte/index.d.ts",
+        "default": "./dist/blocks/organizations/svelte/index.js"
+      },
+      "./blocks/organizations/solid": {
+        "types": "./dist/blocks/organizations/solid/index.d.ts",
+        "default": "./dist/blocks/organizations/solid/index.js"
       },
       "./blocks/catalog": {
         "types": "./dist/blocks/catalog/index.d.ts",

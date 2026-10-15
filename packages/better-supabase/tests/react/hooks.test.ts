@@ -24,9 +24,11 @@ import {
   useAiShare,
 } from "../../src/blocks/ai-chat/react/index.ts";
 import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
+import { useComments } from "../../src/blocks/comments/react/index.ts";
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
+import { useOrganizations } from "../../src/blocks/organizations/react/index.ts";
 import { useReactions } from "../../src/blocks/reactions/react/index.ts";
 import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
 import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
@@ -1329,6 +1331,174 @@ describe("useReactions", () => {
     });
     await flush();
     expect(view.result.reactions?.["c1"]?.[0]?.emoji).toBe("🎉");
+    view.unmount();
+  });
+});
+
+describe("useComments", () => {
+  const row = (id: string, body: string, deleted = false) => ({
+    id,
+    organization_id: "org-1",
+    subject_type: "customer",
+    subject_id: "cu1",
+    author_id: USER,
+    body: deleted ? "" : body,
+    mentions: [],
+    created_at: "2026-01-01T00:00:00Z",
+    deleted_at: deleted ? "2026-01-02T00:00:00Z" : null,
+  });
+
+  it("loads the thread, adds and removes, and reloads for the topic", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let thread = [row("c1", "First")];
+    const rpc = withRpc(client, (fn, args) => {
+      if (fn === "create_comment") return row("c2", String(args["body"]));
+      if (fn === "delete_comment") {
+        thread = [row("c1", "First", true)];
+        return true;
+      }
+      return thread;
+    });
+    const view = renderHook(
+      () =>
+        useComments({
+          organizationId: "org-1",
+          subjectType: "customer",
+          subjectId: "cu1",
+          topic: "comments:cu1",
+          schema: "api",
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.comments?.map((comment) => comment.body)).toEqual([
+      "First",
+    ]);
+    const { schema: toSchema } = client as unknown as {
+      schema: ReturnType<typeof vi.fn>;
+    };
+    expect(toSchema).toHaveBeenCalledWith("api");
+    expect(rpc).toHaveBeenCalledWith(
+      "list_comments",
+      expect.objectContaining({ tenant: "org-1", subject_id: "cu1" }),
+    );
+
+    expect((await view.result.add("Second")).ok).toBe(true);
+    expect(rpc).toHaveBeenLastCalledWith(
+      "create_comment",
+      expect.objectContaining({ body: "Second", subject_type: "customer" }),
+    );
+    expect(view.result.comments?.map((comment) => comment.id)).toEqual([
+      "c1",
+      "c2",
+    ]);
+
+    expect((await view.result.remove("c1")).ok).toBe(true);
+    expect(view.result.comments?.[0]?.deletedAt).toBeDefined();
+
+    const calls = rpc.mock.calls.length;
+    emit("comments:cu1", "INSERT", {});
+    await flush();
+    expect(rpc.mock.calls.length).toBe(calls + 1);
+    view.unmount();
+  });
+
+  it("waits without an organization", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => []);
+    const view = renderHook(
+      () =>
+        useComments({
+          organizationId: null,
+          subjectType: "customer",
+          subjectId: "cu1",
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.comments).toBeUndefined();
+    expect((await view.result.add("Hi")).ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+    view.unmount();
+  });
+});
+
+describe("useOrganizations", () => {
+  const rows = [
+    { id: "org-1", name: "Acme", role: "admin", attributes: {} },
+    { id: "org-2", name: "Globex", role: "member", attributes: {} },
+  ];
+
+  it("lists the organizations, switches and refreshes the session", async () => {
+    const { browser, client, setAuth } = fakeBrowser(
+      signedIn(USER, { tenant_id: "org-1" }),
+    );
+    const refreshSession = vi.fn(async () => {
+      setAuth(signedIn(USER, { tenant_id: "org-2" }));
+      return { data: {}, error: null };
+    });
+    Object.assign(client, { auth: { refreshSession } });
+    const rpc = withRpc(client, (fn) =>
+      fn === "switch_organization"
+        ? { organization_id: "org-2", refresh: true }
+        : rows,
+    );
+    const view = renderHook(() => useOrganizations(), undefined, {
+      client: browser,
+    });
+    await flush();
+    await flush();
+    expect(view.result.organizations?.map((each) => each.name)).toEqual([
+      "Acme",
+      "Globex",
+    ]);
+    expect(view.result.active?.name).toBe("Acme");
+
+    expect((await view.result.switchTo("org-2")).ok).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("switch_organization", {
+      organization: "org-2",
+    });
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(view.result.activeId).toBe("org-2");
+    expect(view.result.active?.name).toBe("Globex");
+    expect(view.result.switching).toBeUndefined();
+    view.unmount();
+  });
+
+  it("takes a loader, the server's rows and a switch callback", async () => {
+    const { browser, client } = fakeBrowser(LOADING);
+    const rpc = withRpc(client, () => ({
+      organization_id: "org-2",
+      refresh: true,
+    }));
+    const load = vi.fn(async () => [{ id: "org-2", plan: "pro" }]);
+    const onSwitched = vi.fn();
+    const view = renderHook(
+      () =>
+        useOrganizations({
+          load,
+          initial: [{ id: "org-1", plan: "free" }],
+          activeId: "org-1",
+          onSwitched,
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.active?.plan).toBe("free");
+    expect(load).not.toHaveBeenCalled();
+
+    await view.result.switchTo("org-2");
+    expect(onSwitched).toHaveBeenCalledWith({
+      organizationId: "org-2",
+      refresh: true,
+    });
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(view.result.organizations).toEqual([{ id: "org-2", plan: "pro" }]);
+    expect(rpc).toHaveBeenCalledTimes(1);
     view.unmount();
   });
 });

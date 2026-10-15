@@ -226,9 +226,9 @@ function activityOf(value: unknown): ActivityEntry {
 export function createComments(options: CommentsOptions): Comments {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const mentionsOf = (body: string, document: unknown): readonly string[] =>
+  const mentionsOf = (body: string, rich: unknown): readonly string[] =>
     options.mentionsOf
-      ? options.mentionsOf({ body, document })
+      ? options.mentionsOf({ body, document: rich })
       : mentionsIn(body);
   return {
     create: (comment) =>

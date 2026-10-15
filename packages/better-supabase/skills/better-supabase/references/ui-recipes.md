@@ -688,20 +688,407 @@ export function OnboardingChecklist() {
 }
 ```
 
+## Comment thread
+
+A record's comments with their authors and a form to add one, kept current after each write. Both sides call `useComments` from `better-supabase/blocks/comments/react`; the [comments block](https://bettersupabase.com/blocks/comments) must be installed (`npx better-supabase sql add comments`). Page: https://bettersupabase.com/recipes/comment-thread.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button field skeleton textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/customers/components/comment-thread.tsx"
+"use client";
+
+import { useComments } from "better-supabase/blocks/comments/react";
+import { useExtracted, useFormatter } from "next-intl";
+import { type SubmitEvent, useId, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { API_SCHEMA } from "@/lib/blocks";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+/** A customer's comments, oldest first, through the browser client. */
+export function CommentThread({
+  organizationId,
+  customerId,
+  authors,
+  canComment,
+}: {
+  organizationId: string;
+  customerId: string;
+  /** Display names by user id. */
+  authors: Readonly<Record<string, string>>;
+  canComment: boolean;
+}) {
+  const t = useExtracted("customers");
+  const format = useFormatter();
+  const errorMessage = useErrorMessage();
+  const fieldId = useId();
+  const [body, setBody] = useState("");
+  const [pending, setPending] = useState(false);
+  const { comments, error, add } = useComments({
+    organizationId,
+    subjectType: "customer",
+    subjectId: customerId,
+    schema: API_SCHEMA,
+  });
+  const visible = comments?.filter((comment) => !comment.deletedAt);
+
+  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = body.trim();
+    if (!text) return;
+    setPending(true);
+    if ((await add(text)).ok) setBody("");
+    setPending(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {visible === undefined ? (
+        <Skeleton className="h-16" />
+      ) : visible.length === 0 ? (
+        <p className="text-muted-foreground text-sm">{t("No comments yet.")}</p>
+      ) : (
+        <ol className="space-y-4" data-testid="comments">
+          {visible.map((comment) => (
+            <li key={comment.id} className="space-y-1">
+              <p className="text-sm">
+                <span className="font-medium">
+                  {(comment.authorId && authors[comment.authorId]) ??
+                    t("Someone")}
+                </span>{" "}
+                <span className="text-muted-foreground text-xs">
+                  {format.dateTime(comment.createdAt.epochMilliseconds, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
+              </p>
+              <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+      {canComment ? (
+        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+          <Field data-invalid={error ? true : undefined}>
+            <FieldLabel htmlFor={`${fieldId}-comment-body`} className="sr-only">
+              {t("Comment")}
+            </FieldLabel>
+            <Textarea
+              id={`${fieldId}-comment-body`}
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value);
+              }}
+              placeholder={t("Write a comment")}
+              required
+              maxLength={4000}
+              rows={3}
+            />
+            {error ? <FieldError>{errorMessage(error)}</FieldError> : null}
+          </Field>
+          <Button type="submit" size="sm" disabled={pending}>
+            {t("Comment")}
+          </Button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+```
+
+React Native, with `ActivityIndicator`, `Button`, `FlatList`, `Text`, `TextInput`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/comment-thread.tsx"
+import { useComments } from "better-supabase/blocks/comments/react";
+import { tenantOf, useAuth } from "better-supabase/react";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Button,
+  FlatList,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { API_SCHEMA } from "../lib/blocks";
+
+/** A customer's comments, oldest first, with a box to add one. */
+export function CommentThread({ customerId }: { readonly customerId: string }) {
+  const organizationId = tenantOf(useAuth());
+  const [body, setBody] = useState("");
+  const [pending, setPending] = useState(false);
+  const { comments, error, add } = useComments({
+    organizationId,
+    subjectType: "customer",
+    subjectId: customerId,
+    schema: API_SCHEMA,
+  });
+
+  const submit = async () => {
+    const text = body.trim();
+    if (!text) return;
+    setPending(true);
+    if ((await add(text)).ok) setBody("");
+    setPending(false);
+  };
+
+  if (comments === undefined) return <ActivityIndicator />;
+  return (
+    <View style={{ flex: 1, gap: 12 }}>
+      <FlatList
+        data={comments.filter((comment) => !comment.deletedAt)}
+        keyExtractor={(comment) => comment.id}
+        ListEmptyComponent={<Text>No comments yet.</Text>}
+        renderItem={({ item }) => (
+          <View style={{ paddingVertical: 8 }}>
+            <Text style={{ color: "#737373", fontSize: 12 }}>
+              {item.createdAt.toLocaleString()}
+            </Text>
+            <Text>{item.body}</Text>
+          </View>
+        )}
+      />
+      {error ? <Text style={{ color: "#b91c1c" }}>{error.message}</Text> : null}
+      <TextInput
+        value={body}
+        onChangeText={setBody}
+        placeholder="Write a comment"
+        multiline
+        maxLength={4000}
+        style={{ borderWidth: 1, borderRadius: 8, padding: 8, minHeight: 64 }}
+      />
+      <Button
+        title="Comment"
+        disabled={pending || !body.trim()}
+        onPress={() => void submit()}
+      />
+    </View>
+  );
+}
+```
+
+## Organization switcher
+
+A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim. Both sides call `useOrganizations` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase sql add organizations`). Page: https://bettersupabase.com/recipes/org-switcher.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add dropdown-menu sidebar
+```
+
+```tsx title="apps/examples/nextjs/src/features/organization/components/organization-switcher-menu.tsx"
+"use client";
+
+import { DbException } from "better-supabase";
+import { useOrganizations } from "better-supabase/blocks/organizations/react";
+import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { API_SCHEMA } from "@/lib/blocks";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import type { OrganizationSummary } from "../organization-queries";
+
+import { loadMyOrganizations } from "../organization-actions";
+import { useRefreshSession } from "../use-refresh-session";
+import { useRoleLabel } from "../use-role-label";
+import { CreateOrganizationDialog } from "./create-organization-dialog";
+
+function Mark({ name }: { name: string }) {
+  return (
+    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold">
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
+async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
+  const result = await loadMyOrganizations({});
+  if (!result.ok) throw new DbException(result.error);
+  return result.data;
+}
+
+/**
+ * The organization menu. The server renders it with its rows; switching
+ * goes through `switch_organization`, refreshes the session for the new
+ * tenant claim, then re-renders the server tree.
+ */
+export function OrganizationSwitcherMenu({
+  initial,
+  activeId: serverActiveId,
+}: {
+  initial: readonly OrganizationSummary[];
+  activeId: string | null;
+}) {
+  const t = useExtracted("organization");
+  const roleLabel = useRoleLabel();
+  const errorMessage = useErrorMessage();
+  const refreshSession = useRefreshSession();
+  const [pending, startTransition] = useTransition();
+  const [creating, setCreating] = useState(false);
+  const { organizations, active, activeId, switchTo } = useOrganizations({
+    load: loadOrganizations,
+    initial,
+    activeId: serverActiveId,
+    schema: API_SCHEMA,
+    onSwitched: () => refreshSession("/"),
+  });
+
+  const choose = (organization: OrganizationSummary) => {
+    startTransition(async () => {
+      const result = await switchTo(organization.id);
+      if (!result.ok) {
+        toast.error(errorMessage(result.error));
+        return;
+      }
+      toast.success(t("Switched to {name}", { name: organization.name }));
+    });
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={pending}
+          render={
+            <SidebarMenuButton
+              size="lg"
+              className="data-popup-open:bg-sidebar-accent"
+              aria-label={t("Switch organization")}
+            />
+          }
+        >
+          <Mark name={active?.name ?? "?"} />
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span
+              className="truncate font-medium"
+              data-testid="organization-name"
+            >
+              {active?.name ?? t("No organization")}
+            </span>
+            <span className="text-muted-foreground truncate text-xs capitalize">
+              {active ? active.plan : t("Create one to start")}
+            </span>
+          </div>
+          <ChevronsUpDownIcon className="ml-auto" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-64" align="start" side="bottom">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("Organizations")}</DropdownMenuLabel>
+            {(organizations ?? initial).map((organization) => (
+              <DropdownMenuItem
+                key={organization.id}
+                className="gap-2"
+                onClick={() => {
+                  if (organization.id !== activeId) choose(organization);
+                }}
+              >
+                <Mark name={organization.name} />
+                <div className="grid flex-1 leading-tight">
+                  <span className="truncate">{organization.name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {roleLabel(organization.role)}
+                  </span>
+                </div>
+                {organization.id === activeId ? <CheckIcon /> : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              setCreating(true);
+            }}
+          >
+            <PlusIcon />
+            {t("Create organization")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <CreateOrganizationDialog open={creating} onOpenChange={setCreating} />
+    </>
+  );
+}
+```
+
+React Native, with `ActivityIndicator`, `Pressable`, `Text`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/organization-switcher.tsx"
+import { useOrganizations } from "better-supabase/blocks/organizations/react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+
+import { API_SCHEMA } from "../lib/blocks";
+
+/**
+ * The caller's organizations. Pressing one switches to it, refreshes the
+ * session so the token carries the new tenant, and loads the list again.
+ */
+export function OrganizationSwitcher() {
+  const { organizations, activeId, switching, error, switchTo } =
+    useOrganizations({ schema: API_SCHEMA });
+  if (organizations === undefined) return <ActivityIndicator />;
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ fontSize: 17, fontWeight: "600" }}>Organizations</Text>
+      {organizations.map((organization) => (
+        <Pressable
+          key={organization.id}
+          accessibilityRole="button"
+          accessibilityState={{
+            selected: organization.id === activeId,
+            busy: organization.id === switching,
+          }}
+          disabled={switching !== undefined || organization.id === activeId}
+          onPress={() => void switchTo(organization.id)}
+          style={{ flexDirection: "row", gap: 8, paddingVertical: 8 }}
+        >
+          <Text style={{ width: 16 }}>
+            {organization.id === activeId ? "✓" : ""}
+          </Text>
+          <Text style={{ flex: 1 }}>{organization.name}</Text>
+          <Text style={{ color: "#737373" }}>{organization.role}</Text>
+        </Pressable>
+      ))}
+      {error ? <Text style={{ color: "#b91c1c" }}>{error.message}</Text> : null}
+    </View>
+  );
+}
+```
+
 ## Planned
 
 These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.
 
-| Recipe                | Block           | Waits for                                                                               |
-| --------------------- | --------------- | --------------------------------------------------------------------------------------- |
-| Comment thread        | `comments`      | a client controller and React hook for the comments block (plan 003, workstream 4)      |
-| Organization switcher | `organizations` | a client controller and React hook for the organizations block (plan 003, workstream 4) |
-| Members table         | `organizations` | a client controller and React hook for the organizations block (plan 003, workstream 4) |
-| Invite dialog         | `invitations`   | a client controller and React hook for the invitations block (plan 003, workstream 4)   |
-| Plan picker           | `billing`       | a client controller and React hook for the billing block (plan 003, workstream 4)       |
-| Usage meter           | `usage`         | a client controller and React hook for the usage block (plan 003, workstream 4)         |
-| Feature gate          | `entitlements`  | a client controller and React hook for the entitlements block (plan 003, workstream 4)  |
-| API keys table        | `api-keys`      | a client controller and React hook for the api-keys block (plan 003, workstream 4)      |
-| Audit log table       | `audit`         | a client controller and React hook for the audit block (plan 003, workstream 4)         |
-| Tag input             | `tags`          | a client controller and React hook for the tags block (plan 003, workstream 4)          |
-| Settings layout       | `settings`      | a client controller and React hook for the settings block (plan 003, workstream 4)      |
+| Recipe          | Block           | Waits for                                                                               |
+| --------------- | --------------- | --------------------------------------------------------------------------------------- |
+| Members table   | `organizations` | a client controller and React hook for the organizations block (plan 003, workstream 4) |
+| Invite dialog   | `invitations`   | a client controller and React hook for the invitations block (plan 003, workstream 4)   |
+| Plan picker     | `billing`       | a client controller and React hook for the billing block (plan 003, workstream 4)       |
+| Usage meter     | `usage`         | a client controller and React hook for the usage block (plan 003, workstream 4)         |
+| Feature gate    | `entitlements`  | a client controller and React hook for the entitlements block (plan 003, workstream 4)  |
+| API keys table  | `api-keys`      | a client controller and React hook for the api-keys block (plan 003, workstream 4)      |
+| Audit log table | `audit`         | a client controller and React hook for the audit block (plan 003, workstream 4)         |
+| Tag input       | `tags`          | a client controller and React hook for the tags block (plan 003, workstream 4)          |
+| Settings layout | `settings`      | a client controller and React hook for the settings block (plan 003, workstream 4)      |
