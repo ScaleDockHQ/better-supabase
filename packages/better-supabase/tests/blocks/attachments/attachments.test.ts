@@ -184,10 +184,12 @@ describe("createAttachments", () => {
       "create_attachment",
       "confirm_attachment",
     ]);
-    expect(storage.calls.at(-1)).toEqual([
-      "upload",
-      "org-1/attachments/a1",
-      { contentType: "application/pdf", upsert: false },
+    expect(storage.calls).toEqual([
+      [
+        "upload",
+        "org-1/attachments/a1",
+        { contentType: "application/pdf", upsert: false },
+      ],
     ]);
     expect(await attachments.read("a1")).toMatchObject({
       error: { hint: "ATTACHMENT_NOT_SCANNED" },
@@ -299,7 +301,7 @@ describe("createAttachments", () => {
     const refusedUrl = await createAttachments({
       transport: signing.transport,
       storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
-    }).put(file, new Blob(["hello"]));
+    }).upload(file);
     expect(refusedUrl.error).toMatchObject({
       kind: "forbidden",
       code: "SUPPORT_READ_ONLY",

@@ -284,7 +284,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
     await call("delete_attachment", { id: created.id }, (value) => value);
     return err(error);
   };
-  const upload = (attachment: NewAttachment): AsyncResult<AttachmentUpload> =>
+  const create = (attachment: NewAttachment): AsyncResult<Attachment> =>
     call(
       "create_attachment",
       {
@@ -297,7 +297,9 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         metadata: attachment.metadata,
       },
       attachmentOf,
-    ).andThen(async (created) => {
+    );
+  const upload = (attachment: NewAttachment): AsyncResult<AttachmentUpload> =>
+    create(attachment).andThen(async (created) => {
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
       );
@@ -335,7 +337,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
       }),
     put: (attachment, file) =>
-      upload(attachment).andThen(async ({ attachment: created }) => {
+      create(attachment).andThen(async (created) => {
         const target = bucket(created);
         if (!target.upload) {
           return discard(
