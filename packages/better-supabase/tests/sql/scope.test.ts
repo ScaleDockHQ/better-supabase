@@ -154,7 +154,7 @@ describe("module sources", () => {
         const code = line.trim();
         if (
           /^(\*|\/\/|\/\*|--)/.test(code) ||
-          /^"/.test(code) ||
+          code.startsWith('"') ||
           code.includes("-- ")
         )
           return;

@@ -334,16 +334,16 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
   const clashes = PRESET_TENANT_NAMES.filter(
     (tenant) => tenantNameClashes(module, tenant, SQL_MODULES).length > 0,
   );
-  const block = {
+  let block: PresetCatalogBlock = {
     name: module.name,
     title: module.title,
     category: manifest.category,
     requires,
     integrates: module.integrates ?? [],
     manifest: manifest.name,
-    ...(module.scopes === undefined ? {} : { scopes: module.scopes }),
-    ...(clashes.length === 0 ? {} : { tenantNameClashes: clashes }),
-  } satisfies PresetCatalogBlock;
+  };
+  if (module.scopes !== undefined) block = { ...block, scopes: module.scopes };
+  if (clashes.length > 0) block = { ...block, tenantNameClashes: clashes };
   return Object.keys(byAccess).length === 0
     ? block
     : { ...block, requiresByAccess: byAccess };

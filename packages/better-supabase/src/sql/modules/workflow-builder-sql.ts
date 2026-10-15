@@ -175,7 +175,7 @@ export function builderSql(
   const holds = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
   const userHolds = (user: string, tenant: string, key: string): string =>
-    `${ctx.scope.canUser(user, tenant, key)}`;
+    ctx.scope.canUser(user, tenant, key);
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>

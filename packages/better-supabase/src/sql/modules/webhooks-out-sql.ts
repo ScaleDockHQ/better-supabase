@@ -126,7 +126,7 @@ function userMay(
       )} as t(id))`;
   if (ctx.installed("access"))
     return (user, tenant, permission) =>
-      `${ctx.scope.canUser(user, tenant, permission)}`;
+      ctx.scope.canUser(user, tenant, permission);
   return () => "false";
 }
 

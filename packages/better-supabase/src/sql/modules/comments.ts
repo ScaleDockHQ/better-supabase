@@ -468,7 +468,11 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       const checks: string[] = [];
       if (subject.permission !== undefined) {
         checks.push(
-          `${ctx.scope.canUser(user, `new.${c("tenant")}`, sqlString(subject.permission))}`,
+          ctx.scope.canUser(
+            user,
+            `new.${c("tenant")}`,
+            sqlString(subject.permission),
+          ),
         );
       }
       const readableBy = expression(type, subject, "readableBy");
