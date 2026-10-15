@@ -48,6 +48,13 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   Add new ones with the shadcn CLI, then adjust them in place; the registry's
   `base-vega` items import `cn` from a `cn` package, so point the import at
   `@/lib/utils` instead of installing it.
+- `components/create`: the `/create` builder. It resolves the selection in
+  the browser with `better-supabase/preset` (helpers in `lib/create.ts`),
+  fetches rendered migrations from `app/create/migrations/route.ts`, and
+  draws the dependency graph as inline SVG with token classes
+  (`fill-card`, `stroke-border`). Form controls are native `select`,
+  radio and checkbox elements styled with the input tokens and
+  `accent-primary`.
 - `components/blocks`: the `/blocks` overview's client filter. The pages read
   `lib/blocks.ts`, which parses `lib/catalog.json`; `scripts/build-catalog.ts`
   writes that file from the SQL module registry before every marketing task.

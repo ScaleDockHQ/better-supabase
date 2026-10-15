@@ -84,10 +84,18 @@ export function encodePreset(
   preset: Partial<Preset>,
   layout: PresetLayout = LAYOUT,
 ): string {
+  return encodeWith((key) => valueOf(preset, key), preset.blocks ?? [], layout);
+}
+
+function encodeWith(
+  read: (key: string) => string | readonly string[] | undefined,
+  blocks: readonly string[],
+  layout: PresetLayout,
+): string {
   let value = 0n;
   let offset = 0n;
   for (const field of layout.fields) {
-    const given = valueOf(preset, field.key) ?? field.default;
+    const given = read(field.key) ?? field.default;
     let bits: bigint;
     if (field.multi === true) {
       const list = typeof given === "string" ? [given] : given;
@@ -99,7 +107,7 @@ export function encodePreset(
     value |= bits << offset;
     offset += BigInt(field.bits);
   }
-  for (const name of new Set(preset.blocks ?? [])) {
+  for (const name of new Set(blocks)) {
     const index = layout.blocks.indexOf(name);
     if (index < 0) {
       throw new TypeError(
@@ -109,6 +117,33 @@ export function encodePreset(
     value |= 1n << (offset + BigInt(index));
   }
   return BASE62.charAt(layout.version) + toBase62(value);
+}
+
+/**
+ * The preset with one convention set to `value`, checked against the field:
+ * a value the field doesn't list throws. For a field that takes several
+ * values (`integrations`), `value` switches that one on or off.
+ */
+export function withPresetField(
+  preset: Preset,
+  key: PresetFieldKey,
+  value: string,
+): Preset {
+  const field = LAYOUT.fields.find((each) => each.key === key);
+  const current = valueOf(preset, key);
+  let next: string | readonly string[] = value;
+  if (field?.multi === true) {
+    const list = typeof current === "string" ? [current] : (current ?? []);
+    next = list.includes(value)
+      ? list.filter((each) => each !== value)
+      : [...list, value];
+  }
+  const code = encodeWith(
+    (name) => (name === key ? next : valueOf(preset, name)),
+    preset.blocks,
+    LAYOUT,
+  );
+  return { ...decodePreset(code).preset, blocks: preset.blocks };
 }
 
 /**

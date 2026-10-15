@@ -5,7 +5,12 @@ export type {
   PresetCatalogBlock,
   PresetCatalogManifest,
 } from "./catalog-types.ts";
-export { decodePreset, encodePreset, isPresetCode } from "./code.ts";
+export {
+  decodePreset,
+  encodePreset,
+  isPresetCode,
+  withPresetField,
+} from "./code.ts";
 export type { DecodedPreset } from "./code.ts";
 export { expandPreset, presetConfig, presetOf } from "./config.ts";
 export type { PresetInput } from "./config.ts";

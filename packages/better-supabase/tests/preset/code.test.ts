@@ -8,6 +8,7 @@ import {
   encodePreset,
   isPresetCode,
   type PresetLayout,
+  withPresetField,
 } from "../../src/preset/code.ts";
 import {
   DEFAULT_CONVENTIONS,
@@ -124,6 +125,36 @@ describe("encodePreset and decodePreset", () => {
     expect(isPresetCode("ai")).toBe(false);
     expect(isPresetCode("1abc")).toBe(true);
     expect(isPresetCode("1")).toBe(false);
+  });
+});
+
+describe("withPresetField", () => {
+  const preset: Preset = {
+    ...DEFAULT_CONVENTIONS,
+    blocks: ["tags", "comments"],
+  };
+
+  it("sets one convention and keeps the block order", () => {
+    expect(withPresetField(preset, "casing", "camel")).toEqual({
+      ...preset,
+      casing: "camel",
+    });
+  });
+
+  it("switches a value of a multi field on and off", () => {
+    const on = withPresetField(preset, "integrations", "mcp");
+    expect(on.integrations).toEqual(["mcp"]);
+    const both = withPresetField(on, "integrations", "next");
+    expect(both.integrations).toEqual(["next", "mcp"]);
+    expect(withPresetField(both, "integrations", "mcp").integrations).toEqual([
+      "next",
+    ]);
+  });
+
+  it("rejects a value the field doesn't list", () => {
+    expect(() => withPresetField(preset, "access", "owner")).toThrow(
+      'Preset access "owner" is not one of roles, catalog, provider, custom.',
+    );
   });
 });
 
