@@ -10,6 +10,7 @@
     "boundaries": "turbo boundaries",
     "build": "turbo run build",
     "build:packages": "turbo run build --filter=better-supabase...",
+    "catalog": "node scripts/build-catalog.ts",
     "changeset": "changeset",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
     "check:no-permdock": "node scripts/check-no-permdock.ts",

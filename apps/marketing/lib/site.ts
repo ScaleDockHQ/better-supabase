@@ -21,9 +21,14 @@ export type NavLink = {
 
 export const navLinks: readonly NavLink[] = [
   { href: "/docs", label: "Docs" },
+  { href: "/blocks", label: "Blocks" },
+  { href: "/recipes", label: "Recipes" },
+  { href: "/create", label: "Create" },
   { href: "/changelog", label: "Changelog" },
-  { href: "/enterprise", label: "Enterprise" },
 ];
+
+/** Plan 003: the roadmap for Blocks, Recipes and Create. */
+export const websitePlan = `${site.github}/blob/main/plans/003-presets-registry-create.md`;
 
 export const footerColumns: readonly {
   readonly title: string;
@@ -33,6 +38,7 @@ export const footerColumns: readonly {
     title: "Product",
     links: [
       { href: "/docs/getting-started", label: "Quickstart" },
+      { href: "/blocks", label: "Blocks" },
       { href: "/docs/repository", label: "Repository" },
       { href: "/docs/auth", label: "Auth" },
       { href: "/docs/cli", label: "CLI" },
