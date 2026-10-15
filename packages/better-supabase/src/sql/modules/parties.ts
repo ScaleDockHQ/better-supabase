@@ -15,6 +15,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { partyFunctions, type PartyNames } from "./parties-functions.ts";
+import { partiesInboxSql } from "./parties-inbox.ts";
 
 /** The lifecycle stages `options.companyLifecycles` falls back to. */
 const COMPANY_LIFECYCLES = ["lead", "prospect", "customer", "churned"] as const;
@@ -107,6 +108,17 @@ const NAMES: ModuleNames = {
         person: "person_id",
         role: "role",
         isPrimary: "is_primary",
+        createdAt: "created_at",
+      },
+    },
+    personContacts: {
+      name: "person_inbox_contacts",
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        tenant: "tenant_id",
+        person: "person_id",
+        contact: "contact_id",
         createdAt: "created_at",
       },
     },
@@ -228,10 +240,10 @@ function build(ctx: ModuleContext): string {
   };
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${partyFunctions(ctx, names)}`;
+${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     { name: "save_company", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     { name: "save_person", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
@@ -264,6 +276,21 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.installed("inbox")
+      ? [
+          {
+            name: "link_inbox_contact",
+            args: ["uuid", "uuid"],
+            returns: "boolean",
+          },
+          { name: "unlink_inbox_contact", args: ["uuid"], returns: "boolean" },
+          {
+            name: "person_for_inbox_contact",
+            args: ["uuid", "boolean"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -273,7 +300,7 @@ export const PARTIES: ModuleDefinition = {
   description:
     "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "audit", "notifications"],
+  integrates: ["outbox", "audit", "notifications", "inbox"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

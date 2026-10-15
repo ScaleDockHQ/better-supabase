@@ -624,3 +624,34 @@ create table centrakit.customer_contacts (
 alter table centrakit.customer_contacts enable row level security;
 grant select, insert, update on centrakit.customer_contacts to authenticated;
 grant all on centrakit.customer_contacts to service_role;
+
+-- People: CentraKit's employees in a bigint-free shape the employees block
+-- adopts. Teams have uuid ids here and kind and status are text; the
+-- contracts (numeric pay) and private details stay CentraKit's own.
+create table centrakit.employees (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  kind text not null default 'employee',
+  status text not null default 'active',
+  first_name text not null check (char_length(trim(first_name)) between 1 and 120),
+  last_name text check (last_name is null or char_length(last_name) <= 120),
+  work_email text check (work_email is null or char_length(work_email) <= 320),
+  job_title text check (job_title is null or char_length(job_title) <= 160),
+  department_team_id uuid references centrakit.teams(id) on delete set null,
+  reports_to_employee_id uuid references centrakit.employees(id) on delete set null,
+  start_date date,
+  end_date date,
+  archived_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default (now() at time zone 'utc'),
+  updated_at timestamptz not null default (now() at time zone 'utc'),
+  check (reports_to_employee_id is null or reports_to_employee_id <> id),
+  check (end_date is null or start_date is null or end_date >= start_date)
+);
+create unique index employees_organization_user_idx
+  on centrakit.employees (organization_id, user_id)
+  where user_id is not null;
+alter table centrakit.employees enable row level security;
+grant select on centrakit.employees to authenticated;
+grant all on centrakit.employees to service_role;

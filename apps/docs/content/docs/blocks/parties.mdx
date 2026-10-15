@@ -83,6 +83,18 @@ export default defineConfig({
 
 With the [notifications](/docs/blocks/notifications) module installed, the owner watches a company or person when they become its owner, and a level they already chose stays.
 
+## Inbox contacts
+
+With the [inbox](/docs/blocks/inbox) module installed, parties keeps which person each inbox contact is, so a conversation shows the person's company, deals and history. One person has many contacts (an email address, a WhatsApp number); a contact has one person.
+
+```ts
+const person = await parties
+  .personForInboxContact(conversation.contactId, { create: true })
+  .orThrow();
+```
+
+`personForInboxContact(contactId)` returns the linked person. Without a link, it links the active person with the contact's email; with `create: true` and no match, it saves the contact as a new lead first. `linkInboxContact(personId, contactId)` links by hand (a contact linked to someone else moves), and `unlinkInboxContact(contactId)` removes the link.
+
 ## Extra columns
 
 `options.extraColumns` adds columns to `companies`, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:

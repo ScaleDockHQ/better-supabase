@@ -270,6 +270,40 @@ const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
       ],
     },
   },
+  {
+    module: "hiring",
+    table: "applications",
+    type: "application",
+    entry: {
+      enteredAt: "stage_entered_at",
+      owner: "owner_user_id",
+      scope: "job_id",
+      categories: {
+        active: "open",
+        hired: "success",
+        rejected: "failure",
+        withdrawn: "failure",
+      },
+      status: {
+        column: "state",
+        values: {
+          active: "active",
+          hired: "hired",
+          rejected: "rejected",
+          withdrawn: "withdrawn",
+        },
+      },
+      stages: [
+        { key: "applied", name: "Applied", category: "active" },
+        { key: "screening", name: "Screening", category: "active" },
+        { key: "interview", name: "Interview", category: "active" },
+        { key: "offer", name: "Offer", category: "active" },
+        { key: "hired", name: "Hired", category: "hired" },
+        { key: "rejected", name: "Rejected", category: "rejected" },
+        { key: "withdrawn", name: "Withdrawn", category: "withdrawn" },
+      ],
+    },
+  },
 ];
 
 export function pipelineBindings(

@@ -63,3 +63,14 @@ describe("parties module, custom mode", () => {
     expect(sql).not.toContain("save_company");
   });
 });
+
+describe("parties module with the inbox", () => {
+  it("links people to inbox contacts only when the inbox is installed", () => {
+    const sql = sqlOf({}, ["inbox"]);
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."person_inbox_contacts"',
+    );
+    expect(sql).toContain("person_for_inbox_contact");
+    expect(sqlOf()).not.toContain("person_inbox_contacts");
+  });
+});

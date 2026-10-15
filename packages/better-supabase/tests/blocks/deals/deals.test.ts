@@ -316,3 +316,68 @@ describe("deals block", () => {
     expect(dealsSubjects({ schema: "crm" }).deal.url).toBeUndefined();
   });
 });
+
+describe("deals block, options and sparse reads", () => {
+  it("runs hooks and reads defaults for missing numbers", async () => {
+    const sparse = {
+      ...ROW,
+      seats: null,
+      probability: null,
+      push_count: null,
+      number: "7",
+      amount: null,
+      existing_amount: null,
+      list_total: null,
+      opened_on: null,
+      expected_close_on: null,
+      archived_at: "2026-10-14T00:00:00Z",
+    };
+    const seen: string[] = [];
+    const t = transport({
+      create_deal: () => sparse,
+      deal_health: () => [
+        {
+          dealId: "d1",
+          identifier: "DEAL-1",
+          name: "x",
+          daysInStage: null,
+          rotting: false,
+          slipped: true,
+          noNextStep: false,
+          overdue: true,
+        },
+      ],
+    });
+    const deals = createDeals({
+      transport: t,
+      logger: {
+        error: () => undefined,
+        warn: () => undefined,
+        info: () => undefined,
+        debug: () => undefined,
+      },
+      hooks: { create: { before: () => void seen.push("before") } },
+    });
+    const deal = await deals
+      .create("o", {
+        name: "x",
+        closeOn: Temporal.PlainDate.from("2026-12-01"),
+      })
+      .orThrow();
+    expect(deal).toMatchObject({
+      number: 7n,
+      amount: 0n,
+      pushCount: 0,
+      archived: true,
+    });
+    expect(deal.seats).toBeUndefined();
+    expect(deal.openedOn.toString()).toBe("1970-01-01");
+    expect(t.calls[0]?.[1]).toMatchObject({ contacts: null });
+    expect(seen).toEqual(["before"]);
+    expect((await deals.health("p1").orThrow())[0]).toMatchObject({
+      daysInStage: 0,
+      slipped: true,
+      overdue: true,
+    });
+  });
+});

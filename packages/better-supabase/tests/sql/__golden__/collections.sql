@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_99_collections.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
@@ -724,7 +724,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_99_collections.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module-data collections
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -737,7 +737,7 @@ values ('collections', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_99_collections.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
@@ -1463,7 +1463,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_99_collections.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module-data collections
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1476,7 +1476,7 @@ values ('collections', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_99_collections.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
@@ -2204,7 +2204,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_99_collections.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module-data collections
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -2217,7 +2217,7 @@ values ('collections', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_99_collections.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
@@ -3091,7 +3091,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_99_collections.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module-data collections
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

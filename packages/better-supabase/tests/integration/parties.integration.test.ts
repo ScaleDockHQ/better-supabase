@@ -141,3 +141,69 @@ describe.skipIf(!live)("parties", () => {
     }
   });
 });
+
+describe.skipIf(!live)("parties and the inbox", () => {
+  const pool = new Pool({ connectionString: dbUrl, max: 2 });
+  afterAll(() => pool.end());
+
+  it("finds the person behind an inbox contact by link, by email or as a new lead", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      await s.install(
+        ["organizations", "jobs", "streams", "inbox", "parties"],
+        {},
+      );
+      const org = await s.organization(owner);
+      const parties = createParties({ transport: sqlTransport(s.sql) });
+      await s.service();
+      const contact = async (
+        name: string | null,
+        email: string | null,
+      ): Promise<string> =>
+        (
+          await s.rows<{ id: string }>(
+            "insert into better_supabase.contacts (tenant_id, name, email) values ($1, $2, $3) returning id",
+            [org, name, email],
+          )
+        )[0]!.id;
+      const byEmail = await contact("Ada L.", "ADA@acme.com");
+      const unknown = await contact("Bob", null);
+      const anonymous = await contact(null, null);
+
+      await s.as(owner);
+      const ada = await parties
+        .savePerson(org, { name: "Ada", email: "ada@acme.com" })
+        .orThrow();
+      expect((await parties.personForInboxContact(byEmail).orThrow())?.id).toBe(
+        ada.id,
+      );
+      expect(
+        await parties.personForInboxContact(unknown).orThrow(),
+      ).toBeUndefined();
+      const lead = await parties
+        .personForInboxContact(unknown, { create: true })
+        .orThrow();
+      expect(lead).toMatchObject({ name: "Bob", lifecycle: "lead" });
+      expect((await parties.personForInboxContact(unknown).orThrow())?.id).toBe(
+        lead?.id,
+      );
+      expect(
+        await parties
+          .personForInboxContact(anonymous, { create: true })
+          .orThrow(),
+      ).toBeUndefined();
+
+      expect(await parties.linkInboxContact(ada.id, anonymous).orThrow()).toBe(
+        true,
+      );
+      expect(
+        (await parties.personForInboxContact(anonymous).orThrow())?.id,
+      ).toBe(ada.id);
+      expect(await parties.unlinkInboxContact(anonymous).orThrow()).toBe(true);
+      expect(await parties.unlinkInboxContact(anonymous).orThrow()).toBe(false);
+    } finally {
+      await s.close();
+    }
+  });
+});

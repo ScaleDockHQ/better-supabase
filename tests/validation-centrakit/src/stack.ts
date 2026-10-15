@@ -75,8 +75,15 @@ const RECORD_PERMISSIONS = [
   "deals.write",
   "work_items.read",
   "work_items.write",
+  "people.read",
 ];
-const RECORD_MANAGE = ["pipelines.manage", "deals.manage", "work_items.manage"];
+const RECORD_MANAGE = [
+  "pipelines.manage",
+  "deals.manage",
+  "work_items.manage",
+  "people.manage",
+  "people.view-sensitive",
+];
 
 const GRANTS = {
   owner: [...ORGANIZATION_PERMISSIONS, ...RECORD_PERMISSIONS, ...RECORD_MANAGE],
@@ -205,6 +212,10 @@ export async function withCentraKit(
     await client.query(
       "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
     );
+    // The install creates triggers on auth.users, which needs its strongest
+    // lock. Taking it before inserting users makes a concurrent sign-in wait
+    // for this transaction instead of deadlocking with it.
+    await client.query("lock table auth.users in access exclusive mode");
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(
         `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at, raw_user_meta_data)
