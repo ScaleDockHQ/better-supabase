@@ -5,6 +5,7 @@ Status: TODO. Written 2026-10-14 against `main` at `3d9920b`, with `feat/pipelin
 - better-supabase ships no visible UI components. It ships helpers and glue, plus recipes that build the UI from shadcn components.
 - The client helpers are shared between React and React Native.
 - `sql.modules` is renamed to `blocks`.
+- This work ships as one breaking release. Nothing keeps a deprecated alias or a compatibility shim; a codemod and clear errors take their place (see "Breaking release").
 
 The goal of better-supabase is mix and match: run everything with the default config, change behaviour by changing the config, and build a new SaaS by picking blocks, tweaking them and extending later. This plan has five workstreams:
 
@@ -113,13 +114,12 @@ export default defineConfig({
 
 The foundation modules (`tenant`, `access`, `updated-at`, `ensure-rls`, ...) become blocks in a `foundation` category, so there is one key and one word.
 
-Migration:
+Migration, as part of the breaking release:
 
-1. `sql.modules` stays accepted as a deprecated alias for two minor versions. Config resolution merges it into `blocks` and prints a notice.
+1. `sql.modules` is removed. Config validation rejects it with an error that names `blocks` and the codemod.
 2. `better-supabase codemod blocks-config` rewrites the config file.
-3. A doctor finding flags the old key.
-4. The docs (about 240 references), CLI messages, code comments such as `sql.modules.notifications.options.topic`, the JSON schema (`schemas/config-v1.json`) and the validation projects move to `blocks` in the same release.
-5. `SqlModule` stays the internal name of the SQL half of a block.
+3. The docs (about 240 references), CLI messages, code comments such as `sql.modules.notifications.options.topic`, the JSON schema (`schemas/config-v1.json`) and the validation projects move to `blocks` in the same release.
+4. `SqlModule` stays the internal name of the SQL half of a block.
 
 ### 1c. `defineBlock` manifests
 
@@ -161,14 +161,14 @@ export const comments = defineBlock({
 - it creates no sibling clients;
 - its client controller imports no DOM or React Native globals (W4).
 
-Start with an allowlist of current exceptions and shrink it to zero. Also normalize the outliers: `createBuilder` becomes `createWorkflowBuilder` and `createPushDevices` becomes `createPush`, each keeping a deprecated alias.
+Start with an allowlist of current exceptions and shrink it to zero. Also normalize the outliers: `createBuilder` becomes `createWorkflowBuilder` and `createPushDevices` becomes `createPush`, with no aliases.
 
 ### 1f. Scope and naming as conventions
 
 This step goes deepest and comes last.
 
 - **Scope.** `scope: "tenant" | "user" | "none"` per block, with a default in `sql.scope`. `access` and `tenant` sit behind a port (`ctx.scope.can(...)`, `ctx.scope.ids(...)`), so all literal `better_supabase.can(` sites go through `ctx`. The preset resolver refuses a combination that cannot work.
-- **Naming.** `sql.naming.tenant: "organization" | "workspace" | "team" | string` renames the tenant concept in tables, functions, columns and, through `gen`, TS method names, with aliases. A `functions` rename map sits next to `tables` and `columns`. This is our counterpart of shadcn's styles.
+- **Naming.** `sql.naming.tenant: "organization" | "workspace" | "team" | string` renames the tenant concept in tables, functions, columns and, through `gen`, TS method names. A `functions` rename map sits next to `tables` and `columns`. This is our counterpart of shadcn's styles.
 
 ## Workstream 2: presets
 
@@ -214,14 +214,14 @@ This step goes deepest and comes last.
 
 ### 2b. CLI
 
-| Command                                                       | What it does                                                                                                                                                                                                                |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init --preset <name\|code\|url>`                             | Writes the config, migrations, the glue items from the registry for the chosen framework and platforms, and env, then runs `gen`. Without `--preset` it asks interactively.                                                 |
-| `apply --preset <code> [--only blocks,conventions] [--adopt]` | For an existing project: merges the preset, shows a diff and writes the migrations. With `--adopt` it introspects existing tables and proposes adopt mappings.                                                              |
-| `add <block...>`                                              | Edits `blocks`, resolves dependencies, writes migrations, adds the manifest to the wiring, and installs the block's glue items. The current `add` (framework glue) moves under `add --framework` with a deprecation notice. |
-| `adopt <block> --from <schema.table>`                         | Writes a proposed `tables`/`columns` mapping plus a doctor report.                                                                                                                                                          |
-| `preset decode <code>` / `preset info`                        | Shows the content of a code, or the project's current preset and its drift.                                                                                                                                                 |
-| `blocks list` / `view <name>` / `search <q>`                  | Reads the catalog.                                                                                                                                                                                                          |
+| Command                                                       | What it does                                                                                                                                                                                   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init --preset <name\|code\|url>`                             | Writes the config, migrations, the glue items from the registry for the chosen framework and platforms, and env, then runs `gen`. Without `--preset` it asks interactively.                    |
+| `apply --preset <code> [--only blocks,conventions] [--adopt]` | For an existing project: merges the preset, shows a diff and writes the migrations. With `--adopt` it introspects existing tables and proposes adopt mappings.                                 |
+| `add <block...>`                                              | Edits `blocks`, resolves dependencies, writes migrations, adds the manifest to the wiring, and installs the block's glue items. The current `add` (framework glue) moves to `add --framework`. |
+| `adopt <block> --from <schema.table>`                         | Writes a proposed `tables`/`columns` mapping plus a doctor report.                                                                                                                             |
+| `preset decode <code>` / `preset info`                        | Shows the content of a code, or the project's current preset and its drift.                                                                                                                    |
+| `blocks list` / `view <name>` / `search <q>`                  | Reads the catalog.                                                                                                                                                                             |
 
 ### 2c. Tests
 
@@ -289,7 +289,7 @@ export function createNotificationsController(
 ### 4c. Migration of the current hooks
 
 - Move the state logic of the 14 existing `/react` entries into controllers: ai-chat, announcements, bookings, calendar, forms, inbox, notifications, onboarding, reactions, saved-views, search, undo, workflows and workflow-builder.
-- Their public hook signatures stay the same.
+- Hook signatures may change where the controller makes a cleaner API; the codemod covers renames, and the recipes and examples move in the same release.
 - `search` moves its `window` keydown listener behind the keyboard port.
 - Then add controllers for the blocks that have none but need client state: comments, tags, organizations (switching), invitations, api-keys, approvals and settings.
 
@@ -351,7 +351,7 @@ Each recipe is also published as a consumer skill section and in `/llms.txt`, so
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- | ---------- |
 | 0     | W1a fixes; ADR 0029 (manifests, block contract, `blocks` config key); ADR 0030 (headless controllers); ADR 0031 (presets, glue-only registry, recipes) | now                       | none       |
 | 1     | W5 skeleton: navigation and `/blocks` from a first catalog script over `SQL_MODULES`; W4a/4c controllers for the existing `/react` entries             | now                       | none       |
-| 2     | W1b `blocks` config key with the alias and codemod; W1c manifests and the generic `createBlocks`; W1e conformance as a warning                         | after the pipelines merge | 0          |
+| 2     | W1b `blocks` config key and codemod; W1c manifests and the generic `createBlocks`; W1e conformance as a warning                                        | after the pipelines merge | 0          |
 | 3     | W2a preset model and catalog; W5 `/create` (with the `sql add` fallback)                                                                               | after 2                   | 2          |
 | 4     | W3 glue registry; W5 `/recipes` with extracted snippets; W4b Vue, Svelte and Solid bindings; the Expo example                                          | parallel to 3             | 1          |
 | 5     | W2b CLI (`init --preset`, `apply`, `add`, `adopt`, `preset`, `blocks`); `/create` switches to the preset command                                       | after 3                   | 3, 4       |
@@ -360,10 +360,24 @@ Each recipe is also published as a consumer skill section and in `/llms.txt`, so
 
 Run `pnpm verify` before every push, with one changeset per user-visible change. Run `pnpm size` for every new entry, and update the exports map, `tsdown.config.ts`, the size baseline, the export snapshot and the docs per invariant 9.
 
+## Breaking release
+
+The decoupling (W1b, W1c, W1e, W1f) and the controllers (W4c) ship in one breaking release with no backwards compatibility layer. The package is pre-1.0, so that is the next minor version. That keeps the code free of aliases and dual paths.
+
+- **Removed outright:** `sql.modules`, the sibling-specific `createBlocks` options (`aiTaskNotification`, `reminderNotification`, `metricEvents`, `metricTime`), the closed `BlockEventMap` export, the old creator names (`createBuilder`, `createPushDevices`), and the framework-glue form of `add`.
+- **What users get instead:**
+  - `better-supabase codemod` rewrites what can be rewritten mechanically: the config key, creator names, `createBlocks` options moved to manifests, and imports.
+  - Config validation and the type errors name the replacement for every removed option.
+  - A migration guide in `apps/docs/content/docs/migration`, in the `0.x-to-0.y` form of the existing guides, lists every change with before and after code.
+- **Database:**
+  - Function and table renames from the naming conventions (W1f) only apply when an app opts into a non-default name, so existing databases need no migration for this release.
+  - `sql upgrade` writes the forward steps for any module whose SQL changes.
+- **Changesets** are `minor` bumps for `better-supabase` and link the migration guide.
+
 ## Open decisions
 
 1. **Where the config key lives.** The plan uses a top-level `blocks` because a block's config covers SQL and client options. `sql.blocks` also works if the key should stay SQL-only.
 2. **Preset code format.** The plan uses base62 over a BigInt, which is short and matches shadcn. Named presets cover the readable case.
-3. **Default tenant name.** "organization" stays the default, because changing it breaks installed apps.
+3. **Default tenant name.** "organization" stays the default because it is the most common term, not for compatibility; a breaking release could change it.
 4. **The native UI library the recipes name.** This needs a check of which shadcn-style React Native library has a working registry before the recipes reference it. Until then, the native recipes use plain React Native primitives.
 5. **Whether `everything` is a public preset.** It installs about 90 modules.
