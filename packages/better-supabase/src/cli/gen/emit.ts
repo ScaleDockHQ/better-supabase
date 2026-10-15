@@ -1,5 +1,5 @@
+import type { BlockNaming } from "../../blocks/index.ts";
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { BlockNaming } from "../../core/block-names.ts";
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
 
 import { byCodePoint } from "../compare.ts";

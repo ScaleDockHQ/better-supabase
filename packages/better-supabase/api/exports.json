@@ -1623,6 +1623,7 @@
     "values": [
       "BLOCK_EVENT_SOURCE",
       "blockFields",
+      "blockNames",
       "createBlocks",
       "dbTransport",
       "defineBlock",
@@ -1654,6 +1655,7 @@
       "BlockMap",
       "BlockMethodHooks",
       "BlockMethodName",
+      "BlockNaming",
       "BlockOf",
       "BlockOptions",
       "BlockOptionSchemas",

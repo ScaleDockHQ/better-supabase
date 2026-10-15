@@ -55,11 +55,11 @@ describe("preset decode", () => {
   it("exits 1 on what can't install, and 2 on what isn't a preset", () => {
     const config = resolveConfig({}, dir);
     const conflict = runPreset(config, {
-      _: ["decode", encodePreset({ blocks: ["comments"], scope: "user" })],
+      _: ["decode", encodePreset({ blocks: ["organizations"], scope: "user" })],
     });
     expect(conflict.code).toBe(1);
     expect(conflict.output).toContain(
-      'Can\'t install:\n  comments: it needs tenants, and scope "user" has none',
+      'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
     );
     expect(runPreset(config, { _: ["decode", "startup"] }).code).toBe(2);
     expect(runPreset(config, { _: ["decode"] }).code).toBe(2);
@@ -234,11 +234,13 @@ describe("apply", () => {
       (
         await runApply(
           config,
-          { preset: encodePreset({ blocks: ["comments"], scope: "none" }) },
+          {
+            preset: encodePreset({ blocks: ["organizations"], scope: "none" }),
+          },
           deps,
         )
       ).error,
-    ).toContain("The preset can't install: comments");
+    ).toContain("The preset can't install: organizations");
     await files({ "better-supabase.config.ts": "export default config;\n" });
     expect((await runApply(config, { preset: "saas" }, deps)).error).toContain(
       "wasn't changed: it doesn't pass an object literal to defineConfig()",
@@ -344,12 +346,12 @@ describe("init --preset", () => {
     const blocked = await run([
       "init",
       "--preset",
-      encodePreset({ blocks: ["tags"], scope: "user" }),
+      encodePreset({ blocks: ["teams"], scope: "user" }),
       "--cwd",
       dir,
     ]);
     expect(blocked.code).toBe(2);
-    expect(blocked.stderr).toContain("The preset can't install: tags");
+    expect(blocked.stderr).toContain("The preset can't install: teams");
     expect(
       (await run(["init", "--preset", "startup", "--cwd", dir])).code,
     ).toBe(2);
