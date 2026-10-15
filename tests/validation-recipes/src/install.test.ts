@@ -1,3 +1,8 @@
+import {
+  isPresetName,
+  namedPreset,
+  resolvePreset,
+} from "better-supabase/preset";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -7,6 +12,17 @@ import { dbUrl, moduleFiles, reachable, withRecipe } from "./stack.ts";
 const live = await reachable();
 
 describe("recipe module sets", () => {
+  it.each(RECIPES)("$name starts from a named preset", (recipe) => {
+    const preset = recipe.config.preset ?? "";
+    expect(isPresetName(preset)).toBe(true);
+    const named = Object.keys(recipe.config.blocks ?? {});
+    for (const block of isPresetName(preset)
+      ? resolvePreset(namedPreset(preset)).blocks
+      : []) {
+      expect(named).toContain(block.name);
+    }
+  });
+
   it.each(RECIPES)("$name renders the modules it names", (recipe) => {
     const rendered = new Set(moduleFiles(recipe).map((file) => file.module));
     const named = Object.keys(recipe.config.blocks ?? {});

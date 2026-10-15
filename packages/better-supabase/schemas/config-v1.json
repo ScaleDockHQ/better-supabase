@@ -1192,6 +1192,11 @@
         }
       }
     },
+    "preset": {
+      "description": "A named preset (minimal, saas, crm, projects, commerce, scheduling, ai, everything), a code from bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win.",
+      "type": "string",
+      "minLength": 1
+    },
     "blocks": {
       "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
       "oneOf": [

@@ -1,0 +1,25 @@
+{
+  "name": "@better-supabase/validation-presets",
+  "private": true,
+  "description": "Every named preset from better-supabase/preset, rendered and installed as one migration on the local stack, with its generated lib/blocks.ts typechecked.",
+  "type": "module",
+  "scripts": {
+    "gen": "UPDATE_WIRING=1 vitest run src/presets.test.ts",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

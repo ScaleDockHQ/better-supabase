@@ -101,6 +101,7 @@ import { defineConfig } from "better-supabase/config";
 import { metrics } from "./src/metrics";
 
 export default defineConfig({
+  preset: "commerce",
   subjects: {
     order: {
       table: "better_supabase.orders",
@@ -124,11 +125,6 @@ export default defineConfig({
     },
   },
   blocks: {
-    organizations: {},
-    outbox: {},
-    notifications: {},
-    catalog: {},
-    inventory: {},
     imports: {},
     "number-sequences": {
       options: {
@@ -138,8 +134,6 @@ export default defineConfig({
         },
       },
     },
-    orders: {},
-    promotions: {},
     search: {},
     "saved-views": {},
     metrics: { options: { metrics } },
@@ -157,11 +151,10 @@ export default defineConfig({
 });
 ```
 
-An unpaid order has no `paid_at`, so it falls outside every bucket.
-`orders` needs `catalog`, and `promotions` needs `orders`; `sql add` adds
-them when the config leaves them out. Name `inventory` yourself: without it
-orders reserve no stock. The `order` and `invoice` entities give the order
-and invoice numbers.
+An unpaid order has no `paid_at`, so it falls outside every bucket. The
+`commerce` preset brings the SaaS blocks plus `catalog`, `inventory`,
+`orders` and `promotions`, so orders reserve stock. The `order` and
+`invoice` entities give the order and invoice numbers.
 
 ## The blocks
 

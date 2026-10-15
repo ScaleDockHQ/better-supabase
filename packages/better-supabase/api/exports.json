@@ -304,6 +304,53 @@
       "ZodGeneratorOptions"
     ]
   },
+  "./preset": {
+    "values": [
+      "decodePreset",
+      "DEFAULT_CONVENTIONS",
+      "encodePreset",
+      "expandPreset",
+      "isPresetCode",
+      "isPresetName",
+      "listNames",
+      "namedPreset",
+      "PRESET_BLOCKS",
+      "PRESET_CATALOG",
+      "PRESET_FIELDS",
+      "PRESET_FRAMEWORKS",
+      "PRESET_NAMES",
+      "PRESET_VERSION",
+      "presetBlockConflict",
+      "presetBlocksSource",
+      "presetConfig",
+      "presetConfigSource",
+      "presetInstallCommand",
+      "presetOf",
+      "PRESETS",
+      "resolvePreset"
+    ],
+    "types": [
+      "DecodedPreset",
+      "NamedPreset",
+      "Preset",
+      "PresetAccess",
+      "PresetCatalog",
+      "PresetCatalogBlock",
+      "PresetCatalogManifest",
+      "PresetConflict",
+      "PresetConventions",
+      "PresetField",
+      "PresetFieldKey",
+      "PresetFramework",
+      "PresetInput",
+      "PresetIntegration",
+      "PresetName",
+      "PresetPlatforms",
+      "PresetScope",
+      "ResolvedPreset",
+      "ResolvedPresetBlock"
+    ]
+  },
   "./cli": {
     "values": [
       "buildModel",

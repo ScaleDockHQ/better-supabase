@@ -1,3 +1,4 @@
+import type { PresetName } from "../../preset/presets.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
 import type { BlocksConfig } from "../blocks.ts";
@@ -130,6 +131,13 @@ export interface BetterSupabaseConfig {
    */
   readonly subjects?: SubjectsConfig;
   /**
+   * A named preset (`saas`, `crm`, ...), a code from `/create`, or its URL.
+   * `defineConfig` expands it into `blocks`, with the blocks they require,
+   * and the conventions it sets (`casing`, `sql.api`, `integrations`); the
+   * keys you set win.
+   */
+  readonly preset?: PresetName | (string & {});
+  /**
    * The blocks to install and keep in sync (`better-supabase sql add`): a
    * list of names, or an object keyed by block name whose values set each
    * block's mode, schema, table and column names, permission keys and
@@ -172,7 +180,13 @@ export interface BetterSupabaseConfig {
 /** The keys an environment block may override. */
 export type EnvironmentConfig = Omit<
   BetterSupabaseConfig,
-  "$schema" | "$env" | "$development" | "$production" | "$test" | "$ci"
+  | "$schema"
+  | "$env"
+  | "$development"
+  | "$production"
+  | "$test"
+  | "$ci"
+  | "preset"
 >;
 
 /** The config with defaults applied. */

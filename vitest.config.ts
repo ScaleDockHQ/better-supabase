@@ -12,6 +12,7 @@ export default defineConfig({
       "tests/bundle",
       "tests/validation-centrakit",
       "tests/validation-recipes",
+      "tests/validation-presets",
       "tests/validation-crm",
       "tests/validation-monorepo",
       "tests/validation-request-context",

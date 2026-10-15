@@ -20,7 +20,7 @@
     "plugins",
     "testing",
     "examples",
-    "recipes",
+    "presets",
     "registry",
     "guides",
     "migration",

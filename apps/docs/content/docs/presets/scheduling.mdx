@@ -22,10 +22,15 @@ alter table public.bookings enable row level security;
 
 ## Config
 
+The `scheduling` preset brings the SaaS blocks plus calendars, bookings and
+reminders. This app tracks its own `bookings` table, so it adds custom
+fields, share links and a state machine for the booking status:
+
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
+  preset: "scheduling",
   subjects: {
     booking: {
       table: "public.bookings",
@@ -35,12 +40,8 @@ export default defineConfig({
     },
   },
   blocks: {
-    organizations: {},
-    outbox: {},
-    notifications: {},
     "custom-fields": {},
     "share-links": {},
-    reminders: {},
     "state-machine": {
       options: {
         machines: {

@@ -4,6 +4,7 @@ import { defineConfig } from "tsdown";
 const entries = [
   "index",
   "config/index",
+  "preset/index",
   "client/index",
   "client/native/index",
   "react/index",
