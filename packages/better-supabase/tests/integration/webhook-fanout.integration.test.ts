@@ -44,7 +44,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
         );
         return row!.id;
       };
-      const ledgerHook = await serviceEndpoint("ledger", ["invoices.*"]);
+      const ledgerHook = await serviceEndpoint("ledger", ["ledgers.*"]);
       await serviceEndpoint("crm", null);
       await serviceEndpoint("search", ["projects.read"]);
 
@@ -61,7 +61,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
       expect(owners.filter((row) => row.created_by === null)).toHaveLength(3);
 
       const queued = await s.value<number>(
-        "better_supabase.publish_webhook_event('invoice.paid', $1, $2, $3, 'invoices/1', 'invoices.read')",
+        "better_supabase.publish_webhook_event('invoice.paid', $1, $2, $3, 'invoices/1', 'ledgers.read')",
         [{ invoiceId: 1 }, organization, crypto.randomUUID()],
       );
       expect(queued).toBe(2);
