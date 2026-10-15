@@ -1,12 +1,22 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { Prompter } from "../prompts.ts";
+import type { TemplateContext } from "../templates.ts";
+import type { SqlDeps } from "./sql.ts";
 
-import { defineCliCommand } from "../command.ts";
+import {
+  DEFAULT_CONVENTIONS,
+  glueCommand,
+  PRESET_CATALOG,
+  PRESET_FRAMEWORKS,
+  resolvePreset,
+} from "../../preset/index.ts";
+import { defineCliCommand, list } from "../command.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -17,7 +27,10 @@ import {
   templateContextFor,
   writeFiles,
 } from "../glue.ts";
+import { readIfExists } from "../io.ts";
 import { detectProject, installCommand } from "../project.ts";
+import { addModules } from "../sql/add.ts";
+import { addBlocksToWiring } from "../sql/config-edit.ts";
 import {
   INTEGRATIONS,
   libEntry,
@@ -27,21 +40,144 @@ import {
 } from "../templates.ts";
 
 const ADD_ARGS = {
-  integration: {
+  block: {
     type: "positional",
     required: false,
     description:
-      "next, hono, orpc, edge, expo, mcp, client or react. Defaults to the integrations in the config that have no files yet",
+      "Blocks to add (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
   },
-  force: { type: "boolean", description: "Overwrite files that exist" },
+  framework: {
+    type: "string",
+    description:
+      "Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react",
+    valueHint: "integration,...",
+  },
+  force: {
+    type: "boolean",
+    description:
+      "Overwrite files that exist; with blocks, write modules a provider's hook would duplicate",
+  },
   "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
 export type AddArgs = CliArgs<typeof ADD_ARGS>;
 
+/**
+ * Adds blocks: lists them in `blocks`, writes their modules and what they
+ * require (`sql add`), wires the ones with a client into `lib/blocks.ts`,
+ * and names the registry glue for the project's frameworks.
+ */
+async function addBlocks(
+  config: ResolvedConfig,
+  args: AddArgs,
+  names: readonly string[],
+  deps: SqlDeps,
+): Promise<CommandResult> {
+  const added = await addModules(
+    config,
+    { ...args, _: ["add", ...names] },
+    names,
+    deps,
+  );
+  if (added.code !== 0) return added;
+  const lines = [added.output ?? ""];
+  const project = await detectProject(config.root);
+  const context = templateContextFor(project, config.output);
+  const resolved = resolvePreset({
+    ...DEFAULT_CONVENTIONS,
+    blocks: [...config.blockNames, ...names],
+  });
+  const wanted = new Set(
+    resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: names }).manifests.map(
+      (manifest) => manifest.name,
+    ),
+  );
+  const clients = resolved.manifests.flatMap((manifest) =>
+    manifest.client === null || !wanted.has(manifest.name)
+      ? []
+      : [
+          {
+            key: manifest.name.replaceAll(/-([a-z0-9])/g, (_, letter: string) =>
+              letter.toUpperCase(),
+            ),
+            export: manifest.client.export,
+            subpath: manifest.client.subpath,
+          },
+        ],
+  );
+  if (clients.length > 0) {
+    const wiring = blocksWiringPath(context);
+    const path = resolve(config.root, wiring);
+    const current = await readIfExists(path);
+    const edit =
+      current === undefined ? undefined : addBlocksToWiring(current, clients);
+    if (edit?.ok === true && edit.text !== current) {
+      if (args["dry-run"] !== true) await writeFile(path, edit.text);
+      lines.push(
+        "",
+        `${args["dry-run"] === true ? "Would wire" : "Wired"} ${clients.map((client) => client.key).join(", ")} in ${wiring}.`,
+      );
+    } else if (edit?.ok !== true) {
+      lines.push(
+        "",
+        `Wire the clients in ${wiring}${edit === undefined ? " (it doesn't exist yet)" : ` (${edit.reason})`}:`,
+        ...clients.map(
+          (client) =>
+            `  import { ${client.export} } from "${client.subpath}";  // ${client.key}: ${client.export}`,
+        ),
+      );
+    }
+  }
+  const frameworks = PRESET_FRAMEWORKS.filter(
+    (framework) =>
+      config.integrations.some((name) => name === framework) ||
+      project.frameworks.some((name) => name === framework),
+  );
+  const installed = new Set(resolved.blocks.map((block) => block.name));
+  const glue = PRESET_CATALOG.glue.filter(
+    (item) =>
+      item.preset === undefined &&
+      item.blocks.some((block) => names.includes(block)) &&
+      item.blocks.every((block) => installed.has(block)) &&
+      item.frameworks.some((framework) =>
+        frameworks.some((each) => each === framework),
+      ),
+  );
+  if (glue.length > 0) {
+    lines.push("", `Glue for ${frameworks.join(", ")}: ${glueCommand(glue)}`);
+  }
+  return { code: 0, output: lines.join("\n") };
+}
+
+/** `lib/blocks.ts` next to `lib/supabase/`. */
+export function blocksWiringPath(context: TemplateContext): string {
+  return join(dirname(dirname(libEntry(context))), "blocks.ts");
+}
+
+const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
+
 export async function runAdd(
   config: ResolvedConfig,
   args: AddArgs,
+  prompts?: Prompter,
+  deps: SqlDeps = SYSTEM_DEPS,
+): Promise<CommandResult> {
+  if (args._.length > 0 && args.framework === undefined) {
+    return addBlocks(config, args, args._, deps);
+  }
+  if (args.framework !== undefined) {
+    return addIntegrations(
+      config,
+      { ...args, _: list(args.framework) },
+      prompts,
+    );
+  }
+  return addIntegrations(config, args, prompts);
+}
+
+async function addIntegrations(
+  config: ResolvedConfig,
+  args: CliOptions<typeof ADD_ARGS> & { readonly _: readonly string[] },
   prompts?: Prompter,
 ): Promise<CommandResult> {
   const project = await detectProject(config.root);
@@ -111,8 +247,14 @@ export async function runAdd(
 export const addCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "add",
-    description: "Adds glue for an integration to an existing project",
+    description:
+      "Adds blocks with what they require, or glue for an integration with --framework",
   },
   args: ADD_ARGS,
-  run: (args, { config, io }) => runAdd(config, args, io.prompts),
+  lists: ["framework"],
+  run: (args, { config, configFile, io }) =>
+    runAdd(config, args, io.prompts, {
+      ...SYSTEM_DEPS,
+      ...(configFile === undefined ? {} : { configFile }),
+    }),
 });

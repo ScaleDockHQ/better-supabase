@@ -6,6 +6,7 @@ import {
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
   PRESET_NAMES,
+  presetApplyCommand,
   presetBlocksSource,
   presetConfigSource,
   presetInstallCommand,
@@ -225,6 +226,7 @@ export function CreateBuilder() {
   const configSource = presetConfigSource(resolved);
   const wiringSource = presetBlocksSource(resolved);
   const command = presetInstallCommand(resolved);
+  const applyCommand = presetApplyCommand(resolved);
   const named = matchingPreset(preset);
   const ids = useId();
 
@@ -449,21 +451,23 @@ export function CreateBuilder() {
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
           <p className="text-sm font-medium">Install</p>
           <p className="text-muted-foreground text-sm leading-6">
-            Save the config as{" "}
-            <code className="text-code font-mono">
-              better-supabase.config.ts
-            </code>
-            , then add the blocks. The command brings what they require.
+            A new project starts from the preset: init writes the config, the
+            modules of the blocks and{" "}
+            <code className="text-code font-mono">lib/blocks.ts</code>.
           </p>
           <pre className="bg-muted text-code overflow-x-auto rounded-md px-3 py-2 font-mono">
             <code data-testid="install-command">{command}</code>
           </pre>
+          <p className="text-muted-foreground text-sm leading-6">
+            In an existing project, apply shows the config diff and writes the
+            new modules.
+          </p>
+          <pre className="bg-muted text-code overflow-x-auto rounded-md px-3 py-2 font-mono">
+            <code data-testid="apply-command">{applyCommand}</code>
+          </pre>
           <div className="flex flex-wrap gap-2">
-            <CopyButton
-              text={`${configSource}\n${command}\n`}
-              label="Copy config and command"
-            />
-            <CopyButton text={command} label="Copy command" />
+            <CopyButton text={command} label="Copy init command" />
+            <CopyButton text={applyCommand} label="Copy apply command" />
             <Button
               variant="outline"
               size="sm"

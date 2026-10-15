@@ -36,8 +36,27 @@ export interface PresetCatalogManifest {
   readonly provides: readonly PortName[];
 }
 
+/**
+ * One item of the `@better-supabase` shadcn registry: glue the app copies
+ * (`npx shadcn add @better-supabase/<name>`), for some blocks, frameworks
+ * and platforms.
+ */
+export interface PresetGlueItem {
+  readonly name: string;
+  readonly title: string;
+  /** The SQL modules the item needs. */
+  readonly blocks: readonly string[];
+  readonly frameworks: readonly string[];
+  readonly platforms: readonly ("web" | "native")[];
+  /** Where its files go, as shadcn targets (`@lib/blocks.ts`, `~/app/...`). */
+  readonly targets: readonly string[];
+  /** The named preset a bundle item (`registry:item`) installs the glue of. */
+  readonly preset?: string;
+}
+
 /** What `scripts/build-catalog.ts` writes to `catalog.generated.ts`. */
 export interface PresetCatalog {
   readonly blocks: readonly PresetCatalogBlock[];
   readonly manifests: readonly PresetCatalogManifest[];
+  readonly glue: readonly PresetGlueItem[];
 }

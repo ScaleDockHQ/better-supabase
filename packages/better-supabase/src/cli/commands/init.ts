@@ -5,7 +5,22 @@ import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { Prompter } from "../prompts.ts";
+import type { Now } from "../sql/migrations.ts";
 
+import { resolveConfig } from "../../config/index.ts";
+import {
+  encodePreset,
+  glueCommand,
+  isPresetName,
+  type Preset,
+  PRESET_NAMES,
+  presetBlocksSource,
+  presetGlue,
+  presetOf,
+  PRESETS,
+  resolvePreset,
+  type ResolvedPreset,
+} from "../../preset/index.ts";
 import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
@@ -26,14 +41,18 @@ import {
   type InstallTarget,
   type Project,
 } from "../project.ts";
+import { syncModules } from "../sql/sync.ts";
+import { plain } from "../style.ts";
 import {
   baseFiles,
+  INTEGRATIONS,
   needsLib,
   resolveIntegrations,
   suggestedIntegrations,
   TEMPLATES,
 } from "../templates.ts";
 import { detectWorkspace, suggestedPackage } from "../workspace.ts";
+import { blocksWiringPath } from "./add.ts";
 
 export type InitArgs = CliArgs<typeof INIT_ARGS>;
 
@@ -69,6 +88,12 @@ const INIT_ARGS = {
     description:
       "How the SQL modules reach the database: pg-delta (the default), migra or migrations",
     valueHint: "pg-delta|migra|migrations",
+  },
+  preset: {
+    type: "string",
+    description:
+      "A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts",
+    valueHint: "name|code|url",
   },
   lite: {
     type: "boolean",
@@ -139,13 +164,71 @@ async function initTarget(
   return dir === undefined ? CANCELLED : { dir };
 }
 
+/** The preset `--preset` names, or the one the person picks; `null` for none. */
+async function chosenPreset(
+  args: InitArgs,
+  prompts: Prompter | undefined,
+): Promise<
+  | { readonly value: string; readonly resolved: ResolvedPreset }
+  | null
+  | CommandResult
+> {
+  let value = args.preset;
+  if (
+    value === undefined &&
+    prompts &&
+    args.casing === undefined &&
+    args.with === undefined
+  ) {
+    const picked = await prompts.select(
+      "Preset",
+      [
+        { value: "none", label: "None", hint: "add blocks later" },
+        ...PRESET_NAMES.map((name) => ({
+          value: name,
+          label: PRESETS[name].title,
+          hint: PRESETS[name].description,
+        })),
+      ],
+      "none",
+    );
+    if (picked === undefined) return CANCELLED;
+    if (picked !== "none") value = picked;
+  }
+  if (value === undefined) return null;
+  let preset: Preset;
+  try {
+    preset = presetOf(value);
+  } catch (error) {
+    return {
+      code: 2,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const resolved = resolvePreset(preset);
+  if (resolved.conflicts.length > 0) {
+    return {
+      code: 2,
+      error: `The preset can't install: ${resolved.conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`,
+    };
+  }
+  return {
+    value: isPresetName(value) ? value : encodePreset(preset),
+    resolved,
+  };
+}
+
 export async function runInit(
   config: ResolvedConfig,
   args: InitArgs,
   prompts?: Prompter,
+  now: Now = () => new Date(),
 ): Promise<CommandResult> {
+  const chosen = await chosenPreset(args, prompts);
+  if (chosen !== null && "code" in chosen) return chosen;
   const casing =
     args.casing ??
+    chosen?.resolved.preset.casing ??
     (prompts
       ? await prompts.select(
           "Row keys",
@@ -188,16 +271,28 @@ export async function runInit(
     : undefined;
   const requested = parseIntegrations(list(args.with));
   if (typeof requested === "string") return { code: 2, error: requested };
+  const fromPreset = parseIntegrations(
+    chosen === null
+      ? []
+      : [
+          ...chosen.resolved.preset.integrations,
+          ...INTEGRATIONS.filter(
+            (name) => name === chosen.resolved.preset.framework,
+          ),
+        ],
+  );
+  if (typeof fromPreset === "string") return { code: 2, error: fromPreset };
   const detected = resolveIntegrations([
     ...suggestedIntegrations(project.frameworks),
     ...requested,
+    ...fromPreset,
   ]);
-  const chosen =
-    args.with === undefined && prompts
+  const picked =
+    args.with === undefined && prompts && chosen === null
       ? await chooseIntegrations(prompts, detected)
       : detected;
-  if (chosen === undefined) return CANCELLED;
-  const integrations = resolveIntegrations(chosen);
+  if (picked === undefined) return CANCELLED;
+  const integrations = resolveIntegrations(picked);
   const hasConfig = findConfig(root) !== undefined;
   let generated = posix.normalize(
     posix.join(project.srcDir, "lib/supabase/generated.ts"),
@@ -213,8 +308,17 @@ export async function runInit(
       needsLib(integrations),
       integrations,
       workflow,
+      chosen?.value,
     ),
     ...integrationFiles(integrations, templateContext),
+    ...(chosen === null
+      ? []
+      : [
+          {
+            path: blocksWiringPath(templateContext),
+            contents: presetBlocksSource(chosen.resolved),
+          },
+        ]),
   ];
   const force = await overwrite(root, files, args, prompts, config.root);
   if (force === undefined) return CANCELLED;
@@ -229,6 +333,31 @@ export async function runInit(
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
   ];
+  if (chosen !== null) {
+    const presetConfig = resolveConfig(
+      {
+        preset: chosen.value,
+        casing,
+        output: generated,
+        ...(workflow === "pg-delta" ? {} : { sql: { workflow } }),
+      },
+      root,
+    );
+    const synced = await syncModules(
+      presetConfig,
+      { "dry-run": args["dry-run"] === true },
+      plain,
+      now,
+    );
+    lines.push("", synced.output ?? synced.error ?? "");
+    const glue = presetGlue(chosen.resolved);
+    if (glue.length > 0) {
+      lines.push(
+        "",
+        `Glue for ${chosen.resolved.preset.framework}: ${glueCommand(glue)}`,
+      );
+    }
+  }
   const packages = packagesFor(project, integrations);
   const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";
   const steps = [

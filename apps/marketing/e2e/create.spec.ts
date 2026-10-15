@@ -19,12 +19,11 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
     await expect(block(name)).toBeDisabled();
   }
   await expect(page.getByText("Required by comments").first()).toBeVisible();
-  await expect(page.getByTestId("install-command")).toHaveText(
-    "npx better-supabase sql add profiles comments",
-  );
-
   await expect(page).toHaveURL(/\/create\?preset=[1-9A-Z][0-9A-Za-z]+$/);
   const code = new URL(page.url()).searchParams.get("preset") ?? "";
+  await expect(page.getByTestId("install-command")).toHaveText(
+    `npx better-supabase init --preset ${code}`,
+  );
   expect(decodePreset(code).preset.blocks.toSorted()).toEqual([
     "comments",
     "profiles",

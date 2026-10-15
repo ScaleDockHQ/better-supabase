@@ -4,6 +4,7 @@ export type {
   PresetCatalog,
   PresetCatalogBlock,
   PresetCatalogManifest,
+  PresetGlueItem,
 } from "./catalog-types.ts";
 export {
   decodePreset,
@@ -33,7 +34,10 @@ export type {
 export { isPresetName, namedPreset, PRESET_NAMES, PRESETS } from "./presets.ts";
 export type { NamedPreset, PresetName } from "./presets.ts";
 export {
+  glueCommand,
+  presetApplyCommand,
   presetBlocksSource,
+  presetGlue,
   presetConfigSource,
   presetInstallCommand,
 } from "./render.ts";

@@ -164,6 +164,7 @@ describe("resolvePreset", () => {
           provides: ["notifier"],
         },
       ],
+      glue: [],
     };
     expect(resolvePreset(preset(["a"]), catalog).conflicts).toEqual([
       {
