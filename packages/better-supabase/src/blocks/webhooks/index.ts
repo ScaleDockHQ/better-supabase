@@ -88,3 +88,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
+export { webhooksBlock, incomingWebhooksBlock } from "./manifest.ts";
+export { webhooksEvents, incomingWebhooksEvents } from "./events.ts";
+export type { WebhooksEvents, IncomingWebhooksEvents } from "./events.ts";

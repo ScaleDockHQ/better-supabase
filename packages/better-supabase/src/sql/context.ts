@@ -1,5 +1,5 @@
 import type { SubjectsConfig } from "../config/types/subjects.ts";
-import type { BlockEventMap, BlockEventType } from "../core/block-events.ts";
+import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
@@ -77,26 +77,32 @@ export interface ModuleNames {
   readonly hooks?: readonly string[];
   /** The `blocks.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
-  /** The events the module records; `record` rejects any other type. */
-  readonly events?: ModuleEvents;
+  /**
+   * The events the module records, typed against its block's event map
+   * (`ModuleEvents<CommentsEvents>`); `record` rejects any other type.
+   */
+  readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
 }
 
 /** An event in a module's catalog, checked against what `record` renders. */
-export interface ModuleEventSpec<K extends BlockEventType = BlockEventType> {
+export interface ModuleEventSpec<
+  M extends EventMap = EventMap,
+  K extends BlockEventType<M> = BlockEventType<M>,
+> {
   /** The kebab-case collection every subject starts with, e.g. `organizations`. */
   readonly subject: string;
-  /** The payload keys, all of them in the event's `BlockEventMap` data. */
-  readonly payload: readonly PayloadKey<K>[];
+  /** The payload keys, all of them in the event's data in the block's event map. */
+  readonly payload: readonly PayloadKey<M, K>[];
   /** A job, a webhook or an engine may call the writer again, so the event needs a `key`. */
   readonly retries?: boolean;
 }
 
-type PayloadKey<K extends BlockEventType> = K extends BlockEventType
-  ? keyof BlockEventMap[K] & string
-  : never;
+type PayloadKey<M extends EventMap, K extends BlockEventType<M>> =
+  K extends BlockEventType<M> ? keyof M[K] & string : never;
 
-export type ModuleEvents = {
-  readonly [K in BlockEventType]?: ModuleEventSpec<K>;
+/** The events a module records, typed by its block's event map `M`. */
+export type ModuleEvents<M extends EventMap = EventMap> = {
+  readonly [K in BlockEventType<M>]?: ModuleEventSpec<M, K>;
 };
 
 interface CheckedEventSpec {

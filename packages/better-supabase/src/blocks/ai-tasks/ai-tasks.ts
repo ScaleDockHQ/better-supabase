@@ -3,6 +3,7 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { RunState } from "../../core/run-state.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { Notifier } from "../ports.ts";
 
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -111,8 +112,15 @@ export interface AiTasksOptions extends BlockTemporalOptions {
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   readonly run?: AiTaskRunner;
-  /** Called after each run finishes, to notify the task's user. */
+  /** Called after each run finishes, to notify the task's user. Defaults to `notification` through `notifier`. */
   readonly notify?: (outcome: AiTaskOutcome) => unknown;
+  /** The `notifier` port: the `notifications` block, from `createBlocks`. */
+  readonly notifier?: Notifier;
+  /**
+   * The notification type `notifier` sends the task's user after each run.
+   * Its data is `{ taskId, runId, ok, error?, chatId? }`.
+   */
+  readonly notification?: string;
   /** The clock, for tests. */
   readonly now?: () => Temporal.Instant;
 }
@@ -225,10 +233,32 @@ function fieldsArg(fields: AiTaskFields): Record<string, unknown> {
   return out;
 }
 
+/** Sends `notification` through `notifier` for each finished run. */
+function notifyThrough(
+  options: Pick<AiTasksOptions, "notifier" | "notification">,
+): ((outcome: AiTaskOutcome) => unknown) | undefined {
+  const { notifier, notification } = options;
+  if (notifier === undefined || notification === undefined) return undefined;
+  return (outcome) =>
+    notifier.send(notification, {
+      recipients: [outcome.task.userId],
+      tenant: outcome.task.organizationId,
+      key: `ai-task-run:${outcome.run.id}`,
+      data: {
+        taskId: outcome.task.id,
+        runId: outcome.run.id,
+        ok: outcome.ok,
+        ...(outcome.error === undefined ? {} : { error: outcome.error }),
+        ...(outcome.chatId === undefined ? {} : { chatId: outcome.chatId }),
+      },
+    });
+}
+
 /** Prompts users schedule on a cron, and the scheduler that runs them. */
 export function createAiTasks(options: AiTasksOptions): AiTasks {
   applyTemporal(options);
   injectableOf("ai-tasks runner", options.run);
+  const notify = options.notify ?? notifyThrough(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,
@@ -376,7 +406,7 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
             (done) => done === true,
           );
           if (!finished.ok) return finished;
-          await options.notify?.(outcome);
+          await notify?.(outcome);
           return ok(true);
         }),
     );

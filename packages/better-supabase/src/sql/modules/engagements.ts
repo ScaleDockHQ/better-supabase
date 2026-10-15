@@ -1,3 +1,4 @@
+import type { EngagementsEvents } from "../../blocks/engagements/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ const PAYLOAD = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<EngagementsEvents> = {
   "engagement.logged": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.updated": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.completed": { subject: "engagements", payload: [...PAYLOAD] },

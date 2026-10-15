@@ -15,3 +15,4 @@ export type {
   UndoSnapshot,
   UndoStackOptions,
 } from "./client.ts";
+export { undoBlock } from "./manifest.ts";

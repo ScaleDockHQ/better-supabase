@@ -31,3 +31,6 @@ export type {
   AvailableSlotsOptions,
   AvailableSlotsSnapshot,
 } from "./client.ts";
+export { bookingsBlock } from "./manifest.ts";
+export { bookingsEvents } from "./events.ts";
+export type { BookingsEvents } from "./events.ts";

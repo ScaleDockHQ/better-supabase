@@ -13,8 +13,9 @@ import {
 } from "../../../src/blocks/workflow-builder/rows.ts";
 import {
   type BuilderStartCall,
-  createBuilder,
+  createWorkflowBuilder,
 } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
+import { createWorkflows } from "../../../src/blocks/workflows/workflows.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { GRAPH } from "./fixture.ts";
 
@@ -178,7 +179,7 @@ describe("row mappers", () => {
   });
 });
 
-describe("createBuilder", () => {
+describe("createWorkflowBuilder", () => {
   it("passes definitions, versions, triggers, steps, node runs and alerts through", async () => {
     const { transport, calls } = fake({
       save_workflow_definition: () => DEFINITION,
@@ -202,7 +203,7 @@ describe("createBuilder", () => {
       remove_workflow_alert: () => true,
       check_workflow_alerts: () => 2,
     });
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       steps: [{ name: "s", title: "S", credentialKind: "crm" }],
     });
@@ -297,7 +298,7 @@ describe("createBuilder", () => {
       }),
     });
     const compile = vi.fn(() => ({ compiled: true }));
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       service: service.transport,
       compile,
@@ -316,14 +317,14 @@ describe("createBuilder", () => {
     expect(service.calls).toHaveLength(1);
 
     status = "draft";
-    const userOnly = createBuilder({ transport, compile });
+    const userOnly = createWorkflowBuilder({ transport, compile });
     expect(
       (await userOnly.versions.publish("v1").orThrow()).compiled,
     ).toBeUndefined();
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls).toHaveLength(1);
 
-    const failing = createBuilder({
+    const failing = createWorkflowBuilder({
       transport,
       compile: () => {
         throw new Error("too big");
@@ -335,7 +336,7 @@ describe("createBuilder", () => {
       "invalid_input",
       "too big",
     ]);
-    const plain = createBuilder({
+    const plain = createWorkflowBuilder({
       transport,
       compile: () => {
         // oxlint-disable-next-line typescript/only-throw-error -- a compiler may throw a non-Error.
@@ -356,7 +357,7 @@ describe("createBuilder", () => {
     });
     const seen: unknown[] = [];
     let answer: () => boolean | Promise<boolean> = () => true;
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       authorization: {
         automation: {
@@ -417,7 +418,7 @@ describe("createBuilder", () => {
     );
 
     status = "draft";
-    const failing = createBuilder({
+    const failing = createWorkflowBuilder({
       transport: fake({
         workflow_version_get: () => VERSION,
         workflow_definition_get: () => DEFINITION,
@@ -444,7 +445,7 @@ describe("createBuilder", () => {
       sub: "u1",
       permissions: ["crm.read"],
     });
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport: fake({}).transport,
       service: service.transport,
       authorization: {
@@ -499,7 +500,7 @@ describe("createBuilder", () => {
     const unversioned = await builder.versions.runAs(undefined);
     expect(!unversioned.ok && unversioned.error.kind).toBe("invalid_request");
 
-    const unhooked = createBuilder({
+    const unhooked = createWorkflowBuilder({
       transport: fake({ workflow_run_principal: () => principal }).transport,
     });
     const missing = await unhooked.versions.runAs("v1");
@@ -538,7 +539,7 @@ describe("createBuilder", () => {
                   : GRAPH,
             },
     });
-    const builder = createBuilder({ transport });
+    const builder = createWorkflowBuilder({ transport });
     const missing = await builder.versions.publish("missing");
     expect(!missing.ok && missing.error.kind).toBe("not_found");
     const noDiff = await builder.versions.diff("v1", "missing");
@@ -554,7 +555,7 @@ describe("createBuilder", () => {
   it("starts runs of the published version", async () => {
     const { transport } = fake({ workflow_start_target: target });
     const starts: BuilderStartCall[] = [];
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       start: async (call) => {
         starts.push(call);
@@ -566,7 +567,7 @@ describe("createBuilder", () => {
     );
     expect(starts[0]).toMatchObject({ input: {}, tenant: "t1", actor: "u1" });
     expect(starts[0]?.idempotencyKey).toMatch(/^run:/);
-    const without = await createBuilder({ transport }).run({
+    const without = await createWorkflowBuilder({ transport }).run({
       definition: "d1",
     });
     expect(!without.ok && without.error.message).toContain("Pass `start`");
@@ -586,7 +587,7 @@ describe("createBuilder", () => {
       }),
     });
     const starts: BuilderStartCall[] = [];
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       start: async (call) => {
         starts.push(call);
@@ -628,7 +629,7 @@ describe("createBuilder", () => {
       }),
     });
     const starts: BuilderStartCall[] = [];
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       steps: [
         {
@@ -683,7 +684,7 @@ describe("createBuilder", () => {
       subject: { type: "invoice", id: "x" },
     });
     expect(!wrongType.ok && wrongType.error.hint).toBe("WORKFLOW_SUBJECT_TYPE");
-    const without = await createBuilder({ transport }).test({
+    const without = await createWorkflowBuilder({ transport }).test({
       definition: "d1",
     });
     expect(!without.ok && without.error.message).toContain("Pass `start`");
@@ -724,7 +725,7 @@ describe("createBuilder", () => {
         },
       ],
     });
-    const builder = createBuilder({ transport });
+    const builder = createWorkflowBuilder({ transport });
     expect(
       await builder.definitions
         .fork({ source: "d1", tenant: "t1", slug: "mine" })
@@ -781,7 +782,7 @@ describe("createBuilder", () => {
       workflow_start_target: target,
     });
     const starts: BuilderStartCall[] = [];
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       start: async (call) => {
         starts.push(call);
@@ -815,7 +816,7 @@ describe("createBuilder", () => {
     found = false;
     expect((await post("https://a.test/hooks/wfh_x")).status).toBe(404);
 
-    const failing = createBuilder({
+    const failing = createWorkflowBuilder({
       transport: {
         call: async () => {
           throw new Error("down");
@@ -838,7 +839,7 @@ describe("createBuilder", () => {
         });
       },
     });
-    const refused = await createBuilder({
+    const refused = await createWorkflowBuilder({
       transport: unpublished,
       start: async () => "x",
     }).triggers.webhook(
@@ -870,7 +871,7 @@ describe("createBuilder", () => {
       workflow_start_target: target,
     });
     const starts: BuilderStartCall[] = [];
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       start: async (call) => {
         starts.push(call);
@@ -908,7 +909,7 @@ describe("createBuilder", () => {
       workflow_start_target: target,
     });
     let n = 0;
-    const builder = createBuilder({
+    const builder = createWorkflowBuilder({
       transport,
       start: async () => `wrun_${String(++n)}`,
     });
@@ -917,10 +918,12 @@ describe("createBuilder", () => {
         .onEvent({ id: "e1", type: "x", tenant: "t1" })
         .orThrow(),
     ).toEqual(["wrun_1", "wrun_2"]);
-    const failing = await createBuilder({ transport }).triggers.onEvent({
-      id: "e1",
-      type: "x",
-    });
+    const failing = await createWorkflowBuilder({ transport }).triggers.onEvent(
+      {
+        id: "e1",
+        type: "x",
+      },
+    );
     expect(failing.ok).toBe(false);
   });
 
@@ -942,7 +945,19 @@ describe("createBuilder", () => {
       }),
       workflow_start_target: target,
     });
-    const builder = createBuilder({ transport, start: async () => "wrun_1" });
+    const unwired = await createWorkflowBuilder({
+      transport,
+    }).triggers.syncSchedule(
+      triggerOf({ ...TRIGGER, kind: "schedule", config: { cron: "@daily" } }),
+    );
+    expect(!unwired.ok && unwired.error.hint).toBe(
+      "WORKFLOW_BUILDER_WORKFLOWS_CLIENT",
+    );
+    const builder = createWorkflowBuilder({
+      transport,
+      start: async () => "wrun_1",
+      workflows: createWorkflows({ transport }),
+    });
     const bad = await builder.triggers.syncSchedule(triggerOf(TRIGGER));
     expect(!bad.ok && bad.error.kind).toBe("invalid_input");
     const schedule = triggerOf({
@@ -988,7 +1003,7 @@ describe("createBuilder", () => {
         });
       },
     });
-    const skipping = createBuilder({
+    const skipping = createWorkflowBuilder({
       transport: optedOut,
       start: async () => "never",
     }).triggers.starter();
@@ -1002,7 +1017,7 @@ describe("createBuilder", () => {
       },
     });
     await expect(
-      createBuilder({
+      createWorkflowBuilder({
         transport: missing,
         start: async () => "x",
       }).triggers.starter()(scheduled),
@@ -1018,7 +1033,7 @@ describe("createBuilder", () => {
       remove_workflow_credential: () => row,
     });
     const { memory, revoke, set } = provider();
-    const builder = createBuilder({ transport, credentials: [memory] });
+    const builder = createWorkflowBuilder({ transport, credentials: [memory] });
     expect(await builder.credentials.list("t1").orThrow()).toHaveLength(1);
     await builder.credentials
       .create({
@@ -1107,7 +1122,7 @@ describe("createBuilder", () => {
       },
       { store: false },
     );
-    const builder = createBuilder({ transport, credentials: noStore });
+    const builder = createWorkflowBuilder({ transport, credentials: noStore });
     const authorize = await builder.credentials.authorize("c1", {
       redirectUri: "x",
     });

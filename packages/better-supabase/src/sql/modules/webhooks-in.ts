@@ -1,3 +1,4 @@
+import type { IncomingWebhooksEvents } from "../../blocks/webhooks/events.ts";
 import type { ModuleContext, ModuleEvents } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -766,7 +767,7 @@ revoke execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) f
 grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to service_role;`;
 }
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<IncomingWebhooksEvents> = {
   "incoming_webhook.created": {
     subject: "organizations",
     payload: ["organizationId", "endpointId", "name"],

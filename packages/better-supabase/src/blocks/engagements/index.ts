@@ -20,3 +20,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { engagementsBlock } from "./manifest.ts";
+export { engagementsEvents } from "./events.ts";
+export type { EngagementsEvents } from "./events.ts";

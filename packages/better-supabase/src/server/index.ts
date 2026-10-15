@@ -41,6 +41,8 @@ export type {
   SupportStartRequest,
 } from "./support.ts";
 export { supportSessions } from "./support.ts";
+export { supportSessionsEvents } from "../blocks/support-sessions/events.ts";
+export type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
 export { defineAuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 export type {
   Approver,

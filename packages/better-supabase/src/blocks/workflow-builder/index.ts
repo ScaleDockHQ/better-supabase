@@ -3,7 +3,7 @@ export {
   type BuilderOptions,
   type BuilderStartCall,
   type BuilderStarter,
-  createBuilder,
+  createWorkflowBuilder,
   type CredentialInput,
   type DefinitionInput,
   type GrantInput,
@@ -80,3 +80,6 @@ export type {
   WorkflowCanvasRunControllerOptions,
   WorkflowCanvasRunSnapshot,
 } from "./client.ts";
+export { workflowBuilderBlock } from "./manifest.ts";
+export { workflowBuilderEvents } from "./events.ts";
+export type { WorkflowBuilderEvents } from "./events.ts";

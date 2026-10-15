@@ -1,3 +1,4 @@
+import type { HiringEvents } from "../../blocks/hiring/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -29,7 +30,7 @@ const APPLICATION = [
   "candidateId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<HiringEvents> = {
   "job.opened": {
     subject: "jobs",
     payload: ["organizationId", "jobId", "title"],

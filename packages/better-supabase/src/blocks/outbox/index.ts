@@ -15,3 +15,4 @@ export type {
   RelayResult,
 } from "./outbox.ts";
 export type { SqlClient } from "../../postgres/executor.ts";
+export { outboxBlock } from "./manifest.ts";

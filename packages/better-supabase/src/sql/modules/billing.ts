@@ -1,3 +1,4 @@
+import type { BillingEvents } from "../../blocks/billing/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -21,7 +22,7 @@ import {
 import { moduleOperations, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<BillingEvents> = {
   "billing.customer_linked": {
     subject: "organizations",
     payload: ["organizationId", "customerId"],

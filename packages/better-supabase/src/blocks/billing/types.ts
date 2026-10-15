@@ -7,6 +7,7 @@ import type { EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { StripeSource, StripeTaxId } from "../stripe.ts";
+import type { BillingEvents } from "./events.ts";
 
 export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
@@ -109,7 +110,7 @@ export interface StripeEvent {
 
 export interface StripeEventOutcome {
   /** The `billing.*` block event it emitted, if any. */
-  readonly event: BlockEventType | undefined;
+  readonly event: BlockEventType<BillingEvents> | undefined;
   readonly organizationId: string | undefined;
   readonly customerId: string | undefined;
   /** Members whose sessions were invalidated. */

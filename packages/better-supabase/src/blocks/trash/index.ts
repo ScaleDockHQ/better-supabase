@@ -12,3 +12,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { trashBlock } from "./manifest.ts";
+export { trashEvents } from "./events.ts";
+export type { TrashEvents } from "./events.ts";

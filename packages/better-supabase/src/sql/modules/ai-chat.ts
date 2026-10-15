@@ -1,3 +1,4 @@
+import type { AiChatEvents } from "../../blocks/ai-chat/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -232,7 +233,7 @@ const HARNESS = {
   updatedAt: "updated_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AiChatEvents> = {
   "ai_chat_message.completed": {
     subject: "ai-chats",
     payload: [

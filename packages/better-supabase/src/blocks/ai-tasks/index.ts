@@ -16,3 +16,4 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { aiTasksBlock } from "./manifest.ts";

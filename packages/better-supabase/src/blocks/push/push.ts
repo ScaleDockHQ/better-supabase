@@ -97,7 +97,7 @@ function targetsOf(value: unknown): readonly PushTarget[] {
   });
 }
 
-export function createPushDevices(options: PushDevicesOptions): PushDevices {
+export function createPush(options: PushDevicesOptions): PushDevices {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   return {
@@ -150,7 +150,7 @@ export interface RegisteredDevice {
  * ```ts
  * const device = await registerDevice({
  *   notifications: Notifications,
- *   devices: createPushDevices({ transport: rpcTransport(supabase) }),
+ *   devices: createPush({ transport: rpcTransport(supabase) }),
  *   platform: Platform.OS,
  *   projectId: Constants.easConfig?.projectId,
  * }).orThrow();

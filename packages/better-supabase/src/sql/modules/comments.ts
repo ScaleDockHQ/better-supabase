@@ -1,3 +1,4 @@
+import type { CommentsEvents } from "../../blocks/comments/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -31,7 +32,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { hasColumn } from "./audit-columns.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CommentsEvents> = {
   "comment.deleted": {
     subject: "comments",
     payload: [

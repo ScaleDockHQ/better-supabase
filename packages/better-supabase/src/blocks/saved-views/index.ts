@@ -43,3 +43,6 @@ export type {
   SavedViewsMatch,
   SavedViewsSnapshot,
 } from "./client.ts";
+export { savedViewsBlock } from "./manifest.ts";
+export { savedViewsEvents } from "./events.ts";
+export type { SavedViewsEvents } from "./events.ts";

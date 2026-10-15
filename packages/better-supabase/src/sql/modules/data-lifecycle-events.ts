@@ -1,7 +1,8 @@
+import type { DataLifecycleEvents } from "../../blocks/data-lifecycle/events.ts";
 import type { ModuleEvents } from "../context.ts";
 
 /** The outbox events the module records. */
-export const DATA_LIFECYCLE_EVENTS: ModuleEvents = {
+export const DATA_LIFECYCLE_EVENTS: ModuleEvents<DataLifecycleEvents> = {
   "data_export.requested": {
     subject: "data-exports",
     payload: ["exportId", "subject", "organizationId", "userId", "requestedBy"],

@@ -31,3 +31,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { ssoBlock } from "./manifest.ts";
+export { ssoEvents } from "./events.ts";
+export type { SsoEvents } from "./events.ts";

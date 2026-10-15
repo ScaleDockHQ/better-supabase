@@ -1,3 +1,4 @@
+import type { NumberSequencesEvents } from "../../blocks/number-sequences/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -15,7 +16,7 @@ import {
   serviceGrant,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<NumberSequencesEvents> = {
   "number.assigned": {
     subject: "number-sequences",
     payload: ["organizationId", "entity", "period", "number"],

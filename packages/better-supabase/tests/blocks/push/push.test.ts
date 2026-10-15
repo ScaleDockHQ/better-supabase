@@ -7,7 +7,7 @@ import type {
 } from "../../../src/blocks/push/index.ts";
 
 import {
-  createPushDevices,
+  createPush,
   expoPush,
   expoPushChannel,
   registerDevice,
@@ -42,7 +42,7 @@ function expoFetch(
   return { calls, fetch };
 }
 
-describe("createPushDevices", () => {
+describe("createPush", () => {
   it("maps calls to the module functions", async () => {
     const { call, transport: t } = transport((fn) => {
       if (fn === "register_push_device") return "d1";
@@ -53,7 +53,7 @@ describe("createPushDevices", () => {
         { userId: "u1", token: "b", platform: "tv", provider: "expo" },
       ];
     });
-    const devices = createPushDevices({ transport: t, schema: "app" });
+    const devices = createPush({ transport: t, schema: "app" });
     expect(
       await devices.register({ token: "a", platform: "ios" }).orThrow(),
     ).toBe("d1");
@@ -193,7 +193,7 @@ describe("unregisterOnSignOut", () => {
 describe("expoPush", () => {
   it("sends in chunks of 100 and prunes unregistered tokens from tickets", async () => {
     const pruned: string[][] = [];
-    const devices = createPushDevices({
+    const devices = createPush({
       transport: transport((fn, args) => {
         if (fn === "prune_push_tokens") {
           pruned.push([...(args["tokens"] as string[])]);
@@ -303,7 +303,7 @@ describe("expoPushChannel", () => {
   const devicesWith = (
     tokens: readonly { token: string; provider: string }[],
   ) =>
-    createPushDevices({
+    createPush({
       transport: transport(() =>
         tokens.map((t) => ({ userId: "u1", platform: "ios", ...t })),
       ).transport,

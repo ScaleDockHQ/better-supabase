@@ -1,3 +1,4 @@
+import type { SupportSessionsEvents } from "../../blocks/support-sessions/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
@@ -21,7 +22,7 @@ import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
 import { supportApprovalFunctions } from "./support-approvals.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SupportSessionsEvents> = {
   "support.started": {
     subject: "support-sessions",
     payload: [

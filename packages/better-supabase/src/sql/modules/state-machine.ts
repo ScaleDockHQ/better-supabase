@@ -1,3 +1,4 @@
+import type { StateMachineEvents } from "../../blocks/state-machine/events.ts";
 import type { SubjectsConfig } from "../../config/types/subjects.ts";
 import type {
   ModuleContext,
@@ -20,7 +21,7 @@ import {
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<StateMachineEvents> = {
   "status.changed": {
     subject: "statuses",
     payload: [...SUBJECT, "from", "to"],

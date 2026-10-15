@@ -1,3 +1,4 @@
+import type { BookingsEvents } from "../../blocks/bookings/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -32,7 +33,7 @@ const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
 
 const PAYLOAD = ["organizationId", "id", "resourceId", "serviceId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<BookingsEvents> = {
   "booking.reserved": { subject: "bookings", payload: PAYLOAD },
   "booking.confirmed": { subject: "bookings", payload: PAYLOAD },
   "booking.cancelled": { subject: "bookings", payload: PAYLOAD },

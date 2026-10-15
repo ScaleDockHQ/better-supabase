@@ -1,3 +1,4 @@
+import type { CustomFieldsEvents } from "../../blocks/custom-fields/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -10,7 +11,7 @@ import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CustomFieldsEvents> = {
   "custom_field.saved": {
     subject: "custom-fields",
     payload: ["organizationId", "id", "entity"],

@@ -1,3 +1,4 @@
+import type { VersionsEvents } from "../../blocks/versions/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<VersionsEvents> = {
   "version.created": {
     subject: "versions",
     payload: [...SUBJECT_PAYLOAD, "id", "number", "label", "source"],

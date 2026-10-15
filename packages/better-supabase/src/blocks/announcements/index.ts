@@ -22,3 +22,6 @@ export type {
   AnnouncementsControllerOptions,
   AnnouncementsSnapshot,
 } from "./client.ts";
+export { announcementsBlock } from "./manifest.ts";
+export { announcementsEvents } from "./events.ts";
+export type { AnnouncementsEvents } from "./events.ts";

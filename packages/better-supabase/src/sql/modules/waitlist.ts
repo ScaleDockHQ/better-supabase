@@ -1,3 +1,4 @@
+import type { WaitlistEvents } from "../../blocks/waitlist/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -25,7 +26,7 @@ import {
 } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<WaitlistEvents> = {
   "waitlist.approved": {
     subject: "waitlist-entries",
     payload: ["entryId", "email"],

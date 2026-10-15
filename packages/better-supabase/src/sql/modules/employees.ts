@@ -1,3 +1,4 @@
+import type { EmployeesEvents } from "../../blocks/employees/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -29,7 +30,7 @@ const EMPLOYEE = [
   "name",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<EmployeesEvents> = {
   "employee.created": {
     subject: "employees",
     payload: [...EMPLOYEE, "userId", "managerId", "status"],

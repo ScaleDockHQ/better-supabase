@@ -1,3 +1,4 @@
+import type { SsoEvents } from "../../blocks/sso/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -20,7 +21,7 @@ import { roleValue } from "./organizations.ts";
 import { type ScimSqlNames, scimSql } from "./sso-scim-sql.ts";
 import { roleNameOf } from "./tenant.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SsoEvents> = {
   "organization.member_removed": {
     subject: "organizations",
     payload: ["organizationId", "userId"],

@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { BlockEventMap } from "../core/block-events.ts";
+import type { EventMap } from "../core/block-events.ts";
 import type { MutationIntent } from "../core/plugin.ts";
 import type { CloudEventOptions } from "../events/cloud-event.ts";
 import type { SchemaMeta } from "../schema/types.ts";
@@ -28,17 +28,16 @@ import {
   tableSchemas,
 } from "./schemas.ts";
 
-/** A schema for a block event's data, checked against `BlockEventMap`. */
+/** A schema for a block event's data, checked against the block's event map. */
 export type BlockEventSchema<T> = StandardSchemaV1<unknown, T>;
 
 /**
- * Data schemas for block events, by event type. `true` documents the event
- * with an open payload. A block can export its own map of this type.
+ * Data schemas for block events, by event type, typed by an event map such
+ * as `EventMapOf<typeof commentsEvents>`. `true` documents the event with an
+ * open payload. A block can export its own map of this type.
  */
-export type BlockEventSchemas = {
-  readonly [K in keyof BlockEventMap]?:
-    | true
-    | BlockEventSchema<BlockEventMap[K]>;
+export type BlockEventSchemas<M extends EventMap = EventMap> = {
+  readonly [K in keyof M & string]?: true | BlockEventSchema<M[K]>;
 };
 
 /**
@@ -413,6 +412,7 @@ function cloudEventChannel<Ref>(
   }
 
   for (const [event, schema] of Object.entries(input.blocks ?? {})) {
+    if (schema === undefined) continue;
     const type = `${input.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event}`;
     add(
       `block${keyPart(event)}`,

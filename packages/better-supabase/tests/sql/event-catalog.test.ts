@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderModules } from "../../src/sql/render.ts";
@@ -8,15 +9,17 @@ import { renderModules } from "../../src/sql/render.ts";
 const source = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-/** The keys of `BlockEventMap`, read from its source. */
-const MAP_TYPES = (() => {
-  const map = /export interface BlockEventMap \{([\s\S]*?)\n\}/.exec(
-    source("../../src/core/block-events.ts"),
-  )?.[1];
-  return [...(map ?? "").matchAll(/^\s+"([a-z_.]+)":/gm)].map(
-    (match) => match[1] ?? "",
-  );
-})();
+/** Every block's event types. */
+const MAP_TYPES = [
+  ...new Set(BLOCK_MANIFESTS.flatMap((block) => block.events.types)),
+];
+
+/** The manifest that owns each SQL module. */
+const OWNER = new Map(
+  BLOCK_MANIFESTS.flatMap((block) =>
+    block.sql.map((module) => [module, block] as const),
+  ),
+);
 
 /** Rendered with every module, so each optional event path is on. */
 const RECORDED = (() => {
@@ -53,13 +56,13 @@ describe("SQL module event catalog", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("declares only types in BlockEventMap", () => {
-    const known = new Set(MAP_TYPES);
-    const unknown = Object.keys(SQL_MODULES).flatMap((module) =>
-      declared(module)
+  it("declares only types in its block's event map", () => {
+    const unknown = Object.keys(SQL_MODULES).flatMap((module) => {
+      const known = new Set(OWNER.get(module)?.events.types ?? []);
+      return declared(module)
         .filter((type) => !known.has(type))
-        .map((type) => `${module}: ${type}`),
-    );
+        .map((type) => `${module}: ${type}`);
+    });
     expect(unknown).toEqual([]);
   });
 

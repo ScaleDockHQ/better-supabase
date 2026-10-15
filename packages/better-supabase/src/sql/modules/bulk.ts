@@ -1,3 +1,4 @@
+import type { BulkEvents } from "../../blocks/bulk/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -33,7 +34,7 @@ const DEFAULT_LIMIT = 500;
 const MAX_RUN = 100_000;
 const DEFAULT_CHUNK = 200;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<BulkEvents> = {
   "bulk_run.completed": {
     subject: "bulk-runs",
     payload: ["organizationId", "id", "kind", "status", "count", "failed"],

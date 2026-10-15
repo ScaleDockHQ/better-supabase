@@ -1,3 +1,4 @@
+import type { FlagsEvents } from "../../blocks/flags/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -9,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { schemaPreamble, lockTable, fail } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<FlagsEvents> = {
   "flag.saved": {
     subject: "flags",
     payload: ["key"],

@@ -1,3 +1,4 @@
+import type { InvoicesEvents } from "../../blocks/invoices/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const INVOICE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<InvoicesEvents> = {
   "invoice.created": { subject: "invoices", payload: [...INVOICE] },
   "invoice.issued": {
     subject: "invoices",

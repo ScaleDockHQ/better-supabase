@@ -1,5 +1,5 @@
 import {
-  createBuilder,
+  createWorkflowBuilder,
   type GraphStepCall,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
@@ -16,7 +16,7 @@ import { stepLibrary } from "./step-library";
 /** The service-role builder steps record node status and resolve credentials with. */
 function stepBuilder() {
   const transport = rpcTransport(serviceSupabase(), { schema: "api" });
-  return createBuilder({
+  return createWorkflowBuilder({
     transport,
     schema: "api",
     steps: stepLibrary,

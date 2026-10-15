@@ -7,6 +7,7 @@ import type {
   MetricWhereValue,
 } from "../../core/metric-definition.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { MetricsSinkOptions } from "./sink.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -52,6 +53,11 @@ export interface MetricsOptions<
   readonly hooks?: BlockHooks<Metrics<M>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
+  /**
+   * The events that add rows, for the outbox sink `createBlocks` puts in
+   * `sinks` (`metricsSink`). Without it, the block provides no sink.
+   */
+  readonly sink?: Pick<MetricsSinkOptions, "on" | "time">;
 }
 
 /** `[from, until)`. */

@@ -1,3 +1,4 @@
+import type { DealsEvents } from "../../blocks/deals/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -31,7 +32,7 @@ const DEAL = [
   "name",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DealsEvents> = {
   "deal.created": { subject: "deals", payload: [...DEAL] },
   "deal.updated": { subject: "deals", payload: [...DEAL, "fields"] },
   "deal.closed": {

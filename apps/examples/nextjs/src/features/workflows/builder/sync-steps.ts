@@ -1,5 +1,5 @@
 import {
-  createBuilder,
+  createWorkflowBuilder,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 
@@ -13,7 +13,7 @@ import { stepLibrary } from "./step-library";
  * at start-up leaves the previous library in place.
  */
 export async function syncStepLibrary(): Promise<void> {
-  const builder = createBuilder({
+  const builder = createWorkflowBuilder({
     transport: rpcTransport(bs.admin().$client, { schema: "api" }),
     schema: "api",
     steps: stepLibrary,

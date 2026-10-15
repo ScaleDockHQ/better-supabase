@@ -47,3 +47,6 @@ export type {
   CalendarControllerOptions,
   CalendarSnapshot,
 } from "./client.ts";
+export { calendarBlock } from "./manifest.ts";
+export { calendarEvents } from "./events.ts";
+export type { CalendarEvents } from "./events.ts";

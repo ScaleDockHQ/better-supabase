@@ -1,3 +1,4 @@
+import type { AccessRequestsEvents } from "../../blocks/access-requests/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -34,7 +35,7 @@ const PAYLOAD = [
   "expiresAt",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AccessRequestsEvents> = {
   "access.requested": { subject: "access-requests", payload: PAYLOAD },
   "access.request_approved": { subject: "access-requests", payload: PAYLOAD },
   "access.ended": {

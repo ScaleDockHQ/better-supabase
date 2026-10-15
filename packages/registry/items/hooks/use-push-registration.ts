@@ -1,5 +1,5 @@
 import {
-  createPushDevices,
+  createPush,
   registerDevice,
   rpcTransport,
 } from "better-supabase/blocks/push";
@@ -9,7 +9,7 @@ import { Platform } from "react-native";
 
 import { supabase } from "@/lib/supabase/native";
 
-const devices = createPushDevices({
+const devices = createPush({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 

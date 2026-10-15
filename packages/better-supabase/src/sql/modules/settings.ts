@@ -1,3 +1,4 @@
+import type { SettingsEvents } from "../../blocks/settings/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -17,7 +18,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SettingsEvents> = {
   "organization_setting.reset": {
     subject: "organizations",
     payload: ["organizationId", "key"],

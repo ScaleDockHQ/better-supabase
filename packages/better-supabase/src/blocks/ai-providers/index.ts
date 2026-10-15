@@ -20,3 +20,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { aiProvidersBlock } from "./manifest.ts";
+export { aiProvidersEvents } from "./events.ts";
+export type { AiProvidersEvents } from "./events.ts";

@@ -1,3 +1,4 @@
+import type { DocumentsEvents } from "../../blocks/documents/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DocumentsEvents> = {
   "document.created": {
     subject: "documents",
     payload: ["organizationId", "subjectType", "subjectId", "id", "name"],

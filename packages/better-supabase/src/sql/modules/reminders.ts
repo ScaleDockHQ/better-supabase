@@ -1,3 +1,4 @@
+import type { RemindersEvents } from "../../blocks/reminders/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -9,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<RemindersEvents> = {
   "reminder.sent": {
     subject: "reminders",
     payload: ["organizationId", "id", "subjectType", "subjectId", "userId"],

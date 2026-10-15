@@ -29,3 +29,4 @@ export type {
   CommandSearchOptions,
   CommandSearchSnapshot,
 } from "./client.ts";
+export { searchBlock } from "./manifest.ts";

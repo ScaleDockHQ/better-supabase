@@ -1,5 +1,5 @@
 export {
-  createPushDevices,
+  createPush,
   type ExpoNotificationsLike,
   expoPush,
   expoPushChannel,
@@ -26,3 +26,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { pushBlock } from "./manifest.ts";
+export { pushEvents } from "./events.ts";
+export type { PushEvents } from "./events.ts";

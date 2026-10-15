@@ -106,7 +106,7 @@ edges that were added, removed or changed.
 import "server-only";
 
 import {
-  createBuilder,
+  createWorkflowBuilder,
   sqlTransport,
 } from "better-supabase/blocks/workflow-builder";
 import {
@@ -118,7 +118,7 @@ import { steps, stepLibrary } from "@/workflows/steps";
 import { graphExecutor } from "@/workflows/graph";
 
 export const builderFor = (sql: Sql) =>
-  createBuilder({
+  createWorkflowBuilder({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -302,7 +302,7 @@ then decides each publish as well, with the publisher's claims:
 
 ```ts title="lib/workflow-builder.ts"
 export const builderFor = (sql: Sql) =>
-  createBuilder({
+  createWorkflowBuilder({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -395,7 +395,7 @@ Schedule triggers run on the `workflows` schedule tick. Pass
 ```ts
 import { vaultCredentials } from "better-supabase/credentials";
 
-const builder = createBuilder({
+const builder = createWorkflowBuilder({
   transport,
   service,
   credentials: vaultCredentials(sql),

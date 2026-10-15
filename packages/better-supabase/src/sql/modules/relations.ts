@@ -1,3 +1,4 @@
+import type { RelationsEvents } from "../../blocks/relations/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -51,7 +52,7 @@ const MAX_DATA_BYTES = 8192;
 const MAX_DEPTH = 100;
 const MAX_EDGES = 10_000;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<RelationsEvents> = {
   "subject.linked": {
     subject: "subjects",
     payload: [

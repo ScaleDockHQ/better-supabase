@@ -1,3 +1,4 @@
+import type { FormsEvents } from "../../blocks/forms/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ const FORM_LINK_ROLE = "respond";
 const WHERE = "blocks.forms.options";
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<FormsEvents> = {
   "form.created": {
     subject: "forms",
     payload: ["organizationId", "id", "key"],

@@ -138,7 +138,7 @@ export function runAsPublisher(
       if (automation.publisher === null) {
         return err(
           forbidden(
-            "Install the service-principals module or pass automation.runAs to createBuilder: an organization's workflow runs as its service principal",
+            "Install the service-principals module or pass automation.runAs to createWorkflowBuilder: an organization's workflow runs as its service principal",
             "WORKFLOW_PUBLISHER_REVOKED",
           ),
         );

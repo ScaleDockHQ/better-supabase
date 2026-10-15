@@ -1,3 +1,4 @@
+import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -24,7 +25,7 @@ import {
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AttachmentsEvents> = {
   "object.uploaded": {
     subject: "objects",
     payload: ["bucket", "path"],

@@ -1,3 +1,4 @@
+import type { AnnouncementsEvents } from "../../blocks/announcements/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -16,7 +17,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AnnouncementsEvents> = {
   "announcement.saved": {
     subject: "announcements",
     payload: ["announcementId"],

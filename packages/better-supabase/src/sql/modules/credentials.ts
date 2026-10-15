@@ -1,3 +1,4 @@
+import type { CredentialsEvents } from "../../blocks/credentials/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -9,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CredentialsEvents> = {
   "credential.set": {
     subject: "credentials",
     payload: ["provider", "name"],

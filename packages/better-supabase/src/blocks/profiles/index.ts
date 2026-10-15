@@ -18,3 +18,4 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { profilesBlock } from "./manifest.ts";

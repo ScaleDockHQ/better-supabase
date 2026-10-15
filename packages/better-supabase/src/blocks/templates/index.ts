@@ -44,3 +44,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { templatesBlock } from "./manifest.ts";
+export { templatesEvents } from "./events.ts";
+export type { TemplatesEvents } from "./events.ts";

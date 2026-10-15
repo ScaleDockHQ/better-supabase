@@ -1,3 +1,4 @@
+import type { NotificationsEvents } from "../../blocks/notifications/events.ts";
 import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
 import type {
   ModuleContext,
@@ -46,7 +47,7 @@ const DELIVERY_EVENT = {
   retries: true,
 };
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<NotificationsEvents> = {
   "notification.created": {
     subject: "notifications",
     payload: ["notificationId", "organizationId", "type", "recipientIds"],

@@ -35,3 +35,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { inventoryBlock } from "./manifest.ts";
+export { inventoryEvents } from "./events.ts";
+export type { InventoryEvents } from "./events.ts";

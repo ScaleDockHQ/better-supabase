@@ -1,3 +1,4 @@
+import type { ApiKeysEvents } from "../../blocks/api-keys/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -10,7 +11,7 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, fail, lockTable } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ApiKeysEvents> = {
   "api_key.created": {
     subject: "api-keys",
     payload: ["keyId", "organizationId", "userId", "name", "publicId"],

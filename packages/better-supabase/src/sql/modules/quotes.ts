@@ -1,3 +1,4 @@
+import type { QuotesEvents } from "../../blocks/quotes/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const QUOTE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<QuotesEvents> = {
   "quote.created": { subject: "quotes", payload: [...QUOTE] },
   "quote.updated": { subject: "quotes", payload: [...QUOTE] },
   "quote.sent": { subject: "quotes", payload: [...QUOTE] },

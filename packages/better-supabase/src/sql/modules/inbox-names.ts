@@ -1,3 +1,4 @@
+import type { InboxEvents } from "../../blocks/inbox/events.ts";
 import type { OperationTable } from "../../core/operations.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 
@@ -9,7 +10,7 @@ import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<InboxEvents> = {
   "inbox_conversation.reopened": {
     subject: "conversations",
     payload: [

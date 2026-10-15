@@ -1,3 +1,4 @@
+import type { AgentsEvents } from "../../blocks/agents/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -58,7 +59,7 @@ const SKILLS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AgentsEvents> = {
   "agent.saved": {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug"],

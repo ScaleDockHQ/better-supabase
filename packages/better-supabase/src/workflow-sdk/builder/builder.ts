@@ -173,7 +173,7 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
  * `createHook`: the token is the id `steps.bs_approval` returns
  * (graphStarter's `approval`), else `<runKey>:<node>`. A `meta.mode` of
  * `test` returns `meta.stubs` instead. It runs the same way `executeGraph` does. Throws when the graph is invalid or the
- * source is over 128 KiB. Pass it as `compile` to `createBuilder`.
+ * source is over 128 KiB. Pass it as `compile` to `createWorkflowBuilder`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   const errors = validateGraph(graph);
@@ -334,7 +334,7 @@ function contextOf(call: BuilderStartCall): RequestContext {
 }
 
 /**
- * The `start` for `createBuilder`: starts the published version as dynamic
+ * The `start` for `createWorkflowBuilder`: starts the published version as dynamic
  * source when dynamic workflows are on, and through `executor` otherwise.
  * The source is always compiled from the version's graph; a stored
  * compiled form is never run. Runs carry `bs.tenant`, `bs.actor`,
@@ -417,7 +417,7 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
   };
 }
 
-/** Where `nodeRunReporter` writes: `builder.nodeRuns` from `createBuilder`. */
+/** Where `nodeRunReporter` writes: `builder.nodeRuns` from `createWorkflowBuilder`. */
 export interface NodeRunSink {
   record(input: NodeRunRecord): PromiseLike<unknown>;
 }

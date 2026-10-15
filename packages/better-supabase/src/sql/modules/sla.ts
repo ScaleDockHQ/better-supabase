@@ -1,3 +1,4 @@
+import type { SlaEvents } from "../../blocks/sla/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -32,7 +33,7 @@ const CLOCK = [
   "dueAt",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SlaEvents> = {
   "sla.warned": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.breached": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.completed": { subject: "sla-clocks", payload: [...CLOCK, "late"] },

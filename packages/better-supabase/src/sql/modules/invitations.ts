@@ -1,3 +1,4 @@
+import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
@@ -46,7 +47,7 @@ import {
 import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<OrganizationsEvents> = {
   "invitation.created": {
     subject: "invitations",
     payload: ["invitationId", "organizationId", "email", "role"],

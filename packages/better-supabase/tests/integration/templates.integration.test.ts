@@ -11,7 +11,7 @@ import {
 } from "../../src/blocks/templates/index.ts";
 import {
   type BuilderStartCall,
-  createBuilder,
+  createWorkflowBuilder,
   type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -54,7 +54,7 @@ describe.skipIf(!live)("templates module", () => {
       };
       expect(await service.sync([starter]).orThrow()).toBe(1);
       expect(await service.sync([starter]).orThrow()).toBe(0);
-      await createBuilder({
+      await createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: [{ name: "email.send", title: "Send an email" }],
       })
@@ -64,7 +64,7 @@ describe.skipIf(!live)("templates module", () => {
       await s.asRole(owner);
       const created: TemplateApplyCall[] = [];
       const starts: BuilderStartCall[] = [];
-      const builder = createBuilder({
+      const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         start: async (call) => {
           starts.push(call);
@@ -231,7 +231,7 @@ describe.skipIf(!live)("templates module", () => {
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       await s.service();
-      await createBuilder({
+      await createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: [{ name: "email.send", title: "Send an email" }],
       })
@@ -239,7 +239,7 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       await s.asRole(owner);
-      const builder = createBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const templates = createTemplates({ transport: sqlTransport(s.sql) });
       const template = await templates
         .save({ organizationId: tenant, type: "project", name: "Launch" })

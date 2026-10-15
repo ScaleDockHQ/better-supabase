@@ -118,3 +118,6 @@ export type {
   AiShareControllerOptions,
   AiShareSnapshot,
 } from "./client.ts";
+export { aiChatBlock } from "./manifest.ts";
+export { aiChatEvents } from "./events.ts";
+export type { AiChatEvents } from "./events.ts";

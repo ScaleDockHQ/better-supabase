@@ -1,3 +1,4 @@
+import type { CollectionsEvents } from "../../blocks/collections/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ const ENTRY = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CollectionsEvents> = {
   "collection.created": {
     subject: "collections",
     payload: ["organizationId", "collectionId", "subjectType", "name", "scope"],

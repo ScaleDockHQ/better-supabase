@@ -131,8 +131,9 @@ export type {
 } from "./core/events.ts";
 export type {
   BlockEvent,
-  BlockEventMap,
   BlockEventType,
+  EventMap,
+  Events,
 } from "./core/block-events.ts";
 export type { Policy, PolicyDecision } from "./core/policy.ts";
 export type {

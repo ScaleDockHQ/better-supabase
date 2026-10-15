@@ -1,3 +1,4 @@
+import type { ReactionsEvents } from "../../blocks/reactions/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -29,7 +30,7 @@ const PAYLOAD = [
   "actor",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ReactionsEvents> = {
   "reaction.added": { subject: "reactions", payload: PAYLOAD },
   "reaction.removed": { subject: "reactions", payload: PAYLOAD },
 };

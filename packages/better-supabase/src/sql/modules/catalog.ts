@@ -1,3 +1,4 @@
+import type { CatalogEvents } from "../../blocks/catalog/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -23,7 +24,7 @@ import {
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CatalogEvents> = {
   "product.created": {
     subject: "products",
     payload: ["organizationId", "id", "slug", "kind"],

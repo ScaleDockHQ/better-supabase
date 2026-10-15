@@ -1,3 +1,4 @@
+import type { DriveEvents } from "../../blocks/drive/events.ts";
 import type {
   ModuleAudit,
   ModuleContext,
@@ -27,7 +28,7 @@ const PATH_SEGMENT = "drive-nodes";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DriveEvents> = {
   "drive.node_created": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "kind", "name", "parentId"],
@@ -50,7 +51,7 @@ const EVENTS: ModuleEvents = {
   },
 };
 
-export const FILE_EVENTS: ModuleEvents = {
+export const FILE_EVENTS: ModuleEvents<DriveEvents> = {
   "drive.node_purged": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],

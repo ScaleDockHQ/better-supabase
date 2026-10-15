@@ -1,3 +1,4 @@
+import type { ConnectorsEvents } from "../../blocks/connectors/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -63,7 +64,7 @@ const FINGERPRINTS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ConnectorsEvents> = {
   "connector.saved": {
     subject: "organizations",
     payload: ["organizationId", "serverId", "name"],

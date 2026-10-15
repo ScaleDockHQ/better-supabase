@@ -1,19 +1,3 @@
-import type {
-  ApplicationEventData,
-  CollectionEntryEventData,
-  CollectionEventData,
-  EmployeeEventData,
-  DealEventData,
-  EngagementEventData,
-  InvoiceEventData,
-  JobEventData,
-  PartyEventData,
-  PipelineEventData,
-  PipelineStageEventData,
-  QuoteEventData,
-  SlaEventData,
-  WorkItemEventData,
-} from "./block-events-records.ts";
 import type { EventHub } from "./events.ts";
 import type { RequestContext } from "./plugin.ts";
 
@@ -372,120 +356,11 @@ export interface SubjectEventData {
   readonly subjectId: string;
 }
 
-/** The event types whose data is a `SubjectEventData`. */
-export type SubjectEventType =
-  | "employee.created"
-  | "employee.updated"
-  | "employee.offboarded"
-  | "employee.manager_changed"
-  | "application.created"
-  | "application.hired"
-  | "application.rejected"
-  | "application.retracted"
-  | "scorecard.submitted"
-  | "interview.scheduled"
-  | "sla.warned"
-  | "sla.breached"
-  | "sla.completed"
-  | "quote.created"
-  | "quote.updated"
-  | "quote.sent"
-  | "quote.viewed"
-  | "quote.accepted"
-  | "quote.rejected"
-  | "quote.changes_requested"
-  | "quote.expired"
-  | "quote.revised"
-  | "invoice.created"
-  | "invoice.issued"
-  | "invoice.payment_recorded"
-  | "invoice.paid"
-  | "invoice.credited"
-  | "invoice.voided"
-  | "invoice.uncollected"
-  | "work_item.created"
-  | "work_item.updated"
-  | "work_item.assigned"
-  | "work_item.closed"
-  | "work_item.reopened"
-  | "work_item.archived"
-  | "work_item.deleted"
-  | "deal.created"
-  | "deal.updated"
-  | "deal.closed"
-  | "deal.reopened"
-  | "deal.archived"
-  | "deal.deleted"
-  | "engagement.logged"
-  | "engagement.updated"
-  | "engagement.completed"
-  | "engagement.deleted"
-  | "collection.entry_added"
-  | "collection.entry_removed"
-  | "pipeline.stage_changed"
-  | "comment.created"
-  | "comment.mentioned"
-  | "comment.deleted"
-  | "subject.tagged"
-  | "subject.untagged"
-  | "status.changed"
-  | "status.paused"
-  | "status.resumed"
-  | "status.flagged"
-  | "field_value.set"
-  | "share_link.created"
-  | "subject.viewed"
-  | "reminder.sent"
-  | "subject.linked"
-  | "subject.unlinked"
-  | "version.created"
-  | "version.restored"
-  | "version.deleted"
-  | "subject.trashed"
-  | "subject.restored"
-  | "subject.purged"
-  | "reaction.added"
-  | "reaction.removed"
-  | "document.created"
-  | "approval.requested"
-  | "approval.approved"
-  | "approval.rejected"
-  | "approval.cancelled"
-  | "approval.expired"
-  | "approval.delegated"
-  | "stock.reorder_point_reached"
-  | "drive.node_created"
-  | "drive.node_renamed"
-  | "drive.node_moved"
-  | "drive.node_shared"
-  | "drive.node_unshared"
-  | "drive.node_purged"
-  | "order.placed"
-  | "order.paid"
-  | "order.cancelled"
-  | "order.fulfilled"
-  | "order.completed"
-  | "order.refunded"
-  | "fulfillment.shipped"
-  | "fulfillment.delivered"
-  | "return.requested"
-  | "return.received"
-  | "form_submission.submitted"
-  | "form_submission.reviewed"
-  | "form_submission.deleted"
-  | "signature.requested"
-  | "signature.signed"
-  | "signature.completed"
-  | "signature.declined"
-  | "signature.cancelled"
-  | "template.applied"
-  | "notification.delivered"
-  | "notification.failed"
-  | "notification.opened"
-  | "notification.clicked"
-  | "notification.bounced"
-  | "notification.complained"
-  | "notification.delayed";
+/** The event types in `M` whose data is a `SubjectEventData`. */
+export type SubjectEventType<M extends EventMap = EventMap> = {
+  readonly [K in keyof M]: M[K] extends SubjectEventData ? K : never;
+}[keyof M] &
+  string;
 
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
@@ -745,315 +620,78 @@ export interface TimesheetEventData {
 }
 
 /** Every block event type and its data. */
-export interface BlockEventMap {
-  "support.started": SupportEventData;
-  "support.ended": SupportEventData;
-  "support.denied": SupportEventData;
-  "organization.created": OrganizationEventData;
-  "organization.updated": OrganizationEventData;
-  "organization.deleted": OrganizationEventData;
-  "organization.member_added": OrganizationEventData;
-  "organization.member_removed": OrganizationEventData;
-  "organization.member_left": OrganizationEventData;
-  "organization.member_suspended": OrganizationEventData;
-  "organization.member_resumed": OrganizationEventData;
-  "organization.role_changed": OrganizationEventData;
-  "organization.ownership_transferred": OrganizationEventData;
-  "organization.switched": OrganizationEventData;
-  "organization.domain_added": OrganizationDomainEventData;
-  "organization.domain_updated": OrganizationDomainEventData;
-  "organization.domain_verified": OrganizationDomainEventData;
-  "organization.domain_removed": OrganizationDomainEventData;
-  "sso_provider.registered": SsoProviderEventData;
-  "sso_provider.unregistered": SsoProviderEventData;
-  "scim_user.saved": ScimEventData;
-  "scim_user.deleted": ScimEventData;
-  "scim_group.saved": ScimEventData;
-  "scim_group.deleted": ScimEventData;
-  "waitlist.approved": WaitlistEventData;
-  "waitlist.rejected": WaitlistEventData;
-  "invite_code.created": InviteCodeEventData;
-  "invite_code.revoked": InviteCodeEventData;
-  "api_key.created": ApiKeyEventData;
-  "api_key.revoked": ApiKeyEventData;
-  "api_key.rotated": ApiKeyEventData;
-  "organization_setting.updated": SettingEventData;
-  "organization_setting.reset": SettingEventData;
-  "platform_setting.updated": SettingEventData;
-  "platform_setting.reset": SettingEventData;
-  "flag.saved": FlagEventData;
-  "flag.deleted": FlagEventData;
-  "flag.override_set": FlagEventData;
-  "announcement.saved": AnnouncementEventData;
-  "announcement.deleted": AnnouncementEventData;
-  "credential.set": CredentialEventData;
-  "credential.deleted": CredentialEventData;
-  "connector.saved": ConnectorEventData;
-  "connector.deleted": ConnectorEventData;
-  "connector.fingerprint_decided": ConnectorEventData;
-  "connector_grant.created": ConnectorEventData;
-  "connector_grant.revoked": ConnectorEventData;
-  "agent.saved": AgentEventData;
-  "agent.published": AgentEventData;
-  "agent.deleted": AgentEventData;
-  "agent.installed": AgentEventData;
-  "agent.uninstalled": AgentEventData;
-  "ai_provider_key.saved": AiProviderKeyEventData;
-  "ai_provider_key.deleted": AiProviderKeyEventData;
-  "ai_tool_policy.set": AiToolEventData;
-  "ai_tool_approval.decided": AiToolEventData;
-  "incoming_webhook.created": IncomingWebhookEventData;
-  "incoming_webhook.updated": IncomingWebhookEventData;
-  "incoming_webhook.enabled_set": IncomingWebhookEventData;
-  "incoming_webhook.token_rotated": IncomingWebhookEventData;
-  "incoming_webhook.secret_rotated": IncomingWebhookEventData;
-  "incoming_webhook.deleted": IncomingWebhookEventData;
-  "inbox_conversation.opened": InboxEventData;
-  "inbox_conversation.assigned": InboxEventData;
-  "inbox_conversation.resolved": InboxEventData;
-  "inbox_conversation.reopened": InboxEventData;
-  "inbox_message.received": InboxEventData;
-  "push.device_registered": PushDeviceEventData;
-  "push.device_unregistered": PushDeviceEventData;
-  "workflow_run.completed": WorkflowRunEventData;
-  "workflow_run.failed": WorkflowRunEventData;
-  "workflow_run.cancelled": WorkflowRunEventData;
-  "workflow.published": WorkflowEventData;
-  "workflow_alert.triggered": WorkflowEventData;
-  "audit.revealed": AuditRevealEventData;
-  "object.uploaded": StorageObjectEventData;
-  "invitation.created": InvitationEventData;
-  "invitation.resent": InvitationEventData;
-  "invitation.updated": InvitationEventData;
-  "invitation.accepted": InvitationEventData;
-  "invitation.declined": InvitationEventData;
-  "invitation.revoked": InvitationEventData;
-  "notification.created": NotificationEventData;
-  "notification.delivered": NotificationDeliveryEventData;
-  "notification.failed": NotificationDeliveryEventData;
-  "notification.opened": NotificationDeliveryEventData;
-  "notification.clicked": NotificationDeliveryEventData;
-  "notification.bounced": NotificationDeliveryEventData;
-  "notification.complained": NotificationDeliveryEventData;
-  "notification.delayed": NotificationDeliveryEventData;
-  "webhook.delivered": WebhookEventData;
-  "webhook.failed": WebhookEventData;
-  "webhook.disabled": WebhookEventData;
-  "webhook.secret_rotated": WebhookEventData;
-  "billing.customer_linked": BillingEventData;
-  "billing.checkout_completed": BillingEventData;
-  "billing.subscription_created": BillingEventData;
-  "billing.subscription_updated": BillingEventData;
-  "billing.subscription_deleted": BillingEventData;
-  "billing.seats_synced": BillingEventData;
-  "comment.created": CommentEventData;
-  "comment.mentioned": CommentEventData;
-  "comment.deleted": CommentEventData;
-  "attachment.uploaded": AttachmentEventData;
-  "attachment.scanned": AttachmentEventData;
-  "data_export.requested": DataExportEventData;
-  "data_export.completed": DataExportEventData;
-  "data_export.failed": DataExportEventData;
-  "organization.deletion_requested": OrganizationDeletionEventData;
-  "organization.deletion_cancelled": OrganizationDeletionEventData;
-  "organization.purged": OrganizationDeletionEventData;
-  "ai_chat_message.completed": AiChatEventData;
-  "ai_chat.shared": AiChatEventData;
-  "ai_chat.share_revoked": AiChatEventData;
-  "number.assigned": SaasEventData;
-  "team.created": SaasEventData;
-  "team.updated": SaasEventData;
-  "team.archived": SaasEventData;
-  "team.deleted": SaasEventData;
-  "team_member.added": SaasEventData;
-  "team_member.removed": SaasEventData;
-  "tag.created": SaasEventData;
-  "tag.updated": SaasEventData;
-  "tag.deleted": SaasEventData;
-  "subject.tagged": SaasSubjectEventData;
-  "subject.untagged": SaasSubjectEventData;
-  "status.changed": SaasSubjectEventData;
-  "status.paused": SaasSubjectEventData;
-  "status.resumed": SaasSubjectEventData;
-  "status.flagged": SaasSubjectEventData;
-  "custom_field.saved": SaasEventData;
-  "custom_field.deleted": SaasEventData;
-  "field_value.set": SaasSubjectEventData;
-  "share_link.created": SaasSubjectEventData;
-  "share_link.revoked": SaasEventData;
-  "subject.viewed": SaasSubjectEventData;
-  "reminder.sent": SaasSubjectEventData;
-  "import.completed": SaasEventData;
-  "import.failed": SaasEventData;
-  "saved_view.saved": SaasEventData;
-  "saved_view.deleted": SaasEventData;
-  "subject.linked": SaasSubjectEventData;
-  "subject.unlinked": SaasSubjectEventData;
-  "bulk_run.completed": SaasEventData;
-  "calendar.created": SchedulingEventData;
-  "calendar_event.created": SchedulingEventData;
-  "calendar_event.updated": SchedulingEventData;
-  "calendar_event.deleted": SchedulingEventData;
-  "booking.reserved": SchedulingEventData;
-  "booking.confirmed": SchedulingEventData;
-  "booking.cancelled": SchedulingEventData;
-  "booking.expired": SchedulingEventData;
-  "version.created": CollaborationEventData;
-  "version.restored": CollaborationEventData;
-  "version.deleted": CollaborationEventData;
-  "subject.trashed": CollaborationEventData;
-  "subject.restored": CollaborationEventData;
-  "subject.purged": CollaborationEventData;
-  "reaction.added": CollaborationEventData;
-  "reaction.removed": CollaborationEventData;
-  "approval.requested": CollaborationEventData;
-  "approval.approved": CollaborationEventData;
-  "approval.rejected": CollaborationEventData;
-  "approval.cancelled": CollaborationEventData;
-  "approval.expired": CollaborationEventData;
-  "approval.delegated": CollaborationEventData;
-  "access.requested": AccessRequestEventData;
-  "access.request_approved": AccessRequestEventData;
-  "access.ended": AccessRequestEventData;
-  "document.created": DocumentEventData;
-  "quote.created": QuoteEventData;
-  "quote.updated": QuoteEventData;
-  "quote.sent": QuoteEventData;
-  "quote.viewed": QuoteEventData;
-  "quote.accepted": QuoteEventData;
-  "quote.rejected": QuoteEventData;
-  "quote.changes_requested": QuoteEventData;
-  "quote.expired": QuoteEventData;
-  "quote.revised": QuoteEventData;
-  "invoice.created": InvoiceEventData;
-  "invoice.issued": InvoiceEventData;
-  "invoice.payment_recorded": InvoiceEventData;
-  "invoice.paid": InvoiceEventData;
-  "invoice.credited": InvoiceEventData;
-  "invoice.voided": InvoiceEventData;
-  "invoice.uncollected": InvoiceEventData;
-  "job.opened": JobEventData;
-  "job.closed": JobEventData;
-  "application.created": ApplicationEventData;
-  "application.hired": ApplicationEventData;
-  "application.rejected": ApplicationEventData;
-  "application.retracted": ApplicationEventData;
-  "scorecard.submitted": ApplicationEventData;
-  "interview.scheduled": ApplicationEventData;
-  "employee.created": EmployeeEventData;
-  "employee.updated": EmployeeEventData;
-  "employee.offboarded": EmployeeEventData;
-  "employee.manager_changed": EmployeeEventData;
-  "sla.warned": SlaEventData;
-  "sla.breached": SlaEventData;
-  "sla.completed": SlaEventData;
-  "work_item.created": WorkItemEventData;
-  "work_item.updated": WorkItemEventData;
-  "work_item.assigned": WorkItemEventData;
-  "work_item.closed": WorkItemEventData;
-  "work_item.reopened": WorkItemEventData;
-  "work_item.archived": WorkItemEventData;
-  "work_item.deleted": WorkItemEventData;
-  "deal.created": DealEventData;
-  "deal.updated": DealEventData;
-  "deal.closed": DealEventData;
-  "deal.reopened": DealEventData;
-  "deal.archived": DealEventData;
-  "deal.deleted": DealEventData;
-  "engagement.logged": EngagementEventData;
-  "engagement.updated": EngagementEventData;
-  "engagement.completed": EngagementEventData;
-  "engagement.deleted": EngagementEventData;
-  "collection.created": CollectionEventData;
-  "collection.archived": CollectionEventData;
-  "collection.entry_added": CollectionEntryEventData;
-  "collection.entry_removed": CollectionEntryEventData;
-  "company.created": PartyEventData;
-  "company.updated": PartyEventData;
-  "company.archived": PartyEventData;
-  "company.merged": PartyEventData;
-  "company.person_linked": PartyEventData;
-  "company.person_unlinked": PartyEventData;
-  "person.created": PartyEventData;
-  "person.updated": PartyEventData;
-  "person.archived": PartyEventData;
-  "person.merged": PartyEventData;
-  "pipeline.created": PipelineEventData;
-  "pipeline.updated": PipelineEventData;
-  "pipeline.archived": PipelineEventData;
-  "pipeline_stage.saved": PipelineEventData;
-  "pipeline_stage.archived": PipelineEventData;
-  "pipeline.stage_changed": PipelineStageEventData;
-  "product.created": CommerceEventData;
-  "product.updated": CommerceEventData;
-  "product.status_changed": CommerceEventData;
-  "product.deleted": CommerceEventData;
-  "variant.created": CommerceEventData;
-  "variant.updated": CommerceEventData;
-  "variant.deleted": CommerceEventData;
-  "catalog.price_changed": CommerceEventData;
-  "storefront.published": CommerceEventData;
-  "storefront.unpublished": CommerceEventData;
-  "stock.adjusted": CommerceEventData;
-  "stock.reorder_point_reached": CommerceSubjectEventData;
-  "reservation.created": CommerceEventData;
-  "reservation.committed": CommerceEventData;
-  "reservation.released": CommerceEventData;
-  "transfer.shipped": CommerceEventData;
-  "transfer.received": CommerceEventData;
-  "transfer.cancelled": CommerceEventData;
-  "purchase_order.placed": CommerceEventData;
-  "purchase_order.received": CommerceEventData;
-  "purchase_order.cancelled": CommerceEventData;
-  "drive.node_created": DriveEventData;
-  "drive.node_renamed": DriveEventData;
-  "drive.node_moved": DriveEventData;
-  "drive.node_shared": DriveEventData;
-  "drive.node_unshared": DriveEventData;
-  "drive.node_purged": DriveEventData;
-  "order.placed": CommerceSubjectEventData;
-  "order.paid": CommerceSubjectEventData;
-  "order.cancelled": CommerceSubjectEventData;
-  "order.fulfilled": CommerceSubjectEventData;
-  "order.completed": CommerceSubjectEventData;
-  "order.refunded": CommerceSubjectEventData;
-  "fulfillment.shipped": CommerceSubjectEventData;
-  "fulfillment.delivered": CommerceSubjectEventData;
-  "return.requested": CommerceSubjectEventData;
-  "return.received": CommerceSubjectEventData;
-  "promotion.redeemed": CommerceEventData;
-  "form.created": FormEventData;
-  "form_version.published": FormEventData;
-  "form_submission.submitted": FormSubmissionEventData;
-  "form_submission.reviewed": FormSubmissionEventData;
-  "form_submission.deleted": FormSubmissionEventData;
-  "signature.requested": SignatureEventData;
-  "signature.signed": SignatureEventData;
-  "signature.completed": SignatureEventData;
-  "signature.declined": SignatureEventData;
-  "signature.cancelled": SignatureEventData;
-  "template.published": TemplateEventData;
-  "template.applied": TemplateApplicationEventData;
-  "time_entry.started": TimeEntryEventData;
-  "time_entry.recorded": TimeEntryEventData;
-  "time_entry.updated": TimeEntryEventData;
-  "time_entry.deleted": TimeEntryEventData;
-  "timesheet.submitted": TimesheetEventData;
-  "timesheet.approved": TimesheetEventData;
-  "timesheet.reopened": TimesheetEventData;
-  "service_principal.created": SaasEventData;
-  "service_principal.role_changed": SaasEventData;
-  "service_principal.disabled": SaasEventData;
+
+/** Event type to its data, such as `{ "comment.created": CommentEventData }`. */
+export type EventMap = { readonly [type: string]: object };
+
+declare const EVENT_DATA: unique symbol;
+
+/** One event in `defineEvents`, carrying only its data type. */
+export interface EventSpec<T extends object> {
+  readonly [EVENT_DATA]?: T;
 }
 
-export type BlockEventType = keyof BlockEventMap;
+/** The event `type` and its data type `T`, for `defineEvents`. */
+export function event<T extends object>(): EventSpec<T> {
+  return {};
+}
+
+/**
+ * A set of event types and, in its type, their data: a block's own events
+ * (the manifest's `events`) or the app's (`defineEvents`). `types` lists the
+ * types at runtime.
+ */
+export interface Events<M extends EventMap = EventMap> {
+  /** The event types, the keys of `M`. */
+  readonly types: readonly string[];
+  /** Carries `M` in the type only; always absent. */
+  readonly "~map"?: M;
+}
+
+/** The event map an `Events` value carries. */
+export type EventMapOf<E> = E extends Events<infer M> ? M : never;
+
+type DataOf<S> = S extends EventSpec<infer T> ? T : never;
+
+/**
+ * Declares events by type, so blocks, `defineBlocks` and `onBlockEvent`
+ * type their data:
+ * `defineEvents({ "invoice.sent": event<{ invoiceId: string }>() })`.
+ */
+export function defineEvents<
+  const S extends Readonly<Record<string, EventSpec<object>>>,
+>(spec: S): Events<{ readonly [K in keyof S & string]: DataOf<S[K]> }> {
+  return { types: Object.keys(spec) };
+}
+
+type UnionToIntersection<U> = (
+  U extends unknown ? (value: U) => void : never
+) extends (value: infer I) => void
+  ? I
+  : never;
+
+/** One map with the events of every `Events` in the tuple. */
+export type MergedEventMap<E extends readonly Events[]> = E extends readonly []
+  ? Record<never, never>
+  : UnionToIntersection<EventMapOf<E[number]>> extends infer M extends EventMap
+    ? M
+    : never;
+
+/** Several `Events` as one, such as a block's events and the app's own. */
+export function mergeEvents<const E extends readonly Events[]>(
+  ...events: E
+): Events<MergedEventMap<E>> {
+  return { types: [...new Set(events.flatMap((each) => each.types))] };
+}
+
+export type BlockEventType<M extends EventMap = EventMap> = keyof M & string;
 
 /**
  * Event types that changed name in 0.6, old to new, for sinks and consumers
  * that still receive the old ones (`BLOCK_EVENT_RENAMES[type] ?? type`).
  * `better-supabase codemod 0.6` rewrites the string literals.
  */
-export const BLOCK_EVENT_RENAMES: Readonly<Record<string, BlockEventType>> = {
+export const BLOCK_EVENT_RENAMES: Readonly<Record<string, string>> = {
   "org.created": "organization.created",
   "org.updated": "organization.updated",
   "org.deleted": "organization.deleted",
@@ -1075,26 +713,34 @@ export interface BlockEventMeta {
   readonly context?: RequestContext;
 }
 
-/** A block event as `betterSupabase.on('block', handler)` receives it. */
-export type BlockEvent<K extends BlockEventType = BlockEventType> = {
+/**
+ * A block event as `betterSupabase.on('block', handler)` receives it. `M`
+ * types its data: a block's own events, or the union from `defineBlocks`.
+ */
+export type BlockEvent<
+  M extends EventMap = EventMap,
+  K extends BlockEventType<M> = BlockEventType<M>,
+> = {
   readonly [T in K]: BlockEventMeta & {
     readonly type: T;
     /** A copy: changing it never changes what the block does (invariant 5). */
-    readonly data: BlockEventMap[T];
+    readonly data: M[T];
     readonly time: Temporal.Instant;
   };
 }[K];
 
 /** A type, or a `prefix.*` pattern such as `support.*`. */
-export type BlockEventPattern =
-  | BlockEventType
-  | `${BlockEventType extends `${infer P}.${string}` ? P : never}.*`;
+export type BlockEventPattern<M extends EventMap = EventMap> =
+  | BlockEventType<M>
+  | `${BlockEventType<M> extends `${infer P}.${string}` ? P : never}.*`;
 
 /** The event types a pattern matches. */
-export type BlockEventsMatching<P extends BlockEventPattern> =
-  P extends `${infer Prefix}.*`
-    ? Extract<BlockEventType, `${Prefix}.${string}`>
-    : Extract<P, BlockEventType>;
+export type BlockEventsMatching<
+  M extends EventMap,
+  P extends BlockEventPattern<M>,
+> = P extends `${infer Prefix}.*`
+  ? Extract<BlockEventType<M>, `${Prefix}.${string}`>
+  : Extract<P, BlockEventType<M>>;
 
 /**
  * Fixed OpenTelemetry attribute names for block work, so dashboards and
@@ -1136,23 +782,23 @@ export function blockEventAttributes(
 
 /**
  * Emits a block event on `events` with a copy of `data`. Does nothing without
- * a `block` handler, so blocks call it unconditionally.
+ * a `block` handler, so blocks call it unconditionally. `M` is the emitting
+ * block's event map.
  */
-export function emitBlockEvent<K extends BlockEventType>(
-  events: EventHub,
-  type: K,
-  data: BlockEventMap[K],
-  meta: BlockEventMeta = {},
-): void {
+export function emitBlockEvent<
+  M extends EventMap,
+  K extends BlockEventType<M> = BlockEventType<M>,
+>(events: EventHub, type: K, data: M[K], meta: BlockEventMeta = {}): void {
   if (!events.has("block")) return;
-  // SAFETY: cloneValue keeps the shape of plain objects, and the object is
-  // the BlockEvent<K> member for this type.
-  const event = {
+  // SAFETY: cloneValue keeps the shape of plain objects, so the copy is the
+  // `M[K]` data it was made from.
+  const copy = cloneValue(data) as M[K];
+  const event: BlockEvent = {
     ...meta,
     type,
-    data: cloneValue(data),
+    data: copy,
     time: (events.now ?? nowInstant)(),
-  } as BlockEvent;
+  };
   events.emit("block", event);
 }
 
@@ -1164,21 +810,25 @@ export interface BlockEmitterOptions {
   readonly context?: RequestContext | undefined;
 }
 
-/**
- * The `emit` a block creator calls: skips the work without an event hub and
- * adds the actor and request context from the block's options.
- */
-export function blockEmitter(
-  options: BlockEmitterOptions,
-): <K extends BlockEventType>(
+/** The `emit` of a block whose events are `M`. */
+export type BlockEmit<M extends EventMap> = <K extends BlockEventType<M>>(
   type: K,
-  data: BlockEventMap[K],
+  data: M[K],
   subject: string,
   tenant?: string | null,
-) => void {
+) => void;
+
+/**
+ * The `emit` a block creator calls with its own event map: skips the work
+ * without an event hub and adds the actor and request context from the
+ * block's options.
+ */
+export function blockEmitter<M extends EventMap>(
+  options: BlockEmitterOptions,
+): BlockEmit<M> {
   return (type, data, subject, tenant) => {
     if (!options.events) return;
-    emitBlockEvent(options.events, type, data, {
+    emitBlockEvent<M>(options.events, type, data, {
       subject,
       ...(tenant ? { tenant } : {}),
       ...(options.actorId ? { actorId: options.actorId } : {}),
@@ -1194,17 +844,24 @@ const matches = (pattern: string, type: string): boolean =>
 
 /**
  * Listens to the block events that match `pattern` (`'support.started'` or
- * `'support.*'`). Returns a function that stops listening.
+ * `'support.*'`), typed by `events`: a block's events, `defineBlocks(...)`
+ * or `defineEvents(...)`. Returns a function that stops listening.
  */
-export function onBlockEvent<P extends BlockEventPattern>(
+export function onBlockEvent<
+  M extends EventMap,
+  const P extends BlockEventPattern<M>,
+>(
   betterSupabase: { readonly events: EventHub },
+  events: Events<M>,
   pattern: P,
-  handler: (event: BlockEvent<BlockEventsMatching<P>>) => void,
+  handler: (event: BlockEvent<M, BlockEventsMatching<M, P>>) => void,
 ): () => void {
+  const known = new Set<string>(events.types);
   return betterSupabase.events.on("block", (event) => {
-    if (!matches(pattern, event.type)) return;
-    // SAFETY: matches() checked the type against the pattern.
-    handler(event as BlockEvent<BlockEventsMatching<P>>);
+    if (!known.has(event.type) || !matches(pattern, event.type)) return;
+    // SAFETY: `events` lists the type, and matches() checked it against the
+    // pattern, so the data is the one `M` declares for it.
+    handler(event as BlockEvent<M, BlockEventsMatching<M, P>>);
   });
 }
 

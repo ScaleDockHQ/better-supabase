@@ -1,3 +1,4 @@
+import type { ApprovalsEvents } from "../../blocks/approvals/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -61,7 +62,7 @@ const PAYLOAD = [
   "step",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ApprovalsEvents> = {
   "approval.requested": { subject: "approval-requests", payload: PAYLOAD },
   "approval.approved": { subject: "approval-requests", payload: PAYLOAD },
   "approval.rejected": { subject: "approval-requests", payload: PAYLOAD },

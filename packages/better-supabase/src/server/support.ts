@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
 import type {
   AuthorizationHooks,
   SupportAuthorize,
@@ -266,7 +267,7 @@ function createSupport(
     type: "support.started" | "support.ended" | "support.denied",
     data: SupportEventData,
   ): void => {
-    emitBlockEvent(events, type, data, {
+    emitBlockEvent<SupportSessionsEvents>(events, type, data, {
       actorId: data.adminId,
       ...(data.sessionId
         ? { subject: `support_sessions/${data.sessionId}` }

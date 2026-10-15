@@ -1,3 +1,4 @@
+import type { TrashEvents } from "../../blocks/trash/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -35,7 +36,7 @@ const PAYLOAD = [
   "batchId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TrashEvents> = {
   "subject.trashed": { subject: "trash-items", payload: PAYLOAD },
   "subject.restored": { subject: "trash-items", payload: PAYLOAD },
   "subject.purged": { subject: "trash-items", payload: PAYLOAD },

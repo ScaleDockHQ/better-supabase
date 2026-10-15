@@ -35,3 +35,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { driveBlock } from "./manifest.ts";
+export { driveEvents } from "./events.ts";
+export type { DriveEvents } from "./events.ts";

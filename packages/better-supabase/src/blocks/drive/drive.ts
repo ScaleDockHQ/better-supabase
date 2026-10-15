@@ -11,9 +11,9 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   type Attachment,
   type AttachmentDownload,
+  type Attachments,
   type AttachmentStorage,
   attachmentOf,
-  createAttachments,
   stored,
 } from "../attachments/attachments.ts";
 import {
@@ -33,16 +33,15 @@ import {
 export interface DriveOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`), so grants apply. */
   readonly transport: BlockTransport;
-  /** The caller's `supabase.storage`, for uploads and downloads. */
+  /** The caller's `supabase.storage`, for upload URLs and removing purged files. */
   readonly storage?: AttachmentStorage;
+  /**
+   * The `attachments` port: the attachments block over the same transport,
+   * which downloads the files. `createBlocks` passes it.
+   */
+  readonly attachments?: Pick<Attachments, "download">;
   /** `blocks.drive.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
-  /** `blocks.attachments.schema`, when it differs from `schema`. */
-  readonly attachmentsSchema?: string;
-  /** Must match `blocks.attachments.options.requireScan`. Default `true`. */
-  readonly requireScan?: boolean;
-  /** Lifetime of a signed download URL in seconds. Default 300. */
-  readonly downloadTtl?: number;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Drive>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -414,6 +413,13 @@ function objectsOf(value: unknown): DriveStoredObject[] {
   }));
 }
 
+const noAttachments = () =>
+  dbError(
+    "invalid_request",
+    "createDrive needs the attachments block to download files",
+    { hint: "DRIVE_ATTACHMENTS_CLIENT" },
+  );
+
 const noStorage = () =>
   dbError("invalid_request", "createDrive needs storage for files", {
     hint: "DRIVE_STORAGE_CLIENT",
@@ -424,24 +430,7 @@ export function createDrive(options: DriveOptions): Drive {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const storage = options.storage;
-  const attachmentsSchema = options.attachmentsSchema ?? options.schema;
-  const attachments =
-    storage === undefined
-      ? undefined
-      : createAttachments({
-          transport: options.transport,
-          storage,
-          ...(attachmentsSchema === undefined
-            ? {}
-            : { schema: attachmentsSchema }),
-          ...(options.mappers ? { mappers: options.mappers } : {}),
-          ...(options.requireScan === undefined
-            ? {}
-            : { requireScan: options.requireScan }),
-          ...(options.downloadTtl === undefined
-            ? {}
-            : { downloadTtl: options.downloadTtl }),
-        });
+  const attachments = options.attachments;
 
   const signed = (fn: string) => (value: unknown) => {
     const row = recordOf(value, fn);
@@ -582,7 +571,7 @@ export function createDrive(options: DriveOptions): Drive {
         nodeOf(value, "drive_commit"),
       ),
     download: (id, download = {}) => {
-      if (attachments === undefined) return AsyncResult.err(noStorage());
+      if (attachments === undefined) return AsyncResult.err(noAttachments());
       return client.get(id).andThen((node) =>
         node.attachmentId === undefined
           ? Promise.resolve(

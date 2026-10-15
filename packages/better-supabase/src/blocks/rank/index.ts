@@ -16,3 +16,4 @@ export {
   type RankOptions,
   type RankRebalancePayload,
 } from "./rank.ts";
+export { rankBlock } from "./manifest.ts";

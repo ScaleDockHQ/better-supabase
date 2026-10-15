@@ -1,3 +1,4 @@
+import type { PartiesEvents } from "../../blocks/parties/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -33,7 +34,7 @@ const COMPANY = ["organizationId", "companyId", "name"] as const;
 const PERSON = ["organizationId", "personId", "name"] as const;
 const LINK = ["organizationId", "companyId", "personId", "role"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<PartiesEvents> = {
   "company.created": { subject: "companies", payload: [...COMPANY] },
   "company.updated": { subject: "companies", payload: [...COMPANY] },
   "company.archived": { subject: "companies", payload: [...COMPANY] },

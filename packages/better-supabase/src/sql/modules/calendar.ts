@@ -1,3 +1,4 @@
+import type { CalendarEvents } from "../../blocks/calendar/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -16,7 +17,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CalendarEvents> = {
   "calendar.created": {
     subject: "calendars",
     payload: ["organizationId", "id", "name"],

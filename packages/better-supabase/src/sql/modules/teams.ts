@@ -1,3 +1,4 @@
+import type { TeamsEvents } from "../../blocks/teams/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -10,7 +11,7 @@ import { sqlString } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TeamsEvents> = {
   "team.created": {
     subject: "teams",
     payload: ["organizationId", "id", "name"],

@@ -1,3 +1,4 @@
+import type { TimeTrackingEvents } from "../../blocks/time-tracking/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -46,7 +47,7 @@ const TIMESHEET_PAYLOAD = [
   "approvalId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TimeTrackingEvents> = {
   "time_entry.started": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "time_entry.recorded": {
     subject: "time-entries",

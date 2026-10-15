@@ -1,3 +1,4 @@
+import type { PipelinesEvents } from "../../blocks/pipelines/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -27,7 +28,7 @@ const STAGE_PAYLOAD = [
   "outcome",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<PipelinesEvents> = {
   "pipeline.created": {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "subjectType", "key"],

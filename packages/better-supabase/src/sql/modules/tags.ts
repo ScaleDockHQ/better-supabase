@@ -1,3 +1,4 @@
+import type { TagsEvents } from "../../blocks/tags/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -17,7 +18,7 @@ import {
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TagsEvents> = {
   "tag.created": {
     subject: "tags",
     payload: ["organizationId", "id", "kind", "name"],

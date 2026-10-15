@@ -1,3 +1,4 @@
+import type { AuditEvents } from "../../blocks/audit/events.ts";
 import type {
   ModuleContext,
   ModuleEvents,
@@ -36,7 +37,7 @@ import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AuditEvents> = {
   "audit.revealed": {
     subject: "audit-entries",
     payload: ["organizationId", "entries"],

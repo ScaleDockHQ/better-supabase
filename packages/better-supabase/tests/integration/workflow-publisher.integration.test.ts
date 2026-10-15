@@ -5,7 +5,7 @@ import type { AutomationRef } from "../../src/core/contracts/authorization-hooks
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
-  createBuilder,
+  createWorkflowBuilder,
   sqlTransport,
   type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
@@ -64,7 +64,10 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     const admin = await s.user("admin");
     const tenant = await s.organization(owner, { owner: publisher, admin });
     await s.service();
-    await createBuilder({ transport: sqlTransport(s.sql), steps: STEPS })
+    await createWorkflowBuilder({
+      transport: sqlTransport(s.sql),
+      steps: STEPS,
+    })
       .steps.sync()
       .orThrow();
     return { publisher, owner, admin, tenant };
@@ -75,7 +78,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     try {
       const { admin, tenant } = await setUp(s);
       await s.asRole(admin);
-      const builder = createBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const definition = await builder.definitions
         .save({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
@@ -114,7 +117,9 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     try {
       const { publisher, tenant } = await setUp(s);
       await s.asRole(publisher);
-      const asPublisher = createBuilder({ transport: sqlTransport(s.sql) });
+      const asPublisher = createWorkflowBuilder({
+        transport: sqlTransport(s.sql),
+      });
       const definition = await asPublisher.definitions
         .save({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
@@ -130,7 +135,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
 
       await s.service();
       const refs: AutomationRef[] = [];
-      const service = createBuilder({
+      const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         authorization: {
           automation: {
@@ -207,7 +212,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     const s = await BlockSession.open(pool);
     try {
       const { tenant } = await setUp(s);
-      const plain = createBuilder({ transport: sqlTransport(s.sql) });
+      const plain = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const definition = await plain.definitions
         .save({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();
@@ -225,7 +230,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
         "WORKFLOW_PUBLISHER_REVOKED",
       );
       let principal: Readonly<Record<string, unknown>> | null = null;
-      const service = createBuilder({
+      const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         authorization: { automation: { runAs: () => principal } },
       });

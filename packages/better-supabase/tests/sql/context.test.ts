@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { OrganizationsEvents } from "../../src/blocks/organizations/events.ts";
 import type { ModuleEvents } from "../../src/sql/context.ts";
 
 import {
@@ -604,7 +605,7 @@ describe("statement helpers", () => {
   });
 
   it("checks each recorded event against the module's catalog", () => {
-    const catalog = (events: ModuleEvents) =>
+    const catalog = (events: ModuleEvents<OrganizationsEvents>) =>
       createModuleContext("demo", () => ({ ...names, events }), {
         installed: ["demo", "outbox"],
       });

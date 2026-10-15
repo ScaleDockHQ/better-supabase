@@ -1,3 +1,4 @@
+import type { AiProvidersEvents } from "../../blocks/ai-providers/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -61,7 +62,7 @@ const ITEMS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AiProvidersEvents> = {
   "ai_provider_key.saved": {
     subject: "organizations",
     payload: ["organizationId", "keyId", "provider", "name"],

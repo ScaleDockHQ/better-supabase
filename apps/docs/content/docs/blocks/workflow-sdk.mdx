@@ -302,7 +302,7 @@ sends `null` when you pass no payload.
 `compileGraph` turns a graph into dynamic workflow source: each step node
 calls its own step, sleep nodes call `sleep` and approval nodes wait on
 `createHook`. Pass it as `compile`, and `graphStarter` as `start`, to
-`createBuilder`.
+`createWorkflowBuilder`.
 
 Pass `approval` to `graphStarter` (and `requestApproval` to the static
 executor's runtime): a step that files an approvals request for the node
