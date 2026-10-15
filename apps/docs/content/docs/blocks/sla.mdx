@@ -14,14 +14,12 @@ better-supabase sql add sla
 The module needs `tenant`, `access` and `subjects`.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    sla: {
-      options: {
-        businessHours: { timeZone: "Europe/Amsterdam", start: "09:00", end: "17:00", days: [1, 2, 3, 4, 5] },
-        subjects: {
-          ticket: { status: "status", priority: "priority", pause: ["waiting"], resolve: ["solved", "closed"] },
-        },
+blocks: {
+  sla: {
+    options: {
+      businessHours: { timeZone: "Europe/Amsterdam", start: "09:00", end: "17:00", days: [1, 2, 3, 4, 5] },
+      subjects: {
+        ticket: { status: "status", priority: "priority", pause: ["waiting"], resolve: ["solved", "closed"] },
       },
     },
   },

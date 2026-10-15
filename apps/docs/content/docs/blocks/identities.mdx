@@ -115,9 +115,7 @@ An email lookup is case-insensitive and also matches a row stored without a prov
 | `verifiedEmails` | `true`  | `false` drops the `auth.users` trigger; `link_verified_email` stays callable |
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    identities: { options: { codeMinutes: 5 } },
-  },
+blocks: {
+  identities: { options: { codeMinutes: 5 } },
 },
 ```

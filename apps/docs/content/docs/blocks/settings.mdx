@@ -19,7 +19,7 @@ better-supabase sql add settings   # adds tenant and access as well
 | `platform_settings`     | `key`                    | each key's `read` rule       | each key's platform permission |
 
 The default roles give `admin` both permissions and `member` the first.
-Rename them with `sql.modules.settings.permissions`. Both tables keep
+Rename them with `blocks.settings.permissions`. Both tables keep
 `updated_by` and `updated_at`, and the functions run as the caller, so the
 row level security policies decide every read and write.
 
@@ -74,7 +74,7 @@ await client.organization.set(organizationId, "defaultRole", "viewer");
 doesn't match, and an `invalid_input` error for a key you didn't declare;
 neither reaches the database. Use `sqlTransport(postgres.asUser(claims))`
 instead of `rpcTransport` to call the functions over Postgres. With
-`rpcTransport`, set `sql.modules.settings.api` to an exposed schema such as
+`rpcTransport`, set `blocks.settings.api` to an exposed schema such as
 `api` and pass `rpcTransport(supabase, { schema: "api" })`; see
 [SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api).
 
@@ -105,7 +105,7 @@ export const platformSettings = defineSettings({
 });
 ```
 
-Pass the definition as `sql.modules.settings.options.schemas`, so the
+Pass the definition as `blocks.settings.options.schemas`, so the
 module writes the permission and read rule of each key into the policies.
 When `schemas` lists platform keys, only those keys can be written: a key
 the config doesn't list is refused, so a typo or a stale key never lands in
@@ -139,10 +139,8 @@ import { defineConfig } from "better-supabase/config";
 import { settings } from "./src/lib/settings.ts";
 
 export default defineConfig({
-  sql: {
-    modules: {
-      settings: { options: { schemas: settings } },
-    },
+  blocks: {
+    settings: { options: { schemas: settings } },
   },
 });
 ```

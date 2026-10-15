@@ -57,10 +57,8 @@ outbox trigger knows the event types:
 import { gettingStarted } from "./src/onboarding.ts";
 
 export default defineConfig({
-  sql: {
-    modules: {
-      onboarding: { options: { checklists: [gettingStarted] } },
-    },
+  blocks: {
+    onboarding: { options: { checklists: [gettingStarted] } },
   },
 });
 ```

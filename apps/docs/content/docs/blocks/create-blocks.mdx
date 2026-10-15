@@ -95,7 +95,7 @@ const { organizations } = blocksFor(ctx.db);
 
 `schema` sends every call to that schema instead of the module schema. Over
 the Data API it has to be an exposed schema, such as the API schema that
-`sql.modules.<module>.api` writes wrappers into; over Postgres the same
+`blocks.<module>.api` writes wrappers into; over Postgres the same
 wrappers work, so pass one schema for both. The executor needs `rpc()`:
 the built-in PostgREST and Postgres executors have it.
 

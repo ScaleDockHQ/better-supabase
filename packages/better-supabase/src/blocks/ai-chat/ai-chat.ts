@@ -346,7 +346,7 @@ export interface AiChatOptions extends BlockTemporalOptions {
    * `transport`, which then has to be a service transport.
    */
   readonly service?: BlockTransport;
-  /** The module schema (`sql.modules["ai-chat"].schema`), default `better_supabase`. */
+  /** The module schema (`blocks["ai-chat"].schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

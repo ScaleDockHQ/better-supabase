@@ -79,7 +79,7 @@ function accessProviderFor(
       if (!renders || !config.authorization) return mode.access;
       const problems = moduleKeyProblems(
         config.authorization,
-        modulePermissionKeys(config.sql.modules, names),
+        modulePermissionKeys(config.blocks, names),
       );
       if (problems.length > 0) {
         throw new TypeError(

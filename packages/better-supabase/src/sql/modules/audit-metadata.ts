@@ -10,13 +10,13 @@ export interface AuditInsert {
 }
 
 /**
- * `sql.modules.audit.options.metadataColumns`: an adopted log's own columns
+ * `blocks.audit.options.metadataColumns`: an adopted log's own columns
  * and the metadata key that fills each.
  */
 export function metadataColumns(
   ctx: ModuleContext,
 ): readonly (readonly [column: string, key: string])[] {
-  const where = "sql.modules.audit.options.metadataColumns";
+  const where = "blocks.audit.options.metadataColumns";
   const configured = ctx.option("metadataColumns");
   if (configured === undefined) return [];
   if (typeof configured !== "object" || configured === null) {
@@ -38,7 +38,7 @@ export function metadataColumns(
     }
     if (mapped.has(column)) {
       throw new TypeError(
-        `${where}.${column}: the column is mapped in sql.modules.audit.columns.log, so the module already fills it`,
+        `${where}.${column}: the column is mapped in blocks.audit.columns.log, so the module already fills it`,
       );
     }
     return [column, key] as const;

@@ -123,34 +123,32 @@ export default defineConfig({
       search: { body: ["description"] },
     },
   },
-  sql: {
-    modules: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
-      catalog: {},
-      inventory: {},
-      imports: {},
-      "number-sequences": {
-        options: {
-          entities: {
-            order: { period: "none", format: "SO-{n:4}" },
-            invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
-          },
+  blocks: {
+    organizations: {},
+    outbox: {},
+    notifications: {},
+    catalog: {},
+    inventory: {},
+    imports: {},
+    "number-sequences": {
+      options: {
+        entities: {
+          order: { period: "none", format: "SO-{n:4}" },
+          invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
         },
       },
-      orders: {},
-      promotions: {},
-      search: {},
-      "saved-views": {},
-      metrics: { options: { metrics } },
-      approvals: {
-        options: {
-          policies: {
-            order: { refund: { steps: [{ approvers: { role: "admin" } }] } },
-            promotion: {
-              activate: { steps: [{ approvers: { role: "admin" } }] },
-            },
+    },
+    orders: {},
+    promotions: {},
+    search: {},
+    "saved-views": {},
+    metrics: { options: { metrics } },
+    approvals: {
+      options: {
+        policies: {
+          order: { refund: { steps: [{ approvers: { role: "admin" } }] } },
+          promotion: {
+            activate: { steps: [{ approvers: { role: "admin" } }] },
           },
         },
       },

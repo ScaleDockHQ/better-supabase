@@ -3,7 +3,7 @@
 -- @bs-module webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -505,7 +505,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('webhooks-in', 4, 'managed')
@@ -517,7 +517,7 @@ on conflict (name) do update
 -- @bs-module webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1067,7 +1067,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('webhooks-in', 4, 'managed')
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- @bs-module webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1583,7 +1583,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('webhooks-in', 4, 'managed')
@@ -1595,7 +1595,7 @@ on conflict (name) do update
 -- @bs-module webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2079,7 +2079,7 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
--- sql.modules.webhooks-in.api: entry points for the Data API.
+-- blocks.webhooks-in.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -2207,7 +2207,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('webhooks-in', 4, 'managed')
@@ -2219,7 +2219,7 @@ on conflict (name) do update
 -- @bs-module webhooks-in@4 adopt
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2669,7 +2669,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('webhooks-in', 4, 'adopt')

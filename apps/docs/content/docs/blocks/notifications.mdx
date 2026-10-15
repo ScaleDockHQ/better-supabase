@@ -708,7 +708,7 @@ events come from a relay or a broker rather than from the outbox itself.
 | `audience` option               | Narrows who `deliver` sends to; see [Audience](#audience)                                                                                |
 | `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`                                                                 |
 | `notification.*` block events   | `created`, `delivered`, `failed`, and the provider's `opened`, `clicked`, `bounced`, `complained` and `delayed`, with the subject        |
-| `notifications.send` permission | Rename it with `sql.modules.notifications.permissions.send`                                                                              |
+| `notifications.send` permission | Rename it with `blocks.notifications.permissions.send`                                                                                   |
 
 ## Existing tables
 
@@ -724,21 +724,19 @@ does (its `provider_event_id` must be unique):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      notifications: {
-        mode: "adopt",
-        schema: "public",
-        idType: "uuid",
-        tables: { subscriptions: null },
-        columns: {
-          events: { key: null, actor: "actor_user_id", data: "metadata" },
-          recipients: { user: "recipient_user_id", resolvedAt: null },
-        },
-        options: {
-          topic: "organization:{tenantId}:notifications:{userId}",
-          channels: ["in_app", "email"],
-        },
+  blocks: {
+    notifications: {
+      mode: "adopt",
+      schema: "public",
+      idType: "uuid",
+      tables: { subscriptions: null },
+      columns: {
+        events: { key: null, actor: "actor_user_id", data: "metadata" },
+        recipients: { user: "recipient_user_id", resolvedAt: null },
+      },
+      options: {
+        topic: "organization:{tenantId}:notifications:{userId}",
+        channels: ["in_app", "email"],
       },
     },
   },

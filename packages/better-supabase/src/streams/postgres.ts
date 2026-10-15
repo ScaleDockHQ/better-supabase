@@ -28,7 +28,7 @@ export interface PostgresStreamStoreOptions {
   readonly wake?: "realtime" | "poll";
   /** A Supabase client a reader joins the topic with, to wake up on the ping. */
   readonly realtime?: Pick<SupabaseClient, "channel" | "removeChannel">;
-  /** `sql.modules.streams.options.topic`. Defaults to `stream`. */
+  /** `blocks.streams.options.topic`. Defaults to `stream`. */
   readonly topic?: string;
   /** Milliseconds between reads of an idle stream: 250 by default, 2000 with `realtime`. */
   readonly pollMs?: number;

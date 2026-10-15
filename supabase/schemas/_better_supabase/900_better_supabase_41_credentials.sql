@@ -2,7 +2,7 @@
 -- @bs-module credentials@1 managed
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -112,7 +112,7 @@ $$;
 revoke execute on function "better_supabase"."credential_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."credential_delete"(text, text) to service_role;
 
--- sql.modules.credentials.api: entry points for the Data API.
+-- blocks.credentials.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

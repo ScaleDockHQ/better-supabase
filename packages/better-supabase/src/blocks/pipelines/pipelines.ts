@@ -175,7 +175,7 @@ export interface Pipelines {
 
 export interface PipelinesOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.pipelines.schema`, or the API schema of its wrappers. */
+  /** `blocks.pipelines.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Pipelines>>;
@@ -286,7 +286,7 @@ function healthOf(value: unknown): PipelineHealth {
 
 /**
  * The pipelines block: tenant-editable pipelines and stages for the subject
- * types `sql.modules.pipelines.options.subjects` binds, and the board,
+ * types `blocks.pipelines.options.subjects` binds, and the board,
  * stats and health reads over them. Moving a record is a plain update of
  * its stage column, or `rank.move` with the stage id as the group.
  */

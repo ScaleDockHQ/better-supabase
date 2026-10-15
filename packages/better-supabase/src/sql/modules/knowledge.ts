@@ -82,7 +82,7 @@ export function embeddingColumn(
   const type = ctx.text("type", "vector");
   if (type !== "vector" && type !== "halfvec") {
     throw new TypeError(
-      `sql.modules.${ctx.module}.options.type must be "vector" or "halfvec"`,
+      `blocks.${ctx.module}.options.type must be "vector" or "halfvec"`,
     );
   }
   const dimensions = ctx.number("dimensions", 1536);
@@ -92,7 +92,7 @@ export function embeddingColumn(
     dimensions > MAX_DIMENSIONS[type]
   ) {
     throw new TypeError(
-      `sql.modules.${ctx.module}.options.dimensions must be a whole number from 1 to ${String(MAX_DIMENSIONS[type])} for ${type}`,
+      `blocks.${ctx.module}.options.dimensions must be a whole number from 1 to ${String(MAX_DIMENSIONS[type])} for ${type}`,
     );
   }
   return {
@@ -104,12 +104,12 @@ export function embeddingColumn(
   };
 }
 
-/** `sql.modules.<name>.options.textSearch`: the text search configuration. */
+/** `blocks.<name>.options.textSearch`: the text search configuration. */
 export function textSearchConfig(ctx: ModuleContext): string {
   const config = ctx.text("textSearch", "simple");
   if (!REGCONFIG.test(config)) {
     throw new TypeError(
-      `sql.modules.${ctx.module}.options.textSearch must be a text search configuration name, such as "english"`,
+      `blocks.${ctx.module}.options.textSearch must be a text search configuration name, such as "english"`,
     );
   }
   return config;
@@ -144,7 +144,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const queue = ctx.text("embedQueue", "knowledge_embed");
   if (!QUEUE.test(queue)) {
     throw new TypeError(
-      "sql.modules.knowledge.options.embedQueue must be a lowercase queue name of at most 47 characters",
+      "blocks.knowledge.options.embedQueue must be a lowercase queue name of at most 47 characters",
     );
   }
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;

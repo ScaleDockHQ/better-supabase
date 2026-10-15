@@ -48,7 +48,7 @@ interface StepOption {
 const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const where = "sql.modules.onboarding.options.checklists";
+const where = "blocks.onboarding.options.checklists";
 
 function idOf(value: unknown, path: string): string {
   if (typeof value !== "string" || !ID.test(value)) {

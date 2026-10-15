@@ -23,16 +23,14 @@ dead letters, deduplication keys and schedules.
 Two module options change where jobs and schedules live. Both keep the same
 functions, so the TypeScript side doesn't change:
 
-| Option                               | Values                       | What it does                                                                                                                                                |
-| ------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sql.modules.jobs.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
-| `sql.modules.jobs.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
+| Option                          | Values                       | What it does                                                                                                                                                |
+| ------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocks.jobs.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
+| `blocks.jobs.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: { jobs: { options: { backend: "table", scheduler: "drain" } } },
-  },
+  blocks: { jobs: { options: { backend: "table", scheduler: "drain" } } },
 });
 ```
 
@@ -563,14 +561,14 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
   `retryDead` return `invalid_request`.
 
 To get the whole API without a direct connection, write wrappers for the
-module into an exposed schema with `sql.modules.jobs.api` and pass an
+module into an exposed schema with `blocks.jobs.api` and pass an
 `rpcTransport` over a service-role client. `createJobs` detects a transport
 and calls every module function by name, so leases, retries with backoff,
 dedupe keys, schedules, `stats`, `listDead` and `retryDead` all work:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: { jobs: { api: "api" }, idempotency: { api: "api" } } },
+  blocks: { jobs: { api: "api" }, idempotency: { api: "api" } },
 });
 ```
 
@@ -700,7 +698,7 @@ await inbox.process(async (message) => {
 block.
 
 To keep messages in a table your app already has, adopt it with
-`sql.modules.webhook-inbox.mode: "adopt"`; see
+`blocks.webhook-inbox.mode: "adopt"`; see
 [Adopting your own tables](/docs/blocks/webhooks-in#adopting-your-own-tables).
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass

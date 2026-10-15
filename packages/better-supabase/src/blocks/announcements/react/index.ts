@@ -11,9 +11,9 @@ import { createAnnouncementsController } from "../client.ts";
 export interface UseAnnouncementsOptions {
   /** The active tenant, for tenant, role and plan audiences. */
   readonly organizationId?: string | null;
-  /** The topic the module broadcasts to (`sql.modules.announcements.options.topic`); `null` loads once. */
+  /** The topic the module broadcasts to (`blocks.announcements.options.topic`); `null` loads once. */
   readonly topic?: string | null;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules.<module>.api`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
   readonly schema?: string;
 }
 

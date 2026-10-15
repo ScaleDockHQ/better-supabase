@@ -90,7 +90,7 @@ function transportCalls(transport: BlockTransport, schema: string): LeaseCalls {
  * another holder has it. A lease that expires mid-run is taken by the next
  * caller; call `lease.extend()` for long work. Takes a service SQL
  * connection, or a service-role `rpcTransport` over the wrappers
- * `sql.modules.idempotency.api` writes.
+ * `blocks.idempotency.api` writes.
  */
 export function withLease<T>(
   source: SqlClient | BlockTransport,

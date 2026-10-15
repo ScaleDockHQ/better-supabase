@@ -18,7 +18,7 @@ import {
 
 export interface TrashOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.trash.schema`, or the API schema of its wrappers. */
+  /** `blocks.trash.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Trash>;

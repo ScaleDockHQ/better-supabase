@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { columnRef } from "../shared.ts";
 
-/** The log columns whose values `sql.modules.audit.options.values` maps. */
+/** The log columns whose values `blocks.audit.options.values` maps. */
 export type AuditValueColumn =
   | "scope"
   | "actorKind"
@@ -23,13 +23,13 @@ export const isAuditValueColumn = (key: string): key is AuditValueColumn =>
   COLUMNS.some((column) => column === key);
 
 /**
- * `sql.modules.audit.options.values`: the module's value to the adopted
+ * `blocks.audit.options.values`: the module's value to the adopted
  * log's, per column, such as `{ scope: { tenant: "organization" } }`.
  */
 function valueMaps(
   ctx: ModuleContext,
 ): ReadonlyMap<AuditValueColumn, ReadonlyMap<string, string>> {
-  const where = "sql.modules.audit.options.values";
+  const where = "blocks.audit.options.values";
   const configured = ctx.option("values");
   const maps = new Map<AuditValueColumn, Map<string, string>>();
   if (configured === undefined) return maps;
@@ -92,7 +92,7 @@ export function auditRead(
 }
 
 /**
- * The tenant's name as it was: `sql.modules.audit.options.tenantLabel`
+ * The tenant's name as it was: `blocks.audit.options.tenantLabel`
  * (`schema.table.column`, matched on `tenantLabelKey`, `id` by default),
  * else the organizations module's name column, else null.
  */
@@ -100,11 +100,9 @@ export function tenantLabel(ctx: ModuleContext, tenant: string): string {
   const configured = ctx.option("tenantLabel");
   if (configured !== undefined) {
     if (typeof configured !== "string") {
-      throw new TypeError(
-        "sql.modules.audit.options.tenantLabel must be a string",
-      );
+      throw new TypeError("blocks.audit.options.tenantLabel must be a string");
     }
-    const ref = columnRef("sql.modules.audit.options.tenantLabel", configured);
+    const ref = columnRef("blocks.audit.options.tenantLabel", configured);
     const key = sqlIdent(ctx.text("tenantLabelKey", "id"));
     return `(select o.${ref.column}::text from ${ref.table} o where o.${key} = ${tenant})`;
   }

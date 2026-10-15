@@ -27,7 +27,7 @@ them with a Standard Schema, steer its methods with hooks in TypeScript or
 SQL, wrap its transport with middleware and add methods. See
 [Extending blocks](/docs/extending/blocks).
 
-List the modules to keep in sync in `sql.modules` in `better-supabase.config.ts`,
+List the modules to keep in sync in `blocks` in `better-supabase.config.ts`,
 keyed by module name, with each module's settings as the value. The primitives that every app
 uses, such as [list queries](/docs/platform/list),
 [storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
@@ -69,7 +69,7 @@ webhooks, route rate limits and `exportAuditLog` still need a SQL connection,
 but every function a module grants, the service-role ones of `jobs`,
 `idempotency`, `webhook-inbox` and `access` included, gets an entry point in
 the API schema, so a server can call them over the Data API. Give
-the module an API schema (`sql.modules.<module>.api`, see
+the module an API schema (`blocks.<module>.api`, see
 [SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api)), expose
 that schema, and pass it as `rpcTransport(supabase, { schema: "api" })`. Never
 expose the module schema itself.

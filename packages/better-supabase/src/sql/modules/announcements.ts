@@ -104,7 +104,7 @@ function build(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "announcements");
   if (!TOPIC.test(topic)) {
     throw new TypeError(
-      "sql.modules.announcements.options.topic: use letters, digits, '_', '.', ':' or '-'",
+      "blocks.announcements.options.topic: use letters, digits, '_', '.', ':' or '-'",
     );
   }
   const event = ctx.text("event", "announcement_changed");

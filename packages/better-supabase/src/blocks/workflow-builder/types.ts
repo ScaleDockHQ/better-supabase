@@ -232,7 +232,7 @@ export interface BuilderOptions extends BlockTemporalOptions {
    * `steps.sync` and `alerts.check`. Defaults to `transport`.
    */
   readonly service?: BlockTransport;
-  /** The module schema (`sql.modules.workflow-builder.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.workflow-builder.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** The steps `steps.sync()` writes to the library. */

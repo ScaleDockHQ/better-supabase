@@ -72,7 +72,7 @@ export interface WebhookSubscriber {
 export interface WebhooksOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.admin)` for the worker, or the user's connection to manage. */
   readonly transport: BlockTransport;
-  /** `sql.modules.webhooks-out.schema`. Defaults to `better_supabase`. */
+  /** `blocks.webhooks-out.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** Defaults to `fetchTransport({ allowUrl })`. */
   readonly http?: WebhookTransport;

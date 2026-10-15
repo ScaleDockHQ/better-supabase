@@ -28,7 +28,7 @@ const mia = await employees
   .orThrow();
 ```
 
-The status defaults to `preboarding` before the start date and `active` from it. `employmentType` is one of `sql.modules.employees.options.employmentTypes` (`employee`, `contractor`, `intern` and `temporary` by default), and the first one is the default. A `userId` must be a member of the organization (`EMPLOYEE_USER_NOT_MEMBER`) and an employee only once (`EMPLOYEE_USER_TAKEN`).
+The status defaults to `preboarding` before the start date and `active` from it. `employmentType` is one of `blocks.employees.options.employmentTypes` (`employee`, `contractor`, `intern` and `temporary` by default), and the first one is the default. A `userId` must be a member of the organization (`EMPLOYEE_USER_NOT_MEMBER`) and an employee only once (`EMPLOYEE_USER_TAKEN`).
 
 Register employees in `config.subjects` with `employeesSubjects()`, so comments, files, tags and search attach to them:
 

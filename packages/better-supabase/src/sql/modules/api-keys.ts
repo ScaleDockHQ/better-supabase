@@ -66,7 +66,7 @@ const SCOPE = /^(\*|[A-Za-z][A-Za-z0-9_.:-]*)$/;
 const PREFIX = /^[a-z][a-z0-9]*$/;
 
 /**
- * `sql.modules.api-keys.options.scopes`: the scopes a key may carry, every
+ * `blocks.api-keys.options.scopes`: the scopes a key may carry, every
  * scope when unset, or `"catalog"` for the authorization provider's
  * permission keys (`authorization.permissions`).
  */
@@ -79,7 +79,7 @@ function allowedScopes(
   if (option === "catalog") {
     if (!layout.permissionCatalog) {
       throw new TypeError(
-        'sql.modules.api-keys.options.scopes is "catalog", but the config has no authorization.permissions to read. Set authorization, or list the scopes.',
+        'blocks.api-keys.options.scopes is "catalog", but the config has no authorization.permissions to read. Set authorization, or list the scopes.',
       );
     }
     return layout.permissionCatalog;
@@ -88,7 +88,7 @@ function allowedScopes(
   for (const scope of scopes) {
     if (!SCOPE.test(scope)) {
       throw new TypeError(
-        `sql.modules.api-keys.options.scopes: "${scope}" is not a scope. Use names such as "deals:read" or "invoice.read"`,
+        `blocks.api-keys.options.scopes: "${scope}" is not a scope. Use names such as "deals:read" or "invoice.read"`,
       );
     }
   }
@@ -99,7 +99,7 @@ function prefixOf(ctx: ModuleContext): string {
   const prefix = ctx.text("prefix", "bs");
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
-      `sql.modules.api-keys.options.prefix must be lowercase letters and digits, not "${prefix}"`,
+      `blocks.api-keys.options.prefix must be lowercase letters and digits, not "${prefix}"`,
     );
   }
   return prefix;
@@ -131,7 +131,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const scopeCheck = allowed
     ? `
   if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s <> all (${sqlString(`{${allowed.join(",")}}`)}::text[])) then
-    ${fail("API_KEY_SCOPE_UNKNOWN", "A scope is not one of sql.modules.api-keys.options.scopes", "22023")}
+    ${fail("API_KEY_SCOPE_UNKNOWN", "A scope is not one of blocks.api-keys.options.scopes", "22023")}
   end if;`
     : "";
   const state = (alias: string): string => `case

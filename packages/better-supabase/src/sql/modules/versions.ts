@@ -95,7 +95,7 @@ interface Versioned {
 }
 
 function versioned(ctx: ModuleContext): readonly Versioned[] {
-  const where = "sql.modules.versions.options.subjects";
+  const where = "blocks.versions.options.subjects";
   return subjectsOption(ctx, ["columns", "apply", "auto", "freeze"]).map(
     ([type, subject]) => {
       const extra = subject.extra;
@@ -295,11 +295,11 @@ function build(ctx: ModuleContext): string {
   const keep = ctx.number("keep", 50);
   const debounce = ctx.number("debounce", 300);
   if (!Number.isInteger(keep) || keep < 1) {
-    throw new TypeError("sql.modules.versions.options.keep must be at least 1");
+    throw new TypeError("blocks.versions.options.keep must be at least 1");
   }
   if (!Number.isInteger(debounce) || debounce < 0) {
     throw new TypeError(
-      "sql.modules.versions.options.debounce must be a whole number of seconds",
+      "blocks.versions.options.debounce must be a whole number of seconds",
     );
   }
   const fn = (name: string): string => ctx.fn(name);

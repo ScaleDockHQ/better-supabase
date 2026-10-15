@@ -107,7 +107,7 @@ export interface AiTasksOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** Calls as the service role, for `tick`, `execute` and `runJob`. */
   readonly service?: BlockTransport;
-  /** The module schema (`sql.modules.ai-tasks.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.ai-tasks.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   readonly run?: AiTaskRunner;

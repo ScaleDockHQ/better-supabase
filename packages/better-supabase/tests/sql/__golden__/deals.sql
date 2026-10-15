@@ -3,7 +3,7 @@
 -- @bs-module deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -867,7 +867,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('deals', 1, 'managed')
@@ -879,7 +879,7 @@ on conflict (name) do update
 -- @bs-module deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1771,7 +1771,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('deals', 1, 'managed')
@@ -1783,7 +1783,7 @@ on conflict (name) do update
 -- @bs-module deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2649,7 +2649,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('deals', 1, 'managed')
@@ -2661,7 +2661,7 @@ on conflict (name) do update
 -- @bs-module deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3507,7 +3507,7 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
--- sql.modules.deals.api: entry points for the Data API.
+-- blocks.deals.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -3646,7 +3646,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('deals', 1, 'managed')

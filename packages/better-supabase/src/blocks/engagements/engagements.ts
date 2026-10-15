@@ -106,7 +106,7 @@ export interface Engagements {
 
 export interface EngagementsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.engagements.schema`, or the API schema of its wrappers. */
+  /** `blocks.engagements.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   readonly hooks?: NoInfer<BlockHooks<Engagements>>;
   readonly logger?: Logger;

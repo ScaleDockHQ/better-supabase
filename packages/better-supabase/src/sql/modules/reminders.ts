@@ -78,7 +78,7 @@ function build(ctx: ModuleContext): string {
   const format = ctx.text("ruleFormat", "rrule");
   if (format !== "rrule" && format !== "columns") {
     throw new TypeError(
-      'sql.modules.reminders.options.ruleFormat must be "rrule" or "columns"',
+      'blocks.reminders.options.ruleFormat must be "rrule" or "columns"',
     );
   }
   const rules = ctx.table("rules");

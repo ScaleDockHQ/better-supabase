@@ -2,7 +2,7 @@
 -- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1960,7 +1960,7 @@ $$;
 revoke execute on function "better_supabase"."check_workflow_alerts"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."check_workflow_alerts"(integer) to service_role;
 
--- sql.modules.workflow-builder.api: entry points for the Data API.
+-- blocks.workflow-builder.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

@@ -44,7 +44,8 @@ Set the workflow in the config, or run `better-supabase init --workflow migratio
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { workflow: "migrations", modules: ["tenant", "audit"] },
+  sql: { workflow: "migrations" },
+  blocks: ["tenant", "audit"],
 });
 ```
 
@@ -57,7 +58,7 @@ with `supabase migration up`. An app still on declarative schemas 1.0 sets
 ## Pick a mode per module
 
 Every SQL module has a contract: the functions your policies, other
-modules and the TypeScript APIs call. `sql.modules.<module>.mode` decides what stands
+modules and the TypeScript APIs call. `blocks.<module>.mode` decides what stands
 behind it.
 
 | Mode                | Use it when                                                                     |
@@ -83,47 +84,45 @@ column to yours, and set a column to `null` when you don't have it:
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  sql: {
-    modules: {
-      access: {},
-      "webhooks-out": {},
-      tenant: {
-        mode: "adopt",
-        tables: { memberships: "public.organization_users" },
-        columns: {
-          memberships: {
-            tenant: "organization_id",
-            role: "role_id",
-            lastUsedAt: null,
-          },
+  blocks: {
+    access: {},
+    "webhooks-out": {},
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: {
+        memberships: {
+          tenant: "organization_id",
+          role: "role_id",
+          lastUsedAt: null,
         },
       },
-      organizations: {
-        mode: "adopt",
-        tables: { organizations: "public.organizations" },
-        columns: { organizations: { createdBy: null, deletedAt: null } },
-        permissions: { update: "organization.settings.manage" },
-        hooks: {
-          schema: "public",
-          functions: { after_organization_create: "seed_organization" },
-        },
-        options: { attributes: ["website", "logo_path", "default_currency"] },
+    },
+    organizations: {
+      mode: "adopt",
+      tables: { organizations: "public.organizations" },
+      columns: { organizations: { createdBy: null, deletedAt: null } },
+      permissions: { update: "organization.settings.manage" },
+      hooks: {
+        schema: "public",
+        functions: { after_organization_create: "seed_organization" },
       },
-      outbox: {
-        mode: "adopt",
-        tables: { events: "public.workflow_events" },
-        columns: {
-          events: {
-            type: "kind",
-            tenant: "organization_id",
-            key: "idempotency_key",
-            xid: null,
-          },
+      options: { attributes: ["website", "logo_path", "default_currency"] },
+    },
+    outbox: {
+      mode: "adopt",
+      tables: { events: "public.workflow_events" },
+      columns: {
+        events: {
+          type: "kind",
+          tenant: "organization_id",
+          key: "idempotency_key",
+          xid: null,
         },
-        options: {
-          defaultSource: "domain",
-          blockSource: "domain",
-        },
+      },
+      options: {
+        defaultSource: "domain",
+        blockSource: "domain",
       },
     },
   },
@@ -141,7 +140,7 @@ fails before it reaches the database.
 ## Choose an access model
 
 Policies and block functions ask one question, `better_supabase.can(scope, id,
-permission)`, and [`sql.modules.access.model`](/docs/blocks/access#models) decides
+permission)`, and [`blocks.access.model`](/docs/blocks/access#models) decides
 where the answer comes from.
 
 | Your app has                                                         | Model      |
@@ -157,7 +156,7 @@ helper such as `organization_ids_with_permission(key)` in your policies becomes
 `better_supabase.tenant_ids_with(key)`; both return the same set, so you can
 switch policy by policy.
 
-The active organization can stay where it is. Set `sql.modules.access.activeTenant`
+The active organization can stay where it is. Set `blocks.access.activeTenant`
 to `{ profileColumn: "public.profiles.active_organization_id", key: "user_id" }`
 when you store it on the profile, or `'resolver'` when the URL decides.
 

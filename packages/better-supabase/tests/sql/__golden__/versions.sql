@@ -3,7 +3,7 @@
 -- @bs-module versions@1 managed
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -402,7 +402,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('versions', 1, 'managed')
@@ -414,7 +414,7 @@ on conflict (name) do update
 -- @bs-module versions@1 managed
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -864,7 +864,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('versions', 1, 'managed')
@@ -876,7 +876,7 @@ on conflict (name) do update
 -- @bs-module versions@1 managed
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1277,7 +1277,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('versions', 1, 'managed')
@@ -1289,7 +1289,7 @@ on conflict (name) do update
 -- @bs-module versions@1 managed
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1670,7 +1670,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
 
--- sql.modules.versions.api: entry points for the Data API.
+-- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1773,7 +1773,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('versions', 1, 'managed')
@@ -1785,7 +1785,7 @@ on conflict (name) do update
 -- @bs-module versions@1 adopt
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2159,7 +2159,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('versions', 1, 'adopt')

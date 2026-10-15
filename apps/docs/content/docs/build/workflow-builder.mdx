@@ -13,14 +13,12 @@ the [Workflow SDK](/docs/blocks/workflow-sdk) runs it. Sign in as
 ## The modules
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    jobs: {},
-    credentials: { api: "api" },
-    workflows: { api: "api" },
-    "workflow-sdk-world": {},
-    "workflow-builder": { api: "api" },
-  },
+blocks: {
+  jobs: {},
+  credentials: { api: "api" },
+  workflows: { api: "api" },
+  "workflow-sdk-world": {},
+  "workflow-builder": { api: "api" },
 },
 ```
 

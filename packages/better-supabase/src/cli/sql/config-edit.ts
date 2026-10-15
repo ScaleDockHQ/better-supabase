@@ -1,5 +1,5 @@
 /**
- * Adds module names to `sql.modules` in `better-supabase.config.ts`. The
+ * Adds block names to `blocks` in `better-supabase.config.ts`. The
  * edit reads the object literal passed to `defineConfig(...)` (or the
  * default export) with the codemod scanner, so strings and comments never
  * count as code, and inserts the names in the form the config already uses:
@@ -240,8 +240,8 @@ const lastOf = (props: readonly Property[]): Span | undefined => {
   return last ? { start: last.start, end: last.valueEnd } : undefined;
 };
 
-/** `source` with `names` added to `sql.modules`, keeping the form it has. */
-export function addModulesToConfig(
+/** `source` with `names` added to `blocks`, keeping the form it has. */
+export function addBlocksToConfig(
   source: string,
   names: readonly string[],
 ): ConfigEdit {
@@ -256,36 +256,23 @@ export function addModulesToConfig(
   const rootProps = properties(source, code, root);
   if (!rootProps)
     return { ok: false, reason: "its config object can't be read" };
-  const sql = rootProps.find((prop) => prop.key === "sql");
+  const blocks = rootProps.find((prop) => prop.key === "blocks");
   const edit = (start: number, end: number, text: string): ConfigEdit => ({
     ok: true,
     text: source.slice(0, start) + text + source.slice(end),
   });
-  const objectEntries = (wanted: readonly string[]): string =>
-    `{ ${wanted.map((name) => `${keyText(name)}: {}`).join(", ")} }`;
-  if (!sql) {
+  if (!blocks) {
+    const entries = names.map((name) => `${keyText(name)}: {}`).join(", ");
     const change = append(source, code, root, lastOf(rootProps), [
-      `sql: { modules: ${objectEntries(names)} }`,
+      `blocks: { ${entries} }`,
     ]);
     return edit(change.start, change.end, change.text);
   }
-  if (code[sql.valueStart] !== "{") {
-    return { ok: false, reason: "its sql key isn't an object literal" };
-  }
-  const sqlProps = properties(source, code, sql.valueStart);
-  if (!sqlProps) return { ok: false, reason: "its sql object can't be read" };
-  const modules = sqlProps.find((prop) => prop.key === "modules");
-  if (!modules) {
-    const change = append(source, code, sql.valueStart, lastOf(sqlProps), [
-      `modules: ${objectEntries(names)}`,
-    ]);
-    return edit(change.start, change.end, change.text);
-  }
-  const open = modules.valueStart;
+  const open = blocks.valueStart;
   if (code[open] === "{") {
     const listed = properties(source, code, open);
     if (!listed)
-      return { ok: false, reason: "its sql.modules object can't be read" };
+      return { ok: false, reason: "its blocks object can't be read" };
     const keys = new Set(listed.map((prop) => prop.key));
     const missing = names.filter((name) => !keys.has(name));
     if (missing.length === 0) return { ok: true, text: source };
@@ -318,14 +305,11 @@ export function addModulesToConfig(
     );
     return edit(change.start, change.end, change.text);
   }
-  return {
-    ok: false,
-    reason: "its sql.modules isn't a literal object or list",
-  };
+  return { ok: false, reason: "its blocks key isn't a literal object or list" };
 }
 
-/** `addModulesToConfig` for `better-supabase.config.json`. */
-export function addModulesToJson(
+/** `addBlocksToConfig` for `better-supabase.config.json`. */
+export function addBlocksToJson(
   source: string,
   names: readonly string[],
 ): ConfigEdit {
@@ -336,28 +320,25 @@ export function addModulesToJson(
     return { ok: false, reason: "it isn't valid JSON" };
   }
   if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
-  const sql = config["sql"] ?? {};
-  if (!isObject(sql))
-    return { ok: false, reason: "its sql key isn't an object" };
-  const modules: unknown = sql["modules"] ?? {};
+  const blocks: unknown = config["blocks"] ?? {};
   let next: unknown;
-  if (Array.isArray(modules)) {
-    const listed: readonly unknown[] = modules;
+  if (Array.isArray(blocks)) {
+    const listed: readonly unknown[] = blocks;
     next = [...listed, ...names.filter((name) => !listed.includes(name))];
-  } else if (isObject(modules)) {
+  } else if (isObject(blocks)) {
     next = {
-      ...modules,
+      ...blocks,
       ...Object.fromEntries(
-        names.filter((name) => !(name in modules)).map((name) => [name, {}]),
+        names.filter((name) => !(name in blocks)).map((name) => [name, {}]),
       ),
     };
   } else {
-    return { ok: false, reason: "its sql.modules isn't an object or a list" };
+    return { ok: false, reason: "its blocks key isn't an object or a list" };
   }
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
   return {
     ok: true,
-    text: `${JSON.stringify({ ...config, sql: { ...sql, modules: next } }, null, indent)}\n`,
+    text: `${JSON.stringify({ ...config, blocks: next }, null, indent)}\n`,
   };
 }
 

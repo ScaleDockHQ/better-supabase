@@ -120,5 +120,5 @@ function tableGrants(layout: ModuleLayout): string {
   });
   const all = [...statements, ...functions];
   if (all.length === 0) return "";
-  return `\n-- config.expose${derived.length > 0 || serviceOnly.length > 0 ? " and the policies (sql.modules.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
+  return `\n-- config.expose${derived.length > 0 || serviceOnly.length > 0 ? " and the policies (blocks.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
 }

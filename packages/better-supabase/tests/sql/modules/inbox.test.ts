@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { moduleContext } from "../../../src/sql/module-context.ts";
@@ -12,8 +12,8 @@ import {
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const body = (modules: ModulesConfig = {}) => moduleBody("inbox", { modules })!;
-const withJobs = (modules: ModulesConfig = {}) =>
+const body = (modules: BlocksConfig = {}) => moduleBody("inbox", { modules })!;
+const withJobs = (modules: BlocksConfig = {}) =>
   renderModules(["inbox", "jobs"], { modules })
     .filter((file) => file.kind === "schema" && file.module === "inbox")
     .map((file) => file.contents)

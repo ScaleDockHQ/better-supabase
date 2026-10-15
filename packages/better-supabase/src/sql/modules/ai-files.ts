@@ -124,20 +124,20 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
   const bucket = ctx.text("bucket", "ai-files");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.ai-files.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
+      "blocks.ai-files.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   const maxSize = ctx.number("maxSize", DEFAULT_MAX_SIZE);
   if (!Number.isInteger(maxSize) || maxSize <= 0) {
     throw new TypeError(
-      "sql.modules.ai-files.options.maxSize must be a positive whole number of bytes",
+      "blocks.ai-files.options.maxSize must be a positive whole number of bytes",
     );
   }
   const mimeTypes = ctx.list("allowedMimeTypes", []);
   for (const type of mimeTypes) {
     if (!MIME.test(type)) {
       throw new TypeError(
-        `sql.modules.ai-files.options.allowedMimeTypes: "${type}" is not a MIME type`,
+        `blocks.ai-files.options.allowedMimeTypes: "${type}" is not a MIME type`,
       );
     }
   }

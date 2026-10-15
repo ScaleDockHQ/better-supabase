@@ -137,7 +137,7 @@ function validateRuns(
   policies: readonly ApprovalPolicy[],
 ): void {
   for (const policy of policies) {
-    const where = `sql.modules.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
+    const where = `blocks.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
     if (policy.run?.kind === "transition") {
       if (!ctx.installed("state-machine")) {
         throw new TypeError(`${where} needs the state-machine module`);

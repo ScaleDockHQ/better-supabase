@@ -514,9 +514,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("renders api-keys scopes from the provider's permissions, and skips without them", async () => {
     const config: BetterSupabaseConfig = {
-      sql: {
-        modules: { "api-keys": { options: { scopes: "catalog" } } },
-      },
+      blocks: { "api-keys": { options: { scopes: "catalog" } } },
     };
     const missing = await run(
       "BS304",
@@ -534,11 +532,9 @@ describe("generated and module files (BS303, BS304)", () => {
       "create table public.notes (id int);\ncreate table public.jobs (id int);\nalter table public.jobs enable row level security;\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
     );
     const config: BetterSupabaseConfig = {
-      sql: {
-        modules: {
-          grants: { options: { fromPolicies: true } },
-          sessions: { options: { policies: true } },
-        },
+      blocks: {
+        grants: { options: { fromPolicies: true } },
+        sessions: { options: { policies: true } },
       },
     };
     const ctx = rooted(config);
@@ -557,11 +553,11 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(grants).toContain('"public"."jobs"');
   });
 
-  it("checks the SQL modules in sql.modules", async () => {
+  it("checks the SQL modules in blocks", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
-    const ctx = rooted({ sql: { modules: ["updated-at", "audit"] } });
+    const ctx = rooted({ blocks: ["updated-at", "audit"] });
     const files = renderModules(
-      ctx.config.sql.moduleNames,
+      ctx.config.blockNames,
       moduleLayout(ctx.config),
     );
     const missing = await run("BS304", ctx);
@@ -610,7 +606,8 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("checks the newest module migration under the migrations workflow", async () => {
     const ctx = rooted({
-      sql: { workflow: "migrations", modules: ["tenant", "mfa"] },
+      sql: { workflow: "migrations" },
+      blocks: ["tenant", "mfa"],
     });
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.message)).toEqual(
@@ -640,7 +637,7 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("still checks the pgTAP files under the migrations workflow", async () => {
-    const ctx = rooted({ sql: { workflow: "migrations", modules: ["pgtap"] } });
+    const ctx = rooted({ sql: { workflow: "migrations" }, blocks: ["pgtap"] });
     const files = renderModules(["pgtap"], moduleLayout(ctx.config));
     const test = files.find((file) => file.kind === "test");
     expect(test).toBeDefined();
@@ -659,7 +656,7 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
-    const ctx = rooted({ sql: { modules: ["tenant"] } });
+    const ctx = rooted({ blocks: ["tenant"] });
     const files = renderModules(["tenant"], moduleLayout(ctx.config));
     for (const module of files) await write(module.path, module.contents);
     const file = files.find(
@@ -681,7 +678,7 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("reads modules on a live database in BS311", async () => {
-    const ctx = rooted({ sql: { modules: ["tenant", "mfa"] } });
+    const ctx = rooted({ blocks: ["tenant", "mfa"] });
     const live = (rows: Record<string, unknown>[] | Error) => ({
       ...ctx,
       database: {
@@ -714,7 +711,7 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("skips the read-sets module when the read sets could not be loaded", async () => {
-    const ctx = rooted({ sql: { modules: ["read-sets"] } });
+    const ctx = rooted({ blocks: ["read-sets"] });
     expect(
       (await run("BS304", { ...ctx, readSets: { skipped: "no config" } })).map(
         (finding) => finding.message,
@@ -770,7 +767,7 @@ describe("module upgrades (BS309, BS310)", () => {
             },
           ],
         },
-        { sql: { modules: ["tenant"] } },
+        { blocks: ["tenant"] },
       ),
     );
     expect(
@@ -788,11 +785,7 @@ describe("module upgrades (BS309, BS310)", () => {
     expect(
       await run(
         "BS309",
-        context(
-          snap,
-          {},
-          { sql: { modules: ["tenant"] }, claims: { tenant: "org_id" } },
-        ),
+        context(snap, {}, { blocks: ["tenant"], claims: { tenant: "org_id" } }),
       ),
     ).toEqual([]);
     expect(await run("BS309", context(snap))).toEqual([]);
@@ -824,7 +817,7 @@ describe("module upgrades (BS309, BS310)", () => {
     ];
     const findings = await run(
       "BS309",
-      context(snap, { sqlFiles }, { sql: { modules: ["tenant"] } }),
+      context(snap, { sqlFiles }, { blocks: ["tenant"] }),
     );
     expect(
       findings.map((finding) => [finding.target, finding.location]),
@@ -842,7 +835,7 @@ describe("module upgrades (BS309, BS310)", () => {
           snap,
           { sqlFiles },
           {
-            sql: { modules: { tenant: { mode: "adopt" } } },
+            blocks: { tenant: { mode: "adopt" } },
           },
         ),
       ),
@@ -888,7 +881,7 @@ describe("exposed module schemas (BS312)", () => {
         base,
         { configToml: api },
         {
-          sql: { modules: { tenant: {}, audit: { schema: "crm" } } },
+          blocks: { tenant: {}, audit: { schema: "crm" } },
         },
       ),
     );
@@ -908,7 +901,7 @@ describe("exposed module schemas (BS312)", () => {
           base,
           { configToml: toml('[api]\nschemas = ["public"]\n') },
           {
-            sql: { modules: ["tenant"] },
+            blocks: ["tenant"],
             schemas: ["public", "better_supabase"],
           },
         ),
@@ -921,7 +914,7 @@ describe("exposed module schemas (BS312)", () => {
           base,
           {},
           {
-            sql: { modules: ["tenant"] },
+            blocks: ["tenant"],
             schemas: ["public", "better_supabase"],
           },
         ),
@@ -935,7 +928,7 @@ describe("rate limits wired to PostgREST (BS313)", () => {
     module: string[],
     rows: Record<string, unknown>[] | Error,
   ): Parameters<typeof run>[1] => ({
-    ...context(base, {}, { sql: { modules: module } }),
+    ...context(base, {}, { blocks: module }),
     database: {
       describe: "test",
       session: true,
@@ -981,10 +974,7 @@ describe("rate limits wired to PostgREST (BS313)", () => {
       await run("BS313", live(["rate-limit"], new Error("denied"))),
     ).toEqual([]);
     expect(
-      await run(
-        "BS313",
-        context(base, {}, { sql: { modules: ["rate-limit"] } }),
-      ),
+      await run("BS313", context(base, {}, { blocks: ["rate-limit"] })),
     ).toEqual([]);
   });
 });
@@ -1001,9 +991,7 @@ describe("rate limits without the pre-request hook (BS313)", () => {
         base,
         { database },
         {
-          sql: {
-            modules: { "rate-limit": { options: { preRequest } } },
-          },
+          blocks: { "rate-limit": { options: { preRequest } } },
         },
       );
     expect(await run("BS313", modules(false))).toEqual([]);
@@ -1016,7 +1004,7 @@ describe("audit registrations of dropped tables (BS322)", () => {
     module: string[],
     rows: Record<string, unknown>[] | Error,
   ): Parameters<typeof run>[1] => ({
-    ...context(base, {}, { sql: { modules: module } }),
+    ...context(base, {}, { blocks: module }),
     database: {
       describe: "test",
       session: true,
@@ -1049,21 +1037,19 @@ describe("audit registrations of dropped tables (BS322)", () => {
       [],
     );
     expect(
-      await run("BS322", context(base, {}, { sql: { modules: ["audit"] } })),
+      await run("BS322", context(base, {}, { blocks: ["audit"] })),
     ).toEqual([]);
   });
 });
 
 describe("adopted tables without a mapped column (BS330)", () => {
   const credentials = {
-    sql: {
-      modules: {
-        credentials: {
-          mode: "adopt" as const,
-          tables: { secrets: "public.integration_secrets" },
-          columns: {
-            secrets: { name: "key", tenant: "organization_id", scope: null },
-          },
+    blocks: {
+      credentials: {
+        mode: "adopt" as const,
+        tables: { secrets: "public.integration_secrets" },
+        columns: {
+          secrets: { name: "key", tenant: "organization_id", scope: null },
         },
       },
     },
@@ -1100,7 +1086,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
       expect.objectContaining({
         severity: "error",
         message: expect.stringContaining(
-          "sql.modules.credentials.columns.secrets.name",
+          "blocks.credentials.columns.secrets.name",
         ),
       }),
     );
@@ -1138,11 +1124,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
     expect(
       await run(
         "BS330",
-        context(
-          base,
-          { database: live([]) },
-          { sql: { modules: { credentials: {} } } },
-        ),
+        context(base, { database: live([]) }, { blocks: { credentials: {} } }),
       ),
     ).toEqual([]);
     expect(await run("BS330", context(base, {}, credentials))).toEqual([]);
@@ -1217,7 +1199,7 @@ describe("subject registry (BS331, BS332)", () => {
 });
 
 describe("module event triggers (BS323)", () => {
-  const modules = { sql: { modules: ["audit", "ensure-rls", "tenant"] } };
+  const modules = { blocks: ["audit", "ensure-rls", "tenant"] };
   const live = (rows: Record<string, unknown>[] | Error) => ({
     describe: "test",
     session: true,
@@ -1303,32 +1285,30 @@ describe("module event triggers (BS323)", () => {
     expect(
       await run(
         "BS323",
-        context(base, { database: live([]) }, { sql: { modules: ["tenant"] } }),
+        context(base, { database: live([]) }, { blocks: ["tenant"] }),
       ),
     ).toEqual([]);
   });
 });
 
 describe("migration-only module options (BS314)", () => {
-  it("warns about each weakening option on a module in sql.modules", async () => {
+  it("warns about each weakening option on a module in blocks", async () => {
     const findings = await run(
       "BS314",
       context(
         base,
         {},
         {
-          sql: {
-            modules: {
-              invitations: {
-                mode: "adopt",
-                options: { tokenStorage: "plain" },
-              },
-              outbox: {
-                mode: "adopt",
-                options: {
-                  blockSource: "better-supabase/{module}",
-                  defaultSource: "domain",
-                },
+          blocks: {
+            invitations: {
+              mode: "adopt",
+              options: { tokenStorage: "plain" },
+            },
+            outbox: {
+              mode: "adopt",
+              options: {
+                blockSource: "better-supabase/{module}",
+                defaultSource: "domain",
               },
             },
           },
@@ -1338,14 +1318,14 @@ describe("migration-only module options (BS314)", () => {
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
-        target: "sql.modules.invitations.options.tokenStorage",
+        target: "blocks.invitations.options.tokenStorage",
       }),
       expect.objectContaining({
-        target: "sql.modules.outbox.options.defaultSource",
+        target: "blocks.outbox.options.defaultSource",
       }),
     ]);
     expect(findings[0]!.message).toBe(
-      'sql.modules.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
+      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
     );
   });
 
@@ -1357,9 +1337,7 @@ describe("migration-only module options (BS314)", () => {
           base,
           {},
           {
-            sql: {
-              modules: { invitations: { options: { tokenStorage: "sha256" } } },
-            },
+            blocks: { invitations: { options: { tokenStorage: "sha256" } } },
           },
         ),
       ),
@@ -1390,11 +1368,7 @@ describe("legacy migra engine (BS316)", () => {
     expect(
       await run(
         "BS316",
-        context(
-          base,
-          { configToml: toml("[db]\n") },
-          { sql: { modules: ["audit"] } },
-        ),
+        context(base, { configToml: toml("[db]\n") }, { blocks: ["audit"] }),
       ),
     ).toHaveLength(1);
   });
@@ -1465,7 +1439,7 @@ describe("tables without an audit trigger (BS315)", () => {
     });
     const findings = await run(
       "BS315",
-      context(audited, {}, { sql: { modules: ["audit"] } }),
+      context(audited, {}, { blocks: ["audit"] }),
     );
     expect(findings.map((finding) => finding.target)).toEqual(
       publicTables.filter(
@@ -1477,7 +1451,7 @@ describe("tables without an audit trigger (BS315)", () => {
       object: { kind: "table", schema: "public" },
     });
     expect(findings[0]!.message).toContain(
-      "or list it in sql.modules.audit.options.exempt",
+      "or list it in blocks.audit.options.exempt",
     );
   });
 
@@ -1490,11 +1464,9 @@ describe("tables without an audit trigger (BS315)", () => {
           base,
           {},
           {
-            sql: {
-              modules: {
-                audit: { options: { exempt: rest } },
-                tenant: { mode: "adopt", tables: { memberships: first } },
-              },
+            blocks: {
+              audit: { options: { exempt: rest } },
+              tenant: { mode: "adopt", tables: { memberships: first } },
             },
           },
         ),
@@ -1507,7 +1479,7 @@ describe("tables without an audit trigger (BS315)", () => {
           base,
           {},
           {
-            sql: { modules: { audit: { options: { exempt: ["public.*"] } } } },
+            blocks: { audit: { options: { exempt: ["public.*"] } } },
           },
         ),
       ),
@@ -1641,7 +1613,7 @@ describe("tables without the session policy (BS320)", () => {
     });
     const findings = await run(
       "BS320",
-      context(covered, {}, { sql: { modules: ["sessions"] } }),
+      context(covered, {}, { blocks: ["sessions"] }),
     );
     expect(findings.map((finding) => finding.target)).toEqual(
       rlsTables.filter((name) => name !== "public.customers"),
@@ -1650,9 +1622,7 @@ describe("tables without the session policy (BS320)", () => {
       severity: "warning",
       object: { kind: "table", schema: "public" },
     });
-    expect(findings[0]!.message).toContain(
-      "sql.modules.sessions.options.exclude",
-    );
+    expect(findings[0]!.message).toContain("blocks.sessions.options.exclude");
   });
 
   it("skips excluded tables and projects without the module", async () => {
@@ -1663,9 +1633,7 @@ describe("tables without the session policy (BS320)", () => {
           base,
           {},
           {
-            sql: {
-              modules: { sessions: { options: { exclude: ["public.*"] } } },
-            },
+            blocks: { sessions: { options: { exclude: ["public.*"] } } },
           },
         ),
       ),

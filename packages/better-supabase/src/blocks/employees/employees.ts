@@ -258,7 +258,7 @@ export interface EmployeesOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the extra columns
-   * (`sql.modules.employees.options.extraColumns`), keyed by column name.
+   * (`blocks.employees.options.extraColumns`), keyed by column name.
    * It types and parses `fields` on reads and validates them on writes.
    */
   readonly fields?: S;

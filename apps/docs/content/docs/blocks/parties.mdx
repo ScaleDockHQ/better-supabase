@@ -100,10 +100,8 @@ const person = await parties
 `options.extraColumns` adds columns to `companies`, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    parties: { options: { extraColumns: { segment: "text", employees: "integer" } } },
-  },
+blocks: {
+  parties: { options: { extraColumns: { segment: "text", employees: "integer" } } },
 },
 ```
 

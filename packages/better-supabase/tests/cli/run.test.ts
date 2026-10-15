@@ -569,7 +569,7 @@ describe("run", () => {
           },
           notes: ["select", "insert(body)"],
         },
-        sql: { modules: ["grants"] },
+        blocks: ["grants"],
       }),
     );
     const synced = await run(["sql", "sync", "--cwd", dir]);

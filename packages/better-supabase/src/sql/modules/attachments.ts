@@ -113,7 +113,7 @@ const pathTemplate = (ctx: ModuleContext): string =>
 
 function pathExpression(ctx: ModuleContext, tenantless = false): string {
   const template = pathTemplate(ctx);
-  const where = "sql.modules.attachments.options.path";
+  const where = "blocks.attachments.options.path";
   if (!template.includes("{id}")) {
     throw new TypeError(
       `${where} must contain {id}, so each file has its own path`,
@@ -173,13 +173,13 @@ function subjectBuckets(
     const bucket = subject.extra["bucket"] ?? fallback;
     if (!isText(bucket) || !BUCKET.test(bucket)) {
       throw new TypeError(
-        `sql.modules.attachments.options.subjects.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
+        `blocks.attachments.options.subjects.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
       );
     }
     const mimeTypes = subject.extra["allowedMimeTypes"] ?? [];
     if (!Array.isArray(mimeTypes) || !mimeTypes.every(isText)) {
       throw new TypeError(
-        `sql.modules.attachments.options.subjects.${type}.allowedMimeTypes must be a list of MIME types`,
+        `blocks.attachments.options.subjects.${type}.allowedMimeTypes must be a list of MIME types`,
       );
     }
     return { type, bucket, mimeTypes };
@@ -201,7 +201,7 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
   for (const bucket of buckets) {
     if (!BUCKET.test(bucket)) {
       throw new TypeError(
-        `sql.modules.attachments.options.scanBuckets: "${bucket}" is not a bucket id`,
+        `blocks.attachments.options.scanBuckets: "${bucket}" is not a bucket id`,
       );
     }
   }
@@ -389,7 +389,7 @@ declare
 begin
   if v_current is distinct from ${sqlString(pathComment)} then
     if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
+      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
     execute ${sqlString(`alter table ${t} alter column ${c("path")} set expression as (${pathExpression(ctx, tenantless.length > 0)})`)};
   end if;
@@ -763,13 +763,13 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
   const bucket = ctx.text("bucket", "attachments");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.attachments.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
+      "blocks.attachments.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   const maxSize = ctx.number("maxSize", 50 * 1024 * 1024);
   if (!Number.isInteger(maxSize) || maxSize < 1) {
     throw new TypeError(
-      "sql.modules.attachments.options.maxSize must be a whole number of bytes above zero",
+      "blocks.attachments.options.maxSize must be a whole number of bytes above zero",
     );
   }
   return { bucket, maxSize, mimeTypes: ctx.list("allowedMimeTypes", []) };

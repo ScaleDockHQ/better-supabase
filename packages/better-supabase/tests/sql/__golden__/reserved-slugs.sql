@@ -3,7 +3,7 @@
 -- @bs-module reserved-slugs@1 managed
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -19,7 +19,7 @@ drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
--- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql
@@ -93,7 +93,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'system'
@@ -116,7 +116,7 @@ on conflict (name) do update
 -- @bs-module reserved-slugs@1 managed
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -132,7 +132,7 @@ drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
--- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql
@@ -206,7 +206,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'system'
@@ -229,7 +229,7 @@ on conflict (name) do update
 -- @bs-module reserved-slugs@1 managed
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -245,7 +245,7 @@ drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
--- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql
@@ -319,7 +319,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'system'
@@ -342,7 +342,7 @@ on conflict (name) do update
 -- @bs-module reserved-slugs@1 managed
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -358,7 +358,7 @@ drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
--- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql
@@ -414,7 +414,7 @@ revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
 revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
 
--- sql.modules.reserved-slugs.api: entry points for the Data API.
+-- blocks.reserved-slugs.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -445,7 +445,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'system'

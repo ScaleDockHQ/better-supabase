@@ -38,7 +38,7 @@ export function paymentWindow(ctx: ModuleContext): number {
   const minutes = ctx.number("paymentWindowMinutes", 30);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
     throw new TypeError(
-      "sql.modules.orders.options.paymentWindowMinutes must be a whole number of minutes from 1 to 10080",
+      "blocks.orders.options.paymentWindowMinutes must be a whole number of minutes from 1 to 10080",
     );
   }
   return minutes;

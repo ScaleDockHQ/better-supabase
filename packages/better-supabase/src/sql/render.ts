@@ -1,4 +1,4 @@
-import type { ModuleMode } from "../config/modules.ts";
+import type { BlockMode } from "../config/blocks.ts";
 import type { ModuleFile, ModuleLayout } from "./module-types.ts";
 import type { SqlModule } from "./module-types.ts";
 
@@ -73,7 +73,7 @@ grant select on better_supabase.modules to service_role;
 `;
 
 /** Records the module in `better_supabase.modules`, which `sql upgrade` and doctor read. */
-function moduleRow(module: SqlModule, mode: ModuleMode): string {
+function moduleRow(module: SqlModule, mode: BlockMode): string {
   return `insert into better_supabase.modules (name, version, mode)
 values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
 on conflict (name) do update
@@ -100,7 +100,7 @@ export function renderModules(
     const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
     const managed = [
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
-      "-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.",
+      "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ];
     const header = [
       title,

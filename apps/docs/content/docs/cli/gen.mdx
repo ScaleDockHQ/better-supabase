@@ -14,14 +14,14 @@ config sets up, so the config holds the options instead of each command line.
 
 ## Tasks
 
-| Task       | Runs by default when                                        | Does what                                                                        |
-| ---------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `types`    | always                                                      | Writes the files this page describes                                             |
-| `sql`      | `sql.modules` lists a module, or `realtime.policies` is set | [`sql sync`](/docs/blocks/sql): rewrites the SQL module files                    |
-| `spec`     | the `specs.entry` file exists                               | [`spec emit`](/docs/cli/spec), with `specs.failOn` and `specs.manifest`          |
-| `seed`     | the `seed.entry` file exists                                | [`seed`](/docs/cli/local#seed): renders the fixtures to SQL                      |
-| `scaffold` | `scaffold.api` is set                                       | Rewrites the generated file of [`scaffold api`](/docs/cli/scaffold), never yours |
-| `env`      | never; list it to run it                                    | [`env`](/docs/cli/local#env): writes the local stack's keys to `env.output`      |
+| Task       | Runs by default when                                   | Does what                                                                        |
+| ---------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `types`    | always                                                 | Writes the files this page describes                                             |
+| `sql`      | `blocks` lists a module, or `realtime.policies` is set | [`sql sync`](/docs/blocks/sql): rewrites the SQL module files                    |
+| `spec`     | the `specs.entry` file exists                          | [`spec emit`](/docs/cli/spec), with `specs.failOn` and `specs.manifest`          |
+| `seed`     | the `seed.entry` file exists                           | [`seed`](/docs/cli/local#seed): renders the fixtures to SQL                      |
+| `scaffold` | `scaffold.api` is set                                  | Rewrites the generated file of [`scaffold api`](/docs/cli/scaffold), never yours |
+| `env`      | never; list it to run it                               | [`env`](/docs/cli/local#env): writes the local stack's keys to `env.output`      |
 
 The tasks run in that order, since later ones read what earlier ones write.
 Pin the list in the config with `gen.tasks`, or pass `--tasks` for one run:

@@ -438,12 +438,12 @@ function topic(
   const template = ctx.text("topic", "notifications:{userId}");
   if (!TOPIC.test(template) || !template.includes("{userId}")) {
     throw new TypeError(
-      `sql.modules.notifications.options.topic must contain {userId} and only letters, digits, ":", "_", "-", "." and placeholders, not "${template}"`,
+      `blocks.notifications.options.topic must contain {userId} and only letters, digits, ":", "_", "-", "." and placeholders, not "${template}"`,
     );
   }
   if (template.includes("{tenantId}") && !n.has("recipients", "tenant")) {
     throw new TypeError(
-      "sql.modules.notifications.options.topic uses {tenantId}, but the recipients table has no tenant column",
+      "blocks.notifications.options.topic uses {tenantId}, but the recipients table has no tenant column",
     );
   }
   const expression: string[] = [];
@@ -552,7 +552,7 @@ $$;`;
     }
     default:
       throw new TypeError(
-        `sql.modules.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
+        `blocks.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
       );
   }
 }

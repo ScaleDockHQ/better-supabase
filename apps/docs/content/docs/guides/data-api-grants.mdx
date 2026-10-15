@@ -29,7 +29,7 @@ export default defineConfig({
     "public.audit_exports": { serviceRole: ["select", "insert"] },
     "search_notes(text, integer)": { execute: ["authenticated"] },
   },
-  sql: { modules: ["grants"] },
+  blocks: ["grants"],
 });
 ```
 
@@ -92,7 +92,7 @@ table like that which still holds grants on the live database as
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   schemas: ["public"],
-  sql: { modules: { grants: { options: { fromPolicies: true } } } },
+  blocks: { grants: { options: { fromPolicies: true } } },
 });
 ```
 

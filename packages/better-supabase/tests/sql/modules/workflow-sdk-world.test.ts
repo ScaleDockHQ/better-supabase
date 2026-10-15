@@ -36,6 +36,6 @@ describe("workflow-sdk-world module", () => {
   it("rejects a jobs schema, since the jobs functions live in better_supabase", () => {
     expect(() =>
       schemaOf({ modules: { jobs: { schema: "queue_app" } } }),
-    ).toThrow(/sql\.modules\.jobs\.schema/);
+    ).toThrow(/blocks\.jobs\.schema/);
   });
 });

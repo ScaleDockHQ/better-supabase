@@ -54,7 +54,7 @@ describe("gen tasks", () => {
     expect(
       configuredTasks(
         resolved({
-          sql: { modules: ["audit"] },
+          blocks: ["audit"],
           scaffold: { api: { framework: "hono" } },
         }),
       ),

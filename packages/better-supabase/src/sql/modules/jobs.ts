@@ -7,23 +7,23 @@ import { TABLE } from "./jobs-table.ts";
 export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
 
-/** `sql.modules.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
+/** `blocks.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
 function jobsBackend(ctx: ModuleContext): JobsBackend {
   const backend = ctx.text("backend", "pgmq");
   if (backend !== "pgmq" && backend !== "table") {
     throw new TypeError(
-      `sql.modules.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
+      `blocks.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
     );
   }
   return backend;
 }
 
-/** `sql.modules.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
+/** `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
 function jobsScheduler(ctx: ModuleContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
   if (scheduler !== "pg_cron" && scheduler !== "drain") {
     throw new TypeError(
-      `sql.modules.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
+      `blocks.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
     );
   }
   return scheduler;
@@ -401,7 +401,7 @@ const PG_CRON = (
 ) => `-- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
 -- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
 -- For another time zone or a tenant per schedule, set
--- sql.modules.jobs.options.scheduler to "drain".
+-- blocks.jobs.options.scheduler to "drain".
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
@@ -423,13 +423,13 @@ declare
   v_id bigint;
 begin
   if tenant is not null then
-    raise exception 'pg_cron schedules have no tenant; set sql.modules.jobs.options.scheduler to "drain" to keep one per schedule';
+    raise exception 'pg_cron schedules have no tenant; set blocks.jobs.options.scheduler to "drain" to keep one per schedule';
   end if;
   if v_schedule is null then
-    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
+    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set blocks.jobs.options.scheduler to "drain"';
   end if;
   if timezone <> 'UTC' then
-    raise exception 'pg_cron runs schedules in cron.timezone, not %; set sql.modules.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
+    raise exception 'pg_cron runs schedules in cron.timezone, not %; set blocks.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;${ensureQueue(backend)}
   execute format('select %s($1::text, $2::text, $3::text)', v_schedule::oid::regproc)
     into v_id

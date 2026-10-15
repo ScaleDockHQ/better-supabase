@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -194,7 +194,7 @@ describe("workflow-builder module", () => {
     const layout = {
       modules: {
         "workflow-builder": { permissions: { run: "automations.run" } },
-      } satisfies ModulesConfig,
+      } satisfies BlocksConfig,
       accessProvider: {
         ...moduleProvider,
         operations: {
@@ -224,7 +224,7 @@ describe("workflow-builder module", () => {
   });
 
   it("lists its contract in custom mode", () => {
-    const custom: ModulesConfig = { "workflow-builder": { mode: "custom" } };
+    const custom: BlocksConfig = { "workflow-builder": { mode: "custom" } };
     expect(moduleBody("workflow-builder", { modules: custom })).toBeUndefined();
     const [contract] = customContracts(["workflow-builder"], {
       modules: custom,

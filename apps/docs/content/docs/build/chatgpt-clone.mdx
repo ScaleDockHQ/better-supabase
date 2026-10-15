@@ -14,19 +14,17 @@ a scripted model answers, so it runs offline.
 ## The modules
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    streams: { api: "api" },
-    "ai-chat": { api: "api" },
-    "ai-files": { api: "api" },
-    knowledge: { api: "api" },
-    memory: { api: "api" },
-    agents: { api: "api" },
-    connectors: { api: "api" },
-    "ai-tasks": { api: "api" },
-    "ai-providers": { api: "api" },
-    "ai-cache": { api: "api" },
-  },
+blocks: {
+  streams: { api: "api" },
+  "ai-chat": { api: "api" },
+  "ai-files": { api: "api" },
+  knowledge: { api: "api" },
+  memory: { api: "api" },
+  agents: { api: "api" },
+  connectors: { api: "api" },
+  "ai-tasks": { api: "api" },
+  "ai-providers": { api: "api" },
+  "ai-cache": { api: "api" },
 },
 ```
 

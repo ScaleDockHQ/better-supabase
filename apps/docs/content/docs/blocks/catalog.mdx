@@ -158,9 +158,7 @@ Set the `storefront` option to `public` to let anyone read the published
 catalog of an organization:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: { catalog: { options: { storefront: "public" } } },
-},
+blocks: { catalog: { options: { storefront: "public" } } },
 ```
 
 With it, `anon` can read the active products of organizations that called

@@ -122,12 +122,12 @@ export interface ScheduleOptions {
   /**
    * The tenant the schedule belongs to, for `listSchedules({ tenant })` and
    * `unscheduleAll({ tenant })`. Defaults to the tenant of `context`. Needs
-   * `sql.modules.jobs.options.scheduler: "drain"`.
+   * `blocks.jobs.options.scheduler: "drain"`.
    */
   readonly tenant?: string;
   /**
    * The IANA time zone the cron fields are read in. Defaults to `UTC`.
-   * Other zones need `sql.modules.jobs.options.scheduler: "drain"`.
+   * Other zones need `blocks.jobs.options.scheduler: "drain"`.
    */
   readonly timeZone?: string;
 }
@@ -411,7 +411,7 @@ export interface Jobs<Q extends QueueSchemas> {
   /**
    * Enqueues `payload` on a cron schedule (`'0 3 * * *'`, `'@daily'`,
    * `'30 seconds'`), with pg_cron or the drain scheduler
-   * (`sql.modules.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
+   * (`blocks.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
    * connections only.
    */
   schedule<N extends Extract<keyof Q, string>>(

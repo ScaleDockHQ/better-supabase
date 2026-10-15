@@ -9,7 +9,7 @@ import {
 } from "@/features/assistant/assistant-server";
 import { bs } from "@/lib/supabase/server";
 
-/** `sql.modules.inbox.api` in better-supabase.config.ts. */
+/** `blocks.inbox.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
 const BOT = "assistant";
 

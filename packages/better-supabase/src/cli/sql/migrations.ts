@@ -110,7 +110,7 @@ export const DATA_NEXT =
 const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 /**
- * Writes the data files of `sql.modules` into one migration, meant to run after
+ * Writes the data files of `blocks` into one migration, meant to run after
  * the schema migration that creates their tables. Every statement is
  * idempotent, so the migration carries all of them, not only the changes.
  */
@@ -119,8 +119,8 @@ export async function dataMigration(
   args: SqlFlags,
   now: Now,
 ): Promise<CommandResult> {
-  if (config.sql.moduleNames.length === 0) {
-    return { code: 0, output: "sql.modules is empty; nothing to write." };
+  if (config.blockNames.length === 0) {
+    return { code: 0, output: "blocks is empty; nothing to write." };
   }
   if (
     sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
@@ -132,8 +132,8 @@ export async function dataMigration(
     };
   }
   const rendered = renderModules(
-    config.sql.moduleNames,
-    await layoutFor(config, args, config.sql.moduleNames),
+    config.blockNames,
+    await layoutFor(config, args, config.blockNames),
   );
   const { missing } = await unmigratedExtensions(config, rendered);
   if (missing.length > 0) {

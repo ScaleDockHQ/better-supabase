@@ -2,7 +2,7 @@
 -- @bs-module jobs@7 managed
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -372,7 +372,7 @@ $$;
 -- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
 -- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
 -- For another time zone or a tenant per schedule, set
--- sql.modules.jobs.options.scheduler to "drain".
+-- blocks.jobs.options.scheduler to "drain".
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
@@ -394,13 +394,13 @@ declare
   v_id bigint;
 begin
   if tenant is not null then
-    raise exception 'pg_cron schedules have no tenant; set sql.modules.jobs.options.scheduler to "drain" to keep one per schedule';
+    raise exception 'pg_cron schedules have no tenant; set blocks.jobs.options.scheduler to "drain" to keep one per schedule';
   end if;
   if v_schedule is null then
-    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
+    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set blocks.jobs.options.scheduler to "drain"';
   end if;
   if timezone <> 'UTC' then
-    raise exception 'pg_cron runs schedules in cron.timezone, not %; set sql.modules.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
+    raise exception 'pg_cron runs schedules in cron.timezone, not %; set blocks.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;
   perform better_supabase.ensure_job_queue(queue);
   execute format('select %s($1::text, $2::text, $3::text)', v_schedule::oid::regproc)

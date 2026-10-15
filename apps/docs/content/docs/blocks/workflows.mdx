@@ -28,7 +28,7 @@ better-supabase sql add workflows   # adds tenant and access as well
 | `workflow.run`   | members start runs, for helpers such as `protectWebHandler` | none by default |
 | `workflow.admin` | members cancel any run of the tenant and manage schedules   | none by default |
 
-Grant the keys to your roles in `sql.modules.access.roles`. A user always
+Grant the keys to your roles in `blocks.access.roles`. A user always
 reads the runs they started, without a permission.
 
 A run's status is `queued`, `running`, `waiting`, `completed`, `failed` or

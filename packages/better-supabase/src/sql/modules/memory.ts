@@ -116,7 +116,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const maxContent = ctx.number("maxContent", 100_000);
   if (!Number.isInteger(maxContent) || maxContent < 1) {
     throw new TypeError(
-      "sql.modules.memory.options.maxContent must be a positive whole number of characters",
+      "blocks.memory.options.maxContent must be a positive whole number of characters",
     );
   }
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;

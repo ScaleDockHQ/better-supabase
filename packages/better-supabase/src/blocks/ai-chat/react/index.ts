@@ -26,7 +26,7 @@ import {
 } from "../client.ts";
 
 interface ClientOptions {
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules["ai-chat"].api`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks["ai-chat"].api`. */
   readonly schema?: string;
 }
 
@@ -44,7 +44,7 @@ function useAiChatClient(schema: string | undefined): AiChat {
 
 export interface UseAiChatsOptions
   extends ClientOptions, Omit<AiChatQuery, "cursor"> {
-  /** The prefix of the list topic (`sql.modules["ai-chat"].options.listTopic`); `null` loads once. */
+  /** The prefix of the list topic (`blocks["ai-chat"].options.listTopic`); `null` loads once. */
   readonly topic?: string | null;
 }
 
@@ -95,7 +95,7 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
 }
 
 export interface UseAiChatTreeOptions extends ClientOptions {
-  /** The prefix of the chat topic (`sql.modules["ai-chat"].options.topic`); `null` loads once. */
+  /** The prefix of the chat topic (`blocks["ai-chat"].options.topic`); `null` loads once. */
   readonly topic?: string | null;
 }
 

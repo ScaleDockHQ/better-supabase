@@ -1,4 +1,4 @@
-import type { AccessModuleConfig, ModulesConfig } from "../config/modules.ts";
+import type { AccessBlockConfig, BlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
 import {
@@ -71,30 +71,30 @@ export function moduleContext(
 /** The modules that install their functions in `better_supabase` whatever `schema` says. */
 
 /**
- * `sql.modules` with what the authorization provider already says: an
+ * `blocks` with what the authorization provider already says: an
  * adopted `tenant` module on a membership table whose role the provider
  * reads through a roles table gets the same `roleThrough`, unless the config
  * sets one.
  */
 export function withProviderDefaults(
   layout: ModuleLayout,
-): ModulesConfig | undefined {
+): BlocksConfig | undefined {
   return withProviderRoles(layout, withProviderSuspension(layout));
 }
 
 /**
- * `sql.modules.access.disabled` from the provider's `suspension` under the
+ * `blocks.access.disabled` from the provider's `suspension` under the
  * `provider` model, per subject, unless the config sets that subject.
  */
 function withProviderSuspension(
   layout: ModuleLayout,
-): ModulesConfig | undefined {
+): BlocksConfig | undefined {
   const modules = layout.modules;
   const suspension = layout.accessProvider?.suspension;
   const access = modules?.access;
   if (!modules || !suspension || access?.model !== "provider") return modules;
   const configured = access.disabled ?? {};
-  const disabled: NonNullable<AccessModuleConfig["disabled"]> = {
+  const disabled: NonNullable<AccessBlockConfig["disabled"]> = {
     ...configured,
     ...(configured.tenant === undefined && suspension.tenant
       ? { tenant: suspension.tenant }
@@ -113,8 +113,8 @@ function withProviderSuspension(
 
 function withProviderRoles(
   layout: ModuleLayout,
-  modules: ModulesConfig | undefined,
-): ModulesConfig | undefined {
+  modules: BlocksConfig | undefined,
+): BlocksConfig | undefined {
   const sources = layout.accessProvider?.roleSources;
   const tenant = modules?.["tenant"];
   if (!modules || !sources || tenant?.mode !== "adopt") return modules;

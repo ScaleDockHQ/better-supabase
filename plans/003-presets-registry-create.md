@@ -37,7 +37,7 @@ Verified against the code on 2026-10-14.
   - `"better_supabase"` is re-hard-coded in 7 block files despite `DEFAULT_BLOCK_SCHEMA`.
 - **Two configurations per block.**
   - `sql.modules.<name>` and the TS block options are kept in sync by hand. `drive.ts:37-41` says "Must match `sql.modules.attachments.options.requireScan`".
-  - Module `options` is `Record<string, unknown>` (`src/config/modules.ts:43`).
+  - Module `options` is `Record<string, unknown>` (`src/config/blocks.ts:43`).
   - The config key says "modules" while everything else, the docs, the subpaths and ADR 0012, says "blocks".
 - **Extension points differ per block.**
   - `fields`: 2 blocks.

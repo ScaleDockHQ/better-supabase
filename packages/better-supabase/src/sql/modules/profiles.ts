@@ -103,9 +103,7 @@ function record(
   const value = ctx.option(name);
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(
-      `sql.modules.profiles.options.${name} must be an object`,
-    );
+    throw new TypeError(`blocks.profiles.options.${name} must be an object`);
   }
   return Object.fromEntries(Object.entries(value));
 }
@@ -127,13 +125,13 @@ function metadataColumns(ctx: ModuleContext): Map<string, string[]> {
     for (const [key, target] of Object.entries(configured)) {
       if (typeof target !== "string") {
         throw new TypeError(
-          `sql.modules.profiles.options.metadata.${key} must be a column name`,
+          `blocks.profiles.options.metadata.${key} must be a column name`,
         );
       }
-      const name = column("sql.modules.profiles.options.metadata", target);
+      const name = column("blocks.profiles.options.metadata", target);
       if (hasAvatarPath(ctx) && name === ctx.col("profiles", "avatarPath")) {
         throw new TypeError(
-          `sql.modules.profiles.options.metadata.${key}: ${target} holds a Storage object path the app sets, so auth metadata never writes it`,
+          `blocks.profiles.options.metadata.${key}: ${target} holds a Storage object path the app sets, so auth metadata never writes it`,
         );
       }
       map.set(name, [...(map.get(name) ?? []), key]);
@@ -205,7 +203,7 @@ interface UsernamePart {
 /** The `{ names | columns, separator }` entries of `usernameFrom`; strings are single metadata keys. */
 function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
   const configured = ctx.option("usernameFrom") ?? USERNAME_SOURCES;
-  const where = "sql.modules.profiles.options.usernameFrom";
+  const where = "blocks.profiles.options.usernameFrom";
   if (!Array.isArray(configured)) {
     throw new TypeError(`${where} must be a list`);
   }
@@ -274,7 +272,7 @@ function usernameSource(
   if (parts.every((part) => typeof part === "string")) {
     return fromMeta(parts);
   }
-  const where = "sql.modules.profiles.options.usernameFrom";
+  const where = "blocks.profiles.options.usernameFrom";
   const expressions = parts.map((part) => {
     if (typeof part === "string") return fromMeta([part]);
     const keys = part.keys.map((key) => {
@@ -300,7 +298,7 @@ const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
   "onboarding",
 ]);
 
-/** Names no one gets as a username, from `sql.modules.profiles.options.reservedUsernames`. */
+/** Names no one gets as a username, from `blocks.profiles.options.reservedUsernames`. */
 const RESERVED_USERNAMES = [
   "admin",
   "administrator",
@@ -335,7 +333,7 @@ function usernameRules(ctx: ModuleContext): {
     max < min + 4
   ) {
     throw new TypeError(
-      "sql.modules.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
+      "blocks.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
     );
   }
   const names = ctx
@@ -343,7 +341,7 @@ function usernameRules(ctx: ModuleContext): {
     .map((name) => {
       if (!/^[a-z0-9_]+$/.test(name)) {
         throw new TypeError(
-          `sql.modules.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
+          `blocks.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
         );
       }
       return sqlString(name);
@@ -463,7 +461,7 @@ function readPolicy(ctx: ModuleContext): {
   readonly platform?: string;
 } {
   const value = ctx.option("readPolicy") ?? "self";
-  const where = "sql.modules.profiles.options.readPolicy";
+  const where = "blocks.profiles.options.readPolicy";
   if (value === "self" || value === "members") {
     return { members: value === "members" };
   }
@@ -522,7 +520,7 @@ function peers(ctx: ModuleContext): string {
   if (!readPolicy(ctx).members) return "";
   if (!ctx.installed("tenant")) {
     throw new TypeError(
-      "sql.modules.profiles.options.readPolicy 'members' needs the tenant module",
+      "blocks.profiles.options.readPolicy 'members' needs the tenant module",
     );
   }
   const tenant = ctx.of("tenant");
@@ -572,9 +570,7 @@ function grants(ctx: ModuleContext): string {
       ? [...defaults, ...extraColumns(ctx).map(([name]) => name)]
       : ctx
           .list("updatable", [])
-          .map((name) =>
-            column("sql.modules.profiles.options.updatable", name),
-          );
+          .map((name) => column("blocks.profiles.options.updatable", name));
   if (ctx.has("profiles", "updatedAt"))
     columns.push(ctx.col("profiles", "updatedAt"));
   const t = ctx.table("profiles");
@@ -605,9 +601,7 @@ function guard(ctx: ModuleContext): string {
       ? defaults
       : ctx
           .list("serviceColumns", [])
-          .map((name) =>
-            column("sql.modules.profiles.options.serviceColumns", name),
-          )
+          .map((name) => column("blocks.profiles.options.serviceColumns", name))
   ).filter((name) => name !== updatedAt);
   const t = ctx.table("profiles");
   const trigger = ctx.trigger("profile_guard");

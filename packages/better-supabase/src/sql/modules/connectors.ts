@@ -139,7 +139,7 @@ function build(ctx: ModuleContext): string {
   const sessionTtl = ctx.text("sessionTtl", "1 hour");
   if (!INTERVAL.test(sessionTtl)) {
     throw new TypeError(
-      'sql.modules.connectors.options.sessionTtl must be an interval such as "1 hour"',
+      'blocks.connectors.options.sessionTtl must be an interval such as "1 hour"',
     );
   }
   const urlPattern = allowHttp

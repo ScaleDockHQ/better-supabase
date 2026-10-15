@@ -63,7 +63,7 @@ export interface AnnouncementInput {
 
 export interface AnnouncementsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.announcements.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.announcements.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

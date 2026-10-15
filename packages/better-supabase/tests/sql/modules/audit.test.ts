@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleConfig } from "../../../src/config/modules.ts";
+import type { BlockConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-const audit = (config: ModuleConfig = {}) =>
+const audit = (config: BlockConfig = {}) =>
   moduleBody("audit", { modules: { audit: config } })!;
 
 /** CentraKit's audit tables: uuid ids, no row snapshots, restricted details apart. */
-const CENTRAKIT: ModuleConfig = {
+const CENTRAKIT: BlockConfig = {
   mode: "adopt",
   tables: {
     log: "public.audit_logs",
@@ -69,7 +69,7 @@ describe("audit module", () => {
       "raise exception 'audit_event got restricted details, and the audit module has no restricted table'",
     );
     expect(sql).toContain(
-      "hint = 'Set sql.modules.audit.options.restricted to true.'",
+      "hint = 'Set blocks.audit.options.restricted to true.'",
     );
     const [file] = renderModules(["audit"]);
     expect(file!.contents).not.toContain("audit_log;");
@@ -132,7 +132,7 @@ describe("audit module", () => {
   });
 
   it("needs the access module only for the read policy", () => {
-    const names = (config: ModuleConfig) =>
+    const names = (config: BlockConfig) =>
       resolveModules(["audit"], { modules: { audit: config } }).map(
         (module) => module.name,
       );
@@ -236,7 +236,7 @@ describe("audit module", () => {
 });
 
 describe("audit value mapping", () => {
-  const ADOPTED: ModuleConfig = {
+  const ADOPTED: BlockConfig = {
     mode: "adopt",
     tables: { log: "public.activity_log" },
     columns: {
@@ -434,7 +434,7 @@ describe("audit value mapping", () => {
 });
 
 describe("audit revert", () => {
-  const sqlOf = (config: ModuleConfig = {}, modules = ["access", "audit"]) =>
+  const sqlOf = (config: BlockConfig = {}, modules = ["access", "audit"]) =>
     renderModules(modules, { modules: { audit: config } })
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)

@@ -44,7 +44,7 @@ export interface ServicePrincipalsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** `supabase.auth.admin` of a service-role client. */
   readonly admin: ServicePrincipalAuthAdmin;
-  /** `sql.modules.service-principals.schema`. Defaults to `better_supabase`. */
+  /** `blocks.service-principals.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

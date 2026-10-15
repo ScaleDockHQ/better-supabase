@@ -88,7 +88,7 @@ function build(ctx: ModuleContext): string {
     ctx.text("layout", "normalized") !== "normalized"
   ) {
     throw new TypeError(
-      'sql.modules.custom-fields.options.layout must be "normalized" or "inline"',
+      'blocks.custom-fields.options.layout must be "normalized" or "inline"',
     );
   }
   const definitions = ctx.table("definitions");

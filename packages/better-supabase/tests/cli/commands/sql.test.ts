@@ -118,9 +118,9 @@ describe("runSql", () => {
     expect((await sql(["print", "nope"])).code).toBe(2);
   });
 
-  it("adds a module next to the ones sql.modules lists", async () => {
+  it("adds a module next to the ones blocks lists", async () => {
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["organizations"] },
+      blocks: ["organizations"],
     };
     const added = await sql(["add", "billing"], config);
     expect(added.output).toContain("(billing)");
@@ -144,7 +144,7 @@ describe("runSql", () => {
         },
       );
     expect((await run(["add", "updated-at"])).output).toContain(
-      'Add them to sql.modules in better-supabase.config.ts so `sql sync --check` keeps them current:\n  "updated-at": {},',
+      'Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:\n  "updated-at": {},',
     );
 
     const file = join(root, "better-supabase.config.ts");
@@ -154,20 +154,19 @@ describe("runSql", () => {
       "better-supabase.config.ts wasn't changed: it doesn't pass an object literal to defineConfig().",
     );
 
-    const literal =
-      "export default defineConfig({ sql: { modules: { audit: {} } } });\n";
+    const literal = "export default defineConfig({ blocks: { audit: {} } });\n";
     await writeFile(file, literal);
     const dry = await run(["add", "updated-at", "--dry-run"], file);
     expect(dry.output).toContain(
-      "Would add updated-at to sql.modules in better-supabase.config.ts.",
+      "Would add updated-at to blocks in better-supabase.config.ts.",
     );
     expect(await readFile(file, "utf8")).toBe(literal);
     const added = await run(["add", "updated-at"], file);
     expect(added.output).toContain(
-      "Added updated-at to sql.modules in better-supabase.config.ts.",
+      "Added updated-at to blocks in better-supabase.config.ts.",
     );
     expect(await readFile(file, "utf8")).toBe(
-      'export default defineConfig({ sql: { modules: { audit: {}, "updated-at": {} } } });\n',
+      'export default defineConfig({ blocks: { audit: {}, "updated-at": {} } });\n',
     );
   });
 
@@ -241,7 +240,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     ];
     await sql(["sync"], {
       realtime: { policies, triggers },
-      sql: { modules: ["realtime-tables"] },
+      blocks: ["realtime-tables"],
     });
     const written = await readFile(join(root, output), "utf8");
     expect(written.indexOf("create policy")).toBeLessThan(
@@ -252,11 +251,11 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     );
     await expect(
       sql(["sync"], { realtime: { policies, triggers } }),
-    ).rejects.toThrow("add realtime-tables to sql.modules");
+    ).rejects.toThrow("add realtime-tables to blocks");
     await expect(
       sql(["sync"], {
         realtime: { triggers },
-        sql: { modules: ["realtime-tables"] },
+        blocks: ["realtime-tables"],
       }),
     ).rejects.toThrow("realtime.triggers needs realtime.policies");
     await expect(
@@ -265,7 +264,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
           policies,
           triggers: [{ topic: "board:{boardId}", table: "cards" }],
         },
-        sql: { modules: ["realtime-tables"] },
+        blocks: ["realtime-tables"],
       }),
     ).rejects.toThrow(
       'realtime.triggers: no topic "board:{boardId}" in topics.ts',
@@ -300,7 +299,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
     const config: BetterSupabaseConfig = {
       realtime: { policies },
-      sql: { modules: ["notifications", "realtime-tables"] },
+      blocks: ["notifications", "realtime-tables"],
     };
     await sql(["sync"], config);
     const written = await readFile(join(root, output), "utf8");
@@ -319,9 +318,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
     const off: BetterSupabaseConfig = {
       realtime: { policies },
-      sql: {
-        modules: { notifications: { options: { realtime: "none" } } },
-      },
+      blocks: { notifications: { options: { realtime: "none" } } },
     };
     await sql(["sync"], off);
     expect(await readFile(join(root, output), "utf8")).toContain(
@@ -336,7 +333,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "create extension if not exists vector with schema public;\n",
     );
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["vector-search"] },
+      blocks: ["vector-search"],
       vectorSearch: { chunks: "embedding" },
     };
     expect((await sql(["sync"], config)).output).not.toContain(
@@ -353,20 +350,20 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect((await sql(["sync"], config)).output).toContain("Unchanged");
   });
 
-  it("has nothing to sync for an empty sql.modules", async () => {
+  it("has nothing to sync for an empty blocks", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,
-      output: "sql.modules is empty; nothing to sync.",
+      output: "blocks is empty; nothing to sync.",
     });
   });
 
   it("writes the rows a schema diff skips into a data migration", async () => {
     expect(await sql(["data"])).toEqual({
       code: 0,
-      output: "sql.modules is empty; nothing to write.",
+      output: "blocks is empty; nothing to write.",
     });
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["tenant", "rate-limit"] },
+      blocks: ["tenant", "rate-limit"],
     };
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(
@@ -397,7 +394,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["audit"] } };
+    const config: BetterSupabaseConfig = { blocks: ["audit"] };
     const schemas = join(root, "supabase/schemas");
     const migrations = join(root, "supabase/migrations");
     await mkdir(schemas, { recursive: true });
@@ -432,7 +429,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("removes a dropped table's pgTAP file", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["audit"] } };
+    const config: BetterSupabaseConfig = { blocks: ["audit"] };
     const migrations = join(root, "supabase/migrations");
     await mkdir(migrations, { recursive: true });
     await writeFile(
@@ -454,7 +451,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
   it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["audit", "pgtap"] },
+      blocks: ["audit", "pgtap"],
     };
     await mkdir(join(root, "supabase/schemas"), { recursive: true });
     await writeFile(
@@ -473,7 +470,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   it("derives grants from the schema files' policies with fromPolicies", async () => {
     const config: BetterSupabaseConfig = {
       expose: { notes: ["select"] },
-      sql: { modules: { grants: { options: { fromPolicies: true } } } },
+      blocks: { grants: { options: { fromPolicies: true } } },
     };
     const schemas = join(root, "supabase/schemas");
     await mkdir(schemas, { recursive: true });
@@ -503,7 +500,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
     await sql(["sync"], {
       expose: { tags: ["select"] },
-      sql: { modules: { grants: { options: { fromPolicies: true } } } },
+      blocks: { grants: { options: { fromPolicies: true } } },
     });
     const file = await readFile(
       join(schemas, "900_better_supabase_13_grants.sql"),
@@ -542,11 +539,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "create table public.notes (id int);\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
     );
     await sql(["sync"], {
-      sql: {
-        modules: {
-          grants: { options: { fromPolicies: true } },
-          sessions: { options: { policies: true } },
-        },
+      blocks: {
+        grants: { options: { fromPolicies: true } },
+        sessions: { options: { policies: true } },
       },
     });
     const grants = await readFile(
@@ -573,7 +568,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
           authenticated: ["select", "update(title, body)"],
         },
       },
-      sql: { modules: ["grants"] },
+      blocks: ["grants"],
     });
     const file = await readFile(
       join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
@@ -598,11 +593,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "create table public.notes (id int);\ncreate table public.audit_log (id int);\n",
     );
     await sql(["sync"], {
-      sql: {
-        modules: {
-          sessions: {
-            options: { policies: true, exclude: ["public.audit_*"] },
-          },
+      blocks: {
+        sessions: {
+          options: { policies: true, exclude: ["public.audit_*"] },
         },
       },
     });
@@ -623,7 +616,8 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./declarative"\n',
     );
     const synced = await sql(["sync"], {
-      sql: { modules: ["tenant"], dir: "supabase/declarative/module" },
+      sql: { dir: "supabase/declarative/module" },
+      blocks: ["tenant"],
     });
     expect(synced.output).toContain(
       "Wrote supabase/declarative/module/900_better_supabase_04_tenant.sql (tenant)",
@@ -635,7 +629,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
   it("writes the module extensions into a migration before the schema migration", async () => {
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["jobs", "jsonb-schemas"] },
+      blocks: ["jobs", "jsonb-schemas"],
     };
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
@@ -665,7 +659,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
   it("refuses a data migration while no earlier migration creates a module extension", async () => {
     const config: BetterSupabaseConfig = {
-      sql: { modules: ["jsonb-schemas"] },
+      blocks: ["jsonb-schemas"],
     };
     await sql(["sync"], config);
     const migrations = join(root, "supabase/migrations");
@@ -690,7 +684,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("stamps the data migration after the newest migration", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
+    const config: BetterSupabaseConfig = { blocks: ["tenant"] };
     await sql(["sync"], config);
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
@@ -703,7 +697,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("never reuses a timestamp another tool's migration took", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
+    const config: BetterSupabaseConfig = { blocks: ["tenant"] };
     await sql(["sync"], config);
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
@@ -737,10 +731,10 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("upgrades modules installed before versioned headers", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
+    const config: BetterSupabaseConfig = { blocks: ["tenant"] };
     expect(await sql(["upgrade"])).toEqual({
       code: 0,
-      output: "sql.modules is empty; nothing to upgrade.",
+      output: "blocks is empty; nothing to upgrade.",
     });
     expect(await sql(["upgrade", "--check"], config)).toEqual({
       code: 0,
@@ -781,7 +775,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("reports a stale file at the current version in upgrade --check", async () => {
-    const config: BetterSupabaseConfig = { sql: { modules: ["mfa"] } };
+    const config: BetterSupabaseConfig = { blocks: ["mfa"] };
     await sql(["sync"], config);
     const [file] = renderModules(
       ["mfa"],
@@ -803,7 +797,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       join(root, "supabase/config.toml"),
       "[api]\nport = 54321\n",
     );
-    const config: BetterSupabaseConfig = { sql: { modules: ["mfa"] } };
+    const config: BetterSupabaseConfig = { blocks: ["mfa"] };
     const migra = await sql(["sync"], {
       sql: { ...config.sql, workflow: "migra" },
     });
@@ -818,8 +812,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   describe("the migrations workflow", () => {
-    const migrations = (modules: string[]): BetterSupabaseConfig => ({
-      sql: { workflow: "migrations", modules },
+    const migrations = (blocks: string[]): BetterSupabaseConfig => ({
+      sql: { workflow: "migrations" },
+      blocks,
     });
     const moduleMigrations = async (): Promise<string[]> =>
       (await readdir(join(root, "supabase/migrations")).catch(() => []))
@@ -985,11 +980,11 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
   it("prints the contract of a custom-mode module", async () => {
     const printed = await sql(["print", "tenant"], {
-      sql: { modules: { tenant: { mode: "custom", schema: "app" } } },
+      blocks: { tenant: { mode: "custom", schema: "app" } },
     });
     expect(printed.code).toBe(0);
     expect(printed.output).toMatch(
-      /^-- sql\.modules\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
+      /^-- blocks\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
     );
   });
 
@@ -1020,7 +1015,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
         | null = stubProvider,
       extra: BetterSupabaseConfig = {},
     ): BetterSupabaseConfig => ({
-      sql: { modules: { access: { model: "provider" } } },
+      blocks: { access: { model: "provider" } },
       ...(authorization ? { authorization } : {}),
       ...extra,
     });

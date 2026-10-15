@@ -34,7 +34,7 @@ import {
 
 export interface CommentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.comments.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.comments.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**

@@ -55,7 +55,7 @@ function windowOf(ctx: ModuleContext): string {
   const window = ctx.text("window", "3 days");
   if (!WINDOW.test(window)) {
     throw new TypeError(
-      'sql.modules.metrics.options.window must be an interval such as "3 days" or "12 hours"',
+      'blocks.metrics.options.window must be an interval such as "3 days" or "12 hours"',
     );
   }
   return window;

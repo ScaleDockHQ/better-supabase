@@ -129,12 +129,12 @@ function documentSchemaOf(
   if (option === undefined) return undefined;
   if (!isObject(option)) {
     throw new TypeError(
-      "sql.modules.comments.options.documentSchema must be a JSON Schema object",
+      "blocks.comments.options.documentSchema must be a JSON Schema object",
     );
   }
   if (!ctx.installed("jsonb-schemas")) {
     throw new TypeError(
-      "sql.modules.comments.options.documentSchema: add the jsonb-schemas module, which installs pg_jsonschema for the check",
+      "blocks.comments.options.documentSchema: add the jsonb-schemas module, which installs pg_jsonschema for the check",
     );
   }
   return option;
@@ -152,7 +152,7 @@ const MENTION_GROUP_KEYS = new Set(["table", "group", "member", "tenant"]);
 function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
   const option = ctx.option("mentionGroups");
   if (option === undefined) return undefined;
-  const where = "sql.modules.comments.options.mentionGroups";
+  const where = "blocks.comments.options.mentionGroups";
   if (!isObject(option)) {
     throw new TypeError(`${where} must be { table, group, member, tenant? }`);
   }
@@ -358,7 +358,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const maxBody = ctx.number("maxBodyLength", 10_000);
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
-      "sql.modules.comments.options.maxBodyLength must be a whole number above zero",
+      "blocks.comments.options.maxBodyLength must be a whole number above zero",
     );
   }
   const subjects = subjectsOption(ctx, [
@@ -410,7 +410,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     subject: Subject,
     key: string,
   ): string | undefined => {
-    const where = `sql.modules.comments.options.subjects.${type}.${key}`;
+    const where = `blocks.comments.options.subjects.${type}.${key}`;
     const raw = subject.extra[key];
     if (raw !== undefined && key === "readableBy" && isObject(raw)) {
       for (const name of Object.keys(raw)) {

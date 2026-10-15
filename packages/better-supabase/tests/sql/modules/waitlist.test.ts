@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const sqlOf = (names: readonly string[], modules: ModulesConfig = {}): string =>
+const sqlOf = (names: readonly string[], modules: BlocksConfig = {}): string =>
   renderModules(names, { modules, accessProvider: moduleProvider })
     .filter((file) => file.contents.includes("waitlist_entries"))
     .map((file) => file.contents)
@@ -70,7 +70,7 @@ describe("waitlist module", () => {
   });
 
   it("grants the roles in options.roles under any model, checked with can_assign", () => {
-    const modules: ModulesConfig = {
+    const modules: BlocksConfig = {
       access: { model: "provider" },
       waitlist: {
         options: { roles: ["staff", "viewer"], defaultRole: "viewer" },

@@ -3,7 +3,7 @@
 -- @bs-module rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -242,7 +242,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
 -- existing pre-request function; chain from it.
@@ -274,7 +274,7 @@ on conflict (name) do update
 -- @bs-module rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -513,7 +513,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
 -- existing pre-request function; chain from it.
@@ -545,7 +545,7 @@ on conflict (name) do update
 -- @bs-module rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -784,7 +784,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
 -- existing pre-request function; chain from it.
@@ -816,7 +816,7 @@ on conflict (name) do update
 -- @bs-module rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1037,7 +1037,7 @@ $$;
 revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
 grant execute on function better_supabase.purge_rate_limits(integer) to service_role;
 
--- sql.modules.rate-limit.api: entry points for the Data API.
+-- blocks.rate-limit.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1104,7 +1104,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
 -- existing pre-request function; chain from it.

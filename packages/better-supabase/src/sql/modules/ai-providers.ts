@@ -111,7 +111,7 @@ function build(ctx: ModuleContext): string {
   const pollEvery = ctx.number("pollEvery", 60);
   if (!Number.isInteger(pollEvery) || pollEvery < 1) {
     throw new TypeError(
-      "sql.modules.ai-providers.options.pollEvery must be a whole number of seconds",
+      "blocks.ai-providers.options.pollEvery must be a whole number of seconds",
     );
   }
   const keyJson = (row: string): string => rowJson(KEYS, k, row);
@@ -499,7 +499,7 @@ function upgradeSandboxes(ctx: ModuleContext): string {
   return `do $$
 begin
   if to_regclass(${sqlString(table)}) is not null and exists (select 1 from ${table}) then
-    raise exception 'ai_sandboxes moved to the ai-chat module: add ai-chat to sql.modules before upgrading, or delete the rows';
+    raise exception 'ai_sandboxes moved to the ai-chat module: add ai-chat to blocks before upgrading, or delete the rows';
   end if;
 end;
 $$;`;

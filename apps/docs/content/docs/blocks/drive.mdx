@@ -55,15 +55,13 @@ The creator of a node gets the top role on it. Grants with an `expiresAt` stop a
 ## Configure
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    drive: {
-      options: {
-        roles: ["viewer", "commenter", "editor", "owner"],
-        writeRole: "editor",
-        shareRole: "owner",
-        conflict: "rename",
-      },
+blocks: {
+  drive: {
+    options: {
+      roles: ["viewer", "commenter", "editor", "owner"],
+      writeRole: "editor",
+      shareRole: "owner",
+      conflict: "rename",
     },
   },
 },

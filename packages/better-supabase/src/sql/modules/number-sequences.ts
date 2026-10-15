@@ -61,14 +61,14 @@ function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
   if (raw === undefined) return [];
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
-      "sql.modules.number-sequences.options.entities must be an object of entity name to { period, format }",
+      "blocks.number-sequences.options.entities must be an object of entity name to { period, format }",
     );
   }
   return Object.entries(raw).map(([name, entry]) => entity(name, entry));
 }
 
 function entity(name: string, entry: unknown): SequenceEntity {
-  const where = `sql.modules.number-sequences.options.entities.${name}`;
+  const where = `blocks.number-sequences.options.entities.${name}`;
   if (!ENTITY.test(name)) {
     throw new TypeError(
       `${where}: "${name}" must be lowercase letters, digits and underscores`,

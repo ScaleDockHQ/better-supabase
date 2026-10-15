@@ -3,7 +3,7 @@
 -- @bs-module push@1 managed
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -234,7 +234,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('push', 1, 'managed')
@@ -246,7 +246,7 @@ on conflict (name) do update
 -- @bs-module push@1 managed
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -491,7 +491,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('push', 1, 'managed')
@@ -503,7 +503,7 @@ on conflict (name) do update
 -- @bs-module push@1 managed
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -736,7 +736,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('push', 1, 'managed')
@@ -748,7 +748,7 @@ on conflict (name) do update
 -- @bs-module push@1 managed
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -961,7 +961,7 @@ grant execute on function "better_supabase"."unregister_push_device"(text) to au
 grant execute on function "better_supabase"."push_tokens_for"(uuid[]) to service_role;
 grant execute on function "better_supabase"."prune_push_tokens"(text[]) to service_role;
 
--- sql.modules.push.api: entry points for the Data API.
+-- blocks.push.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1037,7 +1037,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('push', 1, 'managed')

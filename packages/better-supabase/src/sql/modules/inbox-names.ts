@@ -353,26 +353,26 @@ export function inboxSql(
   const topic = ctx.text("topic", "inbox");
   if (!NAME.test(topic)) {
     throw new TypeError(
-      "sql.modules.inbox.options.topic must be a lowercase name of at most 31 characters",
+      "blocks.inbox.options.topic must be a lowercase name of at most 31 characters",
     );
   }
   const bucket = ctx.text("bucket", "inbox-files");
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(bucket)) {
     throw new TypeError(
-      "sql.modules.inbox.options.bucket must be a lowercase bucket id",
+      "blocks.inbox.options.bucket must be a lowercase bucket id",
     );
   }
   const maxBody = ctx.number("maxBodyLength", 20_000);
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
-      "sql.modules.inbox.options.maxBodyLength must be a whole number above zero",
+      "blocks.inbox.options.maxBodyLength must be a whole number above zero",
     );
   }
   const queue = (name: string, fallback: string): string => {
     const value = ctx.text(name, fallback);
     if (!QUEUE.test(value)) {
       throw new TypeError(
-        `sql.modules.inbox.options.${name} must be a lowercase queue name`,
+        `blocks.inbox.options.${name} must be a lowercase queue name`,
       );
     }
     return value;

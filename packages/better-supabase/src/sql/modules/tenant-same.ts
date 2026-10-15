@@ -29,7 +29,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
-  const where = "sql.modules.tenant.options.sameTenant";
+  const where = "blocks.tenant.options.sameTenant";
   const value = ctx.option("sameTenant");
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
@@ -143,7 +143,7 @@ function triggerName(column: string): string {
 }
 
 /**
- * `sql.modules.tenant.options.sameTenant`: one `same_tenant()` trigger per
+ * `blocks.tenant.options.sameTenant`: one `same_tenant()` trigger per
  * entry, so a reference to a row of another tenant fails for every writer.
  * Empty without entries.
  */
@@ -191,7 +191,7 @@ create trigger ${name} before insert or update of ${columns} on ${entry.table}
   for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
   });
   return `
--- sql.modules.tenant.options.sameTenant: a row may reference only a row of
+-- blocks.tenant.options.sameTenant: a row may reference only a row of
 -- its own tenant, whoever writes it (a client policy, the service role or an
 -- admin connection). Arguments: the column, the row's tenant column, the
 -- referenced table, its key and tenant columns, and an optional condition on

@@ -62,7 +62,7 @@ export interface AuditRecord<Columns extends AuditColumns = AuditColumns> {
   readonly scope?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
   /**
-   * The adopted log's columns that `sql.modules.audit.options.metadataColumns`
+   * The adopted log's columns that `blocks.audit.options.metadataColumns`
    * fills, by column name. Missing without that option.
    */
   readonly columns?: Readonly<Partial<Columns>>;

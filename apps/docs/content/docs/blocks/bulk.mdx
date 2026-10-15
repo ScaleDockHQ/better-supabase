@@ -34,13 +34,11 @@ takes `(tenant, subject_type, subject_id, args jsonb)` and raises with a
 hint when a row fails:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    bulk: {
-      options: {
-        limit: 500,
-        actions: { "tasks.archive": "app.archive_task" },
-      },
+blocks: {
+  bulk: {
+    options: {
+      limit: 500,
+      actions: { "tasks.archive": "app.archive_task" },
     },
   },
 },

@@ -143,7 +143,7 @@ function rawSubjects(
 }
 
 /**
- * `sql.modules.<module>.options.subjects`: subject type to
+ * `blocks.<module>.options.subjects`: subject type to
  * `{ table, id?, tenant?, permission?, cascade? }` plus the `extra` keys the
  * module reads, falling back to the app-wide `config.subjects` registry.
  */
@@ -156,7 +156,7 @@ export function subjectsOption(
     readonly fallback?: boolean;
   } = {},
 ): readonly [string, Subject][] {
-  const where = `sql.modules.${ctx.module}.options.subjects`;
+  const where = `blocks.${ctx.module}.options.subjects`;
   const raw = rawSubjects(ctx, where, extraKeys, allow);
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
     if (!SUBJECT_TYPE.test(type)) {
@@ -254,7 +254,7 @@ function subjectTableBinding(
 ): SubjectTableBinding | undefined {
   const raw = subject.extra[key];
   if (raw === undefined) return undefined;
-  const where = `sql.modules.${ctx.module}.options.subjects.${type}.${key}`;
+  const where = `blocks.${ctx.module}.options.subjects.${type}.${key}`;
   if (!isObject(raw) || typeof raw["table"] !== "string") {
     throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
   }
@@ -422,7 +422,7 @@ export function subjectAccess<A extends string>(
   },
 ): SubjectAccess<A> {
   const { subjects, actions, permission, provider } = options;
-  const where = `sql.modules.${ctx.module}.options.subjects`;
+  const where = `blocks.${ctx.module}.options.subjects`;
   const allowed: ReadonlySet<string> = new Set(actions);
   const entries = subjects.map(([type, subject]) => {
     const keys = new Map<string, string>();
@@ -530,13 +530,13 @@ function subjectScope(
 ): string | undefined {
   const scope = subject.extra["scope"];
   if (scope === undefined) return undefined;
-  const where = `sql.modules.${ctx.module}.options.subjects.${type}.scope`;
+  const where = `blocks.${ctx.module}.options.subjects.${type}.scope`;
   if (typeof scope !== "string") {
     throw new TypeError(`${where} must be the name of a provider scope`);
   }
   if (accessModel(ctx) !== "provider" || provider === undefined) {
     throw new TypeError(
-      `${where} needs sql.modules.access.model "provider" and an authorization provider that declares the scope`,
+      `${where} needs blocks.access.model "provider" and an authorization provider that declares the scope`,
     );
   }
   if (scope === provider.scope || !(provider.scopes ?? []).includes(scope)) {

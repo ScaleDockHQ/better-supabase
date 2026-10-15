@@ -1,4 +1,4 @@
-import type { ModulesConfig } from "../config/modules.ts";
+import type { BlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout } from "./module-types.ts";
 import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 
@@ -275,16 +275,16 @@ export function resolveModules(
   return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 
-/** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */
+/** Throws on a `blocks` key that names no module, or a mode a module doesn't support. */
 export function checkModules(
-  config: ModulesConfig = {},
+  config: BlocksConfig = {},
   registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,
 ): void {
   for (const [name, entry] of Object.entries(config)) {
     const module = registry[name];
     if (!module) {
       throw new TypeError(
-        `sql.modules.${name}: there is no SQL module "${name}". Modules: ${Object.keys(registry).join(", ")}`,
+        `blocks.${name}: there is no SQL module "${name}". Modules: ${Object.keys(registry).join(", ")}`,
       );
     }
     // The jobs module writes everything into better_supabase, so a schema
@@ -295,21 +295,21 @@ export function checkModules(
       entry.schema !== "better_supabase"
     ) {
       throw new TypeError(
-        "sql.modules.jobs.schema: the jobs module always installs in better_supabase. Remove schema.",
+        "blocks.jobs.schema: the jobs module always installs in better_supabase. Remove schema.",
       );
     }
     const mode = entry?.mode ?? "managed";
     const modes = module.modes ?? ["managed"];
     if (!modes.includes(mode)) {
       throw new TypeError(
-        `sql.modules.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
+        `blocks.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
       );
     }
   }
   for (const use of migrationOptionUses(config)) {
     if (!use.adopted) {
       throw new TypeError(
-        `${use.message} Only adopt mode accepts it: set sql.modules.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
+        `${use.message} Only adopt mode accepts it: set blocks.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
       );
     }
   }

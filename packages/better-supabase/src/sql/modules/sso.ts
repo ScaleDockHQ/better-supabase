@@ -164,7 +164,7 @@ function rolesFor(ctx: ModuleContext): Roles {
   const listed = model === "roles" || model === "catalog";
   if (!listed && ctx.option("roleOrder") === undefined) {
     throw new TypeError(
-      `sql.modules.sso assigns membership roles. Under sql.modules.access.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in sql.modules.sso.options.roleOrder, highest first`,
+      `blocks.sso assigns membership roles. Under blocks.access.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder, highest first`,
     );
   }
   const owner = ctx.installed("organizations")
@@ -176,11 +176,11 @@ function rolesFor(ctx: ModuleContext): Roles {
   );
   if (order.includes(owner)) {
     throw new TypeError(
-      `sql.modules.sso.options.roleOrder must not include the owner role "${owner}"`,
+      `blocks.sso.options.roleOrder must not include the owner role "${owner}"`,
     );
   }
   const fallback = ctx.text("defaultRole", "member");
-  const where = "sql.modules.sso.options";
+  const where = "blocks.sso.options";
   if (!order.includes(fallback)) {
     throw new TypeError(
       `${where}.defaultRole "${fallback}" must be one of roleOrder (${order.join(", ")})`,
@@ -207,7 +207,7 @@ function prefixOf(ctx: ModuleContext): string {
   const prefix = ctx.text("txtPrefix", "_better-supabase");
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
-      "sql.modules.sso.options.txtPrefix must start with an underscore and hold lowercase letters, digits or dashes",
+      "blocks.sso.options.txtPrefix must start with an underscore and hold lowercase letters, digits or dashes",
     );
   }
   return prefix;

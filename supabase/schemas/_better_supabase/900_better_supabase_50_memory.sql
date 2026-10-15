@@ -2,7 +2,7 @@
 -- @bs-module memory@2 managed
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -914,7 +914,7 @@ $$;
 revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
 
--- sql.modules.memory.api: entry points for the Data API.
+-- blocks.memory.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

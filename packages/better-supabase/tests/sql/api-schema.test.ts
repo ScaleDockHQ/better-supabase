@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleConfig } from "../../src/config/modules.ts";
+import type { BlockConfig } from "../../src/config/blocks.ts";
 
 import { apiWrappers } from "../../src/sql/api-schema.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderModules } from "../../src/sql/render.ts";
 
-const schemaFile = (name: string, api: NonNullable<ModuleConfig["api"]>) =>
+const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
   renderModules([name], { modules: { [name]: { api } } }).find(
     (file) => file.module === name && file.kind === "schema",
   )!.contents;
 
-describe("sql.modules.<module>.api", () => {
+describe("blocks.<module>.api", () => {
   it("wraps every function a module grants to anon, authenticated or service_role", () => {
     for (const module of Object.values(SQL_MODULES)) {
       if (module.target !== "schema") continue;

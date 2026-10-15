@@ -20,12 +20,12 @@ export function storefrontOption(ctx: ModuleContext): boolean {
   const value = ctx.text("storefront", "private");
   if (value !== "public" && value !== "private") {
     throw new TypeError(
-      'sql.modules.catalog.options.storefront must be "public" or "private"',
+      'blocks.catalog.options.storefront must be "public" or "private"',
     );
   }
   if (value === "public" && !ctx.hasTable("storefronts")) {
     throw new TypeError(
-      'sql.modules.catalog.options.storefront "public" needs the storefronts table',
+      'blocks.catalog.options.storefront "public" needs the storefronts table',
     );
   }
   return value === "public";

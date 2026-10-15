@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 
-const body = (modules: ModulesConfig = {}) =>
-  moduleBody("agents", { modules })!;
+const body = (modules: BlocksConfig = {}) => moduleBody("agents", { modules })!;
 
 describe("agents module", () => {
   it("owns agents, installs, ratings and skills", () => {

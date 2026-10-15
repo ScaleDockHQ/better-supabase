@@ -37,7 +37,7 @@ const KEY = /^[a-z][a-z0-9_-]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const DURATION: RegExp =
   /^P(?=\d|T\d)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/;
-const WHERE = "sql.modules.approvals.options.policies";
+const WHERE = "blocks.approvals.options.policies";
 
 type Fields = Readonly<Record<string, unknown>>;
 

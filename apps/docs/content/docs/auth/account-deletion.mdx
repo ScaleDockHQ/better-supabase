@@ -116,11 +116,9 @@ one `bs_session_active` policy per table in `schemas`, except the
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      sessions: {
-        options: { policies: true, exclude: ["public.pricing_plans"] },
-      },
+  blocks: {
+    sessions: {
+      options: { policies: true, exclude: ["public.pricing_plans"] },
     },
   },
 });

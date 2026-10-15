@@ -29,7 +29,7 @@ export interface InboxControllerOptions<T> {
   /** The organization; the controller joins `inbox:org:<id>`. `null` waits. */
   readonly organizationId: string | null;
   readonly load: InboxSource<T>;
-  /** `sql.modules.inbox.options.topic`. Defaults to `inbox`. */
+  /** `blocks.inbox.options.topic`. Defaults to `inbox`. */
   readonly topic?: string;
   /** Runs for each broadcast, e.g. to show a toast for `message`. */
   readonly onMessage?: (event: string, payload: unknown) => void;

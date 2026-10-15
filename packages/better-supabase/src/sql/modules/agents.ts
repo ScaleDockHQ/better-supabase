@@ -125,7 +125,7 @@ function build(ctx: ModuleContext): string {
   const maxInstructions = ctx.number("maxInstructions", 100_000);
   if (!Number.isInteger(maxInstructions) || maxInstructions < 1) {
     throw new TypeError(
-      "sql.modules.agents.options.maxInstructions must be a positive whole number of characters",
+      "blocks.agents.options.maxInstructions must be a positive whole number of characters",
     );
   }
   const json = (row: string): string => rowJson(AGENTS, a, row);

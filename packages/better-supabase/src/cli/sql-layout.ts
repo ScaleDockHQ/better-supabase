@@ -106,17 +106,17 @@ export async function moduleLayoutFor(
     }).map((module) => module.name),
   );
   const adopted = adoptedColumnProblems(
-    config.sql.modules,
+    config.blocks,
     await declarativeTexts(config),
     config.schemas,
   );
   if (adopted.length > 0) throw new TypeError(adopted.join("\n"));
   const fromPolicies =
     resolved.has("grants") &&
-    config.sql.modules["grants"]?.options?.["fromPolicies"] === true;
+    config.blocks["grants"]?.options?.["fromPolicies"] === true;
   const sessionPolicies =
     resolved.has("sessions") &&
-    config.sql.modules["sessions"]?.options?.["policies"] === true;
+    config.blocks["sessions"]?.options?.["policies"] === true;
   return {
     ...moduleLayout(
       config,

@@ -3,7 +3,7 @@
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -730,7 +730,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('collections', 1, 'managed')
@@ -742,7 +742,7 @@ on conflict (name) do update
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1469,7 +1469,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('collections', 1, 'managed')
@@ -1481,7 +1481,7 @@ on conflict (name) do update
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2210,7 +2210,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('collections', 1, 'managed')
@@ -2222,7 +2222,7 @@ on conflict (name) do update
 -- @bs-module collections@1 managed
 -- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2931,7 +2931,7 @@ $$;
 revoke execute on function "better_supabase"."starred_subjects"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."starred_subjects"(uuid, text) to authenticated, service_role;
 
--- sql.modules.collections.api: entry points for the Data API.
+-- blocks.collections.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -3097,7 +3097,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('collections', 1, 'managed')

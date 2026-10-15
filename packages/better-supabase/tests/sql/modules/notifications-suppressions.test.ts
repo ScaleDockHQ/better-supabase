@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { customContracts, moduleBody } from "../../../src/sql/render.ts";
 
-const body = (modules: ModulesConfig = {}) =>
+const body = (modules: BlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
 const TABLE = '"better_supabase"."notification_suppressions"';
 
-const ADOPTED: ModulesConfig = {
+const ADOPTED: BlocksConfig = {
   notifications: {
     mode: "adopt",
     schema: "public",
@@ -85,7 +85,7 @@ describe("notification suppressions", () => {
       { notifications: { tables: { deliveries: null } } },
       { notifications: { tables: { suppressions: null } } },
       ADOPTED,
-    ] satisfies ModulesConfig[]) {
+    ] satisfies BlocksConfig[]) {
       const sql = body(modules);
       expect(sql).not.toContain("notification_suppressions");
       expect(sql).not.toContain("'suppressed'");
@@ -105,7 +105,7 @@ describe("notification suppressions", () => {
   });
 
   it("adds the functions to a custom contract only when the table is mapped", () => {
-    const names = (modules: ModulesConfig) =>
+    const names = (modules: BlocksConfig) =>
       customContracts(["notifications"], { modules })[0]!.functions.map(
         (fn) => fn.name,
       );

@@ -48,7 +48,7 @@ function topicPrefix(ctx: ModuleContext): string {
   const prefix = ctx.text("topic", "stream");
   if (!TOPIC_PREFIX.test(prefix)) {
     throw new TypeError(
-      "sql.modules.streams.options.topic must be a lowercase name of at most 31 characters",
+      "blocks.streams.options.topic must be a lowercase name of at most 31 characters",
     );
   }
   return prefix;

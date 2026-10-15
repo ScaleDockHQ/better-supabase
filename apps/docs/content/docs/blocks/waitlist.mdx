@@ -76,7 +76,7 @@ const { code, invite } = await waitlist
     maxUses: 25,
     expiresAt: Temporal.Now.instant().add({ hours: 24 * 14 }),
     organizationId, // optional: also adds the user to this organization
-    role: "member", // optional: defaults to sql.modules.waitlist.options.defaultRole
+    role: "member", // optional: defaults to blocks.waitlist.options.defaultRole
   })
   .orThrow();
 // Show `code` (such as "K7QF-2MXP-9TRD-A4HW") once.
@@ -91,7 +91,7 @@ any number of uses. A code can't grant the owner role.
 
 The roles a code may grant are every role but the owner under the `roles`
 and `catalog` access models. Under the `provider` and `custom` models list
-them in `sql.modules.waitlist.options.roles`; without it codes grant no
+them in `blocks.waitlist.options.roles`; without it codes grant no
 role, and a redeemed tenant code adds its user with `defaultRole`. Creating a
 code with a role also needs `can_assign(tenant, role)` for callers other than
 platform staff and the service role (`WAITLIST_ROLE_FORBIDDEN`), which is
@@ -109,7 +109,7 @@ await supabase.auth.signUp({
 
 The module counts the use, adds the user to the code's organization, and
 removes `invite_code` from the metadata. Change the field with
-`sql.modules.waitlist.options.codeField`.
+`blocks.waitlist.options.codeField`.
 
 A signed-in user can redeem a code too, such as one that joins an
 organization:

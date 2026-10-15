@@ -36,7 +36,7 @@ export interface ChecklistSpec<
 
 export interface ChecklistConnectOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.onboarding.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.onboarding.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -86,7 +86,7 @@ const ID = /^[a-z][a-z0-9_.-]{0,63}$/;
 
 /**
  * Declares an onboarding checklist. Pass the result to
- * `sql.modules.onboarding.options.checklists` so the database knows its
+ * `blocks.onboarding.options.checklists` so the database knows its
  * steps, and `connect` it to read and complete them.
  */
 export function defineChecklist<

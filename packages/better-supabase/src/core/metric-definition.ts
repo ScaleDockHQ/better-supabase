@@ -14,7 +14,7 @@ export type MetricWhereValue = string | number | boolean | null;
 /**
  * One metric over a table (`defineMetric`): what to measure, in which time
  * column, per tenant. The SQL module reads the same definitions from
- * `sql.modules.metrics.options.metrics`.
+ * `blocks.metrics.options.metrics`.
  */
 export interface MetricDefinition<
   K extends string = string,
@@ -202,7 +202,7 @@ export function defineMetric<
 /** `options.metrics`: a list of definitions, or an object of key to definition. */
 export function metricsOf(
   value: unknown,
-  where = "sql.modules.metrics.options.metrics",
+  where = "blocks.metrics.options.metrics",
 ): readonly MetricDefinition[] {
   if (value === undefined) return [];
   if (!Array.isArray(value) && !isObject(value)) {

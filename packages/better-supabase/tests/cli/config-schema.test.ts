@@ -134,23 +134,21 @@ describe("configIssues", () => {
     ]);
   });
 
-  it("takes the access keys only under sql.modules.access", () => {
+  it("takes the access keys only under blocks.access", () => {
     expect(
       configIssues({
-        sql: {
-          modules: {
-            access: { model: "catalog", activeTenant: "claim" },
-            organizations: { mode: "adopt", options: { ownerRole: "owner" } },
-          },
+        blocks: {
+          access: { model: "catalog", activeTenant: "claim" },
+          organizations: { mode: "adopt", options: { ownerRole: "owner" } },
         },
       }),
     ).toEqual([]);
     expect(
       configIssues({
-        sql: { modules: { organizations: { model: "catalog" } } },
+        blocks: { organizations: { model: "catalog" } },
       }),
     ).toEqual([
-      expect.stringMatching(/^sql\.modules\.organizations\.model: Invalid key/),
+      expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
     ]);
   });
 });
@@ -198,7 +196,7 @@ describe("configIssues for authorization", () => {
     ).toEqual([]);
     expect(
       configIssues({
-        sql: { modules: { access: { scopes: { "mcp:read": ["*"] } } } },
+        blocks: { access: { scopes: { "mcp:read": ["*"] } } },
       }),
     ).toEqual([]);
     expect(

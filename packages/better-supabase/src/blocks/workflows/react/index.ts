@@ -23,7 +23,7 @@ export interface UseWorkflowRunsOptions {
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
   readonly limit?: number;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules.workflows.api`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.workflows.api`. */
   readonly schema?: string;
 }
 

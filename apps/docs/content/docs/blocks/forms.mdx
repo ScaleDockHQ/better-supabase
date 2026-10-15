@@ -105,10 +105,8 @@ await forms.review(page[0]!.id, "accepted").orThrow();
 `options.handlers` maps a form key to a function that receives the submission id. It runs in the submission's transaction, and when it returns `{ subjectType, subjectId }` the submission is linked to that record.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    forms: { options: { handlers: { contact: "public.lead_from_submission" } } },
-  },
+blocks: {
+  forms: { options: { handlers: { contact: "public.lead_from_submission" } } },
 },
 ```
 

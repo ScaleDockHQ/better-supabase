@@ -43,7 +43,7 @@ export interface AiCacheSetOptions {
 export interface AiCacheOptions extends BlockTemporalOptions {
   /** Calls as the service role: entries hold prompts and outputs. */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.ai-cache.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.ai-cache.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

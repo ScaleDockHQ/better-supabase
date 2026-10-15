@@ -3,7 +3,7 @@
 -- @bs-module chat-sdk-state@1 managed
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -517,7 +517,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('chat-sdk-state', 1, 'managed')
@@ -529,7 +529,7 @@ on conflict (name) do update
 -- @bs-module chat-sdk-state@1 managed
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1043,7 +1043,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('chat-sdk-state', 1, 'managed')
@@ -1055,7 +1055,7 @@ on conflict (name) do update
 -- @bs-module chat-sdk-state@1 managed
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1571,7 +1571,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('chat-sdk-state', 1, 'managed')
@@ -1583,7 +1583,7 @@ on conflict (name) do update
 -- @bs-module chat-sdk-state@1 managed
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -2079,7 +2079,7 @@ $$;
 revoke execute on function "better_supabase"."chat_uninstall"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_uninstall"(text, text) to service_role;
 
--- sql.modules.chat-sdk-state.api: entry points for the Data API.
+-- blocks.chat-sdk-state.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -2290,7 +2290,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('chat-sdk-state', 1, 'managed')

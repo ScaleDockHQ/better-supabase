@@ -311,9 +311,7 @@ export function pipelineBindings(
 ): readonly PipelineBinding[] {
   const configured = ctx.option("subjects") ?? {};
   if (!isRecord(configured)) {
-    throw new TypeError(
-      "sql.modules.pipelines.options.subjects must be an object",
-    );
+    throw new TypeError("blocks.pipelines.options.subjects must be an object");
   }
   const raw: Record<string, unknown> = {};
   const builtInSubjects: Record<string, SubjectConfig> = {};
@@ -333,7 +331,7 @@ export function pipelineBindings(
   }
   const registry = registeredSubjects({ ...builtInSubjects, ...ctx.subjects });
   return Object.entries(raw).map(([type, entry]) => {
-    const where = `sql.modules.pipelines.options.subjects.${type}`;
+    const where = `blocks.pipelines.options.subjects.${type}`;
     const subject = registry.find((item) => item.type === type);
     if (subject === undefined) {
       throw new TypeError(

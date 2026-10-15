@@ -78,14 +78,14 @@ export type {
 } from "./authorization.ts";
 export { providerApiProblem } from "./authorization.ts";
 export type {
-  AccessModuleConfig,
+  AccessBlockConfig,
   ActiveTenantSource,
   DisabledRow,
-  ModuleMode,
-  ModuleConfig,
-  ModulesConfig,
-} from "./modules.ts";
-export { DEFAULT_ACTIVE_TENANT } from "./modules.ts";
+  BlockMode,
+  BlockConfig,
+  BlocksConfig,
+} from "./blocks.ts";
+export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
 export type * from "./snapshot.ts";
 export {
   type ClaimPaths,

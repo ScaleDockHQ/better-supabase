@@ -52,7 +52,7 @@ interface ContractCheck {
 
 function contractChecks(context: DoctorContext): ContractCheck[] {
   return customContracts(
-    context.config.sql.moduleNames,
+    context.config.blockNames,
     moduleLayout(
       context.config,
       context.config.sql.testsDir,
@@ -106,13 +106,12 @@ from (
   ) as hook
 ) h`;
 
-/** `rate-limit` in `sql.modules` without PostgREST's pre-request hook reaching `check_request()`. */
+/** `rate-limit` in `blocks` without PostgREST's pre-request hook reaching `check_request()`. */
 async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
   if (
-    !context.config.sql.moduleNames.includes("rate-limit") ||
-    context.config.sql.modules["rate-limit"]?.options?.["preRequest"] ===
-      false ||
+    !context.config.blockNames.includes("rate-limit") ||
+    context.config.blocks["rate-limit"]?.options?.["preRequest"] === false ||
     !db ||
     "skipped" in db
   )
@@ -148,11 +147,7 @@ async function danglingAuditRegistrations(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const db = context.database;
-  if (
-    !context.config.sql.moduleNames.includes("audit") ||
-    !db ||
-    "skipped" in db
-  )
+  if (!context.config.blockNames.includes("audit") || !db || "skipped" in db)
     return [];
   let rows: { oid: string }[];
   try {
@@ -172,7 +167,7 @@ async function missingAdoptedColumns(
 ): Promise<FindingInput[]> {
   const db = context.database;
   if (!db || "skipped" in db) return [];
-  const tables = adoptedTables(context.config.sql.modules);
+  const tables = adoptedTables(context.config.blocks);
   if (tables.length === 0) return [];
   const names = tables
     .map((table) => `(${literal(table.schema)}, ${literal(table.table)})`)
@@ -204,7 +199,7 @@ async function missingAdoptedColumns(
     if (present.size === 0)
       return [
         {
-          message: `sql.modules.${table.module} is in adopt mode and maps its ${table.logical} table to ${target}, which the database does not have. Create it, or point sql.modules.${table.module}.tables.${table.logical} at the existing table.`,
+          message: `blocks.${table.module} is in adopt mode and maps its ${table.logical} table to ${target}, which the database does not have. Create it, or point blocks.${table.module}.tables.${table.logical} at the existing table.`,
           target,
           object,
         },
@@ -212,7 +207,7 @@ async function missingAdoptedColumns(
     return Object.entries(table.columns)
       .filter(([, column]) => !present.has(column))
       .map(([logical, column]) => ({
-        message: `sql.modules.${table.module} is in adopt mode and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. Map sql.modules.${table.module}.columns.${table.logical}.${logical} to the column that holds it, or to null when the module allows that.`,
+        message: `blocks.${table.module} is in adopt mode and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. Map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it, or to null when the module allows that.`,
         target: `${target}.${column}`,
         object,
       }));
@@ -222,11 +217,11 @@ async function missingAdoptedColumns(
 const EVENT_TRIGGER_FIX =
   "Event triggers belong to no schema, so a schema diff limited to some schemas (`supabase db schema declarative sync -s ...`) leaves them out of the migration. Run `better-supabase sql sync`, then `better-supabase sql data`: the module's data migration creates it.";
 
-/** Event triggers the `sql.modules` create that the database, or every migration, lacks. */
+/** Event triggers the `blocks` create that the database, or every migration, lacks. */
 async function missingEventTriggers(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
-  const expected = moduleEventTriggers(context.config.sql.moduleNames);
+  const expected = moduleEventTriggers(context.config.blockNames);
   if (expected.length === 0) return [];
   const db = context.database;
   if (db && !("skipped" in db)) {
@@ -278,7 +273,7 @@ async function missingContracts(
     return checks
       .filter((check) => !declared(context, check))
       .map((check) => ({
-        message: `sql.modules.${check.module} is in custom mode, but no SQL file declares ${check.schema}.${check.name}(${check.args}). Write it, or switch the module to adopt or managed.`,
+        message: `blocks.${check.module} is in custom mode, but no SQL file declares ${check.schema}.${check.name}(${check.args}). Write it, or switch the module to adopt or managed.`,
         target: `${check.schema}.${check.name}`,
         object: { kind: "function", schema: check.schema, name: check.name },
       }));
@@ -317,7 +312,7 @@ async function missingContracts(
     if (found.length === 0) {
       return [
         {
-          message: `sql.modules.${check.module} is in custom mode, but ${target}(${check.args}) doesn't exist. Write it, or switch the module to adopt or managed.`,
+          message: `blocks.${check.module} is in custom mode, but ${target}(${check.args}) doesn't exist. Write it, or switch the module to adopt or managed.`,
           target,
           object,
         },
@@ -352,10 +347,10 @@ async function missingContracts(
 async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
-  if (!context.config.sql.moduleNames.includes("tenant")) return [];
+  if (!context.config.blockNames.includes("tenant")) return [];
   if (
-    (context.config.sql.modules.access?.activeTenant ??
-      DEFAULT_ACTIVE_TENANT) !== "claim"
+    (context.config.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
+    "claim"
   ) {
     return [];
   }
@@ -381,7 +376,7 @@ async function missingTenantClaim(
       );
       if (found) continue;
       findings.push({
-        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and sql.modules.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set sql.modules.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
+        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
         target,
         object: { kind: "function", schema: fn.schema, name: fn.name },
       });
@@ -447,13 +442,12 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
   const entries = moduleDeprecations().filter(
     (entry) =>
-      context.config.sql.moduleNames.includes(entry.module) &&
+      context.config.blockNames.includes(entry.module) &&
       !(entry.kind === "claim" && configured.has(entry.symbol)) &&
       // Adopted and custom tables keep the app's names.
       !(
         (entry.kind === "table" || entry.kind === "column") &&
-        (context.config.sql.modules[entry.module]?.mode ?? "managed") !==
-          "managed"
+        (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
       ),
   );
   if (entries.length === 0) return [];
@@ -539,7 +533,7 @@ function moduleOwned(context: DoctorContext): {
 } {
   const schemas = new Set<string>(["better_supabase"]);
   const tables = new Set<string>();
-  for (const module of Object.values(context.config.sql.modules)) {
+  for (const module of Object.values(context.config.blocks)) {
     if (module?.schema !== undefined) schemas.add(module.schema);
     for (const table of Object.values(module?.tables ?? {})) {
       if (table === null) continue;
@@ -553,12 +547,10 @@ function moduleOwned(context: DoctorContext): {
   return { schemas, tables };
 }
 
-/** Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in `sql.modules`. */
+/** Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in `blocks`. */
 function unauditedTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.sql.moduleNames.includes("audit")) return [];
-  const exempt = globs(
-    context.config.sql.modules["audit"]?.options?.["exempt"],
-  );
+  if (!context.config.blockNames.includes("audit")) return [];
+  const exempt = globs(context.config.blocks["audit"]?.options?.["exempt"]);
   const owned = moduleOwned(context);
   return catalogOf(context)
     .tables.filter(
@@ -575,17 +567,17 @@ function unauditedTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no audit trigger, so its inserts, updates and deletes are not in the audit log. Run \`select better_supabase.audit('${qualified(table)}')\` in a schema file, or list it in sql.modules.audit.options.exempt.`,
+      message: `${qualified(table)} has no audit trigger, so its inserts, updates and deletes are not in the audit log. Run \`select better_supabase.audit('${qualified(table)}')\` in a schema file, or list it in blocks.audit.options.exempt.`,
       target: qualified(table),
       object: tableObject(table),
     }));
 }
 
-/** RLS tables in `config.schemas` without a restrictive `session_active()` policy, when `sessions` is in `sql.modules`. */
+/** RLS tables in `config.schemas` without a restrictive `session_active()` policy, when `sessions` is in `blocks`. */
 function sessionlessTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.sql.moduleNames.includes("sessions")) return [];
+  if (!context.config.blockNames.includes("sessions")) return [];
   const exclude = globs(
-    context.config.sql.modules["sessions"]?.options?.["exclude"],
+    context.config.blocks["sessions"]?.options?.["exclude"],
   );
   const owned = moduleOwned(context);
   return catalogOf(context)
@@ -606,23 +598,23 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set sql.modules.sessions.options.policies to true and run \`better-supabase sql sync\`, add the policy by hand, or list the table in sql.modules.sessions.options.exclude.`,
+      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks.sessions.options.policies to true and run \`better-supabase sql sync\`, add the policy by hand, or list the table in blocks.sessions.options.exclude.`,
       target: qualified(table),
       object: tableObject(table),
     }));
 }
 
-/** `better_supabase` and every `modules.*.schema` that `[api] schemas` serves through the Data API. */
+/** `better_supabase` and every `blocks.*.schema` that `[api] schemas` serves through the Data API. */
 function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
-  if (context.config.sql.moduleNames.length === 0) return [];
+  if (context.config.blockNames.length === 0) return [];
   const moduleSchemas = new Set<string>(["better_supabase"]);
-  for (const module of Object.values(context.config.sql.modules)) {
+  for (const module of Object.values(context.config.blocks)) {
     if (module?.schema !== undefined) moduleSchemas.add(module.schema);
   }
   return exposedSchemas(context)
     .filter((schema) => moduleSchemas.has(schema))
     .map((schema) => ({
-      message: `The Data API serves the module schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), set sql.modules.<module>.api to an exposed schema such as "api" so \`sql add\` writes security invoker entry points there, and call them with rpcTransport(supabase, { schema: "api" }).`,
+      message: `The Data API serves the module schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), set blocks.<module>.api to an exposed schema such as "api" so \`sql add\` writes security invoker entry points there, and call them with rpcTransport(supabase, { schema: "api" }).`,
       target: schema,
     }));
 }
@@ -728,24 +720,24 @@ function reservedRoles(context: DoctorContext): FindingInput[] {
 }
 
 function migrationOptions(context: DoctorContext): FindingInput[] {
-  const module = new Set(context.config.sql.moduleNames);
-  return migrationOptionUses(context.config.sql.modules)
+  const module = new Set(context.config.blockNames);
+  return migrationOptionUses(context.config.blocks)
     .filter((use) => module.has(use.module))
     .map((use) => ({
       message: `${use.message} It exists to adopt an existing schema; remove it once your data matches the managed default.`,
-      target: `sql.modules.${use.module}.options.${use.option}`,
+      target: `blocks.${use.module}.options.${use.option}`,
     }));
 }
 
 /** A roles table shared by tenant and platform roles without `where` on both sides. */
 function sharedRoleTables(context: DoctorContext): FindingInput[] {
-  if (context.config.sql.moduleNames.length === 0) return [];
+  if (context.config.blockNames.length === 0) return [];
   const access = accessModule(context);
   if (access.kind !== "provider") return [];
   let problems: ReturnType<typeof sharedRolesProblems>;
   try {
     problems = sharedRolesProblems(
-      context.config.sql.moduleNames,
+      context.config.blockNames,
       moduleLayout(
         context.config,
         context.config.sql.testsDir,
@@ -759,7 +751,7 @@ function sharedRoleTables(context: DoctorContext): FindingInput[] {
     return [];
   }
   return problems.map(({ setting, message }) => ({
-    message: `${message} Without it, ${setting.startsWith("sql.modules.tenant.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
+    message: `${message} Without it, ${setting.startsWith("blocks.tenant.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
     target: setting,
   }));
 }
@@ -770,7 +762,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Custom SQL module without its contract",
     description:
-      "A module in `sql.modules` uses `mode: 'custom'`, so the app writes its contract functions. One is missing or has another signature, and the modules and TypeScript APIs that call it fail at run time.",
+      "A module in `blocks` uses `mode: 'custom'`, so the app writes its contract functions. One is missing or has another signature, and the modules and TypeScript APIs that call it fail at run time.",
     check: missingContracts,
   },
   {
@@ -778,7 +770,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `sql.modules.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {
@@ -802,7 +794,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Rate limits not wired to PostgREST",
     description:
-      "The `rate-limit` module is in `sql.modules`, but on the live database `pgrst.db_pre_request` for the `authenticator` role is unset or names a function that doesn't call `better_supabase.check_request()`, so Data API requests are never counted.",
+      "The `rate-limit` module is in `blocks`, but on the live database `pgrst.db_pre_request` for the `authenticator` role is unset or names a function that doesn't call `better_supabase.check_request()`, so Data API requests are never counted.",
     check: rateLimitHook,
   },
   {
@@ -810,7 +802,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Module schema exposed through the Data API",
     description:
-      "`[api] schemas` in `config.toml` lists `better_supabase` or a `modules.*.schema`. The module schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
+      "`[api] schemas` in `config.toml` lists `better_supabase` or a `blocks.*.schema`. The module schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
     check: exposedModuleSchemas,
   },
   {
@@ -826,7 +818,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `sql.modules`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `sql.modules.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
+      "The `audit` module is in `blocks`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
     check: unauditedTables,
   },
   {
@@ -842,7 +834,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without the session policy",
     description:
-      "The `sessions` module is in `sql.modules`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `sql.modules.sessions.options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
+      "The `sessions` module is in `blocks`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `blocks.sessions.options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
     check: sessionlessTables,
   },
   {
@@ -850,7 +842,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Audit registration of a dropped table",
     description:
-      "The `audit` module is in `sql.modules`, and `better_supabase.audited_tables` on the live database has a row whose table no longer exists. A table dropped before the module's `sql_drop` event trigger was installed keeps its row; the module's data migration deletes such rows.",
+      "The `audit` module is in `blocks`, and `better_supabase.audited_tables` on the live database has a row whose table no longer exists. A table dropped before the module's `sql_drop` event trigger was installed keeps its row; the module's data migration deletes such rows.",
     check: danglingAuditRegistrations,
   },
   {
@@ -858,7 +850,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Module event trigger missing",
     description:
-      "A module in `sql.modules` creates an event trigger (`bs_audit_forget_dropped` for `audit`, `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
+      "A module in `blocks` creates an event trigger (`bs_audit_forget_dropped` for `audit`, `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
     check: missingEventTriggers,
   },
   {
@@ -898,7 +890,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Adopted table without a mapped column",
     description:
-      "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`sql.modules.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
+      "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
     check: missingAdoptedColumns,
   },
   {
@@ -972,8 +964,8 @@ function subjectsWithoutRls(context: DoctorContext): FindingInput[] {
 }
 
 function auditUserSession(context: DoctorContext): FindingInput[] {
-  if (!context.config.sql.moduleNames.includes("audit")) return [];
-  const options = context.config.sql.modules["audit"]?.options ?? {};
+  if (!context.config.blockNames.includes("audit")) return [];
+  const options = context.config.blocks["audit"]?.options ?? {};
   const roles = Array.isArray(options["eventRoles"])
     ? options["eventRoles"].filter(
         (role): role is string => typeof role === "string",
@@ -988,8 +980,8 @@ function auditUserSession(context: DoctorContext): FindingInput[] {
   return [
     {
       message:
-        "sql.modules.audit leaves the log readable only as the service role (`eventRoles` defaults to service_role, `readPolicy` defaults to false), but the app calls audit.list() or audit.listAll() as a user. Set options.readPolicy to true and include authenticated in options.eventRoles.",
-      target: "sql.modules.audit",
+        "blocks.audit leaves the log readable only as the service role (`eventRoles` defaults to service_role, `readPolicy` defaults to false), but the app calls audit.list() or audit.listAll() as a user. Set options.readPolicy to true and include authenticated in options.eventRoles.",
+      target: "blocks.audit",
     },
   ];
 }

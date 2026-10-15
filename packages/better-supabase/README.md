@@ -166,22 +166,20 @@ Blocks are the features most SaaS apps build by hand. Each one installs [SQL mod
 pnpm better-supabase sql add organizations invitations
 ```
 
-List them in `sql.modules` in `better-supabase.config.ts` so `better-supabase sql sync` keeps the files up to date. Each key is a module, and its value holds that module's settings, such as its roles, permission keys or the existing tables it adopts:
+List them in `blocks` in `better-supabase.config.ts` so `better-supabase sql sync` keeps the files up to date. Each key is a module, and its value holds that module's settings, such as its roles, permission keys or the existing tables it adopts:
 
 ```ts
 export default defineConfig({
-  sql: {
-    modules: {
-      access: {
-        roles: {
-          owner: ["*"],
-          admin: ["organization.*", "members.*"],
-          member: ["organization.read"],
-        },
+  blocks: {
+    access: {
+      roles: {
+        owner: ["*"],
+        admin: ["organization.*", "members.*"],
+        member: ["organization.read"],
       },
-      organizations: {},
-      invitations: { permissions: { invite: "organization.members.invite" } },
     },
+    organizations: {},
+    invitations: { permissions: { invite: "organization.members.invite" } },
   },
 });
 ```

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -9,10 +9,10 @@ import {
 } from "../../../src/sql/render.ts";
 import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
 
-const body = (modules: ModulesConfig = {}) =>
+const body = (modules: BlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
-const CENTRAKIT: ModulesConfig = {
+const CENTRAKIT: BlocksConfig = {
   notifications: {
     mode: "adopt",
     schema: "public",
@@ -180,7 +180,7 @@ describe("notifications module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: ModulesConfig = { notifications: { mode: "custom" } };
+    const custom: BlocksConfig = { notifications: { mode: "custom" } };
     expect(moduleBody("notifications", { modules: custom })).toBe(undefined);
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
@@ -314,7 +314,7 @@ describe("notifications module", () => {
   });
 
   it("skips the recipient read filter when the provider answers for the caller only", () => {
-    const notify = (modules: ModulesConfig) =>
+    const notify = (modules: BlocksConfig) =>
       renderModules(["access", "notifications"], {
         modules,
         accessProvider: callerOnlyProvider,

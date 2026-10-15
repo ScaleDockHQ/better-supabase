@@ -3,7 +3,6 @@ import type {
   AuthorizationMembership,
   AuthorizationProvider,
   ResolvedConfig,
-  ResolvedSqlConfig,
 } from "../config/index.ts";
 import type {
   ModuleAccessProvider,
@@ -141,18 +140,16 @@ export function entitlementsMode(
  * default.
  */
 export function accessProviderMode(
-  config: Pick<ResolvedConfig, "authorization"> & {
-    readonly sql: Pick<ResolvedSqlConfig, "modules">;
-  },
+  config: Pick<ResolvedConfig, "authorization" | "blocks">,
 ): AccessProviderMode {
-  const access = config.sql.modules.access;
+  const access = config.blocks.access;
   if (access?.model !== "provider") return { kind: "off" };
   const provider = config.authorization;
   if (!provider) {
     return {
       kind: "invalid",
       problem:
-        'sql.modules.access.model is "provider", but the config has no authorization. Set authorization, or choose another sql.modules.access.model.',
+        'blocks.access.model is "provider", but the config has no authorization. Set authorization, or choose another blocks.access.model.',
     };
   }
   const chosen = tenantScope(provider, "the provider access model");
@@ -162,7 +159,7 @@ export function accessProviderMode(
   if (idType !== undefined && idType !== chosen.idType) {
     return {
       kind: "invalid",
-      problem: `sql.modules.access.idType is "${access.idType}", but ${providerLabel(provider)} gives scope "${chosen.scope}" the type ${chosen.idType}. Set sql.modules.access.idType to "${chosen.idType}", or remove it.`,
+      problem: `blocks.access.idType is "${access.idType}", but ${providerLabel(provider)} gives scope "${chosen.scope}" the type ${chosen.idType}. Set blocks.access.idType to "${chosen.idType}", or remove it.`,
     };
   }
   const { user, tenant } = provider.suspension ?? {};
@@ -269,7 +266,7 @@ export function unsafeKey(
 
 /** A module permission key the provider's functions can't answer for fully. */
 export interface ModuleKeyProblem {
-  /** `sql.modules.<module>.permissions.<action>`, or `authorization.permissions`. */
+  /** `blocks.<module>.permissions.<action>`, or `authorization.permissions`. */
   readonly target: string;
   readonly message: string;
 }
@@ -299,7 +296,7 @@ export function moduleKeyProblems(
       entry.scope === "platform"
         ? "authorization.functions.isPlatform"
         : "authorization.functions.idsWith";
-    const setting = `sql.modules.${entry.module}.permissions.${entry.action}`;
+    const setting = `blocks.${entry.module}.permissions.${entry.action}`;
     const fix =
       problem.status === "incomplete"
         ? `The provider's SQL functions check role and scope, not the key's other conditions, so the module would grant it everywhere in the scope. Set ${setting} to a permission marked sqlComplete: true.`

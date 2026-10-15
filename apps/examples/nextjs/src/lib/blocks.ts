@@ -22,7 +22,7 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
 import { metrics } from "@/metrics";
 
-/** `sql.modules.<module>.api` in better-supabase.config.ts. */
+/** `blocks.<module>.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
 
 /**

@@ -36,38 +36,32 @@ export async function syncModules(
 ): Promise<CommandResult> {
   const topics = await topicPolicyFile(
     config,
-    config.sql.moduleNames.length === 0
+    config.blockNames.length === 0
       ? []
       : moduleTopics(
-          config.sql.moduleNames,
-          await layoutFor(config, args, config.sql.moduleNames),
+          config.blockNames,
+          await layoutFor(config, args, config.blockNames),
         ),
   );
-  if (config.sql.moduleNames.length === 0 && topics === undefined) {
-    return { code: 0, output: "sql.modules is empty; nothing to sync." };
+  if (config.blockNames.length === 0 && topics === undefined) {
+    return { code: 0, output: "blocks is empty; nothing to sync." };
   }
   if (await writesMigrations(config)) {
-    const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
+    const sqlLayout = await layoutFor(config, args, config.blockNames);
     if (args.check === true)
       return checkModuleMigration(config, sqlLayout, paint, topics?.contents);
-    const lines = await write(
-      config,
-      args,
-      config.sql.moduleNames,
-      sqlLayout,
-      now,
-    );
+    const lines = await write(config, args, config.blockNames, sqlLayout, now);
     return { code: 0, output: lines.join("\n") };
   }
   if (args.check !== true) {
     const lines =
-      config.sql.moduleNames.length === 0
+      config.blockNames.length === 0
         ? []
         : await write(
             config,
             args,
-            config.sql.moduleNames,
-            await layoutFor(config, args, config.sql.moduleNames),
+            config.blockNames,
+            await layoutFor(config, args, config.blockNames),
             now,
           );
     if (topics !== undefined) {
@@ -88,17 +82,17 @@ export async function syncModules(
     }
     return { code: 0, output: lines.join("\n") };
   }
-  const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
+  const sqlLayout = await layoutFor(config, args, config.blockNames);
   const files: { path: string; contents: string; topics?: true }[] = [
-    ...renderModules(config.sql.moduleNames, sqlLayout),
+    ...renderModules(config.blockNames, sqlLayout),
     ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
   ];
   const stale: string[] = (
     await staleModuleTests(
       config,
-      config.sql.moduleNames,
+      config.blockNames,
       sqlLayout,
-      renderModules(config.sql.moduleNames, sqlLayout),
+      renderModules(config.blockNames, sqlLayout),
     )
   ).map((path) => display(config.root, path));
   const diffs: string[] = stale.map(
@@ -135,14 +129,14 @@ async function checkModuleMigration(
   paint: Paint,
   topics: string | undefined,
 ): Promise<CommandResult> {
-  const files = renderModules(config.sql.moduleNames, sqlLayout);
+  const files = renderModules(config.blockNames, sqlLayout);
   const expected = renderModuleMigration({
     files,
     ...(topics === undefined ? {} : { topics }),
   });
   const latest = await latestMigration(config, MODULES_SUFFIX);
   const stale: string[] = (
-    await staleModuleTests(config, config.sql.moduleNames, sqlLayout, files)
+    await staleModuleTests(config, config.blockNames, sqlLayout, files)
   ).map((path) => display(config.root, path));
   const diffs: string[] = stale.map(
     (path) => `${path} is no longer written; \`sql sync\` removes it.`,

@@ -3,7 +3,7 @@ project_id = "better-supabase"
 [api]
 enabled = true
 port = 55421
-# `api` holds the SQL modules' security-invoker entry points (sql.modules.<module>.api).
+# `api` holds the SQL modules' security-invoker entry points (blocks.<module>.api).
 schemas = ["public", "graphql_public", "api"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000

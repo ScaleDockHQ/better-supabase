@@ -45,7 +45,7 @@ become `Block` names, and `Kit` names that describe a SQL module become
 | `orgs`                              | `createOrgs`, `Orgs`, `OrgsOptions`, `CreateOrgOptions`, `OrgAttributes`    | `createOrganizations`, `Organizations`, `OrganizationsOptions`, `CreateOrganizationOptions`, `OrganizationAttributes` |
 | `orgs`, `notifications`, `webhooks` | `KitTransport`                                                              | `BlockTransport`                                                                                                      |
 | `storage`                           | `orgLogoBucket`, `OrgLogoBucketOptions`                                     | `organizationLogoBucket`, `OrganizationLogoBucketOptions`                                                             |
-| `config`                            | `KitsConfig`, `KitModuleConfig`, `KitMode`, `AccessKitConfig`               | `ModulesConfig`, `ModuleConfig`, `ModuleMode`, `AccessModuleConfig`                                                   |
+| `config`                            | `KitsConfig`, `KitModuleConfig`, `KitMode`, `AccessKitConfig`               | `BlocksConfig`, `BlockConfig`, `BlockMode`, `AccessBlockConfig`                                                       |
 | `sql`                               | `renderKit`, `kitLayout`, `kitPermissionKeys`, `kitDeprecations`            | `renderModules`, `moduleLayout`, `modulePermissionKeys`, `moduleDeprecations`                                         |
 | `sql`                               | `kitFilePaths`, `kitFileVersion`, `sameKitFile`                             | `moduleFilePaths`, `moduleFileVersion`, `sameModuleFile`                                                              |
 | `sql`                               | `kitIdType`, `isKitIdType`, `KIT_ID_TYPES`, `KitIdType`                     | `moduleIdType`, `isModuleIdType`, `MODULE_ID_TYPES`, `ModuleIdType`                                                   |
@@ -63,18 +63,16 @@ become `Block` names, and `Kit` names that describe a SQL module become
 ## Update the config
 
 `sql.kit` (the modules to keep in sync) and the `kits` key (their settings)
-merge into one key, `sql.modules`. It takes an object keyed by module name,
+merge into one key, `blocks`. It takes an object keyed by module name,
 where every key is a module to keep in sync and its value is that module's
 settings. A list of names still works when no module needs settings.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      access: { roles: ["owner", "admin", "member"] },
-      organizations: {},
-      invitations: {},
-    },
+  blocks: {
+    access: { roles: ["owner", "admin", "member"] },
+    organizations: {},
+    invitations: {},
   },
 });
 ```
@@ -171,15 +169,15 @@ export default defineConfig({
     manifest: read("permdock.manifest.json"),
     catalog: read("permissions.catalog.json"),
   }),
-  sql: { modules: { access: { model: "provider" } } },
+  blocks: { access: { model: "provider" } },
 });
 ```
 
 | 0.5                                                                | 0.6                                                                                                      |
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | `permdock: { manifest, catalog }` in the config                    | `authorization: authorizationProvider({ manifest, catalog })`                                            |
-| `sql.modules.access.model: "permdock"`                             | `sql.modules.access.model: "provider"`                                                                   |
-| `sql.modules.access.permdock.schema`, `.scope` and `.forUser`      | the provider's `functions`, `tenantScope` and the `idsWithFor` and `isPlatformFor` templates             |
+| `blocks.access.model: "permdock"`                                  | `blocks.access.model: "provider"`                                                                        |
+| `blocks.access.permdock.schema`, `.scope` and `.forUser`           | the provider's `functions`, `tenantScope` and the `idsWithFor` and `isPlatformFor` templates             |
 | `entitlements.permdock: { scope }`                                 | the provider's `tenantScope`                                                                             |
 | `entitlements.permdock: false`                                     | `entitlements.memberships: "tenant"`                                                                     |
 | `policy: { permdock: { read, write }, scope, schema }` on a bucket | `policy: { access: { read, write }, scope, sql }`, with `bucketPolicy()` from `permdock/better-supabase` |
@@ -290,7 +288,7 @@ These apply once `better-supabase sql sync` rewrites the module files:
   return the changed notifications with the count.
 - `inbox` no longer installs `jobs` and `streams`, `workflows` no longer
   installs `jobs`, and `ai-cache` no longer installs `tenant`. Keep them in
-  `sql.modules` when you use them: without `jobs`, the inbox queues no bot
+  `blocks` when you use them: without `jobs`, the inbox queues no bot
   or delivery jobs.
 - `webhooks-in` installs `updated-at`.
 - `support.ended` carries the session's tenant in its audit entry and outbox
@@ -300,7 +298,7 @@ These apply once `better-supabase sql sync` rewrites the module files:
   `ai`, `integration`; see [Audit](/docs/blocks/audit#module-actions)).
   Organization entries were `organization`, support entries `support` and
   revealed details `audit`. An adopted log with a category check maps the new
-  names with `sql.modules.audit.options.values.category`.
+  names with `blocks.audit.options.values.category`.
   `options.auditCategory` is deprecated.
 - Settings, flags, billing customers, credentials, connectors, agents,
   provider keys, tool policies and approvals, chat shares, incoming webhooks,
@@ -310,7 +308,7 @@ These apply once `better-supabase sql sync` rewrites the module files:
   leave it out of the log.
 - `support.started` carries the session's tenant in its audit entry and
   outbox event.
-- `sql.modules.jobs.schema` is an error. Remove it: the jobs functions were
+- `blocks.jobs.schema` is an error. Remove it: the jobs functions were
   always in `better_supabase`.
 
 ## Run the codemod

@@ -44,11 +44,11 @@ export async function upgrade(
   paint: Paint,
   now: Now,
 ): Promise<CommandResult> {
-  if (config.sql.moduleNames.length === 0) {
-    return { code: 0, output: "sql.modules is empty; nothing to upgrade." };
+  if (config.blockNames.length === 0) {
+    return { code: 0, output: "blocks is empty; nothing to upgrade." };
   }
-  const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
-  const files = renderModules(config.sql.moduleNames, sqlLayout);
+  const sqlLayout = await layoutFor(config, args, config.blockNames);
+  const files = renderModules(config.blockNames, sqlLayout);
   const migrations = await writesMigrations(config);
   const { installed, stale, diffs } = migrations
     ? await installedFromMigration(config, sqlLayout, files, paint)
@@ -111,7 +111,7 @@ export async function upgrade(
     ...(await write(
       config,
       args,
-      config.sql.moduleNames,
+      config.blockNames,
       sqlLayout,
       now,
       undefined,
@@ -177,7 +177,7 @@ async function installedFromMigration(
   }));
   const topics = await topicPolicyFile(
     config,
-    moduleTopics(config.sql.moduleNames, sqlLayout),
+    moduleTopics(config.blockNames, sqlLayout),
   );
   const expected = renderModuleMigration({
     files,

@@ -2,7 +2,7 @@
 -- @bs-module profiles@2 managed
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -347,7 +347,7 @@ drop trigger if exists "bs_profile_email" on auth.users;
 create trigger "bs_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();
 
--- sql.modules.profiles.api: entry points for the Data API.
+-- blocks.profiles.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

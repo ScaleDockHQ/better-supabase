@@ -85,7 +85,7 @@ function documentsTopic(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "documents");
   if (!TOPIC.test(topic)) {
     throw new TypeError(
-      "sql.modules.documents.options.topic must be a lowercase name of at most 31 characters",
+      "blocks.documents.options.topic must be a lowercase name of at most 31 characters",
     );
   }
   return topic;
@@ -112,12 +112,12 @@ function build(ctx: ModuleContext): string {
   const compactAfter = ctx.number("compactAfter", 200);
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new TypeError(
-      "sql.modules.documents.options.maxUpdateBytes must be a positive whole number",
+      "blocks.documents.options.maxUpdateBytes must be a positive whole number",
     );
   }
   if (!Number.isInteger(compactAfter) || compactAfter < 1) {
     throw new TypeError(
-      "sql.modules.documents.options.compactAfter must be a positive whole number",
+      "blocks.documents.options.compactAfter must be a positive whole number",
     );
   }
   const readable = (row: string): string =>

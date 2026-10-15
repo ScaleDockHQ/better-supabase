@@ -52,7 +52,7 @@ export interface SupportPolicy {
    * `distinct` (the default): a start needs a request that another admin
    * approved (`support.request`, then `support.approve`), or an `authorize`
    * decision of `{ approvedBy }` naming someone else. `none`: no second
-   * admin. Set `sql.modules.support-sessions.options.approval` to the same
+   * admin. Set `blocks.support-sessions.options.approval` to the same
    * value, because the SQL store checks it again.
    */
   readonly approval?: "distinct" | "none";

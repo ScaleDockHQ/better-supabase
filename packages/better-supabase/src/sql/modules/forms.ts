@@ -27,7 +27,7 @@ const FORM_SUBJECT = "form";
 /** The share-links role a public form link carries. */
 const FORM_LINK_ROLE = "respond";
 
-const WHERE = "sql.modules.forms.options";
+const WHERE = "blocks.forms.options";
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
 const EVENTS: ModuleEvents = {

@@ -57,10 +57,10 @@ export interface AttachmentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, so the bucket policies apply. */
   readonly storage: AttachmentStorage;
-  /** The module schema (`sql.modules.attachments.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.attachments.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** Must match `sql.modules.attachments.options.requireScan`. Default `true`. */
+  /** Must match `blocks.attachments.options.requireScan`. Default `true`. */
   readonly requireScan?: boolean;
   /** Lifetime of a signed download URL in seconds. Default 300. */
   readonly downloadTtl?: number;

@@ -88,7 +88,7 @@ describe.skipIf(!available)(
 
     const sql = (argv: string[]) =>
       runSql(
-        resolveConfig({ sql: { modules: NAMES } }, root),
+        resolveConfig({ blocks: NAMES }, root),
         parseCommandArgs(sqlCommand, argv),
       );
 

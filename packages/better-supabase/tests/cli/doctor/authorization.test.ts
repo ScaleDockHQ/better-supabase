@@ -101,7 +101,7 @@ describe("providerBucketKeys", () => {
         {
           authorization: stubProvider,
           buckets,
-          ...(model ? { sql: { modules: { access: { model } } } } : {}),
+          ...(model ? { blocks: { access: { model } } } : {}),
         },
         "/project",
       );
@@ -281,7 +281,7 @@ describe("BS408", () => {
     extra: Parameters<typeof resolveConfig>[0] = {},
   ) => ({
     authorization: provider,
-    sql: { modules: ["entitlements"] },
+    blocks: ["entitlements"],
     ...extra,
   });
 
@@ -514,21 +514,21 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         authorization: provider,
-        sql: { modules: { access: { model: "roles" } } },
+        blocks: { access: { model: "roles" } },
       }),
     ).toEqual([
       {
         severity: "info",
         target: "authorization.suspension",
         message: expect.stringContaining(
-          'sets suspension, but sql.modules.access.model is "roles"',
+          'sets suspension, but blocks.access.model is "roles"',
         ),
       },
     ]);
     expect(
       await findings("BS409", {
         authorization: provider,
-        sql: { modules: { access: { model: "provider" } } },
+        blocks: { access: { model: "provider" } },
       }),
     ).toEqual([]);
   });
@@ -540,7 +540,7 @@ describe("BS411", () => {
     modules: Record<string, object> = {},
   ): BetterSupabaseConfig => ({
     ...(provider ? { authorization: provider } : {}),
-    sql: { modules: { access: { model: "provider" }, ...modules } },
+    blocks: { access: { model: "provider" }, ...modules },
   });
   const snapshot = withAuthz(ALL);
 
@@ -549,7 +549,7 @@ describe("BS411", () => {
     expect(
       await findings("BS411", {
         authorization: stubProvider,
-        sql: { modules: { access: { model: "roles" } } },
+        blocks: { access: { model: "roles" } },
       }),
     ).toEqual([]);
   });
@@ -590,7 +590,7 @@ describe("BS411", () => {
       ),
     ).toContainEqual({
       severity: "error",
-      target: "sql.modules.invitations.permissions.invite",
+      target: "blocks.invitations.permissions.invite",
       message: expect.stringContaining('checks "documents.own" (invite)'),
     });
   });
@@ -603,7 +603,7 @@ describe("BS411", () => {
     ).toMatchObject([
       {
         severity: "warning",
-        target: "sql.modules.access.functions.canAssign",
+        target: "blocks.access.functions.canAssign",
       },
     ]);
     expect(
@@ -622,7 +622,7 @@ describe("BS411", () => {
       await findings("BS411", config(noAssign, { tenant: {} }), { snapshot }),
     ).toContainEqual(
       expect.objectContaining({
-        target: "sql.modules.access.functions.canAssign",
+        target: "blocks.access.functions.canAssign",
         message: expect.stringContaining("only the service role assigns roles"),
       }),
     );
@@ -720,7 +720,7 @@ describe("BS414", () => {
       "BS414",
       {
         authorization: stubProvider,
-        sql: { modules: { tenant: {}, access: { model: "roles" } } },
+        blocks: { tenant: {}, access: { model: "roles" } },
       },
       { snapshot: withContractPolicy() },
     );
@@ -735,9 +735,9 @@ describe("BS414", () => {
   it("stays quiet under the provider model, without a provider or without access", async () => {
     const snapshot = withContractPolicy();
     for (const config of [
-      { authorization: stubProvider, sql: { modules: ["tenant", "access"] } },
-      { sql: { modules: { access: { model: "roles" as const } } } },
-      { authorization: stubProvider, sql: { modules: ["tenant"] } },
+      { authorization: stubProvider, blocks: ["tenant", "access"] },
+      { blocks: { access: { model: "roles" as const } } },
+      { authorization: stubProvider, blocks: ["tenant"] },
     ]) {
       expect(await findings("BS414", config, { snapshot })).toEqual([]);
     }
@@ -788,7 +788,7 @@ describe("BS334", () => {
   it("reports app policies that call a role helper", async () => {
     const result = await findings(
       "BS334",
-      { sql: { modules: ["tenant", "access"] } },
+      { blocks: ["tenant", "access"] },
       { snapshot: withRolePolicies() },
     );
     expect(result).toHaveLength(1);
@@ -801,11 +801,7 @@ describe("BS334", () => {
 
   it("stays quiet without the tenant module", async () => {
     expect(
-      await findings(
-        "BS334",
-        { sql: { modules: [] } },
-        { snapshot: withRolePolicies() },
-      ),
+      await findings("BS334", { blocks: [] }, { snapshot: withRolePolicies() }),
     ).toEqual([]);
   });
 });

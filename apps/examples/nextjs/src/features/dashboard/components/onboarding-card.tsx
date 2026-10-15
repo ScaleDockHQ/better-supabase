@@ -20,7 +20,7 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 
-/** `sql.modules.onboarding.api` in better-supabase.config.ts. */
+/** `blocks.onboarding.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
 
 /** The organization's getting-started checklist; hidden once every step is done. */

@@ -38,7 +38,7 @@ const isGenerator = (value: unknown): boolean =>
  * checks the leaves a typo or an old value breaks; nested objects the
  * library reads loosely stay loose.
  */
-const moduleEntries = {
+const blockEntries = {
   mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
   tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
@@ -76,8 +76,8 @@ const disabledRow = v.strictObject({
   active: v.optional(strings),
 });
 
-const accessModule = v.strictObject({
-  ...moduleEntries,
+const accessBlock = v.strictObject({
+  ...blockEntries,
   model: v.optional(v.picklist(["roles", "catalog", "provider", "custom"])),
   roles: v.optional(v.record(v.string(), strings)),
   functions: v.optional(
@@ -471,6 +471,16 @@ const ENTRIES = {
       }),
     ),
   ),
+  blocks: v.optional(
+    v.lazy((input) =>
+      Array.isArray(input)
+        ? strings
+        : v.objectWithRest(
+            { access: v.optional(accessBlock) },
+            v.strictObject(blockEntries),
+          ),
+    ),
+  ),
   sql: v.optional(
     v.strictObject({
       dir: v.optional(v.string()),
@@ -478,16 +488,6 @@ const ENTRIES = {
       testsDir: v.optional(v.string()),
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
-      modules: v.optional(
-        v.lazy((input) =>
-          Array.isArray(input)
-            ? strings
-            : v.objectWithRest(
-                { access: v.optional(accessModule) },
-                v.strictObject(moduleEntries),
-              ),
-        ),
-      ),
     }),
   ),
   seed: v.optional(

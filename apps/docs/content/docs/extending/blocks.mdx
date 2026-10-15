@@ -10,7 +10,7 @@ Each need has one place, from the least code to the most:
 
 | You want to                          | Use                                                   | Where      |
 | ------------------------------------ | ----------------------------------------------------- | ---------- |
-| Change what the block does           | `sql.modules.<module>` options, permissions and hooks | SQL config |
+| Change what the block does           | `blocks.<module>` options, permissions and hooks      | SQL config |
 | Add columns and get them back, typed | `options.extraColumns` and the `fields` option        | SQL and TS |
 | Refuse, rewrite or observe a call    | `hooks` on the block, or SQL `before_`/`after_` hooks | TS or SQL  |
 | Run code around every database call  | `wrapTransport(transport, middleware)`                | TS         |
@@ -29,19 +29,17 @@ copies them on create and update, and returns them from its reads. A name
 the module already uses is refused, so a column can't shadow `role` or `id`.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    organizations: {
-      options: {
-        extraColumns: {
-          plan: "text not null default 'free'",
-          seats: "integer not null default 3",
-        },
+blocks: {
+  organizations: {
+    options: {
+      extraColumns: {
+        plan: "text not null default 'free'",
+        seats: "integer not null default 3",
       },
     },
-    profiles: {
-      options: { extraColumns: { locale: "text not null default 'en'" } },
-    },
+  },
+  profiles: {
+    options: { extraColumns: { locale: "text not null default 'en'" } },
   },
 },
 ```

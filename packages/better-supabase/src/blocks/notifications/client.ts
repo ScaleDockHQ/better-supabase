@@ -10,7 +10,7 @@ export type NotificationSource<T> = () => Promise<readonly T[]>;
 export interface NotificationFeedOptions<T> {
   /**
    * The private topic the `notifications` module broadcasts to, e.g.
-   * `notifications:${userId}` (`sql.modules.notifications.options.topic`). `null`
+   * `notifications:${userId}` (`blocks.notifications.options.topic`). `null`
    * loads once without realtime.
    */
   readonly topic: string | null;

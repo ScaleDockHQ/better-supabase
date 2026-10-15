@@ -81,7 +81,7 @@ function topicOf(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "reactions");
   if (!TOPIC.test(topic)) {
     throw new TypeError(
-      "sql.modules.reactions.options.topic must be a lowercase name of at most 31 characters",
+      "blocks.reactions.options.topic must be a lowercase name of at most 31 characters",
     );
   }
   return topic;

@@ -31,14 +31,12 @@ await approvals.approve(request.approvalId!).orThrow();
 ## Configure
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    "access-requests": {
-      options: {
-        roles: ["admin", "billing"],
-        maxDuration: "P7D",
-        policy: { steps: [{ approvers: { role: "owner" } }], expiresIn: "P2D" },
-      },
+blocks: {
+  "access-requests": {
+    options: {
+      roles: ["admin", "billing"],
+      maxDuration: "P7D",
+      policy: { steps: [{ approvers: { role: "owner" } }], expiresIn: "P2D" },
     },
   },
 },

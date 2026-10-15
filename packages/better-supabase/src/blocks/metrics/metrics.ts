@@ -44,7 +44,7 @@ export interface MetricsOptions<
   M extends readonly MetricDefinition[],
 > extends Pick<BlockOptions, "transport" | "service" | "schema" | "mappers"> {
   /**
-   * The same `defineMetric` definitions as `sql.modules.metrics.options.metrics`,
+   * The same `defineMetric` definitions as `blocks.metrics.options.metrics`,
    * so `series` and `kpi` type the keys and dimensions.
    */
   readonly metrics?: M;
@@ -122,7 +122,7 @@ export interface MetricInfo {
 export interface MetricsRollupRequest {
   /** One metric. Default: all of them. */
   readonly metric?: string;
-  /** Default: `sql.modules.metrics.options.window` ago. */
+  /** Default: `blocks.metrics.options.window` ago. */
   readonly since?: Temporal.Instant;
   /** Default: now. */
   readonly until?: Temporal.Instant;

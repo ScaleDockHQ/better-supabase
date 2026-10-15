@@ -326,7 +326,7 @@ standard or sets how the repo works.
 - 0026: delegated tokens are narrowed inside the access functions (`cap_allows`), and every checked action is a row in one operations table (`OPERATIONS`).
 - 0027: the fixture's migrations are squashed into one pg-delta baseline, and `supabase/schemas` uses the per-schema layout with the module files in `_better_supabase/`.
 - 0028: record stages run on tenant-editable pipelines whose categories map to open, success or failure, separate from the status column.
-- 0029: every block is one `defineBlock` manifest; `createBlocks` wires on what blocks provide and consume, events are declared per block, one contract is checked by a conformance test, and a top-level `blocks` key replaces `sql.modules`.
+- 0029: every block is one `defineBlock` manifest; `createBlocks` wires on what blocks provide and consume, events are declared per block, one contract is checked by a conformance test, and a top-level `blocks` key replaces `blocks`.
 - 0030: block client state lives in headless controllers (`src/blocks/<name>/client.ts`) with thin React (web and native), Vue, Svelte and Solid bindings; they reach the platform only through the ports in `bs.ports`.
 - 0031: presets install a block selection, a shadcn-compatible registry ships glue only, and UI ships as recipes over the app's own shadcn components.
 

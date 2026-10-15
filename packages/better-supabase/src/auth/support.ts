@@ -249,7 +249,7 @@ export function supportSessionFromRow(
 }
 
 export interface SqlSupportStoreOptions {
-  /** `sql.modules.support-sessions.schema`. Defaults to `better_supabase`. */
+  /** `blocks.support-sessions.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
    * The Temporal namespace for the sessions' time values, for runtimes

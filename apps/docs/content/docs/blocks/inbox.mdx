@@ -37,7 +37,7 @@ contract grant them like any other permission.
 Under the provider access model, an operations entry `inbox.command.<name>`
 replaces the key for the `assign`, `set_status`, `set_bot_mode` and `reply`
 commands; without one, the key above applies after the rename in
-`sql.modules.inbox.permissions`.
+`blocks.inbox.permissions`.
 
 A contact who is a signed-in user reads only their own conversations and
 never sees internal notes. Inboxes with `settings.widget = true` let such a
@@ -205,14 +205,14 @@ the conversation, organization, inbox, contact, assignee and status.
 
 ## Options
 
-| Option                                    | Default          | Meaning                                         |
-| ----------------------------------------- | ---------------- | ----------------------------------------------- |
-| `sql.modules.inbox.options.topic`         | `inbox`          | The Realtime topic prefix; pass it to the hooks |
-| `sql.modules.inbox.options.bucket`        | `inbox-files`    | The private Storage bucket for attachments      |
-| `sql.modules.inbox.options.maxBodyLength` | `20000`          | The longest message body                        |
-| `sql.modules.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                   |
-| `sql.modules.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries            |
-| `sql.modules.inbox.options.notify`        | `true`           | Notifications for assignments and mentions      |
+| Option                               | Default          | Meaning                                         |
+| ------------------------------------ | ---------------- | ----------------------------------------------- |
+| `blocks.inbox.options.topic`         | `inbox`          | The Realtime topic prefix; pass it to the hooks |
+| `blocks.inbox.options.bucket`        | `inbox-files`    | The private Storage bucket for attachments      |
+| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                        |
+| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                   |
+| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries            |
+| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions      |
 
 ## Example
 

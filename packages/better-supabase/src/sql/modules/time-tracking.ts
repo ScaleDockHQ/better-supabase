@@ -21,7 +21,7 @@ import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { TIMESHEET_SUBJECT } from "./approvals.ts";
 
-const WHERE = "sql.modules.time-tracking.options";
+const WHERE = "blocks.time-tracking.options";
 
 const ENTRY_PAYLOAD = [
   "organizationId",
@@ -151,7 +151,7 @@ function build(ctx: ModuleContext): string {
   const approvals = ctx.of("approvals");
   if (approvals.mode === "custom") {
     throw new TypeError(
-      "sql.modules.time-tracking needs the approvals tables; approvals can't be in custom mode",
+      "blocks.time-tracking needs the approvals tables; approvals can't be in custom mode",
     );
   }
   const entries = ctx.table("entries");

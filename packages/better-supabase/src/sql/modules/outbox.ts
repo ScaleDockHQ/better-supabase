@@ -229,7 +229,7 @@ function emit(ctx: ModuleContext, n: Names): string {
   for (const role of roles) {
     if (!/^[a-z_][a-z0-9_]*$/.test(role)) {
       throw new TypeError(
-        `sql.modules.outbox.options.emitRoles: "${role}" is not a role name`,
+        `blocks.outbox.options.emitRoles: "${role}" is not a role name`,
       );
     }
   }
@@ -276,7 +276,7 @@ function consumers(ctx: ModuleContext, n: Names): string {
   const settle = ctx.text("settle", "5 seconds");
   if (!byXid && /^\s*0+(\.0+)?\s*[a-z]*\s*$/i.test(settle)) {
     throw new TypeError(
-      "sql.modules.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
+      "blocks.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
     );
   }
   const pos = (row: string) => `${row}.${n.e("position")}`;

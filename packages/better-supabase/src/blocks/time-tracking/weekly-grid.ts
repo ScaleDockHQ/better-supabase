@@ -11,7 +11,7 @@ export type WeeklyGridEntry = Pick<
 export interface WeeklyGridOptions<E extends WeeklyGridEntry> {
   /** Any day of the week; the grid starts on its Monday. */
   readonly week: Temporal.PlainDate;
-  /** The IANA zone days start in; match `sql.modules.time-tracking.options.timeZone`. */
+  /** The IANA zone days start in; match `blocks.time-tracking.options.timeZone`. */
   readonly timeZone: string;
   /** Where a running entry ends. Default: now. */
   readonly now?: Temporal.Instant;

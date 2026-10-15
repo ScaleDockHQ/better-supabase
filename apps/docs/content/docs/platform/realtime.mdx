@@ -146,7 +146,7 @@ Some SQL modules write the receive policy of their own topics: `notifications`
 (its `topic` option, `notifications:{userId}` by default, while `realtime` is
 `broadcast`), `announcements` (its `topic` option, `announcements` by
 default) and `realtime-tables` (every topic that starts with `bs:t:`). When a
-module in `sql.modules` covers a topic you export, for example to subscribe
+module in `blocks` covers a topic you export, for example to subscribe
 to it with the typed client, `sql sync` leaves that topic out of `output` and
 names the module in a comment at the top of the file, so the database doesn't
 get two equivalent policies. Templates match by their literal parts, so
@@ -262,12 +262,12 @@ export default defineConfig({
       },
     ],
   },
-  sql: { modules: ["realtime-tables"] },
+  blocks: ["realtime-tables"],
 });
 ```
 
 `sql sync` refuses `realtime.triggers` without `realtime.policies`, without
-`realtime-tables` in `sql.modules`, or for a template no module in `from`
+`realtime-tables` in `blocks`, or for a template no module in `from`
 exports.
 
 On the client, `rowChange` turns a message into an app-cased change, or `null`

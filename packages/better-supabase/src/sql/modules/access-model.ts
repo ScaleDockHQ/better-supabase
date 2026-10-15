@@ -1,9 +1,9 @@
-import type { AccessModuleConfig } from "../../config/modules.ts";
+import type { AccessBlockConfig } from "../../config/blocks.ts";
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 
-export type AccessModel = NonNullable<AccessModuleConfig["model"]>;
+export type AccessModel = NonNullable<AccessBlockConfig["model"]>;
 
 /**
  * The `roles` model's defaults. Module actions name these keys (see
@@ -148,7 +148,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * The permission key each operation checks by default, keyed
- * `<module>.<action>`. `sql.modules.<name>.permissions` renames a key per
+ * `<module>.<action>`. `blocks.<name>.permissions` renames a key per
  * module, `authorization.operations` overrides it for a provider, and the
  * access module's `operation_permission(op)` answers the result in SQL.
  * Keys are `<area>.<verb>`, with `read` for viewing; platform-wide actions
@@ -565,14 +565,14 @@ export const roleNames = (ctx: ModuleContext): readonly string[] =>
 
 /**
  * The scope name tenants use in `can(scope, id, permission)`
- * (`sql.modules.access.options.scope`, default `organization`). `tenant` is
+ * (`blocks.access.options.scope`, default `organization`). `tenant` is
  * accepted too.
  */
 export const tenantScope = (ctx: ModuleContext): string =>
   ctx.of("access").text("scope", "organization");
 
 /**
- * `sql.modules.invitations.options.platformRoles` under the `provider` model:
+ * `blocks.invitations.options.platformRoles` under the `provider` model:
  * the app's table of platform role assignments, so platform invitations
  * insert into it.
  */
@@ -623,7 +623,7 @@ export function providerPlatformRoles(
   }
   const value = ctx.of("invitations").option("platformRoles");
   if (value === undefined) return undefined;
-  const where = "sql.modules.invitations.options.platformRoles";
+  const where = "blocks.invitations.options.platformRoles";
   if (
     !isPlain(value) ||
     typeof value["table"] !== "string" ||
@@ -695,7 +695,7 @@ export function hasPlatformRoles(ctx: ModuleContext): boolean {
  * Whether catalog role row `alias` is a tenant or a platform role, or
  * `undefined` when roles carry no scope. Managed catalogs have a `scope`
  * column; an adopted one maps `roles.scope` and names its values in
- * `sql.modules.access.options.tenantRoleScope` and `platformRoleScope`.
+ * `blocks.access.options.tenantRoleScope` and `platformRoleScope`.
  */
 export function roleScopeIs(
   ctx: ModuleContext,

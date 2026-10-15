@@ -28,7 +28,7 @@ import {
 
 export interface FormsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.forms.schema`, or the API schema of its wrappers. */
+  /** `blocks.forms.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Forms>;

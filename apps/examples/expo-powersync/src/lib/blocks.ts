@@ -6,7 +6,7 @@ import {
 import { createNotifications } from "better-supabase/blocks/notifications";
 import * as v from "valibot";
 
-/** `sql.modules.<module>.api` in the Next.js example's config, which owns the database. */
+/** `blocks.<module>.api` in the Next.js example's config, which owns the database. */
 export const API_SCHEMA = "api";
 
 const Titled = v.object({ title: v.string() });

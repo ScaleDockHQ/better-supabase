@@ -95,14 +95,14 @@ function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new TypeError(
-      "sql.modules.tags.options.subjects.<type>.kinds must be a list of strings",
+      "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
     );
   }
   const kinds: string[] = [];
   for (const item of value) {
     if (typeof item !== "string" || item.length === 0) {
       throw new TypeError(
-        "sql.modules.tags.options.subjects.<type>.kinds must be a list of strings",
+        "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
       );
     }
     kinds.push(item);

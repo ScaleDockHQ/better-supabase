@@ -2,7 +2,7 @@
 -- @bs-module chat-sdk-state@1 managed
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;

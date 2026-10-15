@@ -276,17 +276,15 @@ SQL modules call optional app functions around their work, for example
 transaction when a function with that name and argument list exists in
 `public`, and is skipped otherwise. Raise an exception in a `before_*` hook
 to refuse the operation. Point a module at another schema or function with
-`sql.modules.<module>.hooks`:
+`blocks.<module>.hooks`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      organizations: {
-        hooks: {
-          schema: "app",
-          functions: { after_organization_create: "private.seed_organization" },
-        },
+  blocks: {
+    organizations: {
+      hooks: {
+        schema: "app",
+        functions: { after_organization_create: "private.seed_organization" },
       },
     },
   },
@@ -299,5 +297,5 @@ Each module's page lists its hooks and their arguments, and
 [Extending blocks](/docs/extending/blocks#hooks-in-sql) lists them for
 organizations, profiles and notifications. With the `outbox`
 module installed, modules also write their events with `emit_event` in the
-same transaction; `sql.modules.<module>.events: false` turns that off for one
+same transaction; `blocks.<module>.events: false` turns that off for one
 module.

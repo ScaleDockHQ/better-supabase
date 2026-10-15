@@ -23,7 +23,7 @@ import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
 import { roleValue } from "./organizations.ts";
 import { roleNameOf } from "./tenant.ts";
 
-const WHERE = "sql.modules.access-requests.options";
+const WHERE = "blocks.access-requests.options";
 
 const PAYLOAD = [
   "organizationId",

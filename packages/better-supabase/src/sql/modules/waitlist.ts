@@ -113,7 +113,7 @@ function assignableRoles(ctx: ModuleContext): readonly string[] {
     const roles = ctx.list("roles", []);
     if (roles.includes(owner)) {
       throw new TypeError(
-        `sql.modules.waitlist.options.roles must not include the owner role "${owner}"`,
+        `blocks.waitlist.options.roles must not include the owner role "${owner}"`,
       );
     }
     return roles;
@@ -143,13 +143,13 @@ function build(ctx: ModuleContext): string {
   const defaultRole = ctx.text("defaultRole", "member");
   if (assignable.length > 0 && !assignable.includes(defaultRole)) {
     throw new TypeError(
-      `sql.modules.waitlist.options.defaultRole "${defaultRole}" must be a role other than the owner (${assignable.join(", ")})`,
+      `blocks.waitlist.options.defaultRole "${defaultRole}" must be a role other than the owner (${assignable.join(", ")})`,
     );
   }
   const field = ctx.text("codeField", "invite_code");
   if (!FIELD.test(field)) {
     throw new TypeError(
-      "sql.modules.waitlist.options.codeField must be a lowercase identifier",
+      "blocks.waitlist.options.codeField must be a lowercase identifier",
     );
   }
   const tenant = ctx.of("tenant");

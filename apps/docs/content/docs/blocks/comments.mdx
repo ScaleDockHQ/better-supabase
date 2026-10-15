@@ -38,17 +38,15 @@ and, optionally, hold a permission:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      comments: {
-        options: {
-          subjects: {
-            project: { table: "projects", permission: "projects.read" },
-            ticket: {
-              table: "support.tickets",
-              id: "ticket_id",
-              tenant: "team_id",
-            },
+  blocks: {
+    comments: {
+      options: {
+        subjects: {
+          project: { table: "projects", permission: "projects.read" },
+          ticket: {
+            table: "support.tickets",
+            id: "ticket_id",
+            tenant: "team_id",
           },
         },
       },
@@ -80,7 +78,7 @@ own.
 
 ### Access per record
 
-With `sql.modules.access.model: "provider"`, `scope` names a scope your
+With `blocks.access.model: "provider"`, `scope` names a scope your
 [authorization provider](/docs/extending/authorization-providers) declares
 whose ids are the subject ids, such as `project`. A member then reads,
 writes or moderates the comments on a record when they hold the key in the

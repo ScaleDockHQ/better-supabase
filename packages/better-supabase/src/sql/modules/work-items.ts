@@ -316,7 +316,7 @@ function build(ctx: ModuleContext): string {
   const maxAssignees = ctx.number("maxAssignees", 0);
   if (!Number.isInteger(maxAssignees) || maxAssignees < 0) {
     throw new TypeError(
-      "sql.modules.work-items.options.maxAssignees must be 0 (no limit) or a positive integer",
+      "blocks.work-items.options.maxAssignees must be 0 (no limit) or a positive integer",
     );
   }
   const n: WorkItemNames = {

@@ -82,7 +82,7 @@ function types(ctx: ModuleContext): readonly string[] {
   const list = ctx.list("types", ENGAGEMENT_TYPES);
   if (list.length === 0 || list.some((item) => !TYPE.test(item))) {
     throw new TypeError(
-      "sql.modules.engagements.options.types must be a non-empty list of lowercase names",
+      "blocks.engagements.options.types must be a non-empty list of lowercase names",
     );
   }
   return list;

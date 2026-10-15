@@ -36,7 +36,7 @@ function fakeTransport(answers: Readonly<Record<string, unknown>>): {
   };
 }
 
-/** The argument names of each wrapper `sql.modules.<module>.api` writes. */
+/** The argument names of each wrapper `blocks.<module>.api` writes. */
 function wrapperArgs(module: string): Map<string, readonly string[]> {
   const [file] = renderModules([module], {
     modules: { [module]: { api: "api" } },

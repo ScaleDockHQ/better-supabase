@@ -3,7 +3,7 @@
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -77,7 +77,7 @@ declare
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
     if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
+      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
     execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
   end if;
@@ -451,7 +451,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
@@ -467,7 +467,7 @@ on conflict (name) do update
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -541,7 +541,7 @@ declare
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
     if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
+      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
     execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
   end if;
@@ -923,7 +923,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
@@ -939,7 +939,7 @@ on conflict (name) do update
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1015,7 +1015,7 @@ declare
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
     if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
+      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
     execute 'alter table "app_private"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
   end if;
@@ -1389,7 +1389,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
@@ -1405,7 +1405,7 @@ on conflict (name) do update
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1479,7 +1479,7 @@ declare
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
     if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
+      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
     execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
   end if;
@@ -1835,7 +1835,7 @@ grant execute on function "better_supabase"."list_attachments"(uuid, text, text)
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
--- sql.modules.attachments.api: entry points for the Data API.
+-- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1955,7 +1955,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)

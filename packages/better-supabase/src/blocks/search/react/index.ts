@@ -29,7 +29,7 @@ export interface UseCommandSearchOptions {
    * port (`webKeyboard()` on the web; none on React Native). Default true.
    */
   readonly shortcut?: boolean;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules.<module>.api`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
   readonly schema?: string;
 }
 

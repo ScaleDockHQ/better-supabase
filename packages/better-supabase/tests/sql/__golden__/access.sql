@@ -3,7 +3,7 @@
 -- @bs-module access@1 managed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -49,7 +49,7 @@ as $$
 $$;
 
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]
@@ -377,7 +377,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('access', 1, 'managed')
@@ -389,7 +389,7 @@ on conflict (name) do update
 -- @bs-module access@1 managed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -436,7 +436,7 @@ as $$
 $$;
 
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]
@@ -960,7 +960,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('access', 1, 'managed')
@@ -972,7 +972,7 @@ on conflict (name) do update
 -- @bs-module access@1 managed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1020,7 +1020,7 @@ as $$
 $$;
 
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]
@@ -1348,7 +1348,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('access', 1, 'managed')
@@ -1360,7 +1360,7 @@ on conflict (name) do update
 -- @bs-module access@1 managed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1406,7 +1406,7 @@ as $$
 $$;
 
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]
@@ -1716,7 +1716,7 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --   return jsonb_set(event, '{claims,permissions}',
 --     better_supabase.permission_claims((event ->> 'user_id')::uuid));
 
--- sql.modules.access.api: entry points for the Data API.
+-- blocks.access.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1909,7 +1909,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('access', 1, 'managed')
@@ -1921,7 +1921,7 @@ on conflict (name) do update
 -- @bs-module access@1 adopt
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1967,7 +1967,7 @@ as $$
 $$;
 
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]
@@ -2295,7 +2295,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('access', 1, 'adopt')

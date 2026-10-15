@@ -73,7 +73,7 @@ posts it to the flow route that `withWorkflow` adds.
 | `poll` (default) | the World, in the process that queues: it claims jobs and posts them   | a server, a container, `next dev`             |
 | `pg_net`         | `dispatch_workflow_deliveries()` on a pg_cron schedule, through pg_net | serverless hosts with no long-running process |
 
-For `pg_net`, set `sql.modules.workflow-sdk-world.options.delivery` to
+For `pg_net`, set `blocks.workflow-sdk-world.options.delivery` to
 `pg_net` (the data file then schedules the dispatcher every
 `options.schedule`, `1 seconds` by default) and store the route and a
 secret in Vault:

@@ -2,7 +2,7 @@
 -- @bs-module flags@2 managed
 -- Feature flags with variants, targeting rules over tenant, user, plan and role, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -373,7 +373,7 @@ grant execute on function "better_supabase"."flag_evaluation"(text, uuid, uuid) 
 grant execute on function "better_supabase"."flag_enabled"(text, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_definitions"() to service_role;
 
--- sql.modules.flags.api: entry points for the Data API.
+-- blocks.flags.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

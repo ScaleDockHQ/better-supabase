@@ -208,7 +208,7 @@ function transportCalls(
 /**
  * HTTP idempotency keys (IETF `Idempotency-Key` header) over the
  * `idempotency` SQL module: a service SQL connection, or a service-role
- * `rpcTransport` over the wrappers `sql.modules.idempotency.api` writes.
+ * `rpcTransport` over the wrappers `blocks.idempotency.api` writes.
  */
 export function createIdempotency(
   source: SqlClient | BlockTransport,

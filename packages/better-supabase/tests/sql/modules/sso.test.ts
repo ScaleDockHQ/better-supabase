@@ -88,7 +88,7 @@ describe("sso module", () => {
       },
     };
     expect(() => sqlOf(["sso"], undefined, custom)).toThrow(
-      /list the roles SCIM and auto-join may assign in sql.modules.sso.options.roleOrder/,
+      /list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder/,
     );
     const sql = sqlOf(
       ["sso"],

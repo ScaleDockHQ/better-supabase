@@ -602,6 +602,7 @@ describe("config JSON Schema", () => {
       functions: true,
       expose: true,
       readSets: true,
+      blocks: true,
       sql: true,
       seed: true,
       openapi: true,
@@ -820,7 +821,7 @@ describe("sql", () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ sql: { modules: ["invitations"] } }),
+      JSON.stringify({ blocks: ["invitations"] }),
     );
   });
 
@@ -838,13 +839,13 @@ describe("sql", () => {
       "supabase/tests/000_better_supabase_pgtap.test.sql",
     );
     expect(added.stdout).toContain(
-      "Added jobs, pgtap to sql.modules in better-supabase.config.json.",
+      "Added jobs, pgtap to blocks in better-supabase.config.json.",
     );
     expect(
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf8"),
       ),
-    ).toEqual({ sql: { modules: ["invitations", "jobs", "pgtap"] } });
+    ).toEqual({ blocks: ["invitations", "jobs", "pgtap"] });
 
     const list = await run(["sql", "list", "--cwd", dir]);
     expect(list.stdout).not.toMatch(/○ jobs/);
@@ -887,7 +888,7 @@ describe("sql", () => {
     );
   });
 
-  it("syncs sql.modules and detects stale files with --check", async () => {
+  it("syncs blocks and detects stale files with --check", async () => {
     expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(1);
     const sync = await run(["sql", "sync", "--cwd", dir]);
     expect(sync.stdout).toContain("tenant");
@@ -902,7 +903,7 @@ describe("sql", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        sql: { modules: ["invitations"] },
+        blocks: ["invitations"],
         authorization: stubProvider,
       }),
     );

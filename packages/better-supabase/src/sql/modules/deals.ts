@@ -145,7 +145,7 @@ function names(
   const list = ctx.list(option, fallback);
   if (list.length === 0 || list.some((item) => !NAME.test(item))) {
     throw new TypeError(
-      `sql.modules.deals.options.${option} must be a non-empty list of lowercase names`,
+      `blocks.deals.options.${option} must be a non-empty list of lowercase names`,
     );
   }
   return `${sqlString(`{${list.join(",")}}`)}::text[]`;

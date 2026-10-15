@@ -1,6 +1,6 @@
 import { sqlIdent } from "../core/template.ts";
 
-/** `sql.modules.<module>.api`, resolved. */
+/** `blocks.<module>.api`, resolved. */
 export interface ModuleApi {
   readonly schema: string;
   /** Function names to wrap; every function granted to the API roles when missing. */
@@ -211,7 +211,7 @@ export function apiWrappers(
 ): string {
   if (api.schema === source) {
     throw new TypeError(
-      `sql.modules.${module}.api: the API schema must differ from the module schema ${source}`,
+      `blocks.${module}.api: the API schema must differ from the module schema ${source}`,
     );
   }
   const defined = signatures(sql, source);
@@ -225,12 +225,12 @@ export function apiWrappers(
   for (const name of api.functions ?? []) {
     if (internal.includes(name)) {
       throw new TypeError(
-        `sql.modules.${module}.api.functions: ${name} is a helper the module's policies and triggers call, not an entry point for the Data API`,
+        `blocks.${module}.api.functions: ${name} is a helper the module's policies and triggers call, not an entry point for the Data API`,
       );
     }
     if (!grants.some((grant) => grant.name === name)) {
       throw new TypeError(
-        `sql.modules.${module}.api.functions: ${name} is not a ${module} function that anon, authenticated or service_role may execute`,
+        `blocks.${module}.api.functions: ${name} is not a ${module} function that anon, authenticated or service_role may execute`,
       );
     }
   }
@@ -266,13 +266,13 @@ export function apiWrappers(
     );
     if (!signature) {
       throw new TypeError(
-        `sql.modules.${module}.api: found no definition of ${grant.name}(${grant.types.join(", ")}) to wrap`,
+        `blocks.${module}.api: found no definition of ${grant.name}(${grant.types.join(", ")}) to wrap`,
       );
     }
     return wrapper(signature, source, api.schema, grant);
   });
   return `
--- sql.modules.${module}.api: entry points for the Data API.
+-- blocks.${module}.api: entry points for the Data API.
 create schema if not exists ${schema};
 grant usage on schema ${schema} to anon, authenticated, service_role;
 ${dropped.length > 0 ? `\n-- Helpers for the module's policies and triggers have no entry point.\n${dropped.join("\n")}\n` : ""}${replaced.length > 0 ? `\n${replaced.join("\n")}\n` : ""}

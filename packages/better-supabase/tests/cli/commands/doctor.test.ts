@@ -248,7 +248,7 @@ describe("doctor command", () => {
 
   it("skips the read-sets module file when config.readSets cannot load", async () => {
     const snapshot = await parseSnapshot(fixture);
-    const config = { sql: { modules: ["read-sets"] } };
+    const config = { blocks: ["read-sets"] };
     const loaded = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },

@@ -2,7 +2,7 @@
 -- @bs-module organizations@1 adopt
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -43,7 +43,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Adopted: "public"."organizations" belongs to the app (modules.organizations.tables.organizations).
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
--- sql.modules.organizations.options), 'reserved' or 'taken'. except_organization skips the
+-- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
 -- organization being renamed.
 create or replace function "better_supabase"."organization_slug_problem"(value text, except_organization uuid default null)
 returns text
@@ -67,7 +67,7 @@ revoke execute on function "better_supabase"."organization_slug_problem"(text, u
 grant execute on function "better_supabase"."organization_slug_problem"(text, uuid) to authenticated, service_role;
 
 -- Creates an organization from attrs (its name, slug and the columns in
--- sql.modules.organizations.options.attributes) and makes the caller its owner. The
+-- blocks.organizations.options.attributes) and makes the caller its owner. The
 -- service role passes the owner as attrs.owner_id.
 create or replace function "better_supabase"."create_organization"(attrs jsonb)
 returns uuid
@@ -329,7 +329,7 @@ begin
   if not found then
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  -- Checked here whatever sql.modules.organizations.options.assignmentGuard
+  -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
@@ -651,7 +651,7 @@ grant execute on function "better_supabase"."list_members"(uuid) to authenticate
 revoke execute on function "better_supabase"."list_organization_invitations"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
 
--- sql.modules.organizations.api: entry points for the Data API.
+-- blocks.organizations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

@@ -135,7 +135,7 @@ function lifecycles(
   const list = ctx.list(name, fallback);
   if (list.length === 0 || list.some((item) => !STAGE.test(item))) {
     throw new TypeError(
-      `sql.modules.parties.options.${name} must be a non-empty list of lowercase names`,
+      `blocks.parties.options.${name} must be a non-empty list of lowercase names`,
     );
   }
   return list;

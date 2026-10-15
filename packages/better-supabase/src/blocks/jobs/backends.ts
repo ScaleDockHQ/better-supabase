@@ -295,7 +295,7 @@ const onceOf = (
 
 /**
  * The `jobs` SQL module over a service SQL connection. The same
- * functions back both `sql.modules.jobs.options.backend` values (pgmq and table)
+ * functions back both `blocks.jobs.options.backend` values (pgmq and table)
  * and both schedulers. `now` dates a schedule's first run.
  */
 export function sqlQueueBackend(
@@ -527,7 +527,7 @@ export interface QueuePurgeArgs {
 /**
  * The `jobs` SQL module over a `BlockTransport`, with named arguments: a
  * service-role `rpcTransport(supabase, { schema: "api" })` reaches the
- * wrappers `sql.modules.jobs.api` writes, so stats, dead letters, replays
+ * wrappers `blocks.jobs.api` writes, so stats, dead letters, replays
  * and schedules work without a direct Postgres connection. Over Postgres,
  * pass the `SqlClient` to `createJobs` instead.
  */

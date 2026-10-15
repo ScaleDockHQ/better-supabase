@@ -12,7 +12,7 @@ export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.billing.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.billing.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `betterSupabase.events`, for `billing.*` block events. */
@@ -41,7 +41,7 @@ export interface CheckoutOptions extends CustomerDetails {
   /** A Stripe price id. Pass this or `plan`. */
   readonly price?: string;
   /**
-   * A plan key from `sql.modules.billing.options.plans`, resolved to its
+   * A plan key from `blocks.billing.options.plans`, resolved to its
    * Stripe price in the app's plan catalog (with `interval` when plans have
    * monthly and yearly prices).
    */

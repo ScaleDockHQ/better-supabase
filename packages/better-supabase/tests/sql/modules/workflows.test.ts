@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -9,14 +9,14 @@ import {
   renderModules,
 } from "../../../src/sql/render.ts";
 
-const files = (names: readonly string[], modules: ModulesConfig = {}) =>
+const files = (names: readonly string[], modules: BlocksConfig = {}) =>
   renderModules(names, { modules });
-const schemaOf = (names: readonly string[], modules: ModulesConfig = {}) =>
+const schemaOf = (names: readonly string[], modules: BlocksConfig = {}) =>
   files(names, modules)
     .filter((file) => file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
-const dataOf = (name: string, modules: ModulesConfig = {}) =>
+const dataOf = (name: string, modules: BlocksConfig = {}) =>
   files([name], modules).find(
     (file) => file.kind === "data" && file.module === name,
   )!.contents;
@@ -39,7 +39,7 @@ describe("workflows module", () => {
       "workflow-run:{runId}",
       "workflow-runs:{tenant}",
     ]);
-    const custom: ModulesConfig = { workflows: { mode: "custom" } };
+    const custom: BlocksConfig = { workflows: { mode: "custom" } };
     expect(moduleBody("workflows", { modules: custom })).toBeUndefined();
     const [contract] = customContracts(["workflows"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toContain(
@@ -114,7 +114,7 @@ describe("workflow-sdk-world module", () => {
   });
 
   it("renders nothing in custom mode and lists the dispatcher contract", () => {
-    const custom: ModulesConfig = { "workflow-sdk-world": { mode: "custom" } };
+    const custom: BlocksConfig = { "workflow-sdk-world": { mode: "custom" } };
     expect(
       moduleBody("workflow-sdk-world", { modules: custom }),
     ).toBeUndefined();

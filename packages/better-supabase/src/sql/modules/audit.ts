@@ -650,8 +650,8 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = ${sqlString(
         ctx.manages
-          ? "Set sql.modules.audit.options.restricted to true."
-          : "Map sql.modules.audit.tables.restricted to the table for sensitive details.",
+          ? "Set blocks.audit.options.restricted to true."
+          : "Map blocks.audit.tables.restricted to the table for sensitive details.",
       )};
   end if;`;
   const idempotent = ctx.has("log", "idempotencyKey")
@@ -755,7 +755,7 @@ grant execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) to ${ro
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
 -- caller, so only the owner, the service role and
--- sql.modules.audit.options.trustedRoles may execute it. A function owned by
+-- blocks.audit.options.trustedRoles may execute it. A function owned by
 -- postgres calls it on behalf of a client with the real actor context.
 ${PREVIOUS_TRUSTED_ARGS(id)
   .map(

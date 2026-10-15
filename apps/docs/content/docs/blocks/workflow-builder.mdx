@@ -35,7 +35,7 @@ better-supabase sql add workflow-builder   # adds workflows, tenant and access a
 | `workflow.publish` | members publish a version                                                                   | none by default |
 | `workflow.admin`   | members manage triggers, credentials, alerts, opt-outs and grants, and restrict definitions | none by default |
 
-Grant the keys to your roles in `sql.modules.access.roles`.
+Grant the keys to your roles in `blocks.access.roles`.
 
 ## Graphs
 
@@ -289,7 +289,7 @@ first: an entry `workflow.node.<step>` (such as `workflow.node.crm.lookup`)
 names the permission. Next comes the step's own `operation`, set on the
 step in `steps` (such as `invoices.void`): the provider's entry for it, or
 the operation name itself as the key. Without either, the step needs the module's `run` key,
-after the rename in `sql.modules.workflow-builder.permissions`. Trigger,
+after the rename in `blocks.workflow-builder.permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
 one of them in the tenant can't publish the version: the `forbidden` error
 has `hint: "WORKFLOW_PUBLISHER_FORBIDDEN"` and lists the keys they lack in

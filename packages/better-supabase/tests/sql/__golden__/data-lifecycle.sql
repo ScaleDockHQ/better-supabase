@@ -3,7 +3,7 @@
 -- @bs-module data-lifecycle@5 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -596,7 +596,7 @@ revoke execute on function "better_supabase"."expired_data_exports"(integer) fro
 revoke execute on function "better_supabase"."forget_data_exports"(uuid[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."expired_data_exports"(integer) to service_role;
 
--- Anonymizes the rows sql.modules.data-lifecycle.options.anonymize names once
+-- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,
 -- marked with the time. Returns { table: rows }.
 create or replace function "better_supabase"."anonymize_due"(max_rows integer default 1000)
@@ -663,7 +663,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public)
 values ('data-exports', 'data-exports', false)
@@ -679,7 +679,7 @@ on conflict (name) do update
 -- @bs-module data-lifecycle@5 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1637,7 +1637,7 @@ revoke execute on function "better_supabase"."expired_data_exports"(integer) fro
 revoke execute on function "better_supabase"."forget_data_exports"(uuid[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."expired_data_exports"(integer) to service_role;
 
--- Anonymizes the rows sql.modules.data-lifecycle.options.anonymize names once
+-- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,
 -- marked with the time. Returns { table: rows }.
 create or replace function "better_supabase"."anonymize_due"(max_rows integer default 1000)
@@ -1704,7 +1704,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public)
 values ('data-exports', 'data-exports', false)
@@ -1720,7 +1720,7 @@ on conflict (name) do update
 -- @bs-module data-lifecycle@5 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2315,7 +2315,7 @@ revoke execute on function "app_private"."expired_data_exports"(integer) from pu
 revoke execute on function "app_private"."forget_data_exports"(uuid[]) from public, anon, authenticated;
 grant execute on function "app_private"."expired_data_exports"(integer) to service_role;
 
--- Anonymizes the rows sql.modules.data-lifecycle.options.anonymize names once
+-- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,
 -- marked with the time. Returns { table: rows }.
 create or replace function "app_private"."anonymize_due"(max_rows integer default 1000)
@@ -2382,7 +2382,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public)
 values ('data-exports', 'data-exports', false)
@@ -2398,7 +2398,7 @@ on conflict (name) do update
 -- @bs-module data-lifecycle@5 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2991,7 +2991,7 @@ revoke execute on function "better_supabase"."expired_data_exports"(integer) fro
 revoke execute on function "better_supabase"."forget_data_exports"(uuid[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."expired_data_exports"(integer) to service_role;
 
--- Anonymizes the rows sql.modules.data-lifecycle.options.anonymize names once
+-- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,
 -- marked with the time. Returns { table: rows }.
 create or replace function "better_supabase"."anonymize_due"(max_rows integer default 1000)
@@ -3040,7 +3040,7 @@ grant execute on function "better_supabase"."organization_deletion"(uuid) to aut
 grant execute on function "better_supabase"."due_organization_deletions"(integer) to service_role;
 grant execute on function "better_supabase"."purge_organization"(uuid) to service_role;
 
--- sql.modules.data-lifecycle.api: entry points for the Data API.
+-- blocks.data-lifecycle.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -3248,7 +3248,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public)
 values ('data-exports', 'data-exports', false)

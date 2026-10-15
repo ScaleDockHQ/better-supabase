@@ -35,11 +35,11 @@ export interface DriveOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for uploads and downloads. */
   readonly storage?: AttachmentStorage;
-  /** `sql.modules.drive.schema`, or the API schema of its wrappers. */
+  /** `blocks.drive.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
-  /** `sql.modules.attachments.schema`, when it differs from `schema`. */
+  /** `blocks.attachments.schema`, when it differs from `schema`. */
   readonly attachmentsSchema?: string;
-  /** Must match `sql.modules.attachments.options.requireScan`. Default `true`. */
+  /** Must match `blocks.attachments.options.requireScan`. Default `true`. */
   readonly requireScan?: boolean;
   /** Lifetime of a signed download URL in seconds. Default 300. */
   readonly downloadTtl?: number;

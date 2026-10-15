@@ -236,7 +236,7 @@ export function Sidebar({ organizationId }: { organizationId: string }) {
 
 The list and the tree load again when the private Realtime topics
 `ai-chats:{userId}` and `ai-chat:{chatId}` announce a change
-(`sql.modules["ai-chat"].options.listTopic` and `topic`). In Server
+(`blocks["ai-chat"].options.listTopic` and `topic`). In Server
 Components the hooks throw; call the block on the server instead.
 
 ## Message format

@@ -80,7 +80,7 @@ suspended (`ORGANIZATION_MEMBER_SUSPENDED`).
 ## Suspending members
 
 With a `disabledAt` column on the memberships table (managed tables have it;
-an adopted one maps `sql.modules.tenant.columns.memberships.disabledAt`, see
+an adopted one maps `blocks.tenant.columns.memberships.disabledAt`, see
 [suspended memberships](/docs/blocks/access#suspended-memberships)),
 `suspend_member(organization, member)` switches a member off in one
 organization without removing them. They keep their role and their row, get
@@ -88,7 +88,7 @@ no permissions there, and `resume_member` gives everything back.
 
 Both functions check the `suspendMember` action, which defaults to the
 `removeMember` key (`members.remove`, or what
-`sql.modules.organizations.permissions.removeMember` sets), and the role
+`blocks.organizations.permissions.removeMember` sets), and the role
 ceiling: the caller must be able to assign the member's role
 (`ORGANIZATION_ROLE_CEILING`). They refuse
 the caller's own membership (`ORGANIZATION_SELF`), and `suspend_member`
@@ -155,7 +155,7 @@ export async function inviteMember(organizationId: string, email: string) {
 ```
 
 `rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
-`better_supabase` or a `sql.modules.<module>.schema` to `[api] schemas`: those
+`better_supabase` or a `blocks.<module>.schema` to `[api] schemas`: those
 schemas hold internal helpers that policies call, and doctor reports exposing
 them as BS312. Set `api: "api"` on the `organizations` and `invitations`
 modules instead: `sql add` writes a `security invoker` entry point in `api` for
@@ -166,11 +166,9 @@ arguments. Add `api` to `[api] schemas` and pass
 `schema: { organizations: "api", invitations: "app_api" }`.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    organizations: { api: "api" },
-    invitations: { api: "api" },
-  },
+blocks: {
+  organizations: { api: "api" },
+  invitations: { api: "api" },
 },
 ```
 
@@ -251,7 +249,7 @@ SQL hooks run inside the functions for every caller:
 ## Switching organizations
 
 `switch_organization(organization)` checks the caller is a member and the organization
-is active, then follows `sql.modules.access.activeTenant`:
+is active, then follows `blocks.access.activeTenant`:
 
 | Source          | `switch_organization` writes                               | `refresh` |
 | --------------- | ---------------------------------------------------------- | --------- |
@@ -265,7 +263,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 ## Options
 
-`sql.modules.organizations.options`:
+`blocks.organizations.options`:
 
 | Option            | Default                             | What it does                                                                                                                                                                                                                                                          |
 | ----------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -275,7 +273,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 | `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                                                                                                                                                                            |
 | `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships; `lifecycle` schedules the deletion with the data-lifecycle module's `request_organization_deletion` (grace period, then the purge job); `none` writes no `delete_organization`, so no entry point deletes at once |
 | `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                                                                                                                                                                                 |
-| `auditCategory`   | `organization`                      | the category of the `organization.deleted` audit entry; `audit_event` maps it through `sql.modules.audit.options.values` too, so an adopted log with its own categories can map `organization` there instead                                                          |
+| `auditCategory`   | `organization`                      | the category of the `organization.deleted` audit entry; `audit_event` maps it through `blocks.audit.options.values` too, so an adopted log with its own categories can map `organization` there instead                                                               |
 | `assignmentGuard` | `module`                            | `external` leaves role checks on an adopted memberships table to another trigger                                                                                                                                                                                      |
 | `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                                                                                                                                                                                       |
 | `slugMinLength`   | `2`                                 | the shortest slug                                                                                                                                                                                                                                                     |
@@ -293,7 +291,7 @@ same for `update_member_role` and `remove_member`: platform staff with that
 key pass the permission check, and the role ceiling still applies, so the
 access model's `can_assign` must allow them the roles they change.
 
-`sql.modules.invitations.options` (`tokenStorage: "plain"` is migration-only: the
+`blocks.invitations.options` (`tokenStorage: "plain"` is migration-only: the
 config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 
 | Option                  | Default    | What it does                                                 |
@@ -311,19 +309,19 @@ Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.
 
 An invitation with a null organization is a platform invitation. It needs
-`sql.modules.access.model: "catalog"` with a `platformAssignments` table, and lives in
+`blocks.access.model: "catalog"` with a `platformAssignments` table, and lives in
 its own `platform_invitations` table. The inviter needs the `invitePlatform`
 permission (`platform.invite`) and every permission the platform role grants,
 both when inviting and when the invitation is accepted. Managed catalog roles
 have a `scope` column (`tenant` or `platform`), and neither kind of role is
-assignable as the other. An adopted catalog maps `sql.modules.access.columns.roles.scope`
-and names its values in `sql.modules.access.options.tenantRoleScope` and
+assignable as the other. An adopted catalog maps `blocks.access.columns.roles.scope`
+and names its values in `blocks.access.options.tenantRoleScope` and
 `platformRoleScope`; an adopted invitations table that also holds platform
 invitations (rows without an organization) maps `tables.platformInvitations`
 to itself.
 
 Under the `provider` model, name the table that holds platform role
-assignments in `sql.modules.invitations.options.platformRoles`:
+assignments in `blocks.invitations.options.platformRoles`:
 
 ```ts title="better-supabase.config.ts"
 invitations: {
@@ -420,34 +418,32 @@ names and set the columns you don't have to `null`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      access: { model: "catalog" },
-      tenant: {
-        mode: "adopt",
-        tables: { memberships: "public.organization_users" },
-        columns: {
-          memberships: { tenant: "organization_id", role: "role_id" },
+  blocks: {
+    access: { model: "catalog" },
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: {
+        memberships: { tenant: "organization_id", role: "role_id" },
+      },
+    },
+    organizations: {
+      mode: "adopt",
+      tables: { organizations: "public.organizations" },
+      columns: { organizations: { createdBy: null, deletedAt: null } },
+      options: { attributes: ["logo_url"] },
+    },
+    invitations: {
+      mode: "adopt",
+      tables: { invitations: "public.organization_invitations" },
+      columns: {
+        invitations: {
+          tenant: "organization_id",
+          role: "role_id",
+          tokenHash: "token",
         },
       },
-      organizations: {
-        mode: "adopt",
-        tables: { organizations: "public.organizations" },
-        columns: { organizations: { createdBy: null, deletedAt: null } },
-        options: { attributes: ["logo_url"] },
-      },
-      invitations: {
-        mode: "adopt",
-        tables: { invitations: "public.organization_invitations" },
-        columns: {
-          invitations: {
-            tenant: "organization_id",
-            role: "role_id",
-            tokenHash: "token",
-          },
-        },
-        options: { tokenStorage: "plain" },
-      },
+      options: { tokenStorage: "plain" },
     },
   },
 });

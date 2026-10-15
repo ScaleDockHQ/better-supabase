@@ -36,19 +36,17 @@ subjects: {
   quote: { table: "public.quotes", idType: "uuid", permissions: { read: "quotes.read", write: "quotes.update" } },
   page: { table: "public.pages", idType: "uuid" },
 },
-sql: {
-  modules: {
-    versions: {
-      options: {
-        keep: 50,
-        debounce: 300,
-        subjects: {
-          quote: {
-            columns: ["title", "lines", "total"],
-            freeze: { column: "status", values: ["sent", "accepted"] },
-          },
-          page: { columns: ["body"], auto: true, apply: "public.apply_page_version" },
+blocks: {
+  versions: {
+    options: {
+      keep: 50,
+      debounce: 300,
+      subjects: {
+        quote: {
+          columns: ["title", "lines", "total"],
+          freeze: { column: "status", values: ["sent", "accepted"] },
         },
+        page: { columns: ["body"], auto: true, apply: "public.apply_page_version" },
       },
     },
   },

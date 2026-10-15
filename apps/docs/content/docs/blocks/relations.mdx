@@ -26,16 +26,14 @@ import {
 Without `kinds`, the module declares four:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    relations: {
-      options: {
-        kinds: {
-          blocks: { inverse: "blocked_by", acyclic: true },
-          parent: { inverse: "children", cardinality: "one", acyclic: true },
-          relates: { symmetric: true },
-          created_from: { inverse: "converted_to", cardinality: "one", acyclic: true },
-        },
+blocks: {
+  relations: {
+    options: {
+      kinds: {
+        blocks: { inverse: "blocked_by", acyclic: true },
+        parent: { inverse: "children", cardinality: "one", acyclic: true },
+        relates: { symmetric: true },
+        created_from: { inverse: "converted_to", cardinality: "one", acyclic: true },
       },
     },
   },

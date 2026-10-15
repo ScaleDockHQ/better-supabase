@@ -126,10 +126,10 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       OrgAttributes: "OrganizationAttributes",
       orgLogoBucket: "organizationLogoBucket",
       OrgLogoBucketOptions: "OrganizationLogoBucketOptions",
-      KitsConfig: "ModulesConfig",
-      KitModuleConfig: "ModuleConfig",
-      KitMode: "ModuleMode",
-      AccessKitConfig: "AccessModuleConfig",
+      KitsConfig: "BlocksConfig",
+      KitModuleConfig: "BlockConfig",
+      KitMode: "BlockMode",
+      AccessKitConfig: "AccessBlockConfig",
       renderKit: "renderModules",
       kitLayout: "moduleLayout",
       kitPermissionKeys: "modulePermissionKeys",
@@ -225,7 +225,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\btoken_scope_allows\s*\(|["']oauth-client["']/,
         message:
-          "Delegated tokens are narrowed inside `member_can`, `platform_can` and `tenant_ids_with`: a permission passes only when one of the token's scopes maps to it. Map scopes in `sql.modules.access.scopes` or `authorization.delegation.scopes`; a `token_scope_allows` check in a write policy is now covered by the cap",
+          "Delegated tokens are narrowed inside `member_can`, `platform_can` and `tenant_ids_with`: a permission passes only when one of the token's scopes maps to it. Map scopes in `blocks.access.scopes` or `authorization.delegation.scopes`; a `token_scope_allows` check in a write policy is now covered by the cap",
       },
       {
         pattern:

@@ -124,7 +124,7 @@ function build(ctx: ModuleContext): string {
   const versionsModule = ctx.of("versions");
   if (versionsModule.mode === "custom") {
     throw new TypeError(
-      "sql.modules.signatures needs the versions table; versions can't be in custom mode",
+      "blocks.signatures needs the versions table; versions can't be in custom mode",
     );
   }
   const requests = ctx.table("requests");

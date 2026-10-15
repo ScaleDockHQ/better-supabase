@@ -50,7 +50,7 @@ export interface PushTarget {
 export interface PushDevicesOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))`, `rpcTransport(supabase)`, or over `postgres.admin` for the sender. */
   readonly transport: BlockTransport;
-  /** `sql.modules.push.schema`. Defaults to `better_supabase`. */
+  /** `blocks.push.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

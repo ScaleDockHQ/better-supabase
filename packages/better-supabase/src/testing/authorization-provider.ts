@@ -1,5 +1,5 @@
 import type { AuthorizationProvider } from "../config/authorization.ts";
-import type { DisabledRow } from "../config/modules.ts";
+import type { DisabledRow } from "../config/blocks.ts";
 
 import {
   isScopeName,

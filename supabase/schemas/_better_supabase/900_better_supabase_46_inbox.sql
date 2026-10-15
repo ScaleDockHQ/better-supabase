@@ -2,7 +2,7 @@
 -- @bs-module inbox@1 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1785,7 +1785,7 @@ begin
 end;
 $$;
 
--- sql.modules.inbox.api: entry points for the Data API.
+-- blocks.inbox.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

@@ -46,7 +46,7 @@ export function raise(
 }
 
 /**
- * How tokens are stored (`sql.modules.invitations.options.tokenStorage`): `sha256`
+ * How tokens are stored (`blocks.invitations.options.tokenStorage`): `sha256`
  * (the default) keeps only the hash; `plain` keeps the token itself, for an
  * adopted table whose open invitations hold plain tokens.
  */
@@ -55,7 +55,7 @@ export function tokenHash(ctx: ModuleContext, token: string): string {
   if (storage === "plain") return token;
   if (storage !== "sha256") {
     throw new TypeError(
-      `sql.modules.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
+      `blocks.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
     );
   }
   return sha256Hex(token);
@@ -81,7 +81,7 @@ function sharesTable(ctx: ModuleContext): boolean {
 
 export function tenantTable(ctx: ModuleContext): InviteTable {
   const shared = sharesTable(ctx);
-  // Managed tables add prefill only on request (`sql.modules.invitations.options.prefill`).
+  // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
   const prefill =
     ctx.has("invitations", "prefill") &&
     (!ctx.manages || ctx.flag("prefill", false));
@@ -99,7 +99,7 @@ export function tenantTable(ctx: ModuleContext): InviteTable {
 
 /**
  * Platform invitations, with the catalog model's platform roles. Managed:
- * their own table. Adopted: `sql.modules.invitations.tables.platformInvitations`,
+ * their own table. Adopted: `blocks.invitations.tables.platformInvitations`,
  * which may name the tenant table.
  */
 export function platformTable(ctx: ModuleContext): InviteTable | undefined {

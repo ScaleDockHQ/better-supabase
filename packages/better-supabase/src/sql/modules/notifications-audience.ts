@@ -60,14 +60,10 @@ function customAudience(
 ): string {
   const template = ctx.modules.access?.functions?.holdersOf;
   if (template === undefined) return unavailable;
-  const call = fillTemplate(
-    "sql.modules.access.functions.holdersOf",
-    template,
-    {
-      permission: "(notification ->> 'permission')",
-      tenant: "v_tenant",
-    },
-  );
+  const call = fillTemplate("blocks.access.functions.holdersOf", template, {
+    permission: "(notification ->> 'permission')",
+    tenant: "v_tenant",
+  });
   return audienceAppend(needsTenant, named, call);
 }
 
@@ -127,13 +123,13 @@ export function channelDefaults(ctx: ModuleContext, channel: string): string {
   const value = ctx.option("channelDefaults") ?? {};
   if (!isRecord(value)) {
     throw new TypeError(
-      "sql.modules.notifications.options.channelDefaults must map channel names to booleans",
+      "blocks.notifications.options.channelDefaults must map channel names to booleans",
     );
   }
   const cases = Object.entries(value).map(([channel, enabled]) => {
     if (!NAME.test(channel) || typeof enabled !== "boolean") {
       throw new TypeError(
-        `sql.modules.notifications.options.channelDefaults.${channel} must be a boolean`,
+        `blocks.notifications.options.channelDefaults.${channel} must be a boolean`,
       );
     }
     return `when ${sqlString(channel)} then ${String(enabled)}`;

@@ -101,13 +101,13 @@ describe("createModuleContext", () => {
     expect(build({ schema: "1x" })).toThrow(/not a valid identifier/);
     expect(build({ idType: "jsonb" })).toThrow(/idType/);
     expect(build({ options: { flavor: "map" } })).toThrow(
-      'sql.modules.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
+      'blocks.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
     );
     expect(() =>
       createModuleContext("bare", () => undefined, {
         modules: { bare: { options: { size: 1 } } },
       }),
-    ).toThrow('sql.modules.bare.options: unknown option "size". Options: none');
+    ).toThrow('blocks.bare.options: unknown option "size". Options: none');
     const ctx = createModuleContext("demo", () => names);
     expect(() => ctx.table("nope")).toThrow(/no table/);
     expect(() => ctx.col("items", "nope")).toThrow(/no column/);
@@ -118,7 +118,7 @@ describe("createModuleContext", () => {
     expect(ctx.option("size")).toBeUndefined();
   });
 
-  it("takes the id type from sql.modules.access, then the provider", () => {
+  it("takes the id type from blocks.access, then the provider", () => {
     expect(
       createModuleContext("demo", () => names, {
         modules: { access: { idType: "text" } },
@@ -202,7 +202,7 @@ describe("hooks and events", () => {
         modules: { demo: { hooks: { functions: { nope: "x" } } } },
       }),
     ).toThrow(
-      'sql.modules.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
+      'blocks.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
     );
     expect(() =>
       createModuleContext("demo", () => names, {
@@ -220,7 +220,7 @@ describe("hooks and events", () => {
       createModuleContext("demo", () => hooked, {
         modules: { demo: { hooks: { schema: "1x" } } },
       }),
-    ).toThrow("sql.modules.demo.hooks.schema");
+    ).toThrow("blocks.demo.hooks.schema");
   });
 
   it("writes outbox events only with the outbox installed", () => {
@@ -280,7 +280,7 @@ describe("module modes", () => {
     expect(() => {
       checkModules({ invitations: { options: { tokenStorage: "plain" } } });
     }).toThrow(
-      'sql.modules.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set sql.modules.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set blocks.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
     );
     expect(() => {
       checkModules({ outbox: { options: { blockSource: "domain" } } });
@@ -397,7 +397,7 @@ describe("module modes", () => {
     expect(sql).toContain("Adopted:");
   });
 
-  it("keeps the managed tenant module's names and takes roles from sql.modules.access", () => {
+  it("keeps the managed tenant module's names and takes roles from blocks.access", () => {
     const sql = SQL_MODULES["tenant"]!.sql;
     expect(sql).toContain(
       'create table if not exists "better_supabase"."memberships"',
@@ -600,7 +600,7 @@ describe("statement helpers", () => {
     );
     expect(() =>
       invalid.record({ ...event, audit: { category: "data" } }),
-    ).toThrow("sql.modules.demo.options.auditCategory must be a string");
+    ).toThrow("blocks.demo.options.auditCategory must be a string");
   });
 
   it("checks each recorded event against the module's catalog", () => {
@@ -715,7 +715,7 @@ describe("integrates", () => {
   it("rejects a jobs schema and keeps access functions in better_supabase", () => {
     expect(() => {
       checkModules({ jobs: { schema: "app" } });
-    }).toThrow("sql.modules.jobs.schema");
+    }).toThrow("blocks.jobs.schema");
     expect(() => {
       checkModules({ jobs: { schema: "better_supabase" } });
     }).not.toThrow();

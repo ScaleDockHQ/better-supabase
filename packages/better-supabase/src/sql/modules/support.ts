@@ -879,7 +879,7 @@ $$;`;
 
 /**
  * `support_target_claims(target)`: the claims the target would get. With
- * `sql.modules.support.options.claimsHook`, the app's custom access token hook
+ * `blocks.support.options.claimsHook`, the app's custom access token hook
  * builds them from a synthetic event, so the session sees exactly what the
  * user sees and none of the admin's claims.
  */
@@ -954,12 +954,12 @@ function approvalMode(ctx: ModuleContext): ApprovalMode {
   const mode = ctx.text("approval", "distinct");
   if (!isApprovalMode(mode)) {
     throw new TypeError(
-      `sql.modules.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
+      `blocks.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
     );
   }
   if (mode === "distinct" && !ctx.hasTable("requests")) {
     throw new TypeError(
-      'sql.modules.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
+      'blocks.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
     );
   }
   return mode;
@@ -974,7 +974,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     !/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(claimsHook)
   ) {
     throw new TypeError(
-      `sql.modules.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
+      `blocks.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
     );
   }
   return [

@@ -259,7 +259,7 @@ export interface Templates {
 
 export interface TemplatesOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.templates.schema`, or the API schema of its wrappers. */
+  /** `blocks.templates.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** The template types, by name. A type without `apply` can't be applied. */
   readonly types?: Readonly<Record<string, TemplateType>>;

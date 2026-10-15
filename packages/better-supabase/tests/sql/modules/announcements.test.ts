@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderModules } from "../../../src/sql/render.ts";
 
-const sqlOf = (names: readonly string[], modules: ModulesConfig = {}): string =>
+const sqlOf = (names: readonly string[], modules: BlocksConfig = {}): string =>
   renderModules(names, { modules })
     .filter((file) => file.contents.includes("announcement_dismissals"))
     .map((file) => file.contents)
@@ -39,6 +39,6 @@ describe("announcements module", () => {
       sqlOf(["announcements"], {
         announcements: { options: { topic: "no spaces" } },
       }),
-    ).toThrow("sql.modules.announcements.options.topic");
+    ).toThrow("blocks.announcements.options.topic");
   });
 });

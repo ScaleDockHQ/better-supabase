@@ -15,7 +15,7 @@ import { bs } from "@/lib/supabase/server";
 
 import { demoEmbedder } from "./demo-embedder";
 
-/** `sql.modules.knowledge.api` and `sql.modules.memory.api`. */
+/** `blocks.knowledge.api` and `blocks.memory.api`. */
 const API_SCHEMA = "api";
 
 let embedderInstance: Embedder | undefined;
