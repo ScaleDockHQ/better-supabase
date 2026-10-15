@@ -1,3 +1,4 @@
+import type { SignaturesEvents } from "../../blocks/forms/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -22,7 +23,7 @@ import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SignaturesEvents> = {
   "signature.requested": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "versionId"],
@@ -124,7 +125,7 @@ function build(ctx: ModuleContext): string {
   const versionsModule = ctx.of("versions");
   if (versionsModule.mode === "custom") {
     throw new TypeError(
-      "sql.modules.signatures needs the versions table; versions can't be in custom mode",
+      "blocks.signatures needs the versions table; versions can't be in custom mode",
     );
   }
   const requests = ctx.table("requests");

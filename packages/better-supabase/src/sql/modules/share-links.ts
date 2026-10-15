@@ -1,3 +1,4 @@
+import type { ShareLinksEvents } from "../../blocks/share-links/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -15,7 +16,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ShareLinksEvents> = {
   "share_link.created": {
     subject: "share-links",
     payload: ["organizationId", "id", "subjectType", "subjectId"],

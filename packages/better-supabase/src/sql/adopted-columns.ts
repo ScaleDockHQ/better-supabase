@@ -1,4 +1,4 @@
-import type { ModulesConfig } from "../config/modules.ts";
+import type { BlocksConfig } from "../config/blocks.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
@@ -18,7 +18,7 @@ export interface AdoptedTable {
  * Every table the adopt-mode modules in `modules` use, with the columns
  * their SQL names: mapped to `null` and unused optional columns are left out.
  */
-export function adoptedTables(modules: ModulesConfig): readonly AdoptedTable[] {
+export function adoptedTables(modules: BlocksConfig): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
   for (const name of Object.keys(modules)) {
     if ((modules[name]?.mode ?? "managed") !== "adopt") continue;
@@ -60,7 +60,7 @@ export function adoptedTables(modules: ModulesConfig): readonly AdoptedTable[] {
  * those configs so `has()` does not treat a missing column as present.
  */
 export function adoptedColumnProblems(
-  modules: ModulesConfig,
+  modules: BlocksConfig,
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): readonly string[] {
@@ -88,7 +88,7 @@ export function adoptedColumnProblems(
         const used = mapped ?? physical;
         if (columns.has(used)) continue;
         problems.push(
-          `sql.modules.${name} is in adopt mode and uses ${schema}.${tableName}.${used} (${logical}.${column}), but that column is not in the table. Map sql.modules.${name}.columns.${logical}.${column} to null, or add the column.`,
+          `blocks.${name} is in adopt mode and uses ${schema}.${tableName}.${used} (${logical}.${column}), but that column is not in the table. Map blocks.${name}.columns.${logical}.${column} to null, or add the column.`,
         );
       }
     }
@@ -98,7 +98,7 @@ export function adoptedColumnProblems(
       for (const [column, physical] of Object.entries(extra.columns)) {
         if (physical === null || columns.has(physical)) continue;
         problems.push(
-          `sql.modules.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set options.subjects so that column matches the table, or add the column.`,
+          `blocks.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set options.subjects so that column matches the table, or add the column.`,
         );
       }
     }

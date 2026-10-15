@@ -1,3 +1,4 @@
+import type { InvoicesEvents } from "../../blocks/invoices/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const INVOICE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<InvoicesEvents> = {
   "invoice.created": { subject: "invoices", payload: [...INVOICE] },
   "invoice.issued": {
     subject: "invoices",
@@ -198,7 +199,7 @@ function build(ctx: ModuleContext): string {
   const termsDays = ctx.number("termsDays", 30);
   if (!Number.isInteger(termsDays) || termsDays < 0) {
     throw new TypeError(
-      "sql.modules.invoices.options.termsDays must be 0 or a positive integer",
+      "blocks.invoices.options.termsDays must be 0 or a positive integer",
     );
   }
   const n: InvoiceNames = {

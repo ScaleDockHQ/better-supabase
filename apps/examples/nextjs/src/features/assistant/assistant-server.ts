@@ -35,7 +35,7 @@ import { bs } from "@/lib/supabase/server";
 
 import { demoModel } from "./demo-model";
 
-/** `sql.modules["ai-chat"].api`, `["ai-files"].api` and `streams.api`. */
+/** `blocks["ai-chat"].api`, `["ai-files"].api` and `streams.api`. */
 const API_SCHEMA = "api";
 
 const DEFAULT_MODEL = "openai/gpt-5-mini";

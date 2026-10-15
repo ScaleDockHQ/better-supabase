@@ -12,3 +12,6 @@ export {
   type Reminders,
   type RemindersOptions,
 } from "./reminders.ts";
+export { remindersBlock } from "./manifest.ts";
+export { remindersEvents } from "./events.ts";
+export type { RemindersEvents } from "./events.ts";

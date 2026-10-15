@@ -31,3 +31,5 @@ export {
   sqlTransport,
 } from "../core/block-transport.ts";
 export type { BlockTransport } from "../core/block-transport.ts";
+export { credentialsEvents } from "../blocks/credentials/events.ts";
+export type { CredentialsEvents } from "../blocks/credentials/events.ts";

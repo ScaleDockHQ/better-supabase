@@ -87,7 +87,7 @@ export type AgentFilter = "store" | "mine" | "installed";
 export interface AgentsOptions extends BlockTemporalOptions {
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.agents.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.agents.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

@@ -1,3 +1,4 @@
+import type { BillingEvents } from "./events.ts";
 import type {
   Billing,
   BillingOptions,
@@ -51,9 +52,9 @@ export function createBilling(options: BillingOptions): Billing {
     work: (client: StripeClient) => Promise<T>,
   ): AsyncResult<T> => stripeCall(async () => work(await stripe()));
 
-  const emitEvent = blockEmitter(options);
+  const emitEvent = blockEmitter<BillingEvents>(options);
   const emit = (
-    type: BlockEventType & `billing.${string}`,
+    type: BlockEventType<BillingEvents>,
     data: BillingEventData,
   ): void => {
     emitEvent(

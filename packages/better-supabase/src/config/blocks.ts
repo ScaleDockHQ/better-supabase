@@ -1,5 +1,5 @@
 /**
- * `sql.modules` in `better-supabase.config.ts`: how each SQL module maps onto
+ * `blocks` in `better-supabase.config.ts`: how each SQL module maps onto
  * the app's database. A module's contract (the functions other modules and
  * the TypeScript side call) stays the same in every mode; only the tables
  * behind it change.
@@ -11,11 +11,11 @@
  * `create table`. `custom`: the app implements the contract functions itself;
  * the module writes nothing and doctor checks the signatures (BS307).
  */
-export type ModuleMode = "managed" | "adopt" | "custom";
+export type BlockMode = "managed" | "adopt" | "custom";
 
 /** Options every module takes. */
-export interface ModuleConfig {
-  readonly mode?: ModuleMode;
+export interface BlockConfig {
+  readonly mode?: BlockMode;
   /** Schema of the module's functions and managed tables. Defaults to `sql.schema`, then `better_supabase`. */
   readonly schema?: string;
   /**
@@ -115,7 +115,7 @@ export interface DisabledRow {
   readonly active?: readonly string[];
 }
 
-export interface AccessModuleConfig extends ModuleConfig {
+export interface AccessBlockConfig extends BlockConfig {
   /**
    * `roles`: a fixed role list from `roles` (the default without
    * `authorization`; with it, `provider` is the default). `catalog`: role,
@@ -193,16 +193,16 @@ export interface AccessModuleConfig extends ModuleConfig {
   readonly activeTenant?: ActiveTenantSource;
 }
 
-/** `sql.modules` in the config, keyed by module name. */
-export interface ModulesConfig {
-  readonly access?: AccessModuleConfig;
-  /** `AccessModuleConfig` is listed so an `access` literal passes the excess-property check. */
-  readonly [module: string]: ModuleConfig | AccessModuleConfig | undefined;
+/** `blocks` in the config, keyed by module name. */
+export interface BlocksConfig {
+  readonly access?: AccessBlockConfig;
+  /** `AccessBlockConfig` is listed so an `access` literal passes the excess-property check. */
+  readonly [module: string]: BlockConfig | AccessBlockConfig | undefined;
 }
 
 /** A module's config with defaults applied. */
 export interface ResolvedModule {
-  readonly mode: ModuleMode;
+  readonly mode: BlockMode;
   readonly schema: string;
   readonly tables: Readonly<Record<string, string | null>>;
   readonly columns: Readonly<
@@ -225,7 +225,7 @@ export interface ResolvedModule {
 
 const MODULE_SCHEMA = "better_supabase";
 
-export function resolveModule(config: ModuleConfig = {}): ResolvedModule {
+export function resolveModule(config: BlockConfig = {}): ResolvedModule {
   return {
     mode: config.mode ?? "managed",
     schema: config.schema ?? MODULE_SCHEMA,

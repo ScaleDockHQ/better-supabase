@@ -17,7 +17,7 @@ Turn on `readPolicy` so members read their tenant's entries with
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: { audit: { options: { readPolicy: true } } } },
+  blocks: { audit: { options: { readPolicy: true } } },
 });
 ```
 
@@ -58,7 +58,7 @@ An id that isn't 1 to 128 safe characters is dropped. `scope` defaults
 to `tenant` with an organization and `platform` without one, and an adopted
 log can take its own value (`region`, say). An adopted log's columns outside
 the module's model are filled from metadata keys with
-`sql.modules.audit.options.metadataColumns` (see
+`blocks.audit.options.metadataColumns` (see
 [SQL modules](/docs/blocks/sql#audit-log)). A key the event leaves out
 leaves its column to the column's default, so a `not null default` column
 keeps working, and the mapped keys are removed from the stored metadata
@@ -129,7 +129,7 @@ Set `audit: false` on a module to keep its actions out of the log; they
 still reach the outbox:
 
 ```ts
-sql: { modules: { flags: { audit: false } } },
+blocks: { flags: { audit: false } },
 ```
 
 `options.auditCategory` on `organizations`, `organizations-suspension` and
@@ -402,4 +402,4 @@ column is `null` keeps the `olderThan` default. Run the job
 until it returns 0; each call deletes at most `batch` entries per tenant.
 `purgeAuditLog` also takes a service-role transport instead of the SQL
 connection, such as `rpcTransport(admin, { schema: "api" })` over the
-wrappers `sql.modules.audit.api` writes.
+wrappers `blocks.audit.api` writes.

@@ -12,7 +12,7 @@ lets `verify` and secret scanners reject a mistyped or made-up key without a
 database lookup; keys created before it (no checksum) still verify.
 
 Set the prefix to your product's, such as `acme`, with `createApiKeys({ prefix })`
-and `sql.modules.api-keys.options.prefix`, so scanners and support can tell your
+and `blocks.api-keys.options.prefix`, so scanners and support can tell your
 keys apart. It is `bs` by default.
 
 ```bash
@@ -33,7 +33,7 @@ every tenant its user belongs to, so it needs `api_keys.own` in each of them;
 a user without any membership can still create one. The default roles give
 `admin` both and `member` the second. API keys are never part of a
 [data export](/docs/blocks/data-lifecycle); the purge still deletes a
-tenant's keys. Rename the keys with `sql.modules.api-keys.permissions`.
+tenant's keys. Rename the keys with `blocks.api-keys.permissions`.
 
 ## Managing keys
 
@@ -110,7 +110,7 @@ answers 429 with `Retry-After`. A personal key also answers 401 while its user
 is disabled, banned in Supabase Auth (`auth.users.banned_until` in the future)
 or soft-deleted, the same as the user's sign-in. Each verification counts against the key's
 limit and updates `last_used_at` at most once a minute
-(`sql.modules.api-keys.options.touchInterval`, in seconds).
+(`blocks.api-keys.options.touchInterval`, in seconds).
 
 The `apiKey` caller carries `createdAt` (a `Temporal.Instant`) and
 `createdBy` (the creating user's id) when the key row has them, so a guard or
@@ -198,7 +198,7 @@ create policy deals_read_with_key on public.deals for select to authenticated
 | `has_scope(scope)`                            | everyone                        | Whether the request's key carries `scope` (or has no key) |
 | `api_key_tenant()`                            | everyone                        | The tenant of the request's key, or `null`                |
 
-Restrict the scopes keys may carry with `sql.modules.api-keys.options.scopes`
+Restrict the scopes keys may carry with `blocks.api-keys.options.scopes`
 (a list); `create_api_key` then refuses any other with `API_KEY_SCOPE_UNKNOWN`.
 With an [authorization provider](/docs/extending/authorization-providers),
 `scopes: "catalog"` takes the list from the provider's `permissions`, so a

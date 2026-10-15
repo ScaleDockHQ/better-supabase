@@ -24,7 +24,7 @@ import {
 
 export interface ApprovalsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.approvals.schema`, or the API schema of its wrappers. */
+  /** `blocks.approvals.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Approvals>;

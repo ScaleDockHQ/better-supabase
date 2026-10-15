@@ -1,3 +1,4 @@
+import type { ConnectorsEvents } from "../../blocks/connectors/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -63,7 +64,7 @@ const FINGERPRINTS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ConnectorsEvents> = {
   "connector.saved": {
     subject: "organizations",
     payload: ["organizationId", "serverId", "name"],
@@ -139,7 +140,7 @@ function build(ctx: ModuleContext): string {
   const sessionTtl = ctx.text("sessionTtl", "1 hour");
   if (!INTERVAL.test(sessionTtl)) {
     throw new TypeError(
-      'sql.modules.connectors.options.sessionTtl must be an interval such as "1 hour"',
+      'blocks.connectors.options.sessionTtl must be an interval such as "1 hour"',
     );
   }
   const urlPattern = allowHttp

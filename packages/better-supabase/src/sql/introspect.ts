@@ -1,4 +1,4 @@
-import type { ModulesConfig } from "../config/modules.ts";
+import type { BlocksConfig } from "../config/blocks.ts";
 import type { ModuleFile, ModuleLayout } from "./module-types.ts";
 import type { SqlModule } from "./module-types.ts";
 
@@ -17,7 +17,7 @@ import { SQL_MODULES, checkModules, resolveModules } from "./registry.ts";
 /** A permission key a SQL module checks, from `modulePermissionKeys`. */
 export interface ModulePermissionKey {
   readonly module: string;
-  /** The action in `sql.modules.<module>.permissions` that overrides the key. */
+  /** The action in `blocks.<module>.permissions` that overrides the key. */
   readonly action: string;
   readonly key: string;
   /**
@@ -27,7 +27,7 @@ export interface ModulePermissionKey {
   readonly scope: "tenant" | "platform";
 }
 
-/** Actions a module checks only when `sql.modules.<module>.permissions` names a key. */
+/** Actions a module checks only when `blocks.<module>.permissions` names a key. */
 const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   Record<string, Readonly<Record<string, "tenant" | "platform">>>
 > = {
@@ -47,12 +47,12 @@ const isPermissionModule = (name: string): name is OperationModule =>
 
 /**
  * Every permission key the modules `names` install (with what they pull
- * in) check, after `sql.modules.<module>.permissions` overrides. Modules in custom
+ * in) check, after `blocks.<module>.permissions` overrides. Modules in custom
  * mode are skipped, and so is `invitations.invitePlatform` without platform
  * roles.
  */
 export function modulePermissionKeys(
-  config: ModulesConfig,
+  config: BlocksConfig,
   names: readonly string[],
 ): ModulePermissionKey[] {
   const layout: ModuleLayout = { modules: config };

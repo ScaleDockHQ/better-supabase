@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
 
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
@@ -11,7 +11,7 @@ import {
 } from "../../fixtures/authorization-provider.ts";
 
 const body = (
-  modules: ModulesConfig,
+  modules: BlocksConfig,
   accessProvider: ModuleAccessProvider = callerOnlyProvider,
 ) => moduleBody("invitations", { modules, accessProvider })!;
 
@@ -159,7 +159,7 @@ describe("invitations module", () => {
   });
 
   it("skips the inviter re-check when the provider answers for the caller only", () => {
-    const accept = (modules: ModulesConfig) =>
+    const accept = (modules: BlocksConfig) =>
       renderModules(["access", "invitations"], {
         modules,
         accessProvider: callerOnlyProvider,
@@ -180,7 +180,7 @@ describe("invitations module", () => {
 });
 
 describe("platform invitations under the provider model", () => {
-  const PROVIDER: ModulesConfig = {
+  const PROVIDER: BlocksConfig = {
     access: {
       model: "provider",
     },
@@ -300,7 +300,7 @@ describe("platform invitations under the provider model", () => {
 
   it("resolves tenant roles only among the roles roleThrough.where names", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
-    const modules = (tenantWhere?: string): ModulesConfig => ({
+    const modules = (tenantWhere?: string): BlocksConfig => ({
       ...PROVIDER,
       tenant: {
         mode: "adopt" as const,
@@ -345,7 +345,7 @@ describe("platform invitations under the provider model", () => {
 
   it("checks every write to the roles tables against where with bs_role_scope", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
-    const modules = (where: boolean): ModulesConfig => ({
+    const modules = (where: boolean): BlocksConfig => ({
       ...PROVIDER,
       tenant: {
         mode: "adopt" as const,

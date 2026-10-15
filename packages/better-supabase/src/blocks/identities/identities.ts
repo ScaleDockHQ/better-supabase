@@ -27,7 +27,7 @@ export interface IdentitiesOptions extends BlockTemporalOptions {
    * `backfillVerifiedEmails`.
    */
   readonly transport: BlockTransport;
-  /** `sql.modules.identities.schema`. Defaults to `better_supabase`. */
+  /** `blocks.identities.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

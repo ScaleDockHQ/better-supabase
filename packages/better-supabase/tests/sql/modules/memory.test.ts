@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
-const body = (modules: ModulesConfig = {}) =>
-  moduleBody("memory", { modules })!;
+const body = (modules: BlocksConfig = {}) => moduleBody("memory", { modules })!;
 
-const rendered = (names: readonly string[], modules: ModulesConfig = {}) =>
+const rendered = (names: readonly string[], modules: BlocksConfig = {}) =>
   renderModules([...names, "memory"], { modules })
     .filter((file) => file.module === "memory")
     .map((file) => file.contents)

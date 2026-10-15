@@ -34,27 +34,25 @@ export default defineConfig({
       url: "/bookings/{id}",
     },
   },
-  sql: {
-    modules: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
-      "custom-fields": {},
-      "share-links": {},
-      reminders: {},
-      "state-machine": {
-        options: {
-          machines: {
-            booking: {
-              table: "public.bookings",
-              column: "status",
-              initial: "requested",
-              tenant: "organization_id",
-              transitions: {
-                requested: ["confirmed", "cancelled"],
-                confirmed: ["cancelled"],
-                cancelled: [],
-              },
+  blocks: {
+    organizations: {},
+    outbox: {},
+    notifications: {},
+    "custom-fields": {},
+    "share-links": {},
+    reminders: {},
+    "state-machine": {
+      options: {
+        machines: {
+          booking: {
+            table: "public.bookings",
+            column: "status",
+            initial: "requested",
+            tenant: "organization_id",
+            transitions: {
+              requested: ["confirmed", "cancelled"],
+              confirmed: ["cancelled"],
+              cancelled: [],
             },
           },
         },

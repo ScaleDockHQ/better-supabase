@@ -21,7 +21,7 @@ import { createPatch } from "./json-patch.ts";
 
 export interface VersionsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.versions.schema`, or the API schema of its wrappers. */
+  /** `blocks.versions.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Versions>;
@@ -59,7 +59,7 @@ export interface SnapshotInput {
   readonly subjectId: string;
   /**
    * The content to keep. Leave it out to copy the subject's `columns`
-   * (`sql.modules.versions.options.subjects.<type>.columns`).
+   * (`blocks.versions.options.subjects.<type>.columns`).
    */
   readonly content?: JsonValue;
   readonly label?: string;

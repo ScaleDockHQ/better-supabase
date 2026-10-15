@@ -34,7 +34,7 @@ export function moduleLayout(
     realtimeUsers: config.realtime.users,
     entitlements: config.entitlements,
     claims: config.claims,
-    modules: config.sql.modules,
+    modules: config.blocks,
     subjects: config.subjects,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [

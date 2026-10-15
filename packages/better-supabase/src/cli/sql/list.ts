@@ -32,7 +32,7 @@ export async function listModules(
       (migrated === undefined
         ? existsSync(resolve(config.root, path))
         : migrated.has(module.name));
-    const tracked = config.sql.moduleNames.includes(module.name);
+    const tracked = config.blockNames.includes(module.name);
     const mark =
       path === undefined ? "◇" : installed ? (tracked ? "●" : "○") : " ";
     const requires =
@@ -50,6 +50,6 @@ export async function listModules(
   });
   return {
     code: 0,
-    output: `${lines.join("\n")}\n\n● installed and in sql.modules   ○ installed, not in sql.modules   ◇ custom mode (the app implements it)`,
+    output: `${lines.join("\n")}\n\n● installed and in blocks   ○ installed, not in blocks   ◇ custom mode (the app implements it)`,
   };
 }

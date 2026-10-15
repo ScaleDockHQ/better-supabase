@@ -1,8 +1,8 @@
-import type { ActiveTenantSource } from "../../config/modules.ts";
+import type { ActiveTenantSource } from "../../config/blocks.ts";
 import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
-import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
+import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -25,7 +25,7 @@ import {
 import { sameTenantSql } from "./tenant-same.ts";
 
 /**
- * `sql.modules.tenant.options.roleThrough`: the membership role column holds
+ * `blocks.tenant.options.roleThrough`: the membership role column holds
  * a key of `table` (`id`), and the role name is that row's `column`.
  */
 export interface RoleThrough {
@@ -46,7 +46,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
   const value = tenant.option("roleThrough");
   if (value === undefined) return undefined;
-  const where = "sql.modules.tenant.options.roleThrough";
+  const where = "blocks.tenant.options.roleThrough";
   if (
     !isRecord(value) ||
     typeof value["table"] !== "string" ||
@@ -62,7 +62,7 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
   }
   if (tenant.manages) {
     throw new TypeError(
-      `${where} describes an adopted memberships table; the managed one stores role names. Set sql.modules.tenant.mode to "adopt".`,
+      `${where} describes an adopted memberships table; the managed one stores role names. Set blocks.tenant.mode to "adopt".`,
     );
   }
   const ref = columnRef(`${where}.table`, `${value["table"]}.${value["id"]}`);
@@ -83,7 +83,7 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
 }
 
 /**
- * The quoted table of `sql.modules.tenant.options.roleThrough` and whether
+ * The quoted table of `blocks.tenant.options.roleThrough` and whether
  * it sets `where`; `undefined` when unset or malformed.
  */
 export function roleThroughTable(
@@ -107,9 +107,9 @@ export function roleThroughTable(
 }
 
 /**
- * Why `sql.modules.tenant.options.roleThrough` needs `where`: its table also
+ * Why `blocks.tenant.options.roleThrough` needs `where`: its table also
  * holds the platform roles of
- * `sql.modules.invitations.options.platformRoles.through`. `undefined` when
+ * `blocks.invitations.options.platformRoles.through`. `undefined` when
  * it doesn't.
  */
 export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
@@ -117,7 +117,7 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   if (!own || own.where) return undefined;
   if (providerPlatformRoles(tenant)?.through?.table !== own.table)
     return undefined;
-  return `sql.modules.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (sql.modules.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough from the authorization provider's roleSources has no where; set sql.modules.tenant.options.roleThrough in the config.`;
+  return `blocks.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (blocks.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough from the authorization provider's roleSources has no where; set blocks.tenant.options.roleThrough in the config.`;
 }
 
 /**
@@ -138,7 +138,7 @@ drop function if exists ${fn}();
 `;
   }
   return `
--- sql.modules.tenant.options.roleThrough.where names the tenant roles. Every
+-- blocks.tenant.options.roleThrough.where names the tenant roles. Every
 -- write to ${m} stores one of them, whoever writes it: a client policy, the
 -- service role or an admin connection.
 create or replace function ${fn}()
@@ -181,7 +181,7 @@ export function roleNameOf(ctx: ModuleContext, alias: string): string {
   return roleNameFrom(ctx, `${alias}.${ctx.col("memberships", "role")}`);
 }
 
-/** The active tenant: `sql.modules.access.activeTenant` (claim, resolver or profile column). */
+/** The active tenant: `blocks.access.activeTenant` (claim, resolver or profile column). */
 function currentTenant(ctx: ModuleContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
@@ -210,7 +210,7 @@ function currentTenant(ctx: ModuleContext): string {
   )`;
   } else {
     const profile = columnRef(
-      "sql.modules.access.activeTenant.profileColumn",
+      "blocks.access.activeTenant.profileColumn",
       source.profileColumn,
     );
     const key = sqlIdent(source.key ?? "id");
@@ -236,7 +236,7 @@ revoke execute on function better_supabase.current_tenant_id() from public;
 grant execute on function better_supabase.current_tenant_id() to anon, authenticated, service_role, supabase_auth_admin;${source === "claim" ? clearClaim(ctx) : ""}`;
 }
 
-/** `sql.modules.access.activeTenant`, defaulting to the resolver (URL tenancy). */
+/** `blocks.access.activeTenant`, defaulting to the resolver (URL tenancy). */
 export function activeTenantSource(ctx: ModuleContext): ActiveTenantSource {
   return ctx.modules.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
 }
@@ -493,7 +493,7 @@ export const TENANT: ModuleDefinition = {
   name: "tenant",
   title: "Tenant memberships and permission helper",
   description:
-    "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through sql.modules.tenant.",
+    "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.tenant.",
   requires: ["updated-at"],
   integrates: ["access", "invitations", "organizations"],
   target: "schema",
@@ -541,7 +541,7 @@ export const TENANT: ModuleDefinition = {
     {
       from: 1,
       description:
-        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows sql.modules.access.roles.",
+        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows blocks.access.roles.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

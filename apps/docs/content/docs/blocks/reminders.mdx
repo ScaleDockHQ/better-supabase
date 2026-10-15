@@ -23,15 +23,19 @@ import {
 ## Delivery
 
 `reminders.deliver(payload)` marks one occurrence sent and, when this call
-recorded it, calls `notifyDelivery`. It returns `ok(true)` for the first
+recorded it, calls `notifyDelivery`, which defaults to sending the
+`notification` type through the `notifier` port. It returns `ok(true)` for the first
 delivery and `ok(false)` for a replay, which records no second
 `reminder.sent` and sends nothing. `reminders.job` is the same call as a job
 handler, for the `reminders.deliver` queue (`REMINDER_DELIVERY_QUEUE`):
 
 ```ts
 const { reminders } = createBlocks(
-  { transport, service, reminderNotification: "reminder.due" },
-  { notifications: createNotifications, reminders: createReminders },
+  { transport, service },
+  {
+    notifications: notificationsBlock,
+    reminders: remindersBlock.with({ notification: "reminder.due" }),
+  },
 );
 
 export const GET = jobs.drainRoute({

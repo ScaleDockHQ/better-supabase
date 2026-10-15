@@ -98,3 +98,6 @@ export type {
   NotificationSource,
   NotificationsSnapshot,
 } from "./client.ts";
+export { notificationsBlock } from "./manifest.ts";
+export { notificationsEvents } from "./events.ts";
+export type { NotificationsEvents } from "./events.ts";

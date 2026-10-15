@@ -2,7 +2,7 @@
 -- @bs-module connectors@1 managed
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -534,7 +534,7 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
--- sql.modules.connectors.api: entry points for the Data API.
+-- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

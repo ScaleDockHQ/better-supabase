@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const CENTRAKIT: ModulesConfig = {
+const CENTRAKIT: BlocksConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
   tenant: {
     mode: "adopt",
@@ -35,7 +35,7 @@ const CENTRAKIT: ModulesConfig = {
   },
 };
 
-const body = (modules: ModulesConfig) =>
+const body = (modules: BlocksConfig) =>
   moduleBody("organizations", { modules, accessProvider: moduleProvider })!;
 
 describe("organizations module", () => {
@@ -277,7 +277,7 @@ describe("organizations module", () => {
   });
 
   it("leaves role checks to an external guard on request", () => {
-    const adopted: ModulesConfig = {
+    const adopted: BlocksConfig = {
       tenant: {
         mode: "adopt",
         tables: { memberships: "public.team_members" },
@@ -342,7 +342,7 @@ describe("organizations module", () => {
 });
 
 describe("roles through a lookup table", () => {
-  const THROUGH: ModulesConfig = {
+  const THROUGH: BlocksConfig = {
     access: {
       model: "provider",
     },

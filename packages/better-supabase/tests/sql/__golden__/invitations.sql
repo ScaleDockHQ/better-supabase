@@ -3,7 +3,7 @@
 -- @bs-module invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -122,7 +122,7 @@ $$;
 revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function "better_supabase"."invite_member"(
@@ -150,7 +150,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
@@ -437,7 +437,7 @@ $$;
 
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function "better_supabase"."invitation_preview"(token text)
@@ -714,7 +714,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('invitations', 2, 'managed')
@@ -726,7 +726,7 @@ on conflict (name) do update
 -- @bs-module invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -845,7 +845,7 @@ $$;
 revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function "better_supabase"."invite_member"(
@@ -873,7 +873,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
@@ -1217,7 +1217,7 @@ $$;
 
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function "better_supabase"."invitation_preview"(token text)
@@ -1530,7 +1530,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('invitations', 2, 'managed')
@@ -1542,7 +1542,7 @@ on conflict (name) do update
 -- @bs-module invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1663,7 +1663,7 @@ $$;
 revoke execute on function "app_private"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function "app_private"."invite_member"(
@@ -1691,7 +1691,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
@@ -1978,7 +1978,7 @@ $$;
 
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function "app_private"."invitation_preview"(token text)
@@ -2255,7 +2255,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('invitations', 2, 'managed')
@@ -2267,7 +2267,7 @@ on conflict (name) do update
 -- @bs-module invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -2386,7 +2386,7 @@ $$;
 revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function "better_supabase"."invite_member"(
@@ -2414,7 +2414,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
@@ -2701,7 +2701,7 @@ $$;
 
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function "better_supabase"."invitation_preview"(token text)
@@ -2960,7 +2960,7 @@ grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to 
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
--- sql.modules.invitations.api: entry points for the Data API.
+-- blocks.invitations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -3104,7 +3104,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('invitations', 2, 'managed')
@@ -3116,7 +3116,7 @@ on conflict (name) do update
 -- @bs-module invitations@2 adopt
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3181,7 +3181,7 @@ $$;
 revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function "better_supabase"."invite_member"(
@@ -3209,7 +3209,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
@@ -3500,7 +3500,7 @@ $$;
 
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function "better_supabase"."invitation_preview"(token text)
@@ -3777,7 +3777,7 @@ grant select on better_supabase.modules to service_role;
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
 values ('invitations', 2, 'adopt')

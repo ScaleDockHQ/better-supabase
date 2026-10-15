@@ -1,3 +1,4 @@
+import type { EngagementsEvents } from "../../blocks/engagements/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ const PAYLOAD = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<EngagementsEvents> = {
   "engagement.logged": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.updated": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.completed": { subject: "engagements", payload: [...PAYLOAD] },
@@ -82,7 +83,7 @@ function types(ctx: ModuleContext): readonly string[] {
   const list = ctx.list("types", ENGAGEMENT_TYPES);
   if (list.length === 0 || list.some((item) => !TYPE.test(item))) {
     throw new TypeError(
-      "sql.modules.engagements.options.types must be a non-empty list of lowercase names",
+      "blocks.engagements.options.types must be a non-empty list of lowercase names",
     );
   }
   return list;

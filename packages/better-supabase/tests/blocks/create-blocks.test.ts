@@ -1,17 +1,27 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AiFiles } from "../../src/blocks/ai-files/index.ts";
-import type { AiTaskOutcome } from "../../src/blocks/ai-tasks/index.ts";
-import type { BlockContext } from "../../src/blocks/index.ts";
+import type { BlockContext, Notifier } from "../../src/blocks/index.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
-import { createAuditLog } from "../../src/blocks/audit/index.ts";
+import { auditBlock } from "../../src/blocks/audit/index.ts";
 import {
   BLOCK_EVENT_SOURCE,
   createBlocks,
+  defineBlock,
+  defineBlocks,
+  defineEvents,
+  event,
   rpcTransport,
 } from "../../src/blocks/index.ts";
-import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { metricsBlock } from "../../src/blocks/metrics/index.ts";
+import {
+  organizationsBlock,
+  type OrganizationsEvents,
+} from "../../src/blocks/organizations/index.ts";
+import { remindersBlock } from "../../src/blocks/reminders/index.ts";
+import { searchSink } from "../../src/blocks/search/index.ts";
+import { tenantBlock } from "../../src/blocks/tenant/manifest.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
@@ -26,7 +36,7 @@ const transport = rpcTransport({
 
 const fakeFiles = {} as AiFiles;
 
-const event = (type: string, data: unknown): CloudEvent => ({
+const cloudEvent = (type: string, data: unknown): CloudEvent => ({
   specversion: "1.0",
   id: type,
   source: "/test",
@@ -35,74 +45,79 @@ const event = (type: string, data: unknown): CloudEvent => ({
   data,
 });
 
+/** A notifications stand-in that provides the notifier port. */
+const notifier = (send: Notifier["send"]) =>
+  defineBlock({
+    name: "notifications",
+    create: (_options: BlockContext): Notifier => ({ send }),
+    provides: { notifier: (client) => client },
+    category: "collaboration",
+  });
+
+/** A block that records the options it was built with. */
+const recorder = <const C extends Record<string, "optional" | "required">>(
+  seen: Record<string, unknown>[],
+  consumes?: C,
+) =>
+  defineBlock({
+    name: "recorder",
+    create: (options: Record<string, unknown>) => {
+      seen.push(options);
+      return {};
+    },
+    ...(consumes === undefined ? {} : { consumes }),
+    category: "work",
+  });
+
 describe("createBlocks sinks", () => {
-  it("has none without the search and metrics blocks", () => {
-    const blocks = createBlocks({ transport }, { audit: createAuditLog });
+  it("has none without a block that provides one", () => {
+    const blocks = createBlocks({ transport }, { audit: auditBlock });
     expect(blocks.sinks).toEqual({});
   });
 
   it("drops trashed subjects from the search block", async () => {
     const remove = vi.fn(() => AsyncResult.ok(true));
     const refresh = vi.fn(() => AsyncResult.ok(true));
-    const blocks = createBlocks(
-      { transport },
-      { search: () => ({ remove, refresh }), trash: () => ({}) },
-    );
+    const search = defineBlock({
+      name: "search",
+      create: (_options: BlockContext) => ({ remove, refresh }),
+      provides: { sink: (client) => searchSink(client) },
+      category: "work",
+    });
+    const blocks = createBlocks({ transport }, { search });
     await blocks.sinks.search?.send([
-      event("subject.trashed", { subjectType: "task", subjectId: "t1" }),
-      event("subject.restored", { subjectType: "task", subjectId: "t2" }),
+      cloudEvent("subject.trashed", { subjectType: "task", subjectId: "t1" }),
+      cloudEvent("subject.restored", { subjectType: "task", subjectId: "t2" }),
     ]);
     expect(remove).toHaveBeenCalledWith("task", "t1");
     expect(refresh).toHaveBeenCalledWith("task", "t2");
-    expect(blocks.sinks.metrics).toBeUndefined();
   });
 
-  it("rolls metrics up for the events in metricEvents", async () => {
-    const rollup = vi.fn((_request: { readonly metric: string }) =>
-      AsyncResult.ok(1),
-    );
+  it("rolls metrics up for the events in the metrics block's sink option", async () => {
     const blocks = createBlocks(
-      { transport, metricEvents: { "order.placed": ["orders", "revenue"] } },
-      { metrics: () => ({ rollup }) },
-    );
-    await blocks.sinks.metrics?.send([event("order.placed", {})]);
-    expect(rollup.mock.calls.map(([request]) => request.metric)).toEqual([
-      "orders",
-      "revenue",
-    ]);
-  });
-
-  it("buckets events by metricTime when it returns a time", async () => {
-    const rollup = vi.fn(
-      (_request: {
-        readonly metric: string;
-        readonly since?: Temporal.Instant;
-      }) => AsyncResult.ok(1),
-    );
-    const blocks = createBlocks(
+      { transport },
       {
-        transport,
-        metricEvents: { "time_entry.recorded": "time_tracked" },
-        metricTime: () => "2026-09-28T09:00:00Z",
+        metrics: metricsBlock.with({
+          sink: {
+            on: { "time_entry.recorded": "time_tracked" },
+            time: () => "2026-09-28T09:00:00Z",
+          },
+        }),
       },
-      { metrics: () => ({ rollup }) },
     );
-    await blocks.sinks.metrics?.send([event("time_entry.recorded", {})]);
-    expect(rollup.mock.calls[0]?.[0].since?.toString()).toBe(
+    const rollup = vi
+      .spyOn(blocks.metrics, "rollup")
+      .mockImplementation(() => AsyncResult.ok(1));
+    await blocks.sinks.metrics?.send([cloudEvent("time_entry.recorded", {})]);
+    expect(rollup.mock.calls[0]?.[0]).toMatchObject({ metric: "time_tracked" });
+    expect(rollup.mock.calls[0]?.[0]?.since?.toString()).toBe(
       "2026-09-28T09:00:00Z",
     );
   });
 
-  it("refuses metricEvents without a metrics block and blocks of the wrong shape", () => {
-    expect(() =>
-      createBlocks({ transport, metricEvents: {} }, { audit: createAuditLog }),
-    ).toThrow(/needs a `metrics` block/);
-    expect(() => createBlocks({ transport }, { search: () => ({}) })).toThrow(
-      /search block has no remove/,
-    );
-    expect(() => createBlocks({ transport }, { metrics: () => 1 })).toThrow(
-      /metrics block has no rollup/,
-    );
+  it("leaves the metrics sink out without the sink option", () => {
+    const blocks = createBlocks({ transport }, { metrics: metricsBlock });
+    expect(blocks.sinks).toEqual({});
   });
 });
 
@@ -113,7 +128,7 @@ describe("createBlocks hooks", () => {
     );
     const blocks = createBlocks(
       { transport, hooks: { organizations: { create: { before } } } },
-      { organizations: createOrganizations, audit: createAuditLog },
+      { organizations: organizationsBlock, audit: auditBlock },
     );
     expect(await blocks.organizations.create({ name: "Acme" })).toMatchObject({
       ok: false,
@@ -125,140 +140,147 @@ describe("createBlocks hooks", () => {
     });
     blocks.close();
   });
+
+  it("builds ports from the hooked clients", async () => {
+    const send = vi.fn(() => "sent");
+    const before = vi.fn(() => undefined);
+    const seen: Record<string, unknown>[] = [];
+    createBlocks(
+      { transport, hooks: { notifications: { send: { before } } } },
+      {
+        notifications: notifier(send),
+        recorder: recorder(seen, { notifier: "optional" }),
+      },
+    );
+    const port = seen[0]?.["notifier"] as Notifier;
+    await port.send("x", { recipients: [], tenant: "o", key: "k", data: {} });
+    expect(before).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("createBlocks", () => {
   it("builds each block with the shared options and types the result", () => {
     const blocks = createBlocks(
       { transport, schema: "api" },
-      { organizations: createOrganizations, audit: createAuditLog },
+      { organizations: organizationsBlock, audit: auditBlock },
     );
     expect(typeof blocks.organizations.create).toBe("function");
     expect(typeof blocks.audit.sink).toBe("function");
     expectTypeOf(blocks.organizations).toEqualTypeOf<
-      ReturnType<typeof createOrganizations>
+      ReturnType<NonNullable<(typeof organizationsBlock)["create"]>>
     >();
     blocks.close();
   });
 
-  it("wires aiFiles, credentials and events into the siblings", () => {
+  it("skips blocks with only SQL", () => {
+    const blocks = createBlocks({ transport }, { tenant: tenantBlock });
+    expect(blocks).not.toHaveProperty("tenant");
+  });
+
+  it("passes credentials, events and consumed ports, never unconsumed ones", () => {
     const credentials = vaultCredentials({ transport });
     const events = new EventHub();
-    const seen: BlockContext[] = [];
-    const aiFiles = vi.fn(() => fakeFiles);
+    const seen: Record<string, unknown>[] = [];
+    const files = defineBlock({
+      name: "ai-files",
+      create: (_options: BlockContext) => fakeFiles,
+      provides: { files: (client) => client },
+      category: "ai",
+    });
     createBlocks(
       { transport, credentials, events },
       {
-        knowledge: (context) => seen.push(context),
-        aiFiles,
-        connectors: (context) => seen.push(context),
+        knowledge: recorder(seen, { files: "optional" }),
+        aiFiles: files,
+        connectors: recorder(seen),
       },
     );
-    expect(aiFiles).toHaveBeenCalledTimes(1);
-    expect(aiFiles.mock.calls[0]).not.toHaveProperty("0.files");
-    for (const context of seen)
-      expect(context).toMatchObject({
-        transport,
-        credentials,
-        events,
-        files: fakeFiles,
-      });
+    expect(seen[0]).toMatchObject({
+      transport,
+      credentials,
+      events,
+      files: fakeFiles,
+    });
+    expect(seen[1]).toMatchObject({ transport, credentials, events });
+    expect(seen[1]).not.toHaveProperty("files");
   });
 
-  it("sends the ai-task notification through the notifications block", async () => {
-    const send = vi.fn(() => Promise.resolve("n1"));
-    let notify: BlockContext["notify"];
+  it("passes `with` settings over the shared options", () => {
+    const seen: Record<string, unknown>[] = [];
     createBlocks(
-      { transport, aiTaskNotification: "ai_task.finished" },
-      {
-        aiTasks: (context) => (notify = context.notify),
-        notifications: () => ({ send }),
-      },
+      { transport, schema: "api" },
+      { a: recorder(seen).with({ schema: "own", extra: 1 }) },
     );
-    const outcome = {
-      task: { id: "t1", userId: "u1", organizationId: "o1" },
-      run: { id: "r1" },
-      ok: false,
-      error: "boom",
-    } as AiTaskOutcome;
-    await notify?.(outcome);
-    expect(send).toHaveBeenCalledWith("ai_task.finished", {
-      recipients: ["u1"],
-      tenant: "o1",
-      key: "ai-task-run:r1",
-      data: { taskId: "t1", runId: "r1", ok: false, error: "boom" },
-    });
+    expect(seen[0]).toMatchObject({ schema: "own", extra: 1 });
   });
 
-  it("wires reminders to notifications with reminderNotification", async () => {
-    const send = vi.fn(() => Promise.resolve("n1"));
-    let notifyDelivery: BlockContext["notifyDelivery"];
+  it("hands ai-tasks the notifier port and its notification type", () => {
+    const seen: Record<string, unknown>[] = [];
+    const send = vi.fn();
     createBlocks(
-      { transport, reminderNotification: "reminder.due" },
+      { transport },
       {
-        reminders: (context) => (notifyDelivery = context.notifyDelivery),
-        notifications: () => ({ send }),
+        aiTasks: recorder(seen, { notifier: "optional" }).with({
+          notification: "ai_task.finished",
+        }),
+        notifications: notifier(send),
       },
     );
-    await notifyDelivery?.({
-      reminderId: "r1",
-      occurrenceAt: "2026-10-14T09:00:00Z",
-      organizationId: "o1",
-      userId: "u1",
-      subjectType: "task",
-      subjectId: "42",
-    });
-    await notifyDelivery?.({
-      reminderId: "r2",
-      occurrenceAt: "2026-10-14T09:00:00Z",
-      organizationId: "o1",
-    });
-    expect(send).toHaveBeenNthCalledWith(1, "reminder.due", {
+    expect(seen[0]).toMatchObject({ notification: "ai_task.finished" });
+    expect(seen[0]?.["notifier"]).toHaveProperty("send");
+  });
+
+  it("wires reminders to the notifier with their notification type", async () => {
+    const send = vi.fn(() => Promise.resolve("n1"));
+    const blocks = createBlocks(
+      {
+        transport: rpcTransport({
+          schema: () => ({
+            rpc: () => Promise.resolve({ data: true, error: null }),
+          }),
+        }),
+      },
+      {
+        reminders: remindersBlock.with({
+          notification: "reminder.due",
+          audience: (_subject, users) => users,
+        }),
+        notifications: notifier(send),
+      },
+    );
+    await blocks.reminders
+      .deliver({
+        reminderId: "r1",
+        occurrenceAt: "2026-10-14T09:00:00Z",
+        organizationId: "o1",
+        userId: "u1",
+        subjectType: "task",
+        subjectId: "42",
+      })
+      .orThrow();
+    expect(send).toHaveBeenCalledWith("reminder.due", {
       recipients: ["u1"],
       tenant: "o1",
       key: "reminder:r1:2026-10-14T09:00:00Z",
       subject: { type: "task", id: "42" },
       data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
     });
-    expect(send).toHaveBeenNthCalledWith(2, "reminder.due", {
-      recipients: [],
-      tenant: "o1",
-      key: "reminder:r2:2026-10-14T09:00:00Z",
-      data: { reminderId: "r2", occurrenceAt: "2026-10-14T09:00:00Z" },
-    });
   });
 
-  it("leaves notifyDelivery out without notifications", () => {
-    const seen: BlockContext[] = [];
-    createBlocks(
-      { transport, reminderNotification: "reminder.due" },
-      { reminders: (context) => seen.push(context) },
-    );
-    expect(seen[0]).not.toHaveProperty("notifyDelivery");
-  });
-
-  it("leaves notify out without a notification type", () => {
-    const seen: BlockContext[] = [];
-    createBlocks(
-      { transport },
-      {
-        aiTasks: (context) => seen.push(context),
-        notifications: () => ({ send: vi.fn() }),
-      },
-    );
-    expect(seen[0]).not.toHaveProperty("notify");
-  });
-
-  it("rejects a notifications block that cannot send", () => {
-    let notify: BlockContext["notify"];
-    createBlocks(
-      { transport, aiTaskNotification: "done" },
-      {
-        aiTasks: (context) => (notify = context.notify),
-        notifications: () => 1,
-      },
-    );
-    expect(() => notify?.({} as AiTaskOutcome)).toThrow(/no send method/);
+  it("refuses two providers of one port and a missing required port", () => {
+    expect(() =>
+      createBlocks(
+        { transport },
+        { a: notifier(vi.fn()), b: notifier(vi.fn()) },
+      ),
+    ).toThrow(/"a" and "b" both provide the notifier port/);
+    expect(() =>
+      createBlocks(
+        { transport },
+        { needs: recorder([], { notifier: "required" }) },
+      ),
+    ).toThrow(/"needs" needs a block that provides the notifier port/);
   });
 
   it("forwards block events to audit until close", async () => {
@@ -272,16 +294,24 @@ describe("createBlocks", () => {
       },
       {},
     );
-    const denied = { adminId: "a1", targetUserId: "u1" };
-    emitBlockEvent(events, "support.denied", denied);
+    const created = { organizationId: "o1" };
+    emitBlockEvent<OrganizationsEvents>(
+      events,
+      "organization.created",
+      created,
+    );
     await events.settled();
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({
       source: BLOCK_EVENT_SOURCE,
-      type: "dev.better-supabase.support.denied",
+      type: "dev.better-supabase.organization.created",
     });
     blocks.close();
-    emitBlockEvent(events, "support.denied", denied);
+    emitBlockEvent<OrganizationsEvents>(
+      events,
+      "organization.created",
+      created,
+    );
     await events.settled();
     expect(sent).toHaveLength(1);
   });
@@ -292,22 +322,81 @@ describe("createBlocks", () => {
     ).toThrow(/needs `events`/);
   });
 
-  it("reports a block that depends on itself", () => {
-    const outcome = {
-      task: { id: "t1", userId: "u1", organizationId: "o1" },
-      run: { id: "r1" },
-      ok: true,
-    } as AiTaskOutcome;
-    expect(() =>
-      createBlocks(
-        { transport, aiTaskNotification: "done" },
-        {
-          notifications: (context) => {
-            context.notify?.(outcome);
-            return { send: vi.fn() };
-          },
-        },
-      ),
-    ).toThrow(/depends on itself/);
+  it("reports a block that consumes its own provider through a cycle", () => {
+    const loop = defineBlock({
+      name: "loop",
+      create: (options: { readonly files?: AiFiles }): Notifier => {
+        void options.files;
+        return { send: vi.fn() };
+      },
+      consumes: { files: "optional" },
+      provides: { notifier: (client) => client },
+      category: "collaboration",
+    });
+    const files = defineBlock({
+      name: "files",
+      create: (options: { readonly notifier?: Notifier }): AiFiles => {
+        void options.notifier;
+        return fakeFiles;
+      },
+      consumes: { notifier: "optional" },
+      provides: { files: (client) => client },
+      category: "ai",
+    });
+    expect(() => createBlocks({ transport }, { loop, files })).toThrow(
+      /depends on itself/,
+    );
+  });
+});
+
+describe("defineBlocks", () => {
+  const app = defineEvents({
+    "invoice.sent": event<{ readonly invoiceId: string }>(),
+  });
+  const set = defineBlocks(
+    { organizations: organizationsBlock, audit: auditBlock },
+    app,
+  );
+
+  it("lists every block's events and the app's", () => {
+    expect(set.events.types).toContain("organization.created");
+    expect(set.events.types).toContain("audit.revealed");
+    expect(set.events.types).toContain("invoice.sent");
+  });
+
+  it("types events from the blocks and the app, and listens to them", async () => {
+    const events = new EventHub();
+    const seen: string[] = [];
+    const stop = set.on({ events }, "invoice.*", (sent) => {
+      expectTypeOf(sent.data.invoiceId).toBeString();
+      seen.push(sent.data.invoiceId);
+    });
+    set.on({ events }, "organization.created", (created) => {
+      expectTypeOf(created.data.organizationId).toBeString();
+      seen.push(created.type);
+    });
+    emitBlockEvent<{ readonly "invoice.sent": { invoiceId: string } }>(
+      events,
+      "invoice.sent",
+      { invoiceId: "i1" },
+    );
+    emitBlockEvent<OrganizationsEvents>(events, "organization.created", {
+      organizationId: "o1",
+    });
+    emitBlockEvent(events, "unknown.type", {});
+    stop();
+    emitBlockEvent<{ readonly "invoice.sent": { invoiceId: string } }>(
+      events,
+      "invoice.sent",
+      { invoiceId: "i2" },
+    );
+    await events.settled();
+    expect(seen).toEqual(["i1", "organization.created"]);
+  });
+
+  it("creates the blocks", () => {
+    const blocks = set.create({ transport });
+    expect(typeof blocks.organizations.create).toBe("function");
+    blocks.close();
   });
 });

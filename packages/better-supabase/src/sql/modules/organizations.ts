@@ -98,7 +98,7 @@ interface OrganizationNames {
   readonly tenant: string;
   readonly user: string;
   readonly role: string;
-  /** The role name owners hold (`sql.modules.organizations.options.ownerRole`). */
+  /** The role name owners hold (`blocks.organizations.options.ownerRole`). */
   readonly ownerRole: string;
 }
 
@@ -180,7 +180,7 @@ export function roleValue(
 
 /**
  * A stored membership role as `can_assign` takes it: the role name with
- * `sql.modules.tenant.options.roleThrough`, the stored value otherwise.
+ * `blocks.tenant.options.roleThrough`, the stored value otherwise.
  */
 export function assignableRole(ctx: ModuleContext, stored: string): string {
   const tenant = ctx.of("tenant");
@@ -302,7 +302,7 @@ function slugCheck(ctx: ModuleContext, n: OrganizationNames): string {
     : "";
   return `
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
--- sql.modules.organizations.options), 'reserved' or 'taken'. except_organization skips the
+-- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
 -- organization being renamed.
 create or replace function ${ctx.fn("organization_slug_problem")}(value text, except_organization ${ctx.idType} default null)
 returns text
@@ -408,7 +408,7 @@ function create(ctx: ModuleContext, n: OrganizationNames): string {
     : undefined;
   return `
 -- Creates an organization from attrs (its name${slug ? ", slug" : ""} and the columns in
--- sql.modules.organizations.options.attributes) and makes the caller its owner. The
+-- blocks.organizations.options.attributes) and makes the caller its owner. The
 -- service role passes the owner as attrs.owner_id.
 create or replace function ${ctx.fn("create_organization")}(attrs jsonb)
 returns ${id}
@@ -500,7 +500,7 @@ function platformOverride(
 
 type DeleteMode = "hard" | "soft" | "lifecycle" | "none";
 
-/** `sql.modules.organizations.options.deleteMode`. */
+/** `blocks.organizations.options.deleteMode`. */
 function deleteMode(ctx: ModuleContext): DeleteMode {
   const mode = ctx.text("deleteMode", "hard");
   if (
@@ -510,12 +510,12 @@ function deleteMode(ctx: ModuleContext): DeleteMode {
     mode !== "none"
   ) {
     throw new TypeError(
-      `sql.modules.organizations.options.deleteMode must be "hard", "soft", "lifecycle" or "none", not "${mode}"`,
+      `blocks.organizations.options.deleteMode must be "hard", "soft", "lifecycle" or "none", not "${mode}"`,
     );
   }
   if (mode === "lifecycle" && !ctx.installed("data-lifecycle")) {
     throw new TypeError(
-      'sql.modules.organizations.options.deleteMode "lifecycle" schedules the deletion with request_organization_deletion, so it needs the data-lifecycle module in sql.modules',
+      'blocks.organizations.options.deleteMode "lifecycle" schedules the deletion with request_organization_deletion, so it needs the data-lifecycle module in blocks',
     );
   }
   return mode;
@@ -557,7 +557,7 @@ drop function if exists ${ctx.fn("delete_organization")}(${id});
   const soft = mode === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
-      "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
+      "blocks.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
   const action = soft
@@ -679,17 +679,17 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   const guard = ctx.text("assignmentGuard", "module");
   if (guard !== "module" && guard !== "external") {
     throw new TypeError(
-      `sql.modules.organizations.options.assignmentGuard must be "module" or "external", not "${guard}"`,
+      `blocks.organizations.options.assignmentGuard must be "module" or "external", not "${guard}"`,
     );
   }
   if (guard === "external") {
     if (ctx.of("tenant").manages) {
       throw new TypeError(
-        'sql.modules.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (sql.modules.tenant.mode "adopt").',
+        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.tenant.mode "adopt").',
       );
     }
     return `${invariant}
--- sql.modules.organizations.options.assignmentGuard is "external": another
+-- blocks.organizations.options.assignmentGuard is "external": another
 -- trigger on ${n.m} (such as an authorization provider's assignment rules) checks role
 -- changes, so the module's guard is removed. Its functions still check
 -- can_assign and the own-role rule before they write.
@@ -807,7 +807,7 @@ begin
   if not found then
     ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
-  -- Checked here whatever sql.modules.organizations.options.assignmentGuard
+  -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
   if not (${SERVICE_CALLER}) and member = auth.uid() then
     ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
@@ -935,7 +935,7 @@ $$;
 
 /**
  * `switch_organization(organization)`: makes organization the caller's active tenant through
- * `sql.modules.access.activeTenant`. A claim source writes \`app_metadata\` and
+ * `blocks.access.activeTenant`. A claim source writes \`app_metadata\` and
  * returns refresh = true, so the client refreshes its session.
  */
 function switcher(ctx: ModuleContext, n: OrganizationNames): string {
@@ -951,7 +951,7 @@ function switcher(ctx: ModuleContext, n: OrganizationNames): string {
     write = "-- The server's tenant resolver picks the tenant per request.";
   } else {
     const profile = columnRef(
-      "sql.modules.access.activeTenant.profileColumn",
+      "blocks.access.activeTenant.profileColumn",
       source.profileColumn,
     );
     write = `update ${profile.table} set ${profile.column} = organization where ${sqlIdent(source.key ?? "id")} = me;`;

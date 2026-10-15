@@ -1623,29 +1623,27 @@ uri = "https://example.com/hook"
           config: resolveConfig(
             {
               authorization: stubProvider,
-              sql: {
-                modules: {
-                  access: { model: "provider" },
-                  tenant: {
-                    mode: "adopt",
-                    tables: { memberships: "public.team_members" },
-                    columns: { memberships: { role: "role_id" } },
-                    options: {
-                      roleThrough: tenantWhere
-                        ? { ...through, where: tenantWhere }
-                        : through,
-                    },
+              blocks: {
+                access: { model: "provider" },
+                tenant: {
+                  mode: "adopt",
+                  tables: { memberships: "public.team_members" },
+                  columns: { memberships: { role: "role_id" } },
+                  options: {
+                    roleThrough: tenantWhere
+                      ? { ...through, where: tenantWhere }
+                      : through,
                   },
-                  invitations: {
-                    options: {
-                      platformRoles: {
-                        table: "public.user_roles",
-                        user: "user_id",
-                        role: "role_id",
-                        through: platformWhere
-                          ? { ...through, where: platformWhere }
-                          : through,
-                      },
+                },
+                invitations: {
+                  options: {
+                    platformRoles: {
+                      table: "public.user_roles",
+                      user: "user_id",
+                      role: "role_id",
+                      through: platformWhere
+                        ? { ...through, where: platformWhere }
+                        : through,
                     },
                   },
                 },
@@ -1661,17 +1659,17 @@ uri = "https://example.com/hook"
       expect(await run()).toMatchObject([
         {
           severity: "error",
-          target: "sql.modules.tenant.options.roleThrough.where",
+          target: "blocks.tenant.options.roleThrough.where",
           message: expect.stringContaining("can resolve a platform role"),
         },
         {
           severity: "error",
-          target: "sql.modules.invitations.options.platformRoles.through.where",
+          target: "blocks.invitations.options.platformRoles.through.where",
           message: expect.stringContaining("can resolve a tenant role"),
         },
       ]);
       expect(await run(undefined, "{row}.scope = 'system'")).toMatchObject([
-        { target: "sql.modules.tenant.options.roleThrough.where" },
+        { target: "blocks.tenant.options.roleThrough.where" },
       ]);
       expect(
         await run("{row}.scope = 'organization'", "{row}.scope = 'system'"),

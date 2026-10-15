@@ -38,12 +38,12 @@ export interface SendInput<D = unknown> {
   readonly subject?: NotificationSubject;
   readonly summary?: string;
   readonly actionPath?: string;
-  /** One of `sql.modules.notifications.options.priorities`. Defaults to `normal`. */
+  /** One of `blocks.notifications.options.priorities`. Defaults to `normal`. */
   readonly priority?: string;
   readonly data: D;
   /** With a key, sending again (per tenant) returns the first notification. */
   readonly key?: string;
-  /** Defaults to `sql.modules.notifications.options.channels`. */
+  /** Defaults to `blocks.notifications.options.channels`. */
   readonly channels?: readonly string[];
   /** Also notify the user who caused it. Defaults to `false`. */
   readonly includeActor?: boolean;
@@ -323,7 +323,7 @@ export interface NotificationsOptions<
   readonly types: K;
   /** `withBlockHooks` hooks around the methods, such as a rule on `send`. */
   readonly hooks?: NoInfer<BlockHooks<Notifications<K>>>;
-  /** `sql.modules.notifications.schema`. Defaults to `better_supabase`. */
+  /** `blocks.notifications.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
    * Loads what `render` needs for a whole page at once (actor names,

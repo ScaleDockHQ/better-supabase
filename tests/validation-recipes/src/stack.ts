@@ -29,7 +29,7 @@ export async function reachable(): Promise<boolean> {
 /** The module files `sql add` writes for the recipe, schema files first. */
 export function moduleFiles(recipe: Recipe) {
   const config = resolveConfig(recipe.config, process.cwd());
-  const files = renderModules(config.sql.moduleNames, moduleLayout(config));
+  const files = renderModules(config.blockNames, moduleLayout(config));
   return [
     ...files.filter((file) => file.kind === "schema"),
     ...files.filter((file) => file.kind === "data"),

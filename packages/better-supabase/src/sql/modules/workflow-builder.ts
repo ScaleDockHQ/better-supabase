@@ -1,3 +1,4 @@
+import type { WorkflowBuilderEvents } from "../../blocks/workflow-builder/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -23,7 +24,7 @@ import {
   sqlList as list,
 } from "./workflow-builder-starts.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<WorkflowBuilderEvents> = {
   "workflow.published": {
     subject: "workflows",
     payload: ["organizationId", "definitionId", "versionId", "version"],

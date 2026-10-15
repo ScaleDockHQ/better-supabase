@@ -1,3 +1,4 @@
+import type { ImportsEvents } from "../../blocks/imports/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -9,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ImportsEvents> = {
   "import.completed": {
     subject: "imports",
     payload: ["organizationId", "id", "count"],

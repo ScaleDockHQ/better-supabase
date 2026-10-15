@@ -1,3 +1,4 @@
+import type { AccessRequestsEvents } from "../../blocks/access-requests/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -23,7 +24,7 @@ import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
 import { roleValue } from "./organizations.ts";
 import { roleNameOf } from "./tenant.ts";
 
-const WHERE = "sql.modules.access-requests.options";
+const WHERE = "blocks.access-requests.options";
 
 const PAYLOAD = [
   "organizationId",
@@ -34,7 +35,7 @@ const PAYLOAD = [
   "expiresAt",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AccessRequestsEvents> = {
   "access.requested": { subject: "access-requests", payload: PAYLOAD },
   "access.request_approved": { subject: "access-requests", payload: PAYLOAD },
   "access.ended": {

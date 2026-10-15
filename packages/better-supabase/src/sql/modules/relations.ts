@@ -1,3 +1,4 @@
+import type { RelationsEvents } from "../../blocks/relations/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -51,7 +52,7 @@ const MAX_DATA_BYTES = 8192;
 const MAX_DEPTH = 100;
 const MAX_EDGES = 10_000;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<RelationsEvents> = {
   "subject.linked": {
     subject: "subjects",
     payload: [
@@ -112,7 +113,7 @@ interface ResolvedKind {
 
 /** `options.kinds`, checked: names, inverses that clash, and symmetric kinds without direction. */
 function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
-  const where = "sql.modules.relations.options.kinds";
+  const where = "blocks.relations.options.kinds";
   const raw: unknown = ctx.option("kinds") ?? DEFAULT_RELATION_KINDS;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(`${where} must be an object of kind name to options`);

@@ -63,7 +63,7 @@ describe("BS333", () => {
         },
         {
           path: "src/builder-server.ts",
-          text: 'import { createBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bs.admin().$client);\n',
+          text: 'import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bs.admin().$client);\n',
         },
       ]),
     ).toEqual([]);

@@ -15,14 +15,12 @@ answer (password `password123`).
 ## The modules
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    jobs: {},
-    streams: { api: "api" },
-    inbox: { api: "api" },
-    "chat-sdk-state": {},
-    "ai-chat": { api: "api" },
-  },
+blocks: {
+  jobs: {},
+  streams: { api: "api" },
+  inbox: { api: "api" },
+  "chat-sdk-state": {},
+  "ai-chat": { api: "api" },
 },
 ```
 

@@ -47,7 +47,7 @@ export const streams = postgresStreamStore({
 ```
 
 After each batch the writer pings the stream's private Realtime topic
-(`stream:<id>` by default, `sql.modules.streams.options.topic` changes the
+(`stream:<id>` by default, `blocks.streams.options.topic` changes the
 prefix) without the chunk in the payload. A reader that passes `realtime`
 (a Supabase client) wakes on the ping and reads the new chunks through RLS;
 without it, the reader polls every `pollMs` (250 ms). Set `wake: "poll"` to

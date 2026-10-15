@@ -4,11 +4,7 @@ import type {
   AuthorizationOperation,
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
-import type {
-  DisabledRow,
-  ModuleMode,
-  ModulesConfig,
-} from "../config/modules.ts";
+import type { DisabledRow, BlockMode, BlocksConfig } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
@@ -88,7 +84,7 @@ export interface SqlModule {
    * `*` stands for every module, for one that reads them all (`data-lifecycle`).
    */
   readonly integrates?: readonly string[];
-  /** What it needs for this layout, e.g. per `sql.modules.access.model`; overrides both. */
+  /** What it needs for this layout, e.g. per `blocks.access.model`; overrides both. */
   readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
@@ -98,9 +94,9 @@ export interface SqlModule {
   readonly render?: (claims: ClaimsMeta, layout: ModuleLayout) => string;
   /** Bumped when installed databases need an upgrade step. Defaults to 1. */
   readonly version?: number;
-  /** The modes `sql.modules.<name>.mode` accepts. Defaults to `managed` only. */
-  readonly modes?: readonly ModuleMode[];
-  /** The logical tables and columns `sql.modules.<name>.tables` and `columns` map. */
+  /** The modes `blocks.<name>.mode` accepts. Defaults to `managed` only. */
+  readonly modes?: readonly BlockMode[];
+  /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
   readonly names?: ModuleNames;
   /** The functions other modules and the TypeScript side call. */
   readonly contract?: (ctx: ModuleContext) => readonly ModuleContractFunction[];
@@ -198,11 +194,11 @@ export interface ModuleLayout {
   readonly functionGrants?: readonly FunctionGrant[];
   /**
    * Grants the permissive policies in the schema files imply, for
-   * `sql.modules.grants.options.fromPolicies`. Tables in `grants` keep
+   * `blocks.grants.options.fromPolicies`. Tables in `grants` keep
    * their listed privileges.
    */
   readonly policyGrants?: readonly TableGrant[];
-  /** The tables the schema files create, for `sql.modules.sessions.options.policies`. */
+  /** The tables the schema files create, for `blocks.sessions.options.policies`. */
   readonly declaredTables?: readonly string[];
   /** The declared tables with row level security on, for tables `fromPolicies` makes service-only. */
   readonly rlsTables?: readonly string[];
@@ -222,13 +218,13 @@ export interface ModuleLayout {
   readonly entitlementsProvider?: ModuleEntitlementsProvider;
   /** The authorization provider the `access` module's `provider` model calls. */
   readonly accessProvider?: ModuleAccessProvider;
-  /** `config.sql.modules`: modes, names and permission keys per module. */
-  readonly modules?: ModulesConfig;
+  /** `config.blocks`: modes, names and permission keys per module. */
+  readonly modules?: BlocksConfig;
   /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
-  /** `authorization.delegation.scopes`: the access module's `scope_permissions` (with `sql.modules.access.scopes` merged over it). */
+  /** `authorization.delegation.scopes`: the access module's `scope_permissions` (with `blocks.access.scopes` merged over it). */
   readonly delegationScopes?: Readonly<Record<string, readonly string[]>>;
 }
 

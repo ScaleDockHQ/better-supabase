@@ -27,15 +27,13 @@ subjects: {
   project: { table: "public.projects", idType: "uuid", title: "name", deletedAt: "deleted_at" },
   task: { table: "public.tasks", idType: "uuid", title: "title", deletedAt: "deleted_at" },
 },
-sql: {
-  modules: {
-    trash: {
-      options: {
-        retentionDays: 30,
-        subjects: {
-          project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
-          task: {},
-        },
+blocks: {
+  trash: {
+    options: {
+      retentionDays: 30,
+      subjects: {
+        project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
+        task: {},
       },
     },
   },

@@ -20,7 +20,7 @@ export interface SettingEntry<S extends StandardSchemaV1 = StandardSchemaV1> {
   readonly default?: StandardSchemaV1.InferOutput<S>;
   /**
    * Platform settings only: the platform permission (`is_platform`) that
-   * may change this key. Default `sql.modules.settings.options.platform.permission`,
+   * may change this key. Default `blocks.settings.options.platform.permission`,
    * then `settings.manage`.
    */
   readonly permission?: string;
@@ -63,7 +63,7 @@ export interface SettingsSpec<
 
 export interface SettingsConnectOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.settings.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.settings.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -119,7 +119,7 @@ export interface SettingsDefinition<
   P extends SettingEntries = Record<never, never>,
 > {
   /**
-   * Pass as `sql.modules.settings.options.schemas` for the database checks,
+   * Pass as `blocks.settings.options.schemas` for the database checks,
    * and the platform keys' permissions and read rules.
    */
   readonly schemas: {

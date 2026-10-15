@@ -20,7 +20,7 @@ import { assignableRole } from "./organizations.ts";
 
 /**
  * The invitation's organization: its id plus
- * `sql.modules.invitations.options.previewColumns` when the organizations
+ * `blocks.invitations.options.previewColumns` when the organizations
  * module is installed.
  */
 export function organizationJson(ctx: ModuleContext, tenant: string): string {
@@ -32,7 +32,7 @@ export function organizationJson(ctx: ModuleContext, tenant: string): string {
   const columns = ctx.list("previewColumns", ["name"]).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
-        `sql.modules.invitations.options.previewColumns: "${column}" is not a valid column`,
+        `blocks.invitations.options.previewColumns: "${column}" is not a valid column`,
       );
     }
     return `, ${sqlString(column)}, o.${sqlIdent(column)}`;

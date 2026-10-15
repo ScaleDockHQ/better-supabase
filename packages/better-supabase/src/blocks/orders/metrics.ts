@@ -22,7 +22,7 @@ export type OrderMetrics = readonly [
 /**
  * Metric definitions over the orders table: orders placed, and revenue and
  * average order value from paid orders, in minor units of `currency`. Pass
- * them to `sql.modules.metrics.options.metrics` and `createMetrics`.
+ * them to `blocks.metrics.options.metrics` and `createMetrics`.
  */
 export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   const shared = {

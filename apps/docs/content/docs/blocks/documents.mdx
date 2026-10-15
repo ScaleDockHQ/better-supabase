@@ -39,13 +39,11 @@ await provider.destroy();
 ## Configure
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    documents: {
-      options: {
-        maxUpdateBytes: 262_144,
-        compactAfter: 500,
-      },
+blocks: {
+  documents: {
+    options: {
+      maxUpdateBytes: 262_144,
+      compactAfter: 500,
     },
   },
 },

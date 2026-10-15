@@ -18,13 +18,11 @@ import { snapshotFixture as fixture } from "../fixtures/library.ts";
 const snapshot = await parseSnapshot(fixture);
 
 const CUSTOM: BetterSupabaseConfig = {
-  sql: {
-    modules: {
-      access: {
-        mode: "custom",
-        model: "custom",
-        functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
-      },
+  blocks: {
+    access: {
+      mode: "custom",
+      model: "custom",
+      functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
     },
   },
 };
@@ -70,7 +68,7 @@ const fn = (name: string, args: string, returns = "boolean") => ({
 
 describe("BS307 custom module contracts", () => {
   it("passes when no module is in custom mode", async () => {
-    expect(await run(context({ sql: { modules: ["access"] } }))).toEqual([]);
+    expect(await run(context({ blocks: ["access"] }))).toEqual([]);
   });
 
   it("looks for create function in the SQL files without a database", async () => {
@@ -154,7 +152,7 @@ describe("BS325 audit user-session reads", () => {
   it("warns when the app lists the log and the module stays service_role only", async () => {
     const findings = await run(
       context(
-        { sql: { modules: { audit: {} } } },
+        { blocks: { audit: {} } },
         { sources: [{ path: "src/audit.ts", text: "await audit.list()" }] },
       ),
       "BS325",
@@ -166,13 +164,11 @@ describe("BS325 audit user-session reads", () => {
     const findings = await run(
       context(
         {
-          sql: {
-            modules: {
-              audit: {
-                options: {
-                  readPolicy: true,
-                  eventRoles: ["authenticated", "service_role"],
-                },
+          blocks: {
+            audit: {
+              options: {
+                readPolicy: true,
+                eventRoles: ["authenticated", "service_role"],
               },
             },
           },

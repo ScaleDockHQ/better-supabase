@@ -1,3 +1,4 @@
+import type { SavedViewsEvents } from "../../blocks/saved-views/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -30,7 +31,7 @@ export const SAVED_VIEW_SCOPES = ["user", "team", "tenant"] as const;
 
 const MAX_STATE_BYTES = 65_536;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SavedViewsEvents> = {
   "saved_view.saved": {
     subject: "saved-views",
     payload: ["organizationId", "id", "kind", "name"],

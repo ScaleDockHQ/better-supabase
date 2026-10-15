@@ -32,7 +32,7 @@ export function delegationSql(
   end`;
   return `
 -- The permission keys an OAuth scope grants a delegated token
--- (authorization.delegation.scopes, sql.modules.access.scopes). A scope
+-- (authorization.delegation.scopes, blocks.access.scopes). A scope
 -- without an entry grants the key with its own name.
 create or replace function better_supabase.scope_permissions(scope text)
 returns text[]

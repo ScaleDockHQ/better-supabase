@@ -1,3 +1,4 @@
+import type { TeamsEvents } from "../../blocks/teams/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -10,7 +11,7 @@ import { sqlString } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TeamsEvents> = {
   "team.created": {
     subject: "teams",
     payload: ["organizationId", "id", "name"],
@@ -74,12 +75,12 @@ function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
   if (value !== "uuid" && value !== "bigint") {
     throw new TypeError(
-      'sql.modules.teams.options.teamIdType must be "uuid" or "bigint"',
+      'blocks.teams.options.teamIdType must be "uuid" or "bigint"',
     );
   }
   if (ctx.installed("inbox") && value !== "uuid") {
     throw new TypeError(
-      "inbox assigns teams by uuid. Leave sql.modules.teams.options.teamIdType unset, or do not install inbox.",
+      "inbox assigns teams by uuid. Leave blocks.teams.options.teamIdType unset, or do not install inbox.",
     );
   }
   return value;

@@ -1192,6 +1192,28 @@
         }
       }
     },
+    "blocks": {
+      "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/accessBlock"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/moduleConfig"
+          }
+        }
+      ]
+    },
     "sql": {
       "type": "object",
       "additionalProperties": false,
@@ -1213,35 +1235,13 @@
           "default": "supabase/tests"
         },
         "schema": {
-          "description": "The schema of every module's functions and managed tables, unless the module sets its own.",
+          "description": "The schema of every block's functions and managed tables, unless the block sets its own.",
           "type": "string",
           "default": "better_supabase"
         },
         "api": {
-          "description": "The Data API schema every module writes its security invoker entry points to, unless the module sets its own api or false.",
+          "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false.",
           "type": "string"
-        },
-        "modules": {
-          "description": "The SQL modules to keep in sync: a list of names, or an object keyed by module name whose values set the module mode, names, permission keys and options.",
-          "oneOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-                "access": {
-                  "$ref": "#/$defs/accessModule"
-                }
-              },
-              "additionalProperties": {
-                "$ref": "#/$defs/moduleConfig"
-              }
-            }
-          ]
         }
       }
     },
@@ -1648,7 +1648,7 @@
         }
       }
     },
-    "accessModule": {
+    "accessBlock": {
       "type": "object",
       "additionalProperties": false,
       "properties": {

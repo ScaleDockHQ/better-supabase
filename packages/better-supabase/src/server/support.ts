@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
 import type {
   AuthorizationHooks,
   SupportAuthorize,
@@ -52,7 +53,7 @@ export interface SupportPolicy {
    * `distinct` (the default): a start needs a request that another admin
    * approved (`support.request`, then `support.approve`), or an `authorize`
    * decision of `{ approvedBy }` naming someone else. `none`: no second
-   * admin. Set `sql.modules.support-sessions.options.approval` to the same
+   * admin. Set `blocks.support-sessions.options.approval` to the same
    * value, because the SQL store checks it again.
    */
   readonly approval?: "distinct" | "none";
@@ -266,7 +267,7 @@ function createSupport(
     type: "support.started" | "support.ended" | "support.denied",
     data: SupportEventData,
   ): void => {
-    emitBlockEvent(events, type, data, {
+    emitBlockEvent<SupportSessionsEvents>(events, type, data, {
       actorId: data.adminId,
       ...(data.sessionId
         ? { subject: `support_sessions/${data.sessionId}` }

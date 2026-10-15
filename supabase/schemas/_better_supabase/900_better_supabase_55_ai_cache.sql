@@ -2,7 +2,7 @@
 -- @bs-module ai-cache@1 managed
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -130,7 +130,7 @@ $$;
 revoke execute on function "better_supabase"."purge_ai_cache"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_ai_cache"(integer) to service_role;
 
--- sql.modules.ai-cache.api: entry points for the Data API.
+-- blocks.ai-cache.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

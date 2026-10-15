@@ -352,10 +352,8 @@ with a role in `options.seatRoles`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      billing: { options: { seatRoles: ["owner", "admin", "member"] } },
-    },
+  blocks: {
+    billing: { options: { seatRoles: ["owner", "admin", "member"] } },
   },
 });
 ```
@@ -425,7 +423,8 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 `billing.subscription_deleted` and `billing.seats_synced` carry
 `organizationId` and, where they apply, `customerId`, `subscriptionId`,
 `status`, `quantity`, `previousQuantity` and `stripeEventId`. Listen with
-`onBlockEvent(bs, "billing.*", handler)`.
+`onBlockEvent(bs, billingEvents, "billing.*", handler)`, with
+`billingEvents` from `better-supabase/blocks/billing`.
 
 ## Functions
 

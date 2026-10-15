@@ -1,3 +1,4 @@
+import type { AgentsEvents } from "../../blocks/agents/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -58,7 +59,7 @@ const SKILLS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AgentsEvents> = {
   "agent.saved": {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug"],
@@ -125,7 +126,7 @@ function build(ctx: ModuleContext): string {
   const maxInstructions = ctx.number("maxInstructions", 100_000);
   if (!Number.isInteger(maxInstructions) || maxInstructions < 1) {
     throw new TypeError(
-      "sql.modules.agents.options.maxInstructions must be a positive whole number of characters",
+      "blocks.agents.options.maxInstructions must be a positive whole number of characters",
     );
   }
   const json = (row: string): string => rowJson(AGENTS, a, row);

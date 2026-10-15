@@ -24,3 +24,4 @@ export type {
   OnboardingControllerOptions,
   OnboardingSnapshot,
 } from "./client.ts";
+export { onboardingBlock } from "./manifest.ts";

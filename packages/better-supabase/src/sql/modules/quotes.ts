@@ -1,3 +1,4 @@
+import type { QuotesEvents } from "../../blocks/quotes/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const QUOTE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<QuotesEvents> = {
   "quote.created": { subject: "quotes", payload: [...QUOTE] },
   "quote.updated": { subject: "quotes", payload: [...QUOTE] },
   "quote.sent": { subject: "quotes", payload: [...QUOTE] },
@@ -147,7 +148,7 @@ function build(ctx: ModuleContext): string {
   const validDays = ctx.number("validDays", 30);
   if (!Number.isInteger(validDays) || validDays < 1) {
     throw new TypeError(
-      "sql.modules.quotes.options.validDays must be a positive integer",
+      "blocks.quotes.options.validDays must be a positive integer",
     );
   }
   const n: QuoteNames = {

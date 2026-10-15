@@ -78,7 +78,7 @@ interface UntypedRpcClient {
 export interface RpcTransportOptions {
   /**
    * The exposed schema that holds the block's entry points, such as `api`
-   * from `sql.modules.<module>.api`. Every call goes there instead of the
+   * from `blocks.<module>.api`. Every call goes there instead of the
    * module schema, which stays out of `[api] schemas` (doctor BS312).
    */
   readonly schema?: string;
@@ -86,7 +86,7 @@ export interface RpcTransportOptions {
 
 /**
  * Calls the functions over the Data API with the user's session. Pass
- * `schema` with the API schema that `sql.modules.<module>.api` writes
+ * `schema` with the API schema that `blocks.<module>.api` writes
  * wrappers into; without it the calls go to the module schema, which then
  * has to be exposed.
  */
@@ -120,7 +120,7 @@ export function rpcTransport(
 export interface DbTransportOptions {
   /**
    * The schema every call goes to instead of the module schema, such as the
-   * API schema from `sql.modules.<module>.api`. Over PostgREST it has to be
+   * API schema from `blocks.<module>.api`. Over PostgREST it has to be
    * exposed; over Postgres any schema the caller may use works.
    */
   readonly schema?: string;

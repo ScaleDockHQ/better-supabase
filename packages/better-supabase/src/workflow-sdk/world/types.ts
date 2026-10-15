@@ -39,7 +39,7 @@ export interface SupabaseWorldOptions {
    * unencrypted.
    */
   readonly encryptionKey?: string;
-  /** The jobs queue the messages wait in (`sql.modules.workflow-sdk-world.options.queue`). */
+  /** The jobs queue the messages wait in (`blocks.workflow-sdk-world.options.queue`). */
   readonly queue?: string;
   /** The schema of the jobs functions, default `better_supabase`. */
   readonly schema?: string;

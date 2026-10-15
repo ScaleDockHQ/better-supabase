@@ -1,3 +1,4 @@
+import type { ApprovalsEvents } from "../../blocks/approvals/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -61,7 +62,7 @@ const PAYLOAD = [
   "step",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ApprovalsEvents> = {
   "approval.requested": { subject: "approval-requests", payload: PAYLOAD },
   "approval.approved": { subject: "approval-requests", payload: PAYLOAD },
   "approval.rejected": { subject: "approval-requests", payload: PAYLOAD },
@@ -137,7 +138,7 @@ function validateRuns(
   policies: readonly ApprovalPolicy[],
 ): void {
   for (const policy of policies) {
-    const where = `sql.modules.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
+    const where = `blocks.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
     if (policy.run?.kind === "transition") {
       if (!ctx.installed("state-machine")) {
         throw new TypeError(`${where} needs the state-machine module`);

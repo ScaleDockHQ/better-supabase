@@ -55,12 +55,9 @@ export async function topicPolicyFile(
     }
     return undefined;
   }
-  if (
-    triggers.length > 0 &&
-    !config.sql.moduleNames.includes("realtime-tables")
-  ) {
+  if (triggers.length > 0 && !config.blockNames.includes("realtime-tables")) {
     throw new Error(
-      "realtime.triggers call better_supabase.broadcast_topic(): add realtime-tables to sql.modules",
+      "realtime.triggers call better_supabase.broadcast_topic(): add realtime-tables to blocks",
     );
   }
   const topics: TopicLike[] = [];

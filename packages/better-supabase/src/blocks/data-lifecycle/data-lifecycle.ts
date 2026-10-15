@@ -91,7 +91,7 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for `download`. */
   readonly storage?: LifecycleStorage;
-  /** The module schema (`sql.modules.data-lifecycle.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.data-lifecycle.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Lifetime of a signed download URL in seconds. Default 300. */

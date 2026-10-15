@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createAttachments } from "../../../src/blocks/attachments/attachments.ts";
 import {
   createDrive,
   driveSubject,
@@ -226,7 +227,11 @@ describe("drive client", () => {
       get_attachment: () => ({ ...ATTACHMENT, id: "a1", status: "clean" }),
     });
     const files = storage();
-    const drive = createDrive({ transport: fake, storage: files });
+    const drive = createDrive({
+      transport: fake,
+      storage: files,
+      attachments: createAttachments({ transport: fake, storage: files }),
+    });
     const upload = await drive
       .upload("o", {
         parentId: "f1",
@@ -259,14 +264,21 @@ describe("drive client", () => {
     expect(!upload.ok && upload.error.hint).toBe("DRIVE_STORAGE_CLIENT");
     expect(fake.calls).toEqual([]);
     const download = await drive.download("f1");
-    expect(!download.ok && download.error.hint).toBe("DRIVE_STORAGE_CLIENT");
+    expect(!download.ok && download.error.hint).toBe(
+      "DRIVE_ATTACHMENTS_CLIENT",
+    );
 
+    const files = storage();
     const withStorage = createDrive({
       transport: fake,
-      storage: storage(),
-      attachmentsSchema: "files",
-      requireScan: false,
-      downloadTtl: 60,
+      storage: files,
+      attachments: createAttachments({
+        transport: fake,
+        storage: files,
+        schema: "files",
+        requireScan: false,
+        downloadTtl: 60,
+      }),
       mappers: [],
     });
     const folder = await withStorage.download("f1");
@@ -401,7 +413,11 @@ describe("drive client", () => {
     ];
     const fake = transport({ drive_prune: () => objects });
     const files = storage();
-    const drive = createDrive({ transport: fake, storage: files });
+    const drive = createDrive({
+      transport: fake,
+      storage: files,
+      attachments: createAttachments({ transport: fake, storage: files }),
+    });
     expect(await drive.prune({ maxObjects: 10 }).orThrow()).toEqual(objects);
     expect(
       files.buckets.map((bucket) => [bucket.name, bucket.removed]),

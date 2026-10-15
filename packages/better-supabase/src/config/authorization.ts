@@ -1,4 +1,4 @@
-import type { DisabledRow } from "./modules.ts";
+import type { DisabledRow } from "./blocks.ts";
 
 /**
  * SQL expression templates the SQL modules and the access policies call.
@@ -107,7 +107,7 @@ export interface AuthorizationPermission {
 /**
  * One named operation: what workflow builder nodes, MCP tools, AI tools and
  * inbox commands with that name need. The provider supplies the table;
- * `sql.modules.<module>.permissions` still renames a module's own keys.
+ * `blocks.<module>.permissions` still renames a module's own keys.
  */
 export interface AuthorizationOperation {
   /** The permission key the operation needs. */
@@ -212,7 +212,7 @@ export interface AuthorizationProvider {
   readonly delegation?: {
     /**
      * OAuth scope to the permission keys it grants (RFC 9396 details stay
-     * with the app). `sql.modules.access.scopes` is merged over it.
+     * with the app). `blocks.access.scopes` is merged over it.
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
   };

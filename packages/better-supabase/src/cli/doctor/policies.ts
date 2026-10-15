@@ -268,7 +268,7 @@ export const POLICY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without a policy still granted to the Data API",
     description:
-      "A table with RLS on and no permissive policy for `anon` or `authenticated` answers every Data API request with no rows or a denied write, yet a grant lists it in the API schema. Under `sql.modules.grants.options.fromPolicies`, `better-supabase sql sync` revokes these grants and keeps `service_role`; until the migration is applied, doctor reports the live grants. Tables in `expose` are skipped.",
+      "A table with RLS on and no permissive policy for `anon` or `authenticated` answers every Data API request with no rows or a denied write, yet a grant lists it in the API schema. Under `blocks.grants.options.fromPolicies`, `better-supabase sql sync` revokes these grants and keeps `service_role`; until the migration is applied, doctor reports the live grants. Tables in `expose` are skipped.",
     check: (context) =>
       exposed(context).flatMap((table): FindingInput[] => {
         if (table.kind !== "table" || !table.rls) return [];
@@ -301,7 +301,7 @@ export const POLICY_RULES: readonly Rule[] = [
           return [];
         return [
           {
-            message: `${qualified(table)} has RLS on and no permissive policy for ${roles.join(" or ")}, but ${roles.join(" and ")} still hold grants on it. Run \`revoke all on table ${qualified(table)} from public, anon, authenticated;\`, or set \`sql.modules.grants.options.fromPolicies\` and run \`better-supabase sql sync\` so the migration revokes it.`,
+            message: `${qualified(table)} has RLS on and no permissive policy for ${roles.join(" or ")}, but ${roles.join(" and ")} still hold grants on it. Run \`revoke all on table ${qualified(table)} from public, anon, authenticated;\`, or set \`blocks.grants.options.fromPolicies\` and run \`better-supabase sql sync\` so the migration revokes it.`,
             target: qualified(table),
             object: tableObject(table),
           },

@@ -42,7 +42,7 @@ announcement dismissals, waitlist entries and redemptions, AI provider
 keys, connectors and their grants, workflow credentials, chat installations
 and the audit trail. A module added in a later release joins exports and purges
 when you run `sql sync`, and a table you map to another name in
-`sql.modules.<name>.tables` is read under that name. The module's own export
+`blocks.<name>.tables` is read under that name. The module's own export
 and deletion records stay out, API keys and webhook secrets are never
 exported, and incoming webhook endpoints and invitations are exported without
 their token hashes and secrets. Audit events are exported without the row
@@ -56,18 +56,16 @@ exports) and tenant column (for organization exports and the purge):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      "data-lifecycle": {
-        options: {
-          tables: {
-            projects: { tenant: "organization_id", user: "owner_id" },
-            "billing.invoices": { tenant: "organization_id", purge: false },
-          },
-          grace: "30 days",
-          exportTtl: "7 days",
-          bucket: "data-exports",
+  blocks: {
+    "data-lifecycle": {
+      options: {
+        tables: {
+          projects: { tenant: "organization_id", user: "owner_id" },
+          "billing.invoices": { tenant: "organization_id", purge: false },
         },
+        grace: "30 days",
+        exportTtl: "7 days",
+        bucket: "data-exports",
       },
     },
   },
@@ -190,23 +188,23 @@ await lifecycle.cancelOrganizationDeletion(organizationId).orThrow();
 
 The request needs `organization.delete`, and disables the tenant through
 the access contract: the organization's `disabled_at` with the managed
-organizations module, or the `sql.modules.access.disabled.tenant` column.
+organizations module, or the `blocks.access.disabled.tenant` column.
 Disabled tenants get no permissions and no membership claims, so members
 lose access at once. `grace` takes an interval or a `Temporal.Duration`
 and defaults to the `grace` option.
 
-With `sql.modules.data-lifecycle.permissions.deletePlatform` set to a
+With `blocks.data-lifecycle.permissions.deletePlatform` set to a
 platform permission (`is_platform`), platform staff can request and cancel a
 deletion for any organization without the service role, such as from an
 admin console.
 
 The requester, or a member holding the `cancelDelete` permission
-(`organization.delete` unless `sql.modules.data-lifecycle.permissions.cancelDelete`
+(`organization.delete` unless `blocks.data-lifecycle.permissions.cancelDelete`
 names another key), can cancel until the purge runs. The check goes through
 `better_supabase.member_can_while_deleting()`, which every access model
 renders: it asks the same question as `member_can()` without the
 disabled-tenant check, so an authorization provider's roles keep working
-while the organization waits. With `sql.modules.access.mode: "custom"`, where
+while the organization waits. With `blocks.access.mode: "custom"`, where
 the app writes the access functions itself, an owner can cancel instead.
 Cancelling enables the tenant again, unless it was disabled before the
 request.
@@ -250,7 +248,7 @@ when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
 and names the tables.
 
 The tenant row is the organizations module's (managed or adopted), or the
-row of the table `sql.modules.access.disabled.tenant` names, or the one in
+row of the table `blocks.access.disabled.tenant` names, or the one in
 `options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
 adopted tenant table needs no `on_organization_purge` hook to go.
 

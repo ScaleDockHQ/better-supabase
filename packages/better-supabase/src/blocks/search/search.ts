@@ -44,7 +44,7 @@ export interface SearchQuery {
   readonly limit?: number;
   /**
    * The query's embedding, when the index keeps embeddings
-   * (`sql.modules.search.options.dimensions` and `vector-search`): the
+   * (`blocks.search.options.dimensions` and `vector-search`): the
    * results fuse full-text and nearest-neighbour ranks.
    */
   readonly embedding?: readonly number[] | null;

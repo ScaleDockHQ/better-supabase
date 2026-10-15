@@ -1,6 +1,6 @@
 import type { Embedder } from "better-supabase/blocks/knowledge";
 
-/** `sql.modules["vector-search"]` stores 1536 dimensions by default. */
+/** `blocks["vector-search"]` stores 1536 dimensions by default. */
 const DIMENSIONS = 1536;
 
 function hash(word: string): number {

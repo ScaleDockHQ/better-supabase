@@ -5,7 +5,7 @@ import type { CredentialProvider } from "../../src/credentials/provider.ts";
 
 import {
   type BuilderStartCall,
-  createBuilder,
+  createWorkflowBuilder,
   sqlTransport,
   type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
@@ -58,7 +58,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
       await s.service();
       const starts: BuilderStartCall[] = [];
-      const service = createBuilder({
+      const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: STEPS,
         start: async (call) => {
@@ -81,7 +81,9 @@ describe.skipIf(!live)("workflow-builder module", () => {
       await service.steps.sync().orThrow();
 
       await s.asRole(member);
-      const asMember = createBuilder({ transport: sqlTransport(s.sql) });
+      const asMember = createWorkflowBuilder({
+        transport: sqlTransport(s.sql),
+      });
       expect(
         await asMember.definitions
           .save({ tenant, slug: "onboard", name: "Onboard" })
@@ -90,7 +92,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
       await s.asRole(owner);
       const compiled: WorkflowGraph[] = [];
-      const builder = createBuilder({
+      const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         compile: (graph) => {
           compiled.push(graph);
@@ -228,7 +230,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
         starts.push(call);
         return `wrun_${String(starts.length)}`;
       };
-      const service = createBuilder({
+      const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: STEPS,
         start,
@@ -236,7 +238,10 @@ describe.skipIf(!live)("workflow-builder module", () => {
       await service.steps.sync().orThrow();
 
       await s.asRole(owner);
-      const builder = createBuilder({ transport: sqlTransport(s.sql), start });
+      const builder = createWorkflowBuilder({
+        transport: sqlTransport(s.sql),
+        start,
+      });
       const definition = await builder.definitions
         .save({ tenant, slug: "hooked", name: "Hooked" })
         .orThrow();
@@ -408,7 +413,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       };
 
       await s.asRole(member);
-      const asMember = createBuilder({
+      const asMember = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
@@ -424,7 +429,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       ).toBe("WORKFLOW_FORBIDDEN");
 
       await s.asRole(owner);
-      const builder = createBuilder({
+      const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
@@ -451,7 +456,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       ).toBeTruthy();
 
       await s.service();
-      const service = createBuilder({
+      const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
@@ -496,7 +501,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       const outsider = await s.user("outsider");
       const tenant = await s.organization(owner, {});
       await s.asRole(owner);
-      const builder = createBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const definition = await builder.definitions
         .save({ tenant, slug: "alerted", name: "Alerted" })
         .orThrow();
@@ -519,7 +524,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
       await s.service();
       const workflows = createWorkflows({ transport: sqlTransport(s.sql) });
-      const service = createBuilder({ transport: sqlTransport(s.sql) });
+      const service = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const record = (externalId: string, status: "running" | "failed") =>
         workflows.runs
           .record({

@@ -36,30 +36,28 @@ export default defineConfig({
       rank: { column: "rank", group: "status" },
     },
   },
-  sql: {
-    modules: {
-      organizations: {},
-      teams: {},
-      outbox: {},
-      notifications: {},
-      comments: {},
-      tags: {},
-      rank: {},
-      reminders: {},
-      "number-sequences": {},
-      "state-machine": {
-        options: {
-          machines: {
-            task: {
-              table: "public.tasks",
-              column: "status",
-              initial: "todo",
-              tenant: "organization_id",
-              transitions: {
-                todo: ["doing"],
-                doing: ["todo", "done"],
-                done: ["doing"],
-              },
+  blocks: {
+    organizations: {},
+    teams: {},
+    outbox: {},
+    notifications: {},
+    comments: {},
+    tags: {},
+    rank: {},
+    reminders: {},
+    "number-sequences": {},
+    "state-machine": {
+      options: {
+        machines: {
+          task: {
+            table: "public.tasks",
+            column: "status",
+            initial: "todo",
+            tenant: "organization_id",
+            transitions: {
+              todo: ["doing"],
+              doing: ["todo", "done"],
+              done: ["doing"],
             },
           },
         },

@@ -197,7 +197,7 @@ export interface WorkflowStartTicket {
 
 export interface WorkflowsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.workflows.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.workflows.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

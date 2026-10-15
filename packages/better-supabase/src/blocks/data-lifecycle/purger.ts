@@ -50,7 +50,7 @@ export interface OrganizationPurgerOptions extends BlockTemporalOptions {
    */
   readonly credentials?: CredentialProvider;
   /**
-   * Also run the `sql.modules.data-lifecycle.options.anonymize` rules in
+   * Also run the `blocks.data-lifecycle.options.anonymize` rules in
    * `job`, after the due purges. Default false.
    */
   readonly anonymize?: boolean;

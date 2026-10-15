@@ -67,10 +67,8 @@ export const metrics = [
 ```ts title="better-supabase.config.ts"
 import { metrics } from "./src/metrics";
 
-sql: {
-  modules: {
-    metrics: { options: { metrics, window: "3 days" } },
-  },
+blocks: {
+  metrics: { options: { metrics, window: "3 days" } },
 },
 ```
 
@@ -133,6 +131,10 @@ between. [Time tracking](/docs/blocks/time-tracking#metrics) exports
 `timeEntryMetricTime` for its entries, and
 [orders](/docs/blocks/orders#metrics) exports `orderMetrics` with the events
 that feed it.
+
+Through [`createBlocks`](/docs/blocks/create-blocks#outbox-sinks), the
+metrics block's `sink` option (`{ on, time }`) builds the same sink into
+`sinks.metrics`.
 
 ## Read series and KPIs
 
@@ -245,7 +247,7 @@ methods, as every block does.
 
 The Next.js example defines one metric in `src/metrics.ts`, customers counted
 by `created_at` with a `status` dimension and `rollup: false`, and passes the
-same array to `sql.modules.metrics.options.metrics` and to `createMetrics`.
+same array to `blocks.metrics.options.metrics` and to `createMetrics`.
 The dashboard's New customers card reads three KPIs in one
 `"use cache: private"` function with `bs.cached()`: the last 30 days against
 the 30 before, and the leads and active customers among them. See

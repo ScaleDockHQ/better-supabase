@@ -17,7 +17,7 @@ on conflict (slug) do nothing;`;
 
 const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
-/** `minLength` and `maxLength` of `sql.modules["reserved-slugs"].options`. */
+/** `minLength` and `maxLength` of `blocks["reserved-slugs"].options`. */
 function slugLengths(ctx: ModuleContext): {
   readonly min: number;
   readonly max: number;
@@ -31,26 +31,26 @@ function slugLengths(ctx: ModuleContext): {
     max < min
   ) {
     throw new TypeError(
-      "sql.modules.reserved-slugs.options.minLength and maxLength must be whole numbers with 1 <= minLength <= maxLength",
+      "blocks.reserved-slugs.options.minLength and maxLength must be whole numbers with 1 <= minLength <= maxLength",
     );
   }
   return { min, max };
 }
 
-/** `sql.modules["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
+/** `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
 function appSlugs(ctx: ModuleContext): string {
   const slugs = ctx.list("slugs", []);
   for (const slug of slugs) {
     if (!new RegExp(SLUG_PATTERN).test(slug) || slug.includes("--")) {
       throw new TypeError(
-        `sql.modules.reserved-slugs.options.slugs: "${slug}" is not a slug (lowercase letters, digits and inner hyphens)`,
+        `blocks.reserved-slugs.options.slugs: "${slug}" is not a slug (lowercase letters, digits and inner hyphens)`,
       );
     }
   }
   if (slugs.length === 0) return "";
   return `
 
--- sql.modules.reserved-slugs.options.slugs
+-- blocks.reserved-slugs.options.slugs
 insert into better_supabase.reserved_slugs (slug, reason)
 select value, 'app'
 from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
@@ -81,7 +81,7 @@ drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
 -- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
--- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql

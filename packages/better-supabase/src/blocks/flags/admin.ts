@@ -12,7 +12,7 @@ export interface FlagAdminOptions {
    * platform staff over the Data API, or a service-role transport.
    */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.flags.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.flags.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

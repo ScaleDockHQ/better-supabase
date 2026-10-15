@@ -81,13 +81,13 @@ function build(ctx: ModuleContext): string {
   const queue = ctx.text("queue", "ai_task_run");
   if (!QUEUE.test(queue)) {
     throw new TypeError(
-      "sql.modules.ai-tasks.options.queue must be a lowercase queue name of at most 47 characters",
+      "blocks.ai-tasks.options.queue must be a lowercase queue name of at most 47 characters",
     );
   }
   const staleAfter = ctx.text("staleAfter", "30 minutes");
   if (!INTERVAL.test(staleAfter)) {
     throw new TypeError(
-      'sql.modules.ai-tasks.options.staleAfter must be an interval such as "30 minutes"',
+      'blocks.ai-tasks.options.staleAfter must be an interval such as "30 minutes"',
     );
   }
   const agents = ctx.installed("agents") ? ctx.of("agents") : undefined;

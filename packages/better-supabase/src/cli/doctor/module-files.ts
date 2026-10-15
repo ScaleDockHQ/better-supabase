@@ -30,11 +30,11 @@ export interface ModuleFileState {
   readonly behind: boolean;
 }
 
-/** The `sql.modules` files as this release renders them, next to what is on disk. */
+/** The `blocks` files as this release renders them, next to what is on disk. */
 export async function moduleFiles(
   context: DoctorContext,
 ): Promise<ModuleFileState[]> {
-  if (context.config.sql.moduleNames.length === 0) return [];
+  if (context.config.blockNames.length === 0) return [];
   // BS411 reports a provider access model the provider can't back; the module
   // can't render without it, so there is nothing to compare.
   const access = accessModule(context);
@@ -44,9 +44,9 @@ export async function moduleFiles(
   let rendered: ModuleFile[];
   try {
     rendered = renderModules(
-      context.config.sql.moduleNames,
+      context.config.blockNames,
       await moduleLayoutFor(context.config, {
-        names: context.config.sql.moduleNames,
+        names: context.config.blockNames,
         testsDir: context.config.sql.testsDir,
         readSets: skipped ? [] : readSets,
         entitlementsProvider: entitlementsModule(context),

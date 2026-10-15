@@ -8,11 +8,7 @@ import type { CommandResult } from "../io.ts";
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
 import { type SqlFlags, USAGE } from "./args.ts";
-import {
-  addModulesToConfig,
-  addModulesToJson,
-  keyText,
-} from "./config-edit.ts";
+import { addBlocksToConfig, addBlocksToJson, keyText } from "./config-edit.ts";
 import {
   layoutFor,
   MEMBERSHIP_CLAIM_MODULES,
@@ -53,12 +49,12 @@ export async function addModules(
       ].join("\n"),
     };
   }
-  // Render with the modules sql.modules already lists, so the new ones
+  // Render with the modules blocks already lists, so the new ones
   // see them (a foreign key to the organizations table, plan quotas
   // over entitlements), but write only the named ones and what they need.
   const listed = [
-    ...config.sql.moduleNames,
-    ...names.filter((name) => !config.sql.moduleNames.includes(name)),
+    ...config.blockNames,
+    ...names.filter((name) => !config.blockNames.includes(name)),
   ];
   const sqlLayout = await layoutFor(config, args, listed);
   const added = resolveModules(names, sqlLayout).map((module) => module.name);
@@ -78,7 +74,7 @@ export async function addModules(
   }
   const untracked = resolveModules(names, sqlLayout)
     .map((module) => module.name)
-    .filter((name) => !config.sql.moduleNames.includes(name));
+    .filter((name) => !config.blockNames.includes(name));
   if (untracked.length > 0) {
     lines.push("", ...(await listInConfig(args, untracked, deps)));
   }
@@ -89,7 +85,7 @@ export async function addModules(
 }
 
 /**
- * Lists `untracked` in `sql.modules` of the config file, so `sql sync
+ * Lists `untracked` in `blocks` of the config file, so `sql sync
  * --check` keeps them current, or prints the snippet when the file isn't a
  * literal object the edit can follow.
  */
@@ -101,26 +97,26 @@ async function listInConfig(
   const file = deps.configFile;
   if (file === undefined) {
     return [
-      "Add them to sql.modules in better-supabase.config.ts so `sql sync --check` keeps them current:",
+      "Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:",
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
   const source = await readFile(file, "utf8");
   const edit = file.endsWith(".json")
-    ? addModulesToJson(source, untracked)
-    : addModulesToConfig(source, untracked);
+    ? addBlocksToJson(source, untracked)
+    : addBlocksToConfig(source, untracked);
   if (!edit.ok) {
     return [
       `${basename(file)} wasn't changed: ${edit.reason}.`,
-      "Add them to sql.modules so `sql sync --check` keeps them current:",
+      "Add them to blocks so `sql sync --check` keeps them current:",
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
   if (args["dry-run"] === true) {
     return [
-      `Would add ${untracked.join(", ")} to sql.modules in ${basename(file)}.`,
+      `Would add ${untracked.join(", ")} to blocks in ${basename(file)}.`,
     ];
   }
   await writeFile(file, edit.text);
-  return [`Added ${untracked.join(", ")} to sql.modules in ${basename(file)}.`];
+  return [`Added ${untracked.join(", ")} to blocks in ${basename(file)}.`];
 }

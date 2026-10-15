@@ -1,3 +1,4 @@
+import type { AnnouncementsEvents } from "../../blocks/announcements/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -16,7 +17,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AnnouncementsEvents> = {
   "announcement.saved": {
     subject: "announcements",
     payload: ["announcementId"],
@@ -104,7 +105,7 @@ function build(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "announcements");
   if (!TOPIC.test(topic)) {
     throw new TypeError(
-      "sql.modules.announcements.options.topic: use letters, digits, '_', '.', ':' or '-'",
+      "blocks.announcements.options.topic: use letters, digits, '_', '.', ':' or '-'",
     );
   }
   const event = ctx.text("event", "announcement_changed");

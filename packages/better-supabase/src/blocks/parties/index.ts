@@ -26,3 +26,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { partiesBlock } from "./manifest.ts";
+export { partiesEvents } from "./events.ts";
+export type { PartiesEvents } from "./events.ts";

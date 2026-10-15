@@ -34,8 +34,8 @@ has a [conformance kit](/docs/extending/conformance).
 | [`DocumentFormat`](#documentformat)                     | OpenAPI 3.0, 3.1, 3.2 and 3.3-preview                       | `defineApi(...).render(format, options)`                                           |
 | [`Embedder`](#embedder)                                 | `embedWith(model)`, `supabaseEmbed()`                       | `createKnowledge({ embedder })`, `createMemory({ embedder })`                      |
 | [`AiTaskRunner`](#aitaskrunner)                         | none (runs your agent)                                      | `createAiTasks({ run })`                                                           |
-| [`GraphCompiler`](#graphcompiler)                       | none (your engine's compiled form)                          | `createBuilder({ compile })`                                                       |
-| [`BuilderStarter`](#builderstarter)                     | none (starts a run on your engine)                          | `createBuilder({ start })`                                                         |
+| [`GraphCompiler`](#graphcompiler)                       | none (your engine's compiled form)                          | `createWorkflowBuilder({ compile })`                                               |
+| [`BuilderStarter`](#builderstarter)                     | none (starts a run on your engine)                          | `createWorkflowBuilder({ start })`                                                 |
 | [`EveDocumentBackend`](#evedocumentbackend)             | `supabaseDocumentBackend(options)`                          | eve's `fileMemory({ backend })`                                                    |
 | [`BlockTransportMiddleware`](#blocktransportmiddleware) | none (tracing, timeouts, request ids)                       | `wrapTransport(transport, middleware)`                                             |
 | `EnvSource`                                             | `process.env`, `Deno.env.toObject()`                        | `parseEnv(source)`                                                                 |

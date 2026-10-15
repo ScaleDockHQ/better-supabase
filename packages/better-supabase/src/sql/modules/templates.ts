@@ -1,3 +1,4 @@
+import type { TemplatesEvents } from "../../blocks/templates/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -18,7 +19,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TemplatesEvents> = {
   "template.published": {
     subject: "templates",
     payload: ["organizationId", "id", "versionId", "version", "type"],

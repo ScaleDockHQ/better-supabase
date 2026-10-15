@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SubjectEventType } from "../../src/core/block-events.ts";
+import type { AllBlockEvents } from "../blocks/all-blocks.ts";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
@@ -117,12 +118,15 @@ const SUBJECT_EVENTS = [
   "notification.complained",
   "notification.delayed",
   "template.applied",
-] as const satisfies readonly SubjectEventType[];
+] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /** Subject events that only the TypeScript block emits, so no SQL catalog lists them. */
 const EMITTED_IN_TS = new Set<string>(["notification.failed"]);
 
-type Unlisted = Exclude<SubjectEventType, (typeof SUBJECT_EVENTS)[number]>;
+type Unlisted = Exclude<
+  SubjectEventType<AllBlockEvents>,
+  (typeof SUBJECT_EVENTS)[number]
+>;
 const everyTypeListed: Unlisted extends never ? true : false = true;
 
 /** Events that name a subject only when the row is attached to one. */
@@ -147,7 +151,7 @@ const catalog = Object.values(SQL_MODULES).flatMap((module): CatalogEntry[] =>
   Object.entries(module.names?.events ?? {}).map(([type, spec]) => ({
     module: module.name,
     type,
-    payload: spec.payload,
+    payload: spec?.payload ?? [],
   })),
 );
 

@@ -49,16 +49,16 @@ export interface PlatformAssignment {
 }
 
 /**
- * Why `sql.modules.invitations.options.platformRoles.through` needs `where`:
+ * Why `blocks.invitations.options.platformRoles.through` needs `where`:
  * its table also holds the tenant roles of
- * `sql.modules.tenant.options.roleThrough`. `undefined` when it doesn't.
+ * `blocks.tenant.options.roleThrough`. `undefined` when it doesn't.
  */
 export function platformRolesProblem(ctx: ModuleContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;
   if (!through || through.where) return undefined;
   if (roleThroughTable(ctx.of("tenant"))?.table !== through.table)
     return undefined;
-  return `sql.modules.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (sql.modules.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
+  return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
 }
 
 export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
@@ -133,7 +133,7 @@ drop function if exists ${fn}();
 `;
   }
   return `
--- sql.modules.invitations.options.platformRoles.through.where names the
+-- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to ${platform.table} stores one of them,
 -- whoever writes it: a client policy, the service role or an admin connection.
 create or replace function ${fn}()

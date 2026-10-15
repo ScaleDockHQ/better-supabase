@@ -22,11 +22,11 @@ import type {
   TypeName,
 } from "./api-types.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
+import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
 
 import {
   blockEmitter,
-  type BlockEventMap,
   type NotificationDeliveryEventData,
 } from "../../core/block-events.ts";
 import { budget, toBlockError } from "../../core/block-helpers.ts";
@@ -205,13 +205,13 @@ export function createNotifications<
     args: Readonly<Record<string, unknown>>,
   ): Promise<unknown> => transport.call(schema, fn, args);
 
-  const emitEvent = blockEmitter(options);
+  const emitEvent = blockEmitter<NotificationsEvents>(options);
 
   function emit<
     T extends
       | "notification.created"
       | `notification.${DeliveryEventKind | "failed"}`,
-  >(type: T, data: BlockEventMap[T], tenant: string | null): void {
+  >(type: T, data: NotificationsEvents[T], tenant: string | null): void {
     emitEvent(type, data, `notifications/${data.notificationId}`, tenant);
   }
 

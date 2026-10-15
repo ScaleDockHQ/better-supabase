@@ -3,7 +3,6 @@ import type {
   BucketPolicyName,
 } from "../../schema/types.ts";
 import type { BucketLifecycle } from "../../storage/versioning.ts";
-import type { ModulesConfig } from ".././modules.ts";
 
 export interface BucketConfig {
   readonly id?: string;
@@ -47,32 +46,24 @@ export interface SqlConfig {
   readonly testsDir?: string;
   /**
    * The schema every module writes its functions and managed tables to,
-   * unless `modules.<name>.schema` sets its own. Defaults to `better_supabase`.
+   * unless `blocks.<name>.schema` sets its own. Defaults to `better_supabase`.
    */
   readonly schema?: string;
   /**
    * The Data API schema, such as `api`, every module writes its `security
-   * invoker` wrappers to, unless `modules.<name>.api` sets its own or
+   * invoker` wrappers to, unless `blocks.<name>.api` sets its own or
    * `false`.
    */
   readonly api?: string;
-  /**
-   * The SQL modules to keep in sync (`better-supabase sql add`): a list of
-   * names, or an object keyed by module name whose values set each module's
-   * mode, schema, table and column names, permission keys and options.
-   */
-  readonly modules?: readonly string[] | ModulesConfig;
 }
 
-/** `sql` with defaults applied: settings per module, and their names in order. */
+/** `sql` with defaults applied. */
 export interface ResolvedSqlConfig {
   /** Unset when the config leaves it to `supabase/config.toml`. */
   readonly workflow?: SqlWorkflow;
   readonly dir: string;
   readonly prefix: string;
   readonly testsDir: string;
-  readonly modules: ModulesConfig;
-  readonly moduleNames: readonly string[];
 }
 
 export interface SeedConfig {

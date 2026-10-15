@@ -25,7 +25,7 @@ function deliveryModeOf(ctx: ModuleContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
   if (mode !== "poll" && mode !== "pg_net") {
     throw new TypeError(
-      `sql.modules.workflow-sdk-world.options.delivery must be "poll" or "pg_net", got "${mode}"`,
+      `blocks.workflow-sdk-world.options.delivery must be "poll" or "pg_net", got "${mode}"`,
     );
   }
   return mode;
@@ -37,7 +37,7 @@ function deliveryQueueOf(ctx: ModuleContext): string {
   const queue = ctx.text("queue", WORKFLOW_DELIVERY_QUEUE);
   if (!IDENT.test(queue)) {
     throw new TypeError(
-      `sql.modules.workflow-sdk-world.options.queue: "${queue}" is not a queue name`,
+      `blocks.workflow-sdk-world.options.queue: "${queue}" is not a queue name`,
     );
   }
   return queue;

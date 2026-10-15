@@ -5,6 +5,7 @@ import type {
   BlockEventSchemas,
 } from "../../src/asyncapi/index.ts";
 import type { AnyAsyncApiDocument } from "../../src/asyncapi/types.ts";
+import type { SupportSessionsEvents } from "../../src/blocks/support-sessions/events.ts";
 import type { SupportEventData } from "../../src/core/block-events.ts";
 import type { SpecDiagnostic } from "../../src/spec/format.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
@@ -552,13 +553,17 @@ describe("asyncapiFormat: lint", () => {
 });
 
 describe("BlockEventSchemas", () => {
-  it("checks schemas against BlockEventMap", () => {
+  it("checks schemas against a block's event map", () => {
     const wrong = {} as BlockEventSchema<{ readonly adminId: number }>;
-    // @ts-expect-error: adminId is a string in SupportEventData
-    const schemas: BlockEventSchemas = { "support.started": wrong };
+    const schemas: BlockEventSchemas<SupportSessionsEvents> = {
+      // @ts-expect-error: adminId is a string in SupportEventData
+      "support.started": wrong,
+    };
     expect(schemas).toBeDefined();
-    // @ts-expect-error: not a block event
-    const unknown: BlockEventSchemas = { "nope.event": true };
+    const unknown: BlockEventSchemas<SupportSessionsEvents> = {
+      // @ts-expect-error: not a support event
+      "nope.event": true,
+    };
     expect(unknown).toBeDefined();
   });
 });

@@ -1,0 +1,22 @@
+import type { BlockOf } from "../define-block.ts";
+import type { WorkItemsEvents } from "./events.ts";
+
+import { defineBlock, optionKeys } from "../define-block.ts";
+import { workItemsEvents } from "./events.ts";
+import { createWorkItems } from "./work-items.ts";
+
+/** The `work-items` block's manifest (ADR 0029). */
+export const workItemsBlock: BlockOf<
+  "work-items",
+  typeof createWorkItems,
+  WorkItemsEvents
+> = defineBlock({
+  name: "work-items",
+  sql: ["work-items"],
+  options: {
+    "work-items": optionKeys(["prefix", "maxAssignees", "extraColumns"]),
+  },
+  events: workItemsEvents,
+  create: createWorkItems,
+  category: "work",
+});

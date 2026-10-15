@@ -23,3 +23,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { slaBlock } from "./manifest.ts";
+export { slaEvents } from "./events.ts";
+export type { SlaEvents } from "./events.ts";

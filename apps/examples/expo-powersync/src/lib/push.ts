@@ -1,5 +1,5 @@
 import {
-  createPushDevices,
+  createPush,
   registerDevice,
   rpcTransport,
   unregisterOnSignOut,
@@ -10,7 +10,7 @@ import { Platform } from "react-native";
 
 import { supabase } from "./supabase/native";
 
-const devices = createPushDevices({
+const devices = createPush({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 

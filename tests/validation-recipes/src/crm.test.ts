@@ -1,7 +1,7 @@
 import { createBlocks, sqlTransport } from "better-supabase/blocks";
-import { createComments } from "better-supabase/blocks/comments";
-import { createRank } from "better-supabase/blocks/rank";
-import { createTags } from "better-supabase/blocks/tags";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import { rankBlock } from "better-supabase/blocks/rank";
+import { tagsBlock } from "better-supabase/blocks/tags";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -29,7 +29,7 @@ describe.skipIf(!live)("CRM recipe", () => {
       const watchers = await watching(s);
       const { comments, tags, rank } = createBlocks(
         { transport: sqlTransport(s.sql) },
-        { comments: createComments, tags: createTags, rank: createRank },
+        { comments: commentsBlock, tags: tagsBlock, rank: rankBlock },
       );
 
       await s.as(owner);

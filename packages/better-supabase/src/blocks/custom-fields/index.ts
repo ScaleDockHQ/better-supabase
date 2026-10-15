@@ -4,3 +4,6 @@ export {
   type CustomFieldsOptions,
   type FieldDefinition,
 } from "./custom-fields.ts";
+export { customFieldsBlock } from "./manifest.ts";
+export { customFieldsEvents } from "./events.ts";
+export type { CustomFieldsEvents } from "./events.ts";

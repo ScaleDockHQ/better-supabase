@@ -36,12 +36,12 @@ function build(ctx: ModuleContext): string {
   const maxBytes = ctx.number("maxBytes", 1024 * 1024);
   if (!Number.isInteger(maxTtl) || maxTtl < 1) {
     throw new TypeError(
-      "sql.modules.ai-cache.options.maxTtl must be a whole number of seconds",
+      "blocks.ai-cache.options.maxTtl must be a whole number of seconds",
     );
   }
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new TypeError(
-      "sql.modules.ai-cache.options.maxBytes must be a whole number of bytes",
+      "blocks.ai-cache.options.maxBytes must be a whole number of bytes",
     );
   }
   const entryJson = (row: string): string => rowJson(ENTRIES, e, row);

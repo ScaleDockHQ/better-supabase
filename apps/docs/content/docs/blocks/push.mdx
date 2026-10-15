@@ -31,13 +31,13 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import {
-  createPushDevices,
+  createPush,
   registerDevice,
   rpcTransport,
   unregisterOnSignOut,
 } from "better-supabase/blocks/push";
 
-const devices = createPushDevices({ transport: rpcTransport(supabase) });
+const devices = createPush({ transport: rpcTransport(supabase) });
 let token: string | undefined;
 
 export async function onSignedIn() {
@@ -72,9 +72,9 @@ doesn't block the sign-out.
 
 ```ts title="server/push.ts"
 import { sqlTransport } from "better-supabase/blocks/push";
-import { createPushDevices, expoPush } from "better-supabase/blocks/push";
+import { createPush, expoPush } from "better-supabase/blocks/push";
 
-const devices = createPushDevices({ transport: sqlTransport(postgres.admin) });
+const devices = createPush({ transport: sqlTransport(postgres.admin) });
 const push = expoPush({ accessToken: env.EXPO_ACCESS_TOKEN, devices });
 
 const targets = await devices.tokensFor([userId]).orThrow();

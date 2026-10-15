@@ -49,30 +49,28 @@ ${readable("recipe_crm.deals")}`,
         rank: { column: "rank", group: "stage" },
       },
     },
-    sql: {
-      modules: {
-        organizations: {},
-        outbox: {},
-        notifications: {},
-        comments: {},
-        tags: {},
-        "custom-fields": {},
-        rank: {},
-        reminders: {},
-        "state-machine": {
-          options: {
-            machines: {
-              deal: {
-                table: "recipe_crm.deals",
-                column: "stage",
-                initial: "lead",
-                tenant: "organization_id",
-                transitions: {
-                  lead: ["qualified", "lost"],
-                  qualified: ["won", "lost"],
-                  won: [],
-                  lost: ["lead"],
-                },
+    blocks: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      "custom-fields": {},
+      rank: {},
+      reminders: {},
+      "state-machine": {
+        options: {
+          machines: {
+            deal: {
+              table: "recipe_crm.deals",
+              column: "stage",
+              initial: "lead",
+              tenant: "organization_id",
+              transitions: {
+                lead: ["qualified", "lost"],
+                qualified: ["won", "lost"],
+                won: [],
+                lost: ["lead"],
               },
             },
           },
@@ -106,30 +104,28 @@ ${readable("recipe_pm.tasks")}`,
         rank: { column: "rank", group: "status" },
       },
     },
-    sql: {
-      modules: {
-        organizations: {},
-        teams: {},
-        outbox: {},
-        notifications: {},
-        comments: {},
-        tags: {},
-        rank: {},
-        reminders: {},
-        "number-sequences": {},
-        "state-machine": {
-          options: {
-            machines: {
-              task: {
-                table: "recipe_pm.tasks",
-                column: "status",
-                initial: "todo",
-                tenant: "organization_id",
-                transitions: {
-                  todo: ["doing"],
-                  doing: ["todo", "done"],
-                  done: ["doing"],
-                },
+    blocks: {
+      organizations: {},
+      teams: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      rank: {},
+      reminders: {},
+      "number-sequences": {},
+      "state-machine": {
+        options: {
+          machines: {
+            task: {
+              table: "recipe_pm.tasks",
+              column: "status",
+              initial: "todo",
+              tenant: "organization_id",
+              transitions: {
+                todo: ["doing"],
+                doing: ["todo", "done"],
+                done: ["doing"],
               },
             },
           },
@@ -162,17 +158,15 @@ ${readable("recipe_drive.documents")}`,
         rank: { column: "rank", group: "folder" },
       },
     },
-    sql: {
-      modules: {
-        organizations: {},
-        outbox: {},
-        notifications: {},
-        comments: {},
-        tags: {},
-        attachments: {},
-        "share-links": {},
-        rank: {},
-      },
+    blocks: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      comments: {},
+      tags: {},
+      attachments: {},
+      "share-links": {},
+      rank: {},
     },
   }),
 };
@@ -199,27 +193,25 @@ ${readable("recipe_scheduling.bookings")}`,
         url: "/bookings/{id}",
       },
     },
-    sql: {
-      modules: {
-        organizations: {},
-        outbox: {},
-        notifications: {},
-        "custom-fields": {},
-        "share-links": {},
-        reminders: {},
-        "state-machine": {
-          options: {
-            machines: {
-              booking: {
-                table: "recipe_scheduling.bookings",
-                column: "status",
-                initial: "requested",
-                tenant: "organization_id",
-                transitions: {
-                  requested: ["confirmed", "cancelled"],
-                  confirmed: ["cancelled"],
-                  cancelled: [],
-                },
+    blocks: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      "custom-fields": {},
+      "share-links": {},
+      reminders: {},
+      "state-machine": {
+        options: {
+          machines: {
+            booking: {
+              table: "recipe_scheduling.bookings",
+              column: "status",
+              initial: "requested",
+              tenant: "organization_id",
+              transitions: {
+                requested: ["confirmed", "cancelled"],
+                confirmed: ["cancelled"],
+                cancelled: [],
               },
             },
           },
@@ -321,36 +313,34 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
         search: { body: ["description"] },
       },
     },
-    sql: {
-      modules: {
-        organizations: {},
-        outbox: {},
-        notifications: {},
-        catalog: {},
-        inventory: {},
-        imports: {},
-        "number-sequences": {
-          options: {
-            entities: {
-              order: { period: "none", format: "SO-{n:4}" },
-              invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
-            },
+    blocks: {
+      organizations: {},
+      outbox: {},
+      notifications: {},
+      catalog: {},
+      inventory: {},
+      imports: {},
+      "number-sequences": {
+        options: {
+          entities: {
+            order: { period: "none", format: "SO-{n:4}" },
+            invoice: { period: "year", format: "INV-{yyyy}-{n:5}" },
           },
         },
-        orders: {},
-        promotions: {},
-        search: {},
-        "saved-views": {},
-        metrics: { options: { metrics: commerceMetrics } },
-        approvals: {
-          options: {
-            policies: {
-              order: {
-                refund: { steps: [{ approvers: { role: "admin" } }] },
-              },
-              promotion: {
-                activate: { steps: [{ approvers: { role: "admin" } }] },
-              },
+      },
+      orders: {},
+      promotions: {},
+      search: {},
+      "saved-views": {},
+      metrics: { options: { metrics: commerceMetrics } },
+      approvals: {
+        options: {
+          policies: {
+            order: {
+              refund: { steps: [{ approvers: { role: "admin" } }] },
+            },
+            promotion: {
+              activate: { steps: [{ approvers: { role: "admin" } }] },
             },
           },
         },

@@ -27,3 +27,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { pipelinesBlock } from "./manifest.ts";
+export { pipelinesEvents } from "./events.ts";
+export type { PipelinesEvents } from "./events.ts";

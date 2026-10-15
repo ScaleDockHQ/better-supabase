@@ -49,7 +49,7 @@ export interface GenConfig {
    * The steps `better-supabase gen` runs, in this order: `types` (the
    * generated modules and `generators`), `sql` (`sql sync`), `spec` (`spec
    * emit`), `seed`, `scaffold` (`scaffold api`, its generated file only) and
-   * `env`. Without a list, `types` runs, plus `sql` when `sql.modules` or
+   * `env`. Without a list, `types` runs, plus `sql` when `blocks` or
    * `realtime.policies` is set, `spec` and `seed` when their entry file
    * exists, and `scaffold` when `scaffold.api` is set. `env` runs only when
    * listed, because it needs the local stack. A listed step always runs.

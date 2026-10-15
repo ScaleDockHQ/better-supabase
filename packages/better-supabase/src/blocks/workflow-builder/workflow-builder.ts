@@ -37,7 +37,6 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
-import { createWorkflows } from "../workflows/workflows.ts";
 import { diffGraphs, graphOf } from "./graph.ts";
 import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
@@ -95,14 +94,16 @@ const BUILDER_PREFIX = "builder:";
  * `credentials` providers.
  *
  * ```ts
- * const builder = createBuilder({
+ * const builder = createWorkflowBuilder({
  *   transport: rpcTransport(supabase),
  *   compile: compileGraph,
  *   start: graphStarter({ executor: builderWorkflow, steps: { runNode } }),
  * });
  * ```
  */
-export function createBuilder(options: BuilderOptions): WorkflowBuilder {
+export function createWorkflowBuilder(
+  options: BuilderOptions,
+): WorkflowBuilder {
   applyTemporal(options);
   injectableOf("workflow-builder compiler", options.compile);
   injectableOf("workflow-builder starter", options.start);
@@ -123,7 +124,7 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
   const noProvider = (ref: CredentialRef) =>
     dbError(
       "invalid_request",
-      `No credential provider named "${ref.provider}" was passed to createBuilder`,
+      `No credential provider named "${ref.provider}" was passed to createWorkflowBuilder`,
     );
 
   const getVersion = (version: string) =>
@@ -160,7 +161,7 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
   const missingStarter = () =>
     dbError(
       "invalid_request",
-      "Pass `start` to createBuilder to run workflows",
+      "Pass `start` to createWorkflowBuilder to run workflows",
     );
 
   const runWith = (
@@ -511,12 +512,16 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           );
         }
         const timezone = trigger.config["timezone"];
-        const workflows = createWorkflows({
-          transport: options.service ?? options.transport,
-          ...(options.mappers === undefined
-            ? {}
-            : { mappers: options.mappers }),
-        });
+        const workflows = options.workflows;
+        if (workflows === undefined) {
+          return AsyncResult.err(
+            dbError(
+              "invalid_request",
+              "createWorkflowBuilder needs the workflows block to sync a schedule",
+              { hint: "WORKFLOW_BUILDER_WORKFLOWS_CLIENT" },
+            ),
+          );
+        }
         return workflows.schedules.create({
           name: `builder-trigger:${trigger.id}`,
           workflow: `${BUILDER_PREFIX}${trigger.definition}`,

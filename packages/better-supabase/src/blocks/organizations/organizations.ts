@@ -1,6 +1,6 @@
 import type {
-  InvitationEventData,
   BlockEventType,
+  InvitationEventData,
   OrganizationEventData,
 } from "../../core/block-events.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
@@ -10,6 +10,7 @@ import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
+import type { OrganizationsEvents } from "./events.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
 import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
@@ -28,7 +29,7 @@ import {
 
 /**
  * Organization columns by database name: `name`, `slug`, the columns in
- * `sql.modules.organizations.options.attributes` and the ones
+ * `blocks.organizations.options.attributes` and the ones
  * `options.extraColumns` adds. Other keys are ignored.
  */
 export interface OrganizationAttributes {
@@ -45,7 +46,7 @@ export interface CreateOrganizationOptions {
 export type SlugProblem = "invalid" | "reserved" | "taken";
 
 export interface InviteRequest {
-  /** `null` invites to the platform (`sql.modules.access.model: 'catalog'`). */
+  /** `null` invites to the platform (`blocks.access.model: 'catalog'`). */
   readonly organizationId: string | null;
   readonly email: string;
   /** A role name, or a role id or key under the catalog model. */
@@ -169,7 +170,7 @@ export interface OrganizationsOptions<
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
-   * The schema holding the functions: `sql.modules.<module>.schema` with
+   * The schema holding the functions: `blocks.<module>.schema` with
    * `sqlTransport`, the exposed API schema of wrappers with `rpcTransport`.
    * One schema for both modules, or one per module. Defaults to
    * `better_supabase`.
@@ -450,10 +451,13 @@ function organizationsClient<F extends object>(
     return calls[module](fn, args, then);
   }
 
-  const emit = blockEmitter(options);
+  const emit = blockEmitter<OrganizationsEvents>(options);
 
   const organizationEvent = (
-    type: Extract<BlockEventType, `organization.${string}`>,
+    type: Extract<
+      BlockEventType<OrganizationsEvents>,
+      `organization.${string}`
+    >,
     data: OrganizationEventData,
   ): void => {
     emit(
@@ -465,7 +469,7 @@ function organizationsClient<F extends object>(
   };
 
   const invitationEvent = (
-    type: Extract<BlockEventType, `invitation.${string}`>,
+    type: Extract<BlockEventType<OrganizationsEvents>, `invitation.${string}`>,
     data: InvitationEventData,
   ): void => {
     emit(

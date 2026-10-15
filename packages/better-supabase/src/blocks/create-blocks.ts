@@ -1,290 +1,294 @@
+import type {
+  BlockEvent,
+  BlockEventPattern,
+  BlockEventsMatching,
+  EventMap,
+  EventMapOf,
+  Events,
+  MergedEventMap,
+} from "../core/block-events.ts";
 import type { BlockOptions } from "../core/block-helpers.ts";
 import type { BlockHooks } from "../core/block-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
-import type { AiFiles } from "./ai-files/ai-files.ts";
-import type { AiTaskOutcome } from "./ai-tasks/ai-tasks.ts";
-import type { Metrics } from "./metrics/metrics.ts";
-import type { DeliveryPayload } from "./reminders/schedule.ts";
-import type { Search } from "./search/search.ts";
+import type { AnyBlock, ClientOf } from "./define-block.ts";
+import type { BlockPorts, PortName } from "./ports.ts";
 
+import { onBlockEvent } from "../core/block-events.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks } from "../core/block-hooks.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
-import { metricsSink, type MetricsSinkOptions } from "./metrics/sink.ts";
-import { searchSink } from "./search/sink.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
 export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
 
-export interface CreateBlocksOptions extends BlockOptions {
-  /** Connectors, ai-providers and the builder store their secrets here. */
+/** What every block's creator receives from `createBlocks`, before its ports and `with` settings. */
+export interface BlockContext extends BlockOptions {
+  /** Connectors, ai-providers and the workflow builder store their secrets here. */
   readonly credentials?: CredentialProvider;
   /** `betterSupabase.events`, for the block events of the blocks that emit them. */
   readonly events?: EventHub;
+}
+
+export interface CreateBlocksOptions extends BlockContext {
   /**
    * Where block events go, such as `auditLog.sink()`. Needs `events`; the
    * forwarding lasts until `close()`, so build these blocks once rather than
    * per request.
    */
   readonly audit?: EventSink;
-  /**
-   * The notification type ai-tasks sends for each finished run, through the
-   * `notifications` block. Its data is `{ taskId, runId, ok, error?, chatId? }`.
-   */
-  readonly aiTaskNotification?: string;
-  /**
-   * The notification type a delivered reminder sends through the
-   * `notifications` block, to the user who set it and the reminded
-   * subject's watchers. Its data is `{ reminderId, occurrenceAt }`.
-   */
-  readonly reminderNotification?: string;
-  /**
-   * Event type to the metrics whose rows it adds, such as
-   * `{ "order.placed": ["orders", "revenue"] }`, for `sinks.metrics`.
-   */
-  readonly metricEvents?: MetricsSinkOptions["on"];
-  /** When an event's rows sit in time, for `sinks.metrics`. Default: the event's `time`. */
-  readonly metricTime?: MetricsSinkOptions["time"];
 }
+
+/** Blocks keyed by the name the app gives each one. */
+export type BlockMap = Readonly<Record<string, AnyBlock>>;
+
+type CreatedKeys<B extends BlockMap> = {
+  readonly [K in keyof B]: B[K]["create"] extends undefined ? never : K;
+}[keyof B];
+
+type BuiltBlocks<B extends BlockMap> = {
+  readonly [K in CreatedKeys<B>]: ClientOf<B[K]>;
+};
+
+type UnionToIntersection<U> = (
+  U extends unknown ? (value: U) => void : never
+) extends (value: infer I) => void
+  ? I
+  : never;
+
+/** The events of every block in `B`. */
+export type BlocksEventMap<B extends BlockMap> =
+  UnionToIntersection<EventMapOf<B[keyof B]["events"]>> extends infer M extends
+    EventMap
+    ? M
+    : never;
+
+type SinkKeys<B extends BlockMap> = {
+  readonly [K in keyof B]: "sink" extends keyof B[K]["provides"] ? K : never;
+}[keyof B];
 
 /**
- * Outbox sinks over the blocks that consume events, for
- * `outbox.relayRoute({ consumers: { ...app.sinks } })`.
+ * Outbox sinks of the blocks that provide one (`search`, `metrics`), keyed
+ * like the blocks, for `outbox.relayRoute({ consumers: { ...app.sinks } })`.
  */
-export interface BlockSinks {
-  /** `searchSink` over the `search` block: trash events drop and restore rows. */
-  readonly search?: EventSink;
-  /** `metricsSink` over the `metrics` block, with `metricEvents`. */
-  readonly metrics?: EventSink;
-}
-
-/** What each block factory receives: the shared options and its siblings. */
-export interface BlockContext extends BlockOptions {
-  readonly credentials?: CredentialProvider;
-  readonly events?: EventHub;
-  /** The `aiFiles` block, for knowledge. */
-  readonly files?: AiFiles;
-  /** Sends `aiTaskNotification` through the `notifications` block, for ai-tasks. */
-  readonly notify?: (outcome: AiTaskOutcome) => unknown;
-  /** Sends `reminderNotification` through the `notifications` block, for reminders. */
-  readonly notifyDelivery?: (delivery: DeliveryPayload) => unknown;
-}
-
-/** Builds one block, usually a block creator such as `createOrganizations`. */
-export type BlockFactory<T = unknown> = (context: BlockContext) => T;
-
-export type BlockFactories = Readonly<Record<string, BlockFactory>> & {
-  readonly aiFiles?: BlockFactory<AiFiles>;
+export type BlockSinks<B extends BlockMap = BlockMap> = {
+  readonly [K in SinkKeys<B>]?: EventSink;
 };
 
-type BuiltBlocks<F extends BlockFactories> = {
-  readonly [K in keyof F]: F[K] extends BlockFactory<infer T> ? T : never;
+/** `withBlockHooks` hooks for each block, keyed like the blocks. */
+export type BlocksHooks<B extends BlockMap> = {
+  readonly [K in CreatedKeys<B>]?: BlockHooks<ClientOf<B[K]>>;
 };
 
-/** `withBlockHooks` hooks for each block, keyed by the names in `factories`. */
-export type BlocksHooks<F extends BlockFactories> = {
-  readonly [K in keyof F]?: BlockHooks<BuiltBlocks<F>[K]>;
-};
-
-export type Blocks<F extends BlockFactories> = BuiltBlocks<F> & {
-  /** The outbox sinks of the `search` and `metrics` blocks, when built. */
-  readonly sinks: BlockSinks;
+export type Blocks<B extends BlockMap> = BuiltBlocks<B> & {
+  /** The outbox sinks of the blocks that provide one. */
+  readonly sinks: BlockSinks<B>;
   /** Stops forwarding block events to `audit`. */
   close(): void;
 };
 
-interface NotificationSender {
-  send(
-    type: string,
-    input: {
-      readonly recipients: readonly string[];
-      readonly tenant: string;
-      readonly key: string;
-      readonly subject?: { readonly type: string; readonly id: string };
-      readonly data: Readonly<Record<string, unknown>>;
-    },
-  ): unknown;
+/** A set of blocks and the app's own events, from `defineBlocks`. */
+export interface BlockSet<B extends BlockMap, M extends EventMap> {
+  readonly blocks: B;
+  /** Every block's events and the app's, typed. */
+  readonly events: Events<M>;
+  /** Builds the blocks: `createBlocks(options, blocks)`. */
+  create(
+    options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
+  ): Blocks<B>;
+  /** `onBlockEvent` typed by these blocks' events and the app's. */
+  on<const P extends BlockEventPattern<M>>(
+    betterSupabase: { readonly events: EventHub },
+    pattern: P,
+    handler: (event: BlockEvent<M, BlockEventsMatching<M, P>>) => void,
+  ): () => void;
 }
 
-const isNotificationSender = (value: unknown): value is NotificationSender =>
-  isRecord(value) && typeof value["send"] === "function";
-
-const isSearch = (
-  value: unknown,
-): value is Pick<Search, "remove" | "refresh"> =>
-  isRecord(value) &&
-  typeof value["remove"] === "function" &&
-  typeof value["refresh"] === "function";
-
-const isMetrics = (value: unknown): value is Pick<Metrics, "rollup"> =>
-  isRecord(value) && typeof value["rollup"] === "function";
-
-function sinksOf(
-  search: unknown,
-  metrics: unknown,
-  sink: {
-    readonly on: MetricsSinkOptions["on"] | undefined;
-    readonly time: MetricsSinkOptions["time"] | undefined;
-  },
-): BlockSinks {
-  if (search !== undefined && !isSearch(search))
-    throw new TypeError("The search block has no remove and refresh methods");
-  if (metrics !== undefined && !isMetrics(metrics))
-    throw new TypeError("The metrics block has no rollup method");
+/**
+ * The blocks an app uses, and its own events (`defineEvents`). The event
+ * types are the union of every block's events, so `on` and `events` type
+ * each one's data without `declare module` (invariant 2).
+ */
+export function defineBlocks<
+  const B extends BlockMap,
+  const E extends readonly Events[] = [],
+>(
+  blocks: B,
+  ...appEvents: E
+): BlockSet<B, BlocksEventMap<B> & MergedEventMap<E>> {
+  const types = [
+    ...new Set([
+      ...Object.values(blocks).flatMap((block) => block.events.types),
+      ...appEvents.flatMap((each) => each.types),
+    ]),
+  ];
+  // SAFETY: `types` lists every block's events and the app's, which are the
+  // keys of the map this set declares.
+  const events = { types } as Events<BlocksEventMap<B> & MergedEventMap<E>>;
   return {
-    ...(search === undefined ? {} : { search: searchSink(search) }),
-    ...(metrics === undefined || sink.on === undefined
-      ? {}
-      : {
-          metrics: metricsSink(metrics, {
-            on: sink.on,
-            ...(sink.time === undefined ? {} : { time: sink.time }),
-          }),
-        }),
+    blocks,
+    events,
+    create: (options) => buildBlocks(options, blocks),
+    on: (betterSupabase, pattern, handler) =>
+      onBlockEvent(betterSupabase, events, pattern, handler),
   };
 }
 
 /**
- * Builds the blocks in `factories` with one set of options, and wires the
- * siblings they share: the `aiFiles` block into knowledge, `credentials`
- * into connectors, ai-providers and the builder, the `notifications` block
- * into ai-tasks (with `aiTaskNotification`) and reminders (with
- * `reminderNotification`), and block events into `audit`. `sinks` holds
- * outbox sinks over the `search` block (trash events) and the `metrics`
- * block (`metricEvents`), for the app's relay route.
- * Only the blocks you pass are imported, so the rest stay out of the bundle.
- * `hooks` wraps each block's methods with `withBlockHooks`, so siblings that
- * call a block (ai-tasks sending notifications) go through its hooks too.
+ * Builds `blocks` with one set of options and wires them on their ports:
+ * each block that consumes a port (`notifier`, `files`, `attachments`,
+ * `workflows`) gets it from the one block in the set that provides it, and
+ * `sinks` holds the outbox sinks the blocks provide. `credentials` reaches
+ * every block, and block events go to `audit`. Only the blocks you pass are
+ * imported, so the rest stay out of the bundle. `hooks` wraps each block's
+ * methods with `withBlockHooks`, and the ports are built from the wrapped
+ * clients, so a sibling's calls (ai-tasks sending notifications) go through
+ * the hooks too.
  */
-export function createBlocks<const F extends BlockFactories>(
-  options: CreateBlocksOptions & {
-    readonly hooks?: NoInfer<BlocksHooks<F>>;
-  },
-  factories: F,
-): Blocks<F> {
-  const {
-    credentials,
-    events,
-    audit,
-    aiTaskNotification,
-    reminderNotification,
-    metricEvents,
-    metricTime,
-    hooks,
-    ...shared
-  } = options;
-  if (audit !== undefined && events === undefined)
+export function createBlocks<const B extends BlockMap>(
+  options: CreateBlocksOptions & { readonly hooks?: NoInfer<BlocksHooks<B>> },
+  blocks: B,
+): Blocks<B> {
+  return buildBlocks(options, blocks);
+}
+
+const UNIQUE_PORTS: readonly Exclude<PortName, "sink">[] = [
+  "notifier",
+  "files",
+  "attachments",
+  "workflows",
+];
+
+/** `key`'s entry in `hooks`, which `BlocksHooks` keys like the blocks. */
+function hooksOf(
+  hooks: object | undefined,
+  key: string,
+): BlockHooks<object> | undefined {
+  if (hooks === undefined) return undefined;
+  const entry: unknown = Object.entries(hooks).find(
+    ([name]) => name === key,
+  )?.[1];
+  return isRecord(entry) ? entry : undefined;
+}
+
+function buildBlocks<B extends BlockMap>(
+  options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
+  blocks: B,
+): Blocks<B> {
+  const { audit, hooks, ...shared } = options;
+  if (audit !== undefined && shared.events === undefined)
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
-  if (metricEvents !== undefined && factories["metrics"] === undefined)
-    throw new TypeError("createBlocks: `metricEvents` needs a `metrics` block");
-  const built = new Map<string, unknown>();
-  const building = new Set<string>();
-
-  const sender = (): NotificationSender => {
-    const notifications = build("notifications");
-    if (!isNotificationSender(notifications))
-      throw new TypeError("The notifications block has no send method");
-    return notifications;
-  };
-  const hasNotifications = factories["notifications"] !== undefined;
-
-  const notify =
-    aiTaskNotification === undefined || !hasNotifications
-      ? undefined
-      : (outcome: AiTaskOutcome): unknown =>
-          sender().send(aiTaskNotification, {
-            recipients: [outcome.task.userId],
-            tenant: outcome.task.organizationId,
-            key: `ai-task-run:${outcome.run.id}`,
-            data: {
-              taskId: outcome.task.id,
-              runId: outcome.run.id,
-              ok: outcome.ok,
-              ...(outcome.error === undefined ? {} : { error: outcome.error }),
-              ...(outcome.chatId === undefined
-                ? {}
-                : { chatId: outcome.chatId }),
-            },
-          });
-
-  const notifyDelivery =
-    reminderNotification === undefined || !hasNotifications
-      ? undefined
-      : (delivery: DeliveryPayload): unknown =>
-          sender().send(reminderNotification, {
-            recipients: delivery.userId === undefined ? [] : [delivery.userId],
-            tenant: delivery.organizationId,
-            key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt}`,
-            ...(delivery.subjectType === undefined ||
-            delivery.subjectId === undefined
-              ? {}
-              : {
-                  subject: {
-                    type: delivery.subjectType,
-                    id: delivery.subjectId,
-                  },
-                }),
-            data: {
-              reminderId: delivery.reminderId,
-              occurrenceAt: delivery.occurrenceAt,
-            },
-          });
-
-  function contextFor(name: string): BlockContext {
-    const files =
-      name === "aiFiles" || factories.aiFiles === undefined
-        ? undefined
-        : build("aiFiles");
-    return {
-      ...shared,
-      ...(credentials === undefined ? {} : { credentials }),
-      ...(events === undefined ? {} : { events }),
-      ...(files === undefined ? {} : { files }),
-      ...(notify === undefined ? {} : { notify }),
-      ...(notifyDelivery === undefined ? {} : { notifyDelivery }),
-    };
+  const providers = new Map<string, string>();
+  for (const port of UNIQUE_PORTS) {
+    const keys = Object.keys(blocks).filter(
+      (key) => blocks[key]?.provides[port] !== undefined,
+    );
+    if (keys.length > 1) {
+      throw new TypeError(
+        `createBlocks: ${keys.map((key) => `"${key}"`).join(" and ")} both provide the ${port} port; pass one`,
+      );
+    }
+    const [key] = keys;
+    if (key !== undefined) providers.set(port, key);
   }
-
-  function build(name: "aiFiles"): AiFiles;
-  function build(name: string): unknown;
-  function build(name: string): unknown {
-    if (built.has(name)) return built.get(name);
-    const factory = factories[name];
-    if (factory === undefined) throw new TypeError(`No block named "${name}"`);
-    if (building.has(name))
-      throw new TypeError(`The "${name}" block depends on itself`);
-    building.add(name);
-    try {
-      const created = factory(contextFor(name));
-      const blockHooks: BlockHooks<object> | undefined = hooks?.[name];
-      const block =
-        blockHooks !== undefined && isRecord(created)
-          ? withBlockHooks(created, blockHooks, {
-              block: name,
-              ...(events === undefined ? {} : { logger: events.logger }),
-            })
-          : created;
-      built.set(name, block);
-      return block;
-    } finally {
-      building.delete(name);
+  for (const [key, block] of Object.entries(blocks)) {
+    for (const [port, need] of Object.entries(block.consumes)) {
+      if (need === "required" && !providers.has(port)) {
+        throw new TypeError(
+          `createBlocks: "${key}" needs a block that provides the ${port} port`,
+        );
+      }
     }
   }
 
-  const blocks: Record<string, unknown> = {};
-  for (const name of Object.keys(factories)) blocks[name] = build(name);
-  blocks["sinks"] = sinksOf(built.get("search"), built.get("metrics"), {
-    on: metricEvents,
-    time: metricTime,
-  });
+  const built = new Map<string, unknown>();
+  const building = new Set<string>();
+
+  const blockOf = (key: string): AnyBlock => {
+    const block = blocks[key];
+    if (block === undefined) throw new TypeError(`No block named "${key}"`);
+    return block;
+  };
+
+  /** The options `key`'s creator gets: shared, then ports, then `with` settings. */
+  const optionsOf = (key: string): Record<string, unknown> => {
+    const ports: Record<string, unknown> = {};
+    for (const port of UNIQUE_PORTS) {
+      if (blockOf(key).consumes[port] === undefined) continue;
+      const provider = providers.get(port);
+      if (provider === undefined || provider === key) continue;
+      const value = portOf(provider, port);
+      if (value !== undefined) ports[port] = value;
+    }
+    return { ...shared, ...ports, ...blockOf(key).settings };
+  };
+
+  function portOf<P extends PortName>(
+    key: string,
+    port: P,
+  ): BlockPorts[P] | undefined {
+    const provide = blockOf(key).provides[port];
+    if (provide === undefined) return undefined;
+    // SAFETY: `provide` takes the client and options of the block it belongs
+    // to, which are the ones `build` made and passed for `key`.
+    const call = provide as (
+      client: unknown,
+      options: unknown,
+    ) => BlockPorts[P] | undefined;
+    return call(build(key), optionsOf(key));
+  }
+
+  function build(key: string): unknown {
+    if (built.has(key)) return built.get(key);
+    const block = blockOf(key);
+    if (block.create === undefined) {
+      throw new TypeError(
+        `The "${block.name}" block has only SQL; it has no client to build`,
+      );
+    }
+    if (building.has(key))
+      throw new TypeError(`The "${key}" block depends on itself`);
+    building.add(key);
+    try {
+      // SAFETY: the creator takes the block's options, which are the shared
+      // block options, the ports it consumes and its own `with` settings.
+      const create = block.create as (options: unknown) => unknown;
+      const created = create(optionsOf(key));
+      const blockHooks = hooksOf(hooks, key);
+      const client =
+        blockHooks !== undefined && isRecord(created)
+          ? withBlockHooks(created, blockHooks, {
+              block: key,
+              ...(shared.events === undefined
+                ? {}
+                : { logger: shared.events.logger }),
+            })
+          : created;
+      built.set(key, client);
+      return client;
+    } finally {
+      building.delete(key);
+    }
+  }
+
+  const result: Record<string, unknown> = {};
+  const sinks: Record<string, EventSink> = {};
+  for (const [key, block] of Object.entries(blocks)) {
+    if (block.create === undefined) continue;
+    result[key] = build(key);
+    const sink = portOf(key, "sink");
+    if (sink !== undefined) sinks[key] = sink;
+  }
+  result["sinks"] = sinks;
   const stop =
-    audit === undefined || events === undefined
+    audit === undefined || shared.events === undefined
       ? undefined
-      : forwardBlockEvents({ events }, audit, { source: BLOCK_EVENT_SOURCE });
-  blocks["close"] = () => stop?.();
-  // SAFETY: `blocks` holds the result of every factory under its own key,
-  // plus `sinks` and `close`, which is what `Blocks<F>` describes.
-  return blocks as Blocks<F>;
+      : forwardBlockEvents({ events: shared.events }, audit, {
+          source: BLOCK_EVENT_SOURCE,
+        });
+  result["close"] = () => stop?.();
+  // SAFETY: `result` holds each created block's client under its key, plus
+  // `sinks` and `close`, which is what `Blocks<B>` describes.
+  return result as Blocks<B>;
 }

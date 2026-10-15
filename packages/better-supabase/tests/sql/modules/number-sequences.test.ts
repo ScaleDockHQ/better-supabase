@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderModules } from "../../../src/sql/render.ts";
 
-const sqlOf = (modules: ModulesConfig = {}): string =>
+const sqlOf = (modules: BlocksConfig = {}): string =>
   renderModules(["number-sequences"], { modules })
     .filter((file) => file.module === "number-sequences")
     .map((file) => file.contents)

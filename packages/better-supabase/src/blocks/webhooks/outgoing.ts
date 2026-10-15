@@ -1,5 +1,6 @@
 import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
 import type { CloudEvent } from "../../events/index.ts";
+import type { WebhooksEvents } from "./events.ts";
 import type {
   DeliverWebhooksOptions,
   DeliverWebhooksResult,
@@ -172,7 +173,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     });
   }
 
-  const emitEvent = blockEmitter(options);
+  const emitEvent = blockEmitter<WebhooksEvents>(options);
 
   function emit(
     type: "webhook.delivered" | "webhook.failed" | "webhook.disabled",

@@ -3,10 +3,13 @@ import {
   createBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { createNotifications } from "better-supabase/blocks/notifications";
+import {
+  createNotifications,
+  notificationsBlock,
+} from "better-supabase/blocks/notifications";
 import * as v from "valibot";
 
-/** `sql.modules.<module>.api` in the Next.js example's config, which owns the database. */
+/** `blocks.<module>.api` in the Next.js example's config, which owns the database. */
 export const API_SCHEMA = "api";
 
 const Titled = v.object({ title: v.string() });
@@ -28,8 +31,9 @@ export function blocks(supabase: RpcClient) {
       schema: API_SCHEMA,
     },
     {
-      notifications: (options) =>
+      notifications: notificationsBlock.using((options) =>
         createNotifications({ ...options, types: notificationTypes }),
+      ),
     },
   );
 }

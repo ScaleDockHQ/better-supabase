@@ -25,7 +25,7 @@ export default defineConfig({
     chunks: "embedding", // cosine distance
     "docs.pages": { column: "embedding", distance: "inner_product" }, // or 'l2'
   },
-  sql: { modules: ["vector-search"] },
+  blocks: ["vector-search"],
 });
 ```
 
@@ -65,13 +65,11 @@ any role that isn't a superuser, which includes `postgres` on Supabase.
 The functions use the schema pgvector is installed in. `sql sync` reads it
 from the `create extension ... vector ... schema` statement in your schema
 files or migrations, and falls back to `extensions`, the Supabase default.
-Set `sql.modules.vector-search.options.schema` when pgvector is installed
+Set `blocks.vector-search.options.schema` when pgvector is installed
 another way:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: { "vector-search": { options: { schema: "public" } } },
-},
+blocks: { "vector-search": { options: { schema: "public" } } },
 ```
 
 The function is `security invoker`, so the caller's RLS policies run inside

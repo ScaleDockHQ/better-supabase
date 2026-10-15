@@ -40,7 +40,7 @@ describe("sql upgrade with forward steps", () => {
 
   const sql = (argv: string[]) =>
     runSql(
-      resolveConfig({ sql: { modules: ["tenant"] } }, root),
+      resolveConfig({ blocks: ["tenant"] }, root),
       parseCommandArgs(sqlCommand, argv),
     );
 

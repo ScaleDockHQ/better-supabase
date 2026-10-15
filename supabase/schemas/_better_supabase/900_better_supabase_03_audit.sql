@@ -2,7 +2,7 @@
 -- @bs-module audit@7 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -548,7 +548,7 @@ begin
   end if;
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
-      using errcode = '22023', hint = 'Set sql.modules.audit.options.restricted to true.';
+      using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
@@ -622,7 +622,7 @@ grant execute on function better_supabase.audit_event(text, text, text, text, te
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
 -- caller, so only the owner, the service role and
--- sql.modules.audit.options.trustedRoles may execute it. A function owned by
+-- blocks.audit.options.trustedRoles may execute it. A function owned by
 -- postgres calls it on behalf of a client with the real actor context.
 drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
 drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text);
@@ -663,7 +663,7 @@ declare
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
-      using errcode = '22023', hint = 'Set sql.modules.audit.options.restricted to true.';
+      using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   actor_id := coalesce(actor_id, auth.uid());
   if idempotency_key is not null then
@@ -1225,7 +1225,7 @@ $$;
 revoke execute on function "better_supabase"."revert_audit_entries"(text[]) from public, anon;
 grant execute on function "better_supabase"."revert_audit_entries"(text[]) to authenticated, service_role;
 
--- sql.modules.audit.api: entry points for the Data API.
+-- blocks.audit.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

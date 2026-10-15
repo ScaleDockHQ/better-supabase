@@ -70,18 +70,18 @@ describe("resolveConfig specs", () => {
 describe("resolveConfig access model", () => {
   it("defaults the access model to provider when authorization is set", () => {
     const listed = resolveConfig(
-      { authorization: stubProvider, sql: { modules: ["tenant", "access"] } },
+      { authorization: stubProvider, blocks: ["tenant", "access"] },
       "/app",
-    ).sql;
-    expect(listed.modules.access?.model).toBe("provider");
-    expect(listed.moduleNames).toEqual(["tenant", "access"]);
+    );
+    expect(listed.blocks.access?.model).toBe("provider");
+    expect(listed.blockNames).toEqual(["tenant", "access"]);
     const keyed = resolveConfig(
       {
         authorization: stubProvider,
-        sql: { modules: { access: { idType: "uuid" } } },
+        blocks: { access: { idType: "uuid" } },
       },
       "/app",
-    ).sql.modules.access;
+    ).blocks.access;
     expect(keyed).toEqual({ idType: "uuid", model: "provider" });
   });
 
@@ -90,53 +90,50 @@ describe("resolveConfig access model", () => {
       resolveConfig(
         {
           authorization: stubProvider,
-          sql: { modules: { access: { model: "roles" } } },
+          blocks: { access: { model: "roles" } },
         },
         "/app",
-      ).sql.modules.access?.model,
+      ).blocks.access?.model,
     ).toBe("roles");
     expect(
-      resolveConfig({ sql: { modules: ["access"] } }, "/app").sql.modules
-        .access,
+      resolveConfig({ blocks: ["access"] }, "/app").blocks.access,
     ).toBeUndefined();
     expect(
-      resolveConfig(
-        { authorization: stubProvider, sql: { modules: ["tenant"] } },
-        "/app",
-      ).sql.modules,
+      resolveConfig({ authorization: stubProvider, blocks: ["tenant"] }, "/app")
+        .blocks,
     ).toEqual({});
   });
 });
 
 describe("resolveConfig sql defaults", () => {
-  it("gives every module sql.schema and sql.api unless it sets its own", () => {
-    const sql = resolveConfig(
+  it("gives every block sql.schema and sql.api unless it sets its own", () => {
+    const { blocks } = resolveConfig(
       {
         sql: {
           schema: "app",
           api: "api",
-          modules: {
-            comments: {},
-            settings: { schema: "settings", api: "public_api" },
-            jobs: { api: false },
-          },
+        },
+        blocks: {
+          comments: {},
+          settings: { schema: "settings", api: "public_api" },
+          jobs: { api: false },
         },
       },
       "/app",
-    ).sql;
-    expect(sql.modules).toEqual({
+    );
+    expect(blocks).toEqual({
       comments: { schema: "app", api: "api" },
       settings: { schema: "settings", api: "public_api" },
       jobs: { schema: "app", api: false },
     });
   });
 
-  it("applies the defaults to a module list", () => {
-    const sql = resolveConfig(
-      { sql: { api: "api", modules: ["tags"] } },
+  it("applies the defaults to a block list", () => {
+    const { blocks, blockNames } = resolveConfig(
+      { sql: { api: "api" }, blocks: ["tags"] },
       "/app",
-    ).sql;
-    expect(sql.modules).toEqual({ tags: { api: "api" } });
-    expect(sql.moduleNames).toEqual(["tags"]);
+    );
+    expect(blocks).toEqual({ tags: { api: "api" } });
+    expect(blockNames).toEqual(["tags"]);
   });
 });

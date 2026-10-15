@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
-const CENTRAKIT: ModulesConfig = {
+const CENTRAKIT: BlocksConfig = {
   profiles: {
     mode: "adopt",
     tables: { profiles: "public.profiles" },
@@ -30,7 +30,7 @@ const CENTRAKIT: ModulesConfig = {
   },
 };
 
-const body = (modules: ModulesConfig) => moduleBody("profiles", { modules })!;
+const body = (modules: BlocksConfig) => moduleBody("profiles", { modules })!;
 
 describe("profiles module", () => {
   it("keeps an avatar_path column that auth metadata never writes", () => {

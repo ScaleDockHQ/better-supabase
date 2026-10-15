@@ -20,3 +20,4 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { knowledgeBlock } from "./manifest.ts";

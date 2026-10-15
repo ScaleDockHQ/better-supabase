@@ -1,13 +1,47 @@
-export { BLOCK_EVENT_SOURCE, createBlocks } from "./create-blocks.ts";
+export {
+  BLOCK_EVENT_SOURCE,
+  createBlocks,
+  defineBlocks,
+} from "./create-blocks.ts";
 export type {
   BlockContext,
-  BlockFactories,
-  BlockFactory,
+  BlockMap,
   Blocks,
+  BlockSet,
+  BlocksEventMap,
   BlockSinks,
   BlocksHooks,
   CreateBlocksOptions,
 } from "./create-blocks.ts";
+export { defineBlock, optionKeys } from "./define-block.ts";
+export type {
+  AnyBlock,
+  Block,
+  BlockCategory,
+  BlockConsumes,
+  BlockDefinition,
+  BlockOf,
+  BlockOptionSchemas,
+  BlockProvides,
+  ClientOf,
+  ConsumedPorts,
+  ProvidedPorts,
+  UsingOptions,
+} from "./define-block.ts";
+export type { BlockPorts, Notifier, NotifierInput, PortName } from "./ports.ts";
+export {
+  defineEvents,
+  event,
+  mergeEvents,
+  onBlockEvent,
+} from "../core/block-events.ts";
+export type {
+  BlockEmit,
+  EventMap,
+  EventMapOf,
+  Events,
+  EventSpec,
+} from "../core/block-events.ts";
 export type { BlockOptions, CursorPageOptions } from "./shared.ts";
 export {
   dbTransport,

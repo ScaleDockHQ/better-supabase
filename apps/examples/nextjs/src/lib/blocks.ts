@@ -3,16 +3,21 @@ import {
   createBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { createApiKeys } from "better-supabase/blocks/api-keys";
-import { createAuditLog } from "better-supabase/blocks/audit";
-import { createComments } from "better-supabase/blocks/comments";
-import { createInbox } from "better-supabase/blocks/inbox";
-import { createMetrics } from "better-supabase/blocks/metrics";
-import { createNotifications } from "better-supabase/blocks/notifications";
-import { createOrganizations } from "better-supabase/blocks/organizations";
-import { createSearch } from "better-supabase/blocks/search";
-import { createUsage } from "better-supabase/blocks/usage";
-import { createWorkflows } from "better-supabase/blocks/workflows";
+import { apiKeysBlock } from "better-supabase/blocks/api-keys";
+import { auditBlock } from "better-supabase/blocks/audit";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import { inboxBlock } from "better-supabase/blocks/inbox";
+import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
+import {
+  createNotifications,
+  notificationsBlock,
+} from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
+import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { searchBlock } from "better-supabase/blocks/search";
+import { settingsBlock } from "better-supabase/blocks/settings";
+import { usageBlock } from "better-supabase/blocks/usage";
+import { workflowsBlock } from "better-supabase/blocks/workflows";
 
 import {
   notificationTypes,
@@ -22,7 +27,7 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
 import { metrics } from "@/metrics";
 
-/** `sql.modules.<module>.api` in better-supabase.config.ts. */
+/** `blocks.<module>.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
 
 /**
@@ -34,23 +39,28 @@ export function blocks(supabase: RpcClient) {
   const built = createBlocks(
     { transport, schema: API_SCHEMA },
     {
-      organizations: createOrganizations,
-      apiKeys: createApiKeys,
-      audit: createAuditLog,
-      comments: createComments,
-      notifications: (options) =>
+      organizations: organizationsBlock,
+      apiKeys: apiKeysBlock,
+      audit: auditBlock,
+      comments: commentsBlock,
+      notifications: notificationsBlock.using((options) =>
         createNotifications({
           ...options,
           types: notificationTypes,
           render: renderNotification,
         }),
-      inbox: createInbox,
-      search: createSearch,
-      metrics: (options) => createMetrics({ ...options, metrics }),
-      usage: createUsage,
-      workflows: createWorkflows,
-      onboarding: (options) => gettingStarted.connect(options),
-      settings: (options) => settings.connect(options),
+      ),
+      inbox: inboxBlock,
+      search: searchBlock,
+      metrics: metricsBlock.using((options) =>
+        createMetrics({ ...options, metrics }),
+      ),
+      usage: usageBlock,
+      workflows: workflowsBlock,
+      onboarding: onboardingBlock.using((options) =>
+        gettingStarted.connect(options),
+      ),
+      settings: settingsBlock.using((options) => settings.connect(options)),
     },
   );
   return {

@@ -12,11 +12,14 @@ better-supabase sql add drive
 `drive` installs `drive-files` with it, which adds what needs the attachments module: uploads and revisions, the storage policies, the bin, stars, recent items, folder links and the purge. Install [versions](/docs/blocks/versions), [trash](/docs/blocks/trash), [share-links](/docs/blocks/share-links) and [teams](/docs/blocks/teams) for revisions, the bin, stars and links, and team grants.
 
 ```ts
+import { createAttachments } from "better-supabase/blocks/attachments";
 import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
 
+const transport = rpcTransport(supabase);
 const drive = createDrive({
-  transport: rpcTransport(supabase),
+  transport,
   storage: supabase.storage,
+  attachments: createAttachments({ transport, storage: supabase.storage }),
 });
 
 const projects = await drive
@@ -55,15 +58,13 @@ The creator of a node gets the top role on it. Grants with an `expiresAt` stop a
 ## Configure
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    drive: {
-      options: {
-        roles: ["viewer", "commenter", "editor", "owner"],
-        writeRole: "editor",
-        shareRole: "owner",
-        conflict: "rename",
-      },
+blocks: {
+  drive: {
+    options: {
+      roles: ["viewer", "commenter", "editor", "owner"],
+      writeRole: "editor",
+      shareRole: "owner",
+      conflict: "rename",
     },
   },
 },
@@ -85,7 +86,7 @@ Each call that creates, renames or moves a node can pass its own `conflict`. Nam
 
 `upload` creates the file node and a pending attachment, then signs an upload URL. After the upload, `commit` makes the attachment the file's content. `uploadRevision` uploads new content for an existing file the same way; with versions installed, each commit saves a revision, `revisions(id)` lists them and `restoreRevision(id, revisionId)` makes an old one current again.
 
-`download(id)` signs a download URL for the current content. With `requireScan` (the default, as in attachments), a file that isn't scanned clean yet can't be downloaded.
+`download(id)` signs a download URL for the current content through the `attachments` option, the attachments block over the same transport; `createBlocks` passes it as the `attachments` port when the set has `attachmentsBlock`. Without it, `download` fails with the hint `DRIVE_ATTACHMENTS_CLIENT`. With `requireScan` on the attachments block (the default), a file that isn't scanned clean yet can't be downloaded.
 
 ## The bin
 

@@ -1,0 +1,265 @@
+import type { EventMap, Events } from "../core/block-events.ts";
+import type { StandardSchemaV1 } from "../core/standard.ts";
+import type { BlockContext } from "./create-blocks.ts";
+import type { BlockPorts, PortName } from "./ports.ts";
+
+import { isRecord } from "../core/block-helpers.ts";
+
+/** Where a block sits in the catalog and in presets. */
+export type BlockCategory =
+  | "foundation"
+  | "collaboration"
+  | "crm"
+  | "work"
+  | "commerce"
+  | "scheduling"
+  | "ai"
+  | "content"
+  | "operations"
+  | "platform";
+
+/** The ports a block consumes: `required` fails `createBlocks` without a provider. */
+export type BlockConsumes = {
+  readonly [P in PortName]?: "optional" | "required";
+};
+
+/** The consumed ports, as the creator receives them. */
+export type ConsumedPorts<C extends BlockConsumes> = {
+  readonly [P in keyof C & PortName]?: BlockPorts[P];
+};
+
+/** How a block builds each port it provides from its client and options. */
+export type BlockProvides<Client, Options> = {
+  readonly [P in PortName]?: (
+    client: Client,
+    options: Options,
+  ) => BlockPorts[P] | undefined;
+};
+
+/**
+ * The ports a built block provides, by name. `createBlocks` calls each with
+ * the block's client and options.
+ */
+export type ProvidedPorts<P extends PortName> = {
+  readonly [K in P]: (
+    client: never,
+    options: never,
+  ) => BlockPorts[K] | undefined;
+};
+
+/** An options schema per SQL module, keyed by module name. */
+export type BlockOptionSchemas = Readonly<
+  Record<string, StandardSchemaV1<unknown, Readonly<Record<string, unknown>>>>
+>;
+
+type Nothing = Record<never, never>;
+
+/** What `defineBlock` takes. */
+export interface BlockDefinition<
+  Name extends string,
+  Options,
+  Client,
+  M extends EventMap,
+  C extends BlockConsumes,
+  P extends PortName,
+> {
+  readonly name: Name;
+  /** The SQL modules (`SqlModule` keys) this block installs. */
+  readonly sql?: readonly string[];
+  /** The options of each SQL module, for `blocks.<module>.options`. */
+  readonly options?: BlockOptionSchemas;
+  /** The block's own events. */
+  readonly events?: Events<M>;
+  readonly consumes?: C;
+  readonly provides?: Pick<Required<BlockProvides<Client, Options>>, P>;
+  /** The creator, `create<Name>(options)`; absent for a block with only SQL. */
+  readonly create?: (options: Options) => Client;
+  /** The headless controller's name (ADR 0030), when the block has one. */
+  readonly client?: string;
+  readonly category: BlockCategory;
+  /** UI recipe slugs on `/recipes`. */
+  readonly recipes?: readonly string[];
+}
+
+/** What `using` passes its creator: the shared block options and the consumed ports. */
+export type UsingOptions<C extends BlockConsumes> = BlockContext &
+  ConsumedPorts<C>;
+
+/**
+ * One block (ADR 0029): its SQL modules, options, events, the ports it
+ * provides and consumes, and its creator. `createBlocks` wires blocks on
+ * their ports, never on their names.
+ */
+export interface Block<
+  Name extends string = string,
+  Options = BlockContext,
+  Client = unknown,
+  M extends EventMap = Nothing,
+  C extends BlockConsumes = Nothing,
+  P extends PortName = never,
+> {
+  readonly apiVersion: 1;
+  readonly name: Name;
+  readonly sql: readonly string[];
+  readonly options: BlockOptionSchemas;
+  readonly events: Events<M>;
+  readonly consumes: C;
+  readonly provides: ProvidedPorts<P>;
+  readonly create: ((options: Options) => Client) | undefined;
+  readonly client: string | undefined;
+  readonly category: BlockCategory;
+  readonly recipes: readonly string[];
+  /** The options `with` set, passed to `create` and the providers over the shared ones. */
+  readonly settings: object;
+  /** This block with `settings` merged into the options `createBlocks` passes it. */
+  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P>;
+  /**
+   * This block built by `create` instead, keeping its SQL, events and ports:
+   * for a creator's type parameters (`notificationsBlock.using((options) =>
+   * createNotifications({ ...options, types }))`) or a block with only SQL
+   * and a helper (`settingsBlock.using((options) => settings.connect(options))`).
+   * The ports it provides receive the new client. Settings from an earlier
+   * `with` still reach `create` and the providers.
+   */
+  using<Next>(
+    create: (options: UsingOptions<C>) => Next,
+  ): Block<Name, UsingOptions<C>, Next, M, C, P>;
+}
+
+/** Any block, for constraints. */
+export interface AnyBlock {
+  readonly apiVersion: 1;
+  readonly name: string;
+  readonly sql: readonly string[];
+  readonly options: BlockOptionSchemas;
+  readonly events: Events;
+  readonly consumes: BlockConsumes;
+  readonly provides: Partial<ProvidedPorts<PortName>>;
+  readonly create: ((options: never) => unknown) | undefined;
+  readonly client: string | undefined;
+  readonly category: BlockCategory;
+  readonly recipes: readonly string[];
+  readonly settings: object;
+  with(settings: never): AnyBlock;
+  using(create: never): AnyBlock;
+}
+
+/** The block a creator makes, with its event map, consumed ports and provided ports. */
+export type BlockOf<
+  Name extends string,
+  Create extends (options: never) => unknown,
+  M extends EventMap = Nothing,
+  C extends BlockConsumes = Nothing,
+  P extends PortName = never,
+> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P>;
+
+/** The client a block's creator returns. */
+export type ClientOf<B> = B extends {
+  readonly create: ((options: never) => infer Client) | undefined;
+}
+  ? Client
+  : never;
+
+/** Describes a block with one manifest (ADR 0029). */
+export function defineBlock<
+  const Name extends string,
+  Options = BlockContext,
+  Client = unknown,
+  M extends EventMap = Nothing,
+  const C extends BlockConsumes = Nothing,
+  P extends PortName = never,
+>(
+  definition: BlockDefinition<Name, Options, Client, M, C, P>,
+): Block<Name, Options, Client, M, C, P> {
+  const { create, consumes, provides, ...rest } = definition;
+  return blockOf(
+    {
+      ...rest,
+      // SAFETY: a block without `consumes` consumes nothing, which is
+      // `Nothing` when `C` is left to its default.
+      consumes: consumes ?? ({} as C),
+      // SAFETY: each provider takes this block's client and options, which
+      // `createBlocks` passes it; a block without `provides` provides
+      // nothing, which is `ProvidedPorts<never>` when `P` is left to its default.
+      provides: (provides ?? {}) as ProvidedPorts<P>,
+    },
+    create,
+    {},
+  );
+}
+
+interface BlockParts<
+  Name extends string,
+  M extends EventMap,
+  C extends BlockConsumes,
+  P extends PortName,
+> extends Omit<
+  BlockDefinition<Name, never, never, M, C, P>,
+  "create" | "consumes" | "provides"
+> {
+  readonly consumes: C;
+  readonly provides: ProvidedPorts<P>;
+}
+
+function blockOf<
+  Name extends string,
+  Options,
+  Client,
+  M extends EventMap,
+  C extends BlockConsumes,
+  P extends PortName,
+>(
+  parts: BlockParts<Name, M, C, P>,
+  create: ((options: Options) => Client) | undefined,
+  settings: object,
+): Block<Name, Options, Client, M, C, P> {
+  return {
+    apiVersion: 1,
+    name: parts.name,
+    sql: parts.sql ?? [],
+    options: parts.options ?? {},
+    events: parts.events ?? { types: [] },
+    consumes: parts.consumes,
+    provides: parts.provides,
+    create,
+    client: parts.client,
+    category: parts.category,
+    recipes: parts.recipes ?? [],
+    settings,
+    with: (more) => blockOf(parts, create, { ...settings, ...more }),
+    using: (next) => blockOf(parts, next, settings),
+  };
+}
+
+/**
+ * A Standard Schema for a SQL module's options that accepts an object with
+ * only `keys`, for a manifest's `options`.
+ */
+export function optionKeys<const K extends string>(
+  keys: readonly K[],
+): StandardSchemaV1<unknown, Readonly<Partial<Record<K, unknown>>>> {
+  const known = new Set<string>(keys);
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "better-supabase",
+      validate: (value) => {
+        if (!isRecord(value)) {
+          return { issues: [{ message: "Expected an object" }] };
+        }
+        const unknown = Object.keys(value).filter((key) => !known.has(key));
+        if (unknown.length > 0) {
+          return {
+            issues: unknown.map((key) => ({
+              message: `Unknown option "${key}"`,
+              path: [key],
+            })),
+          };
+        }
+        // SAFETY: every key of `value` is one of `keys`, and the values are
+        // typed `unknown`.
+        return { value: value as Readonly<Partial<Record<K, unknown>>> };
+      },
+    },
+  };
+}

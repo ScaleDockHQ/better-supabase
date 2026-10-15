@@ -23,12 +23,12 @@ are new.
 
 ## Access model
 
-With `authorization` in the config, `sql.modules.access.model` now defaults to
+With `authorization` in the config, `blocks.access.model` now defaults to
 `"provider"`. `can()`, `tenant_ids_with()` and every module check answer from
 the provider's templates. To keep the built-in roles, set the model:
 
 ```ts title="better-supabase.config.ts"
-sql: { modules: { access: { model: "roles" } } },
+blocks: { access: { model: "roles" } },
 ```
 
 Doctor BS414 then reports each policy and function that calls the access
@@ -67,11 +67,9 @@ servers grant to the permission keys it covers, or those clients lose
 access to every key whose name differs from a scope:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    access: {
-      scopes: { "posts:write": ["posts.*"], "mcp:admin": ["*"] },
-    },
+blocks: {
+  access: {
+    scopes: { "posts:write": ["posts.*"], "mcp:admin": ["*"] },
   },
 },
 ```
@@ -88,7 +86,7 @@ the work to a list of keys the same way. See
 Every action a module checks is now an operation named `<module>.<action>`
 (such as `audit.view`), and `better_supabase.operation_permission(op)`
 answers its permission key in SQL, after your renames in
-`sql.modules.<module>.permissions` and with the provider's `operations` over
+`blocks.<module>.permissions` and with the provider's `operations` over
 them. An MCP tool's `operation`, an agent's `toolOperations` and a
 workflow-builder step's `operation` name an entry in place of the prefixed
 `mcp.tool.<name>`, `ai.tool.<name>` or `workflow.run`. The permission keys
@@ -163,7 +161,7 @@ supportSessions({
 `authorize: "store"` keeps the 0.8 behaviour, where the store's SQL policy
 alone decides. To start sessions without a second admin, set both
 `policy.approval: "none"` and the module's
-`sql.modules.support-sessions.options.approval: "none"`. See [Support sessions](/docs/auth/impersonation).
+`blocks.support-sessions.options.approval: "none"`. See [Support sessions](/docs/auth/impersonation).
 
 In a writable support session, `ctx.storage` now writes: `upload`, `update`,
 `remove`, `copy`, `move` and `purgeCache` run as the target after a dry run

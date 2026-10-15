@@ -29,7 +29,7 @@ export function organizationAttributes(ctx: ModuleContext): readonly string[] {
   const listed = ctx.list("attributes", []).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
-        `sql.modules.organizations.options.attributes: "${column}" is not a valid column`,
+        `blocks.organizations.options.attributes: "${column}" is not a valid column`,
       );
     }
     return column;

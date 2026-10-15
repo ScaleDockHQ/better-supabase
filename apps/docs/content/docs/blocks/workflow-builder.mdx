@@ -35,7 +35,7 @@ better-supabase sql add workflow-builder   # adds workflows, tenant and access a
 | `workflow.publish` | members publish a version                                                                   | none by default |
 | `workflow.admin`   | members manage triggers, credentials, alerts, opt-outs and grants, and restrict definitions | none by default |
 
-Grant the keys to your roles in `sql.modules.access.roles`.
+Grant the keys to your roles in `blocks.access.roles`.
 
 ## Graphs
 
@@ -106,7 +106,7 @@ edges that were added, removed or changed.
 import "server-only";
 
 import {
-  createBuilder,
+  createWorkflowBuilder,
   sqlTransport,
 } from "better-supabase/blocks/workflow-builder";
 import {
@@ -118,7 +118,7 @@ import { steps, stepLibrary } from "@/workflows/steps";
 import { graphExecutor } from "@/workflows/graph";
 
 export const builderFor = (sql: Sql) =>
-  createBuilder({
+  createWorkflowBuilder({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -289,7 +289,7 @@ first: an entry `workflow.node.<step>` (such as `workflow.node.crm.lookup`)
 names the permission. Next comes the step's own `operation`, set on the
 step in `steps` (such as `invoices.void`): the provider's entry for it, or
 the operation name itself as the key. Without either, the step needs the module's `run` key,
-after the rename in `sql.modules.workflow-builder.permissions`. Trigger,
+after the rename in `blocks.workflow-builder.permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
 one of them in the tenant can't publish the version: the `forbidden` error
 has `hint: "WORKFLOW_PUBLISHER_FORBIDDEN"` and lists the keys they lack in
@@ -302,7 +302,7 @@ then decides each publish as well, with the publisher's claims:
 
 ```ts title="lib/workflow-builder.ts"
 export const builderFor = (sql: Sql) =>
-  createBuilder({
+  createWorkflowBuilder({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -366,14 +366,14 @@ await builder.triggers.save({ definition: id, kind: "webhook" }).orThrow();
 const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown once
 ```
 
-| Kind       | How it starts a run                                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `manual`   | `builder.run()` from your UI                                                                                           |
-| `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input |
-| `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron`   |
-| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`        |
-| `form`     | Your form calls `run()`; `config.schema` holds its fields                                                              |
-| `chat`     | Your chat calls `run()`                                                                                                |
+| Kind       | How it starts a run                                                                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manual`   | `builder.run()` from your UI                                                                                                                        |
+| `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input                              |
+| `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron` through the `workflows` option |
+| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`                                     |
+| `form`     | Your form calls `run()`; `config.schema` holds its fields                                                                                           |
+| `chat`     | Your chat calls `run()`                                                                                                                             |
 
 ```ts title="app/api/hooks/workflows/[token]/route.ts"
 export const POST = (request: Request) =>
@@ -386,6 +386,12 @@ JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
 header keys the start, so a retried delivery starts one run. Only the
 token's SHA-256 is stored; rotating it ends the old one.
 
+`syncSchedule` writes through the `workflows` option, the workflows block
+built with a transport that may create schedules (the service role);
+`createBlocks` passes it as the `workflows` port when the set has
+`workflowsBlock`. Without it, `syncSchedule` fails with the hint
+`WORKFLOW_BUILDER_WORKFLOWS_CLIENT`.
+
 Schedule triggers run on the `workflows` schedule tick. Pass
 `builder.triggers.starter(fallback)` as its `start`: it starts the
 `builder-trigger:` schedules here and hands the others to `fallback`.
@@ -395,7 +401,7 @@ Schedule triggers run on the `workflows` schedule tick. Pass
 ```ts
 import { vaultCredentials } from "better-supabase/credentials";
 
-const builder = createBuilder({
+const builder = createWorkflowBuilder({
   transport,
   service,
   credentials: vaultCredentials(sql),
@@ -475,14 +481,14 @@ disposed with the component.
 import { useSupabase } from "better-supabase/vue";
 import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/vue";
 import {
-  createBuilder,
+  createWorkflowBuilder,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
 const { state } = useWorkflowBuilder({
-  client: createBuilder({ transport: rpcTransport(supabase) }),
+  client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
   tenant: organizationId,
 });
 </script>
@@ -510,12 +516,12 @@ work starts on mount, and the controller is disposed with the component.
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
   import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/svelte";
-  import { createBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";
+  import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
   const builder = useWorkflowBuilder({
-    client: createBuilder({ transport: rpcTransport(supabase) }),
+    client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
     tenant: organizationId,
   });
 </script>
@@ -542,14 +548,14 @@ import { For } from "solid-js";
 import { useSupabase } from "better-supabase/solid";
 import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/solid";
 import {
-  createBuilder,
+  createWorkflowBuilder,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
   const { state } = useWorkflowBuilder({
-    client: createBuilder({ transport: rpcTransport(supabase) }),
+    client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
     tenant: props.organizationId,
   });
   return (

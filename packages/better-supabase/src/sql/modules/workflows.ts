@@ -1,3 +1,4 @@
+import type { WorkflowsEvents } from "../../blocks/workflows/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -21,7 +22,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
     subject: "workflow-runs",
     payload: [

@@ -1,3 +1,4 @@
+import type { BillingEvents } from "../../blocks/billing/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -21,7 +22,7 @@ import {
 import { moduleOperations, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<BillingEvents> = {
   "billing.customer_linked": {
     subject: "organizations",
     payload: ["organizationId", "customerId"],
@@ -67,7 +68,7 @@ interface PlanCatalog {
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
 function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
-  const where = "sql.modules.billing.options.plans";
+  const where = "blocks.billing.options.plans";
   const option = ctx.option("plans");
   if (option === undefined) return undefined;
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
@@ -168,10 +169,10 @@ function tenantReference(ctx: ModuleContext): string | undefined {
   if (configured !== undefined) {
     if (typeof configured !== "string") {
       throw new TypeError(
-        'sql.modules.billing.options.tenantKey must be "schema.table.column" or false',
+        'blocks.billing.options.tenantKey must be "schema.table.column" or false',
       );
     }
-    const ref = columnRef("sql.modules.billing.options.tenantKey", configured);
+    const ref = columnRef("blocks.billing.options.tenantKey", configured);
     return `${ref.table} (${ref.column})`;
   }
   if (!ctx.installed("organizations")) return undefined;

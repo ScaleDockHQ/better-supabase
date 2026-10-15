@@ -20,7 +20,7 @@ A member with `webhooks.manage` (see Permissions below) creates an endpoint for 
 the signing secret are returned once. Only the token's hash is stored, and
 the secret is a [Vault](https://supabase.com/docs/guides/database/vault)
 secret that only the receiving route decrypts. Set
-`sql.modules.webhooks-in.options.secretStorage` to `"column"` to keep it in
+`blocks.webhooks-in.options.secretStorage` to `"column"` to keep it in
 the `secret` column instead (members can't read that column either). Deleting
 an endpoint, or rotating its secret, deletes the old Vault secret.
 
@@ -133,14 +133,12 @@ starts or the integration it feeds. Map each subject type to its table, the
 same way the comments block does:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    "webhooks-in": {
-      options: {
-        subjects: {
-          workflow: { table: "workflows", cascade: true },
-          integration: { table: "app.integrations", permission: "integrations.read" },
-        },
+blocks: {
+  "webhooks-in": {
+    options: {
+      subjects: {
+        workflow: { table: "workflows", cascade: true },
+        integration: { table: "app.integrations", permission: "integrations.read" },
       },
     },
   },
@@ -185,7 +183,7 @@ export const POST = (
 
 `receive` answers `404` for an unknown or disabled token, `413` for a body over
 the endpoint's `max_body_bytes` (1 MiB by default,
-`sql.modules.webhooks-in.options.maxBodyBytes`), `429` with `Retry-After` past
+`blocks.webhooks-in.options.maxBodyBytes`), `429` with `Retry-After` past
 `rateLimit` (counted per endpoint with the
 [`rate-limit` module](/docs/blocks/sql#limits-in-route-handlers)), and `401` for a
 bad signature. Otherwise it stores the delivery and answers `202`, or `200`
@@ -287,23 +285,21 @@ table lacks it:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      "webhooks-in": {
-        mode: "adopt",
-        tables: { endpoints: "public.integration_hooks" },
-        columns: {
-          endpoints: {
-            tenant: "organization_id",
-            tokenHash: "token_digest",
-            previousSecretId: null,
-            previousSecretExpiresAt: null,
-            receiveCount: null,
-            lastReceivedAt: null,
-            lastStatus: null,
-            subjectType: null,
-            subjectId: null,
-          },
+  blocks: {
+    "webhooks-in": {
+      mode: "adopt",
+      tables: { endpoints: "public.integration_hooks" },
+      columns: {
+        endpoints: {
+          tenant: "organization_id",
+          tokenHash: "token_digest",
+          previousSecretId: null,
+          previousSecretExpiresAt: null,
+          receiveCount: null,
+          lastReceivedAt: null,
+          lastStatus: null,
+          subjectType: null,
+          subjectId: null,
         },
       },
     },
@@ -323,7 +319,7 @@ managed mode the module owns its table, so a column mapping there is an
 error.
 
 The webhook inbox adopts a table the same way, through
-`sql.modules.webhook-inbox` with the `messages` table:
+`blocks.webhook-inbox` with the `messages` table:
 
 ```ts title="better-supabase.config.ts"
 "webhook-inbox": {

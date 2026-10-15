@@ -1,4 +1,4 @@
-import type { DisabledRow } from "../config/modules.ts";
+import type { DisabledRow } from "../config/blocks.ts";
 import type { ExtraColumn, ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -300,7 +300,7 @@ export function membershipSuspended(
 
 /**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
- * `sql.modules.access.disabled`. Without a column they return false, so callers
+ * `blocks.access.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.
  */
 export function disabledHelpers(ctx: ModuleContext): string {
@@ -310,7 +310,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
   let tenantCheck = "false";
   if (disabled.tenant !== undefined) {
     tenantCheck = disabledCheck(
-      "sql.modules.access.disabled.tenant",
+      "blocks.access.disabled.tenant",
       disabled.tenant,
       { key: '"id"', alias: "t", value: "tenant_disabled.tenant" },
     );
@@ -320,7 +320,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
   const userCheck =
     disabled.user === undefined
       ? "false"
-      : disabledCheck("sql.modules.access.disabled.user", disabled.user, {
+      : disabledCheck("blocks.access.disabled.user", disabled.user, {
           key: sqlIdent(disabled.userKey ?? "id"),
           alias: "u",
           value: "user_disabled.user_id",
@@ -610,7 +610,7 @@ grant execute on function ${signature} to service_role;`;
 
 /**
  * `serviceGrant` for each function in `schema` (as SQL, e.g. `ctx.schema`),
- * one statement per function, so `sql.modules.<module>.api` sees the grants
+ * one statement per function, so `blocks.<module>.api` sees the grants
  * and writes an entry point for each.
  */
 export function serviceOnly(

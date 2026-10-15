@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (
-  modules: ModulesConfig = {},
+  modules: BlocksConfig = {},
   installed: readonly string[] = [],
 ): string =>
   renderModules([...installed, "state-machine"], { modules })

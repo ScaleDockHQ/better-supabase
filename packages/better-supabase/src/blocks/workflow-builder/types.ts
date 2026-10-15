@@ -8,6 +8,7 @@ import type {
   CredentialToken,
 } from "../../credentials/provider.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { Workflows } from "../workflows/workflows.ts";
 import type {
   WorkflowRunMode,
   WorkflowSchedule,
@@ -232,7 +233,7 @@ export interface BuilderOptions extends BlockTemporalOptions {
    * `steps.sync` and `alerts.check`. Defaults to `transport`.
    */
   readonly service?: BlockTransport;
-  /** The module schema (`sql.modules.workflow-builder.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.workflow-builder.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** The steps `steps.sync()` writes to the library. */
@@ -255,6 +256,12 @@ export interface BuilderOptions extends BlockTemporalOptions {
    * permissions.
    */
   readonly authorization?: Pick<AuthorizationHooks, "automation">;
+  /**
+   * The `workflows` port: the workflows block, which `schedules.sync`
+   * writes a schedule trigger's schedule to. Build it with a transport that
+   * may create schedules, usually the service role. `createBlocks` passes it.
+   */
+  readonly workflows?: Pick<Workflows, "schedules">;
 }
 
 export interface PublishOptions {
@@ -346,7 +353,7 @@ export interface TestRunInput {
   /**
    * What each step node returns, by node id. A step without one returns
    * the example in its `outputSchema` (from the `steps` passed to
-   * `createBuilder`: the first `examples` entry, else `default`), else
+   * `createWorkflowBuilder`: the first `examples` entry, else `default`), else
    * `{ stubbed: true }`. An approval node's stub is its decision (default
    * approved).
    */

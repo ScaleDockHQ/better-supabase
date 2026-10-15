@@ -1,3 +1,4 @@
+import type { DealsEvents } from "../../blocks/deals/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -31,7 +32,7 @@ const DEAL = [
   "name",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DealsEvents> = {
   "deal.created": { subject: "deals", payload: [...DEAL] },
   "deal.updated": { subject: "deals", payload: [...DEAL, "fields"] },
   "deal.closed": {
@@ -145,7 +146,7 @@ function names(
   const list = ctx.list(option, fallback);
   if (list.length === 0 || list.some((item) => !NAME.test(item))) {
     throw new TypeError(
-      `sql.modules.deals.options.${option} must be a non-empty list of lowercase names`,
+      `blocks.deals.options.${option} must be a non-empty list of lowercase names`,
     );
   }
   return `${sqlString(`{${list.join(",")}}`)}::text[]`;

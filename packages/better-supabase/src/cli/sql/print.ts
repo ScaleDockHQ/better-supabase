@@ -30,7 +30,7 @@ export async function printModule(
   if (body === undefined) {
     return {
       code: 0,
-      output: `-- sql.modules.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
+      output: `-- blocks.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
         [module.name],
         await layout(config, args, [module.name]),
       )

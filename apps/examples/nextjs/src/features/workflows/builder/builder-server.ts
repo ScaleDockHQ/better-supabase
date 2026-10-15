@@ -1,6 +1,6 @@
 import { type RpcClient } from "better-supabase/blocks/organizations";
 import {
-  createBuilder,
+  createWorkflowBuilder,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 import { vaultCredentials } from "better-supabase/credentials";
@@ -27,7 +27,7 @@ const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
  */
 export function builderFor(supabase: RpcClient) {
   const service = rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
-  return createBuilder({
+  return createWorkflowBuilder({
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     service,
     schema: API_SCHEMA,

@@ -234,12 +234,16 @@ import {
 
 const metrics = orderMetrics({ currency: "EUR", tz: "Europe/Amsterdam" });
 const app = createBlocks(
-  { transport: service, metricEvents: ORDER_METRIC_EVENTS },
-  { metrics: (options) => createMetrics({ ...options, metrics }) },
+  { transport: service },
+  {
+    metrics: metricsBlock
+      .with({ sink: { on: ORDER_METRIC_EVENTS } })
+      .using((options) => createMetrics({ ...options, metrics })),
+  },
 );
 ```
 
-Pass the same definitions to `sql.modules.metrics.options.metrics`. The [commerce recipe](/docs/recipes/commerce#metrics) adds units sold from the order lines.
+Pass the same definitions to `blocks.metrics.options.metrics`. The [commerce recipe](/docs/recipes/commerce#metrics) adds units sold from the order lines.
 
 ## Hooks
 

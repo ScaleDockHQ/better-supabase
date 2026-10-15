@@ -1,3 +1,4 @@
+import type { AiChatEvents } from "../../blocks/ai-chat/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -232,7 +233,7 @@ const HARNESS = {
   updatedAt: "updated_at",
 } as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<AiChatEvents> = {
   "ai_chat_message.completed": {
     subject: "ai-chats",
     payload: [
@@ -403,7 +404,7 @@ function topicOption(
   const value = ctx.text(name, fallback);
   if (!TOPIC.test(value)) {
     throw new TypeError(
-      `sql.modules.ai-chat.options.${name} must be a lowercase name of at most 31 characters`,
+      `blocks.ai-chat.options.${name} must be a lowercase name of at most 31 characters`,
     );
   }
   return value;
@@ -417,7 +418,7 @@ function intervalOption(
   const value = ctx.text(name, fallback);
   if (!INTERVAL.test(value)) {
     throw new TypeError(
-      `sql.modules.ai-chat.options.${name} must be an interval such as "1 day" or "10 minutes"`,
+      `blocks.ai-chat.options.${name} must be an interval such as "1 day" or "10 minutes"`,
     );
   }
   return value;
@@ -427,7 +428,7 @@ function sandboxIdleAfter(ctx: ModuleContext): number {
   const value = ctx.number("sandboxIdleAfter", 600);
   if (!Number.isInteger(value) || value < 1) {
     throw new TypeError(
-      "sql.modules.ai-chat.options.sandboxIdleAfter must be a whole number of seconds",
+      "blocks.ai-chat.options.sandboxIdleAfter must be a whole number of seconds",
     );
   }
   return value;
@@ -439,7 +440,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
   const listTopic = topicOption(ctx, "listTopic", "ai-chats");
   if (topic === listTopic) {
     throw new TypeError(
-      "sql.modules.ai-chat.options.topic and listTopic must differ",
+      "blocks.ai-chat.options.topic and listTopic must differ",
     );
   }
   return {

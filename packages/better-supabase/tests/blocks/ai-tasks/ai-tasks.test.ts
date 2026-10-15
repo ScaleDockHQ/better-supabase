@@ -193,6 +193,42 @@ describe("createAiTasks", () => {
     expect(outcomes.map((outcome) => outcome.ok)).toEqual([true, false]);
   });
 
+  it("sends the notification type through the notifier after each run", async () => {
+    const service = fakeTransport({
+      claim_due_ai_tasks: () => ({ runs: [runRow()], unscheduled: [] }),
+      start_ai_task_run: () => ({
+        ...runRow({ status: "running" }),
+        task: taskRow(),
+      }),
+      finish_ai_task_run: () => true,
+    });
+    const send = vi.fn();
+    const tasks = createAiTasks({
+      transport: service.transport,
+      run: vi.fn().mockRejectedValueOnce(new Error("model down")),
+      notifier: { send },
+      notification: "ai_task.finished",
+      now: () => NOW,
+    });
+    expect(await tasks.drain({ batch: 1 }).orThrow()).toBe(1);
+    expect(send).toHaveBeenCalledWith("ai_task.finished", {
+      recipients: ["u1"],
+      tenant: "o1",
+      key: "ai-task-run:r1",
+      data: { taskId: "t1", runId: "r1", ok: false, error: "model down" },
+    });
+    const silent = vi.fn();
+    await createAiTasks({
+      transport: service.transport,
+      run: vi.fn().mockResolvedValueOnce({ chatId: "c1" }),
+      notifier: { send: silent },
+      now: () => NOW,
+    })
+      .drain({ batch: 1 })
+      .orThrow();
+    expect(silent).not.toHaveBeenCalled();
+  });
+
   it("skips scheduling when nothing needs it and stops on abort", async () => {
     const service = fakeTransport({
       claim_due_ai_tasks: () => ({ runs: [runRow()], unscheduled: [] }),

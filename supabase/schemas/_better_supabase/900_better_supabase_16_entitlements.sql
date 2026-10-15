@@ -2,7 +2,7 @@
 -- @bs-module entitlements@1 managed
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -148,7 +148,7 @@ $$;
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
 
--- sql.modules.entitlements.api: entry points for the Data API.
+-- blocks.entitlements.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

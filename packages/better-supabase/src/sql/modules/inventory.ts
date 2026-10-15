@@ -1,3 +1,4 @@
+import type { InventoryEvents } from "../../blocks/inventory/events.ts";
 import type { CommerceEventData } from "../../core/block-events.ts";
 import type {
   ModuleContext,
@@ -33,7 +34,7 @@ const stockEvent = (
   payload: ["organizationId", "id", ...payload],
 });
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<InventoryEvents> = {
   "stock.adjusted": stockEvent("stock-movements", [
     "variantId",
     "locationId",

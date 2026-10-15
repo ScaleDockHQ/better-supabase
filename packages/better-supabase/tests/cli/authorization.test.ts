@@ -141,7 +141,7 @@ describe("accessProviderMode", () => {
     resolveConfig(
       {
         ...(provider ? { authorization: provider } : {}),
-        sql: { modules: { access: { model: "provider", ...access } } },
+        blocks: { access: { model: "provider", ...access } },
       },
       "/project",
     );
@@ -192,7 +192,7 @@ describe("accessProviderMode", () => {
         resolveConfig(
           {
             authorization: stubProvider,
-            sql: { modules: { access: { model: "roles" } } },
+            blocks: { access: { model: "roles" } },
           },
           "/project",
         ),
@@ -273,13 +273,13 @@ describe("moduleKeyProblems", () => {
   it("passes complete keys and names the function and setting for the rest", () => {
     expect(moduleKeyProblems(stubProvider, keys)).toEqual([
       {
-        target: "sql.modules.invitations.permissions.invite",
+        target: "blocks.invitations.permissions.invite",
         message: expect.stringMatching(
           /checks "documents\.own" \(invite\) with authorization\.functions\.idsWith.*sqlComplete: false/,
         ),
       },
       {
-        target: "sql.modules.support-sessions.permissions.start",
+        target: "blocks.support-sessions.permissions.start",
         message: expect.stringMatching(
           /checks "support\.start" \(start\) with authorization\.functions\.isPlatform.*not in authorization\.permissions/,
         ),
@@ -305,7 +305,7 @@ describe("requirements", () => {
       resolveConfig(
         {
           authorization: stubProvider,
-          sql: { modules: { access: { model: "provider" } } },
+          blocks: { access: { model: "provider" } },
         },
         "/project",
       ),

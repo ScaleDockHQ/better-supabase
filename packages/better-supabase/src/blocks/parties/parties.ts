@@ -148,7 +148,7 @@ export interface Parties {
 
 export interface PartiesOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.parties.schema`, or the API schema of its wrappers. */
+  /** `blocks.parties.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Parties>>;

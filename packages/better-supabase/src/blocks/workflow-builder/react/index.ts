@@ -18,7 +18,7 @@ import {
   createWorkflowBuilderController,
   createWorkflowCanvasRunController,
 } from "../client.ts";
-import { createBuilder } from "../workflow-builder.ts";
+import { createWorkflowBuilder } from "../workflow-builder.ts";
 
 export interface UseWorkflowBuilderOptions {
   /** The tenant whose definitions to list. */
@@ -48,7 +48,7 @@ export function useWorkflowBuilder(
   const { tenant, schema } = options;
   const builder = useMemo(
     () =>
-      createBuilder({
+      createWorkflowBuilder({
         transport: rpcTransport(supabase),
         ...(schema === undefined ? {} : { schema }),
       }),
@@ -87,7 +87,7 @@ export function useWorkflowCanvasRun(
     const transport = rpcTransport(supabase);
     const scoped = schema === undefined ? {} : { schema };
     const workflows = createWorkflows({ transport, ...scoped });
-    const builder = createBuilder({ transport, ...scoped });
+    const builder = createWorkflowBuilder({ transport, ...scoped });
     return createWorkflowCanvasRunController({
       client: { runs: workflows.runs, nodeRuns: builder.nodeRuns },
       auth,

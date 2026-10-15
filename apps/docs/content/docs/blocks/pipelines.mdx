@@ -27,26 +27,24 @@ subjects: {
     rank: { column: "rank", group: "stage_id" },
   },
 },
-sql: {
-  modules: {
-    pipelines: {
-      options: {
-        subjects: {
-          deal: {
-            categories: { open: "open", won: "success", lost: "failure" },
-            enteredAt: "stage_entered_at",
-            amount: "amount",
-            currency: "currency",
-            probability: "probability",
-            owner: "owner_id",
-            status: { column: "outcome", values: { open: "open", won: "won", lost: "lost" } },
-            stages: [
-              { key: "qualified", name: "Qualified", category: "open", probability: 20 },
-              { key: "proposal", name: "Proposal", category: "open", probability: 55 },
-              { key: "won", name: "Closed won", category: "won", probability: 100 },
-              { key: "lost", name: "Closed lost", category: "lost", probability: 0 },
-            ],
-          },
+blocks: {
+  pipelines: {
+    options: {
+      subjects: {
+        deal: {
+          categories: { open: "open", won: "success", lost: "failure" },
+          enteredAt: "stage_entered_at",
+          amount: "amount",
+          currency: "currency",
+          probability: "probability",
+          owner: "owner_id",
+          status: { column: "outcome", values: { open: "open", won: "won", lost: "lost" } },
+          stages: [
+            { key: "qualified", name: "Qualified", category: "open", probability: 20 },
+            { key: "proposal", name: "Proposal", category: "open", probability: 55 },
+            { key: "won", name: "Closed won", category: "won", probability: 100 },
+            { key: "lost", name: "Closed lost", category: "lost", probability: 0 },
+          ],
         },
       },
     },

@@ -1,8 +1,11 @@
 import { createBlocks, sqlTransport } from "better-supabase/blocks";
-import { createComments } from "better-supabase/blocks/comments";
-import { createNotifications } from "better-supabase/blocks/notifications";
-import { createReminders } from "better-supabase/blocks/reminders";
-import { createStateMachine } from "better-supabase/blocks/state-machine";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import {
+  createNotifications,
+  notificationsBlock,
+} from "better-supabase/blocks/notifications";
+import { remindersBlock } from "better-supabase/blocks/reminders";
+import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -30,7 +33,7 @@ describe.skipIf(!live)("project management recipe", () => {
       const watchers = await watching(s);
       const { comments, stateMachine } = createBlocks(
         { transport: sqlTransport(s.sql) },
-        { comments: createComments, stateMachine: createStateMachine },
+        { comments: commentsBlock, stateMachine: stateMachineBlock },
       );
 
       await s.as(owner);
@@ -76,12 +79,12 @@ describe.skipIf(!live)("project management recipe", () => {
       const { reminders } = createBlocks(
         {
           transport: sqlTransport(s.sql),
-          reminderNotification: "reminder.due",
         },
         {
-          notifications: (options) =>
+          notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),
-          reminders: createReminders,
+          ),
+          reminders: remindersBlock.with({ notification: "reminder.due" }),
         },
       );
 

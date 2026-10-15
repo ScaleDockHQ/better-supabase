@@ -1,28 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  addModulesToConfig,
-  addModulesToJson,
+  addBlocksToConfig,
+  addBlocksToJson,
 } from "../../../src/cli/sql/config-edit.ts";
 
 const edited = (source: string, names: readonly string[]): string => {
-  const result = addModulesToConfig(source, names);
+  const result = addBlocksToConfig(source, names);
   if (!result.ok) throw new Error(result.reason);
   return result.text;
 };
 
-describe("addModulesToConfig", () => {
+describe("addBlocksToConfig", () => {
   it("appends keys to an object, one per line, keeping the trailing comma", () => {
     const source = `import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  sql: {
-    api: "api",
-    modules: {
-      // The fixture writes the memberships table itself.
-      tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
-      "api-keys": {},
-    },
+  sql: { api: "api" },
+  blocks: {
+    // The fixture writes the memberships table itself.
+    tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
+    "api-keys": {},
   },
 });
 `;
@@ -30,43 +28,37 @@ export default defineConfig({
       .toBe(`import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  sql: {
-    api: "api",
-    modules: {
-      // The fixture writes the memberships table itself.
-      tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
-      "api-keys": {},
-      tags: {},
-      "saved-views": {},
-    },
+  sql: { api: "api" },
+  blocks: {
+    // The fixture writes the memberships table itself.
+    tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
+    "api-keys": {},
+    tags: {},
+    "saved-views": {},
   },
 });
 `);
   });
 
-  it("skips modules the object already lists", () => {
-    const source = `export default defineConfig({ sql: { modules: { tags: {} } } });`;
+  it("skips blocks the object already lists", () => {
+    const source = `export default defineConfig({ blocks: { tags: {} } });`;
     expect(edited(source, ["tags", "comments"])).toBe(
-      `export default defineConfig({ sql: { modules: { tags: {}, comments: {} } } });`,
+      `export default defineConfig({ blocks: { tags: {}, comments: {} } });`,
     );
     expect(edited(source, ["tags"])).toBe(source);
   });
 
   it("appends names to a list in its quote style", () => {
     const source = `export default defineConfig({
-  sql: {
-    modules: ['audit', 'jobs']
-  }
+  blocks: ['audit', 'jobs']
 });`;
     expect(edited(source, ["jobs", "invitations"]))
       .toBe(`export default defineConfig({
-  sql: {
-    modules: ['audit', 'jobs', 'invitations']
-  }
+  blocks: ['audit', 'jobs', 'invitations']
 });`);
   });
 
-  it("adds modules to a sql object without them, and sql to a config without it", () => {
+  it("adds blocks to a config without them", () => {
     expect(
       edited(
         `export default defineConfig({
@@ -80,9 +72,9 @@ export default defineConfig({
     ).toBe(`export default defineConfig({
   schemas: ["public"],
   sql: {
-    dir: "supabase/schemas",
-    modules: { tags: {} }
-  }
+    dir: "supabase/schemas"
+  },
+  blocks: { tags: {} }
 });`);
     expect(
       edited(
@@ -93,10 +85,10 @@ export default defineConfig({
       ),
     ).toBe(`export default defineConfig({
   schemas: ["public"],
-  sql: { modules: { tags: {} } },
+  blocks: { tags: {} },
 });`);
     expect(edited("export default {};", ["tags"])).toBe(
-      "export default { sql: { modules: { tags: {} } } };",
+      "export default { blocks: { tags: {} } };",
     );
   });
 
@@ -104,58 +96,48 @@ export default defineConfig({
     expect(
       edited(
         `export default defineConfig({
-  sql: {
-    modules: {
-    },
+  blocks: {
   },
 });`,
         ["tags"],
       ),
     ).toBe(`export default defineConfig({
-  sql: {
-    modules: {
-      tags: {},
-    },
+  blocks: {
+    tags: {},
   },
 });`);
   });
 
   it("ignores braces and keys inside strings and comments", () => {
     const source = `export default defineConfig({
-  // sql: { modules: {} }
-  name: "sql: { modules }",
-  sql: { modules: { audit: { options: { exempt: ["public.}*"] } } } },
+  // blocks: {}
+  name: "blocks: { }",
+  blocks: { audit: { options: { exempt: ["public.}*"] } } },
 });`;
     expect(edited(source, ["tags"])).toContain(
-      `sql: { modules: { audit: { options: { exempt: ["public.}*"] } }, tags: {} } },`,
+      `blocks: { audit: { options: { exempt: ["public.}*"] } }, tags: {} },`,
     );
   });
 
   it("refuses a config it can't follow", () => {
     expect(
-      addModulesToConfig("export default defineConfig(base);", ["tags"]),
+      addBlocksToConfig("export default defineConfig(base);", ["tags"]),
     ).toEqual({
       ok: false,
       reason: "it doesn't pass an object literal to defineConfig()",
     });
     expect(
-      addModulesToConfig(
-        "export default defineConfig({ sql: { modules: shared } });",
-        ["tags"],
-      ),
-    ).toEqual({
-      ok: false,
-      reason: "its sql.modules isn't a literal object or list",
-    });
-    expect(
-      addModulesToConfig("export default defineConfig({ sql: base });", [
+      addBlocksToConfig("export default defineConfig({ blocks: shared });", [
         "tags",
       ]),
-    ).toEqual({ ok: false, reason: "its sql key isn't an object literal" });
+    ).toEqual({
+      ok: false,
+      reason: "its blocks key isn't a literal object or list",
+    });
   });
 });
 
-describe("addModulesToConfig with other property shapes", () => {
+describe("addBlocksToConfig with other property shapes", () => {
   it("reads past spreads, methods, computed and shorthand keys", () => {
     const source = `const plugins = {};
 module.exports = {
@@ -164,40 +146,32 @@ module.exports = {
   ["computed"]: 1,
   'quoted': \`a \${"}"} b\`,
   hook(value) { return { value }; },
-  sql: { modules: { audit: {} } },
+  blocks: { audit: {} },
 }; // trailing`;
     expect(edited(source, ["tags"])).toContain(
-      "sql: { modules: { audit: {}, tags: {} } },",
+      "blocks: { audit: {}, tags: {} },",
     );
   });
 
   it("refuses an object it can't read", () => {
     expect(
-      addModulesToConfig("export default defineConfig({ 1: 2 });", ["tags"]),
+      addBlocksToConfig("export default defineConfig({ 1: 2 });", ["tags"]),
     ).toEqual({
       ok: false,
       reason: "its config object can't be read",
     });
     expect(
-      addModulesToConfig("export default defineConfig({ sql: { 1: 2 } });", [
+      addBlocksToConfig("export default defineConfig({ blocks: { 1: 2 } });", [
         "tags",
       ]),
-    ).toEqual({ ok: false, reason: "its sql object can't be read" });
+    ).toEqual({ ok: false, reason: "its blocks object can't be read" });
     expect(
-      addModulesToConfig(
-        "export default defineConfig({ sql: { modules: { 1: 2 } } });",
-        ["tags"],
-      ),
-    ).toEqual({ ok: false, reason: "its sql.modules object can't be read" });
-    expect(
-      addModulesToConfig("export default defineConfig({ sql: { modules: {", [
-        "tags",
-      ]),
+      addBlocksToConfig("export default defineConfig({ blocks: {", ["tags"]),
     ).toEqual({ ok: false, reason: "its config object can't be read" });
     expect(
-      addModulesToConfig('export default defineConfig({ name: "open', ["tags"]),
+      addBlocksToConfig('export default defineConfig({ name: "open', ["tags"]),
     ).toEqual({ ok: false, reason: "its config object can't be read" });
-    expect(addModulesToConfig("export default config;", ["tags"])).toEqual({
+    expect(addBlocksToConfig("export default config;", ["tags"])).toEqual({
       ok: false,
       reason: "it doesn't pass an object literal to defineConfig()",
     });
@@ -205,86 +179,67 @@ module.exports = {
 
   it("appends to an empty or multi-line list, and skips names it lists", () => {
     expect(
-      edited("export default defineConfig({ sql: { modules: [] } });", [
+      edited("export default defineConfig({ blocks: [] });", [
         "tags",
         "api-keys",
       ]),
-    ).toBe(
-      'export default defineConfig({ sql: { modules: ["tags", "api-keys"] } });',
-    );
+    ).toBe('export default defineConfig({ blocks: ["tags", "api-keys"] });');
     expect(
       edited(
         `export default defineConfig({
-  sql: {
-    modules: [
-      "audit",
-    ],
-  },
+  blocks: [
+    "audit",
+  ],
 });`,
         ["audit", "jobs"],
       ),
     ).toBe(`export default defineConfig({
-  sql: {
-    modules: [
-      "audit",
-      "jobs",
-    ],
-  },
+  blocks: [
+    "audit",
+    "jobs",
+  ],
 });`);
-    const listed =
-      'export default defineConfig({ sql: { modules: ["tags"] } });';
+    const listed = 'export default defineConfig({ blocks: ["tags"] });';
     expect(edited(listed, ["tags"])).toBe(listed);
   });
 
   it("quotes names that aren't identifiers as keys", () => {
     expect(
-      edited("export default defineConfig({ sql: { modules: {} } });", [
-        "api-keys",
-      ]),
-    ).toBe(
-      'export default defineConfig({ sql: { modules: { "api-keys": {} } } });',
-    );
+      edited("export default defineConfig({ blocks: {} });", ["api-keys"]),
+    ).toBe('export default defineConfig({ blocks: { "api-keys": {} } });');
   });
 });
 
-describe("addModulesToJson", () => {
+describe("addBlocksToJson", () => {
   it("adds to an object or a list and keeps the indent", () => {
-    const result = addModulesToJson(
-      `{\n    "sql": { "modules": { "audit": {} } }\n}\n`,
-      ["tags"],
-    );
+    const result = addBlocksToJson(`{\n    "blocks": { "audit": {} }\n}\n`, [
+      "tags",
+    ]);
     expect(result).toEqual({
       ok: true,
-      text: `{\n    "sql": {\n        "modules": {\n            "audit": {},\n            "tags": {}\n        }\n    }\n}\n`,
+      text: `{\n    "blocks": {\n        "audit": {},\n        "tags": {}\n    }\n}\n`,
     });
     expect(
-      addModulesToJson(`{ "sql": { "modules": ["audit"] } }`, [
-        "audit",
-        "jobs",
-      ]),
+      addBlocksToJson(`{ "blocks": ["audit"] }`, ["audit", "jobs"]),
     ).toEqual({
       ok: true,
-      text: `{\n  "sql": {\n    "modules": [\n      "audit",\n      "jobs"\n    ]\n  }\n}\n`,
+      text: `{\n  "blocks": [\n    "audit",\n    "jobs"\n  ]\n}\n`,
     });
-    expect(addModulesToJson("[]", ["tags"])).toEqual({
+    expect(addBlocksToJson("[]", ["tags"])).toEqual({
       ok: false,
       reason: "it isn't a JSON object",
     });
-    expect(addModulesToJson("{", ["tags"])).toEqual({
+    expect(addBlocksToJson("{", ["tags"])).toEqual({
       ok: false,
       reason: "it isn't valid JSON",
     });
-    expect(addModulesToJson('{ "sql": 1 }', ["tags"])).toEqual({
+    expect(addBlocksToJson('{ "blocks": 1 }', ["tags"])).toEqual({
       ok: false,
-      reason: "its sql key isn't an object",
+      reason: "its blocks key isn't an object or a list",
     });
-    expect(addModulesToJson('{ "sql": { "modules": 1 } }', ["tags"])).toEqual({
-      ok: false,
-      reason: "its sql.modules isn't an object or a list",
-    });
-    expect(addModulesToJson("{}", ["tags"])).toEqual({
+    expect(addBlocksToJson('{ "sql": { "dir": "x" } }', ["tags"])).toEqual({
       ok: true,
-      text: `{\n  "sql": {\n    "modules": {\n      "tags": {}\n    }\n  }\n}\n`,
+      text: `{\n  "sql": {\n    "dir": "x"\n  },\n  "blocks": {\n    "tags": {}\n  }\n}\n`,
     });
   });
 });

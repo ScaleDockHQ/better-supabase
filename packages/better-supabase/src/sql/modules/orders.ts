@@ -1,3 +1,4 @@
+import type { OrdersEvents } from "../../blocks/orders/events.ts";
 import type { CommerceSubjectEventData } from "../../core/block-events.ts";
 import type {
   ModuleContext,
@@ -23,7 +24,7 @@ const orderEvent = (
   payload: ["organizationId", "subjectType", "subjectId", "id", ...payload],
 });
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<OrdersEvents> = {
   "order.placed": orderEvent([
     "number",
     "customerId",

@@ -34,3 +34,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { timeTrackingBlock } from "./manifest.ts";
+export { timeTrackingEvents } from "./events.ts";
+export type { TimeTrackingEvents } from "./events.ts";

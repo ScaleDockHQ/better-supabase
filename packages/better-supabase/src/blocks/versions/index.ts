@@ -23,3 +23,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { versionsBlock } from "./manifest.ts";
+export { versionsEvents } from "./events.ts";
+export type { VersionsEvents } from "./events.ts";

@@ -259,11 +259,11 @@ export interface Templates {
 
 export interface TemplatesOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.templates.schema`, or the API schema of its wrappers. */
+  /** `blocks.templates.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /** The template types, by name. A type without `apply` can't be applied. */
   readonly types?: Readonly<Record<string, TemplateType>>;
-  /** Starts the attached workflows; `createBuilder` as the caller. */
+  /** Starts the attached workflows; `createWorkflowBuilder` as the caller. */
   readonly workflows?: Pick<WorkflowBuilder, "run">;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Templates>;

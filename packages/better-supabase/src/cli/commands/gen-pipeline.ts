@@ -61,8 +61,7 @@ export function configuredTasks(config: ResolvedConfig): readonly GenTask[] {
   const configured: Readonly<Record<GenTask, () => boolean>> = {
     types: () => true,
     sql: () =>
-      config.sql.moduleNames.length > 0 ||
-      config.realtime.policies !== undefined,
+      config.blockNames.length > 0 || config.realtime.policies !== undefined,
     spec: () => exists(config.specs.entry),
     seed: () => exists(config.seed.entry),
     scaffold: () => config.scaffold.api !== undefined,

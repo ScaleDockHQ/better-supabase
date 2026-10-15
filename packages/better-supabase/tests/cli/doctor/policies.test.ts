@@ -121,9 +121,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
       ...context(bare),
       config: resolveConfig(
         {
-          sql: {
-            modules: { grants: { options: { fromPolicies } } },
-          },
+          blocks: { grants: { options: { fromPolicies } } },
         },
         "/project",
       ),

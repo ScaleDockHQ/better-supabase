@@ -132,7 +132,7 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  *
  * Pass a service SQL connection (`postgres.admin`, `ctx.sql`) for the full
  * feature set, a service-role `rpcTransport` over the wrappers
- * `sql.modules.jobs.api` writes for the same features over the Data API, a
+ * `blocks.jobs.api` writes for the same features over the Data API, a
  * service-role Supabase client to go through the `pgmq_public` RPCs, or any
  * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
  */

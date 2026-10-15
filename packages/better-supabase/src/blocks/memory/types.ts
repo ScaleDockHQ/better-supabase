@@ -109,7 +109,7 @@ export interface MemoryOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** Calls as the service role, for embeddings and extracted memories. */
   readonly service?: BlockTransport;
-  /** The module schema (`sql.modules.memory.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.memory.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Embeds archival memories, messages and queries. */

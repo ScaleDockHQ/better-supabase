@@ -18,11 +18,11 @@ export interface ProfilesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `sql.modules.profiles.schema`, or the API schema of its wrappers. */
+  /** `blocks.profiles.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
   /**
    * A Standard Schema for the profile columns the app adds
-   * (`sql.modules.profiles.options.extraColumns`), keyed by database name.
+   * (`blocks.profiles.options.extraColumns`), keyed by database name.
    * It types and parses them on `mine()`, and validates them on
    * `updateMine`, which returns a `validation` error for a bad value. The
    * parsed fields are merged over the row, so the other columns stay.

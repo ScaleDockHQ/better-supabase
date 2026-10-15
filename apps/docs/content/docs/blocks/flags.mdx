@@ -62,7 +62,7 @@ module's `manage` permission, checked with `is_platform()` when the
 [access](/docs/blocks/access) module is installed) or the service role. It
 calls `list_flags`, `save_flag`, `delete_flag` and `set_flag_override`,
 which are granted to `authenticated`, so an app that only reaches the
-database through the Data API manages flags with `sql.modules.flags.api`
+database through the Data API manages flags with `blocks.flags.api`
 and `rpcTransport`:
 
 ```ts

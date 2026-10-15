@@ -33,15 +33,13 @@ The uploader can always read and delete their own file.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      attachments: {
-        options: {
-          bucket: "attachments",
-          maxSize: 25 * 1024 * 1024,
-          allowedMimeTypes: ["image/*", "application/pdf"],
-          requireScan: true,
-        },
+  blocks: {
+    attachments: {
+      options: {
+        bucket: "attachments",
+        maxSize: 25 * 1024 * 1024,
+        allowedMimeTypes: ["image/*", "application/pdf"],
+        requireScan: true,
       },
     },
   },

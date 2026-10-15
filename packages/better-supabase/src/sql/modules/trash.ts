@@ -1,3 +1,4 @@
+import type { TrashEvents } from "../../blocks/trash/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -35,7 +36,7 @@ const PAYLOAD = [
   "batchId",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<TrashEvents> = {
   "subject.trashed": { subject: "trash-items", payload: PAYLOAD },
   "subject.restored": { subject: "trash-items", payload: PAYLOAD },
   "subject.purged": { subject: "trash-items", payload: PAYLOAD },
@@ -115,7 +116,7 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
 }
 
 function trashable(ctx: ModuleContext): readonly Trashable[] {
-  const where = "sql.modules.trash.options.subjects";
+  const where = "blocks.trash.options.subjects";
   const explicit = ctx.option("subjects") !== undefined;
   const list = subjectsOption(ctx, [
     "deletedAt",
@@ -280,7 +281,7 @@ function build(ctx: ModuleContext): string {
   const retention = ctx.number("retentionDays", 30);
   if (!Number.isInteger(retention) || retention < 0) {
     throw new TypeError(
-      "sql.modules.trash.options.retentionDays must be a whole number of days, or 0 to keep trash until it is purged",
+      "blocks.trash.options.retentionDays must be a whole number of days, or 0 to keep trash until it is purged",
     );
   }
   const fn = (name: string): string => ctx.fn(name);

@@ -1,3 +1,4 @@
+import type { PushEvents } from "../../blocks/push/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -14,7 +15,7 @@ import {
   raise,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<PushEvents> = {
   "push.device_registered": {
     subject: "push-devices",
     payload: ["deviceId", "userId", "platform", "provider"],

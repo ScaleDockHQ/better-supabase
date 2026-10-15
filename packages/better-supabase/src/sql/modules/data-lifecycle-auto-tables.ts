@@ -15,7 +15,7 @@ export interface AutoTables {
 }
 
 export function autoTablesOf(ctx: ModuleContext): AutoTables | undefined {
-  const where = "sql.modules.data-lifecycle.options.autoTables";
+  const where = "blocks.data-lifecycle.options.autoTables";
   const option =
     ctx.option("tables") === "auto" ? {} : ctx.option("autoTables");
   if (option === undefined) return undefined;

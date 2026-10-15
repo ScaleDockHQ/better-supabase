@@ -7,12 +7,13 @@ import type { EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { StripeSource, StripeTaxId } from "../stripe.ts";
+import type { BillingEvents } from "./events.ts";
 
 export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.billing.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.billing.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `betterSupabase.events`, for `billing.*` block events. */
@@ -41,7 +42,7 @@ export interface CheckoutOptions extends CustomerDetails {
   /** A Stripe price id. Pass this or `plan`. */
   readonly price?: string;
   /**
-   * A plan key from `sql.modules.billing.options.plans`, resolved to its
+   * A plan key from `blocks.billing.options.plans`, resolved to its
    * Stripe price in the app's plan catalog (with `interval` when plans have
    * monthly and yearly prices).
    */
@@ -109,7 +110,7 @@ export interface StripeEvent {
 
 export interface StripeEventOutcome {
   /** The `billing.*` block event it emitted, if any. */
-  readonly event: BlockEventType | undefined;
+  readonly event: BlockEventType<BillingEvents> | undefined;
   readonly organizationId: string | undefined;
   readonly customerId: string | undefined;
   /** Members whose sessions were invalidated. */

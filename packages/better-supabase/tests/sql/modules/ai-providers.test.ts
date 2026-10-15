@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-const body = (modules: ModulesConfig = {}) =>
+const body = (modules: BlocksConfig = {}) =>
   moduleBody("ai-providers", { modules })!;
 
 describe("ai-providers module", () => {

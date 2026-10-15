@@ -1,3 +1,4 @@
+import type { PromotionsEvents } from "../../blocks/promotions/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -16,7 +17,7 @@ import {
   promotionFunctions,
 } from "./promotions-functions.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<PromotionsEvents> = {
   "promotion.redeemed": {
     subject: "promotion-redemptions",
     payload: [

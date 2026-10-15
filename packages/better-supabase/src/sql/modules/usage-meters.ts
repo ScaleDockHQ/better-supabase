@@ -86,7 +86,7 @@ export const qualifiedTable = (table: string): string => quotedTable(table);
 export function metersOf(
   ctx: ModuleContext,
 ): Readonly<Record<string, UsageMeter>> | MeterTable | undefined {
-  const where = "sql.modules.usage.options.meters";
+  const where = "blocks.usage.options.meters";
   const option = ctx.option("meters");
   if (option === undefined) return undefined;
   if (isObject(option) && typeof option["table"] === "string") {

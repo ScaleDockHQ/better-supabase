@@ -9,7 +9,7 @@ const live = await reachable();
 describe("recipe module sets", () => {
   it.each(RECIPES)("$name renders the modules it names", (recipe) => {
     const rendered = new Set(moduleFiles(recipe).map((file) => file.module));
-    const named = Object.keys(recipe.config.sql?.modules ?? {});
+    const named = Object.keys(recipe.config.blocks ?? {});
     expect([...rendered]).toEqual(expect.arrayContaining(named));
     expect(rendered).toContain("outbox");
   });

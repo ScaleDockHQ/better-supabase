@@ -6,7 +6,7 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createServicePrincipals } from "../../src/blocks/service-principals/index.ts";
 import {
-  createBuilder,
+  createWorkflowBuilder,
   sqlTransport,
   type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
@@ -85,7 +85,7 @@ describe.skipIf(!live)("service principals", () => {
     const member = await s.user("member");
     const tenant = await s.organization(owner, { admin: admin1, member });
     await s.service();
-    await createBuilder({
+    await createWorkflowBuilder({
       transport: sqlTransport(s.sql),
       steps: [{ name: "crm.lookup", title: "Look up a contact" }],
     })
@@ -168,7 +168,7 @@ describe.skipIf(!live)("service principals", () => {
     const s = await BlockSession.open(pool);
     try {
       const { tenant, principals } = await setUp(s);
-      const builder = createBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const definition = await builder.definitions
         .save({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();

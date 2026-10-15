@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessModuleConfig } from "../../../src/config/modules.ts";
+import type { AccessBlockConfig } from "../../../src/config/blocks.ts";
 import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
@@ -11,7 +11,7 @@ import {
   moduleProvider,
 } from "../../fixtures/authorization-provider.ts";
 
-const access = (config: AccessModuleConfig, tenant?: object) =>
+const access = (config: AccessBlockConfig, tenant?: object) =>
   moduleBody("access", {
     modules: { access: config, ...(tenant ? { tenant } : {}) },
   })!;
@@ -20,7 +20,7 @@ const PROVIDER = moduleProvider;
 const CALLER_ONLY = callerOnlyProvider;
 
 const provider = (
-  config: AccessModuleConfig = {},
+  config: AccessBlockConfig = {},
   accessProvider: ModuleAccessProvider = PROVIDER,
 ) =>
   moduleBody("access", {
@@ -28,7 +28,7 @@ const provider = (
     accessProvider,
   })!;
 
-const CATALOG: AccessModuleConfig = {
+const CATALOG: AccessBlockConfig = {
   mode: "adopt",
   model: "catalog",
   tables: {
@@ -354,7 +354,7 @@ describe("access module", () => {
     expect(sql).toContain("public.user_can(member, tenant, permission)");
     expect(sql).toContain("public.permission_claims(user_id)");
     expect(() => access({ model: "custom" })).toThrow(
-      /needs sql.modules.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
+      /needs blocks.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
     );
     expect(() =>
       access({

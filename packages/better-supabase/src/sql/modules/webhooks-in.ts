@@ -1,3 +1,4 @@
+import type { IncomingWebhooksEvents } from "../../blocks/webhooks/events.ts";
 import type { ModuleContext, ModuleEvents } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
@@ -38,7 +39,7 @@ function secretStorage(ctx: ModuleContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
-      `sql.modules.webhooks-in.options.secretStorage must be "vault" or "column", not "${storage}"`,
+      `blocks.webhooks-in.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
   return storage === "vault";
@@ -91,7 +92,7 @@ function webhooksInSql(ctx: ModuleContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
   if (ctx.manages && renamed.length > 0) {
     throw new TypeError(
-      `sql.modules.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
+      `blocks.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
     );
   }
   const id = ctx.idType;
@@ -182,7 +183,7 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
   const subjectColumns = has("subjectType") && has("subjectId");
   if (subjects.length > 0 && !subjectColumns) {
     throw new TypeError(
-      "sql.modules.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
+      "blocks.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
     );
   }
   const readable = subjectReadable(subjects, {
@@ -766,7 +767,7 @@ revoke execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) f
 grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to service_role;`;
 }
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<IncomingWebhooksEvents> = {
   "incoming_webhook.created": {
     subject: "organizations",
     payload: ["organizationId", "endpointId", "name"],

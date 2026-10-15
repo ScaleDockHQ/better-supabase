@@ -65,7 +65,7 @@ export interface CreateInviteCodeInput {
   readonly expiresAt?: Temporal.Instant;
   /** Adds whoever redeems the code to this organization. */
   readonly organizationId?: string;
-  /** The role in `organizationId`; `sql.modules.waitlist.options.defaultRole` otherwise. */
+  /** The role in `organizationId`; `blocks.waitlist.options.defaultRole` otherwise. */
   readonly role?: string;
   /** Your own code, such as `LAUNCH2026`; a random one otherwise. */
   readonly code?: string;
@@ -79,7 +79,7 @@ export interface Redemption {
 
 export interface WaitlistOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.waitlist.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.waitlist.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

@@ -22,7 +22,7 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
-const RATE_LIMIT_NO_HOOK = `-- sql.modules.rate-limit.options.preRequest is false: the app calls
+const RATE_LIMIT_NO_HOOK = `-- blocks.rate-limit.options.preRequest is false: the app calls
 -- better_supabase.check_request() from its own pre-request function, or not
 -- at all. Removes the setting when it still points at check_request.
 do $$

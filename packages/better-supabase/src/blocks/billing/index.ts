@@ -30,3 +30,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { billingBlock } from "./manifest.ts";
+export { billingEvents } from "./events.ts";
+export type { BillingEvents } from "./events.ts";

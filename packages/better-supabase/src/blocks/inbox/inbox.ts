@@ -56,7 +56,7 @@ export interface InboxOptions extends BlockTemporalOptions {
    * member or a contact; over the service role for webhooks and workers.
    */
   readonly transport: BlockTransport;
-  /** `sql.modules.inbox.schema`. Defaults to `better_supabase`. */
+  /** `blocks.inbox.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

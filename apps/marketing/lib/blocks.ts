@@ -69,7 +69,7 @@ const configKey = (name: string): string =>
   /^[a-z_][a-z0-9_]*$/i.test(name) ? name : JSON.stringify(name);
 
 /**
- * The `sql.modules` entries in `better-supabase.config.ts` for `block` and
+ * The `blocks` entries in `better-supabase.config.ts` for `block` and
  * the modules `sql add` installs with it (`installed`, dependencies first).
  */
 export function configSnippet(
@@ -81,21 +81,16 @@ export function configSnippet(
     `import { defineConfig } from "better-supabase/config";`,
     "",
     "export default defineConfig({",
-    "  sql: {",
-    "    modules: {",
+    "  blocks: {",
   ];
   if (dependencies.length > 0) {
-    lines.push(
-      `      // Required by ${block.name}; sql add installs them too.`,
-    );
-    for (const name of dependencies)
-      lines.push(`      ${configKey(name)}: {},`);
+    lines.push(`    // Required by ${block.name}; sql add installs them too.`);
+    for (const name of dependencies) lines.push(`    ${configKey(name)}: {},`);
   }
   const modes = block.modes.map((mode) => `"${mode}"`).join(", ");
   lines.push(
-    `      // Modes: ${modes}. The default is "managed".`,
-    `      ${configKey(block.name)}: { mode: "managed" },`,
-    "    },",
+    `    // Modes: ${modes}. The default is "managed".`,
+    `    ${configKey(block.name)}: { mode: "managed" },`,
     "  },",
     "});",
   );

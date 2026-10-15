@@ -61,3 +61,6 @@ export type {
   InboxWidgetControllerOptions,
   InboxWidgetSnapshot,
 } from "./client.ts";
+export { inboxBlock } from "./manifest.ts";
+export { inboxEvents } from "./events.ts";
+export type { InboxEvents } from "./events.ts";

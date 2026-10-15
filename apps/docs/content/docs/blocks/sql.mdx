@@ -7,15 +7,15 @@ description: Idempotent SQL modules for the database work every app repeats, wri
 `supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`
-schema. `sql add` renders the new modules next to the ones `sql.modules`
+schema. `sql add` renders the new modules next to the ones `blocks`
 already lists, so a module sees what is installed (billing's foreign key to
 the organizations table, for example), and writes only the named modules and
 the ones they need.
 
-`sql add` also lists the new modules in `sql.modules` of your config file, in
+`sql add` also lists the new modules in `blocks` of your config file, in
 the form it already uses: `tags: {}` in an object, `"tags"` in a list. It
 edits the object literal you pass to `defineConfig()` and leaves the rest of
-the file as it is. When `sql.modules` is not a literal it can follow, such as
+the file as it is. When `blocks` is not a literal it can follow, such as
 a variable or a spread, it changes nothing and prints the entries to add
 instead. `--dry-run` says what it would add.
 
@@ -75,8 +75,8 @@ the database, or every migration, lacks.
 export default defineConfig({
   sql: {
     workflow: "migrations",
-    modules: ["audit", "jobs"],
   },
+  blocks: ["audit", "jobs"],
 });
 ```
 
@@ -237,9 +237,9 @@ differ from the newest `*_better_supabase_modules.sql`.
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
-`sql.modules.access.activeTenant`: by default the tenant the server resolved for the
+`blocks.access.activeTenant`: by default the tenant the server resolved for the
 request, then the claim named by `claims.tenant` (`tenant_id` by default).
-The roles come from `sql.modules.access.roles`. Change modules through `sql.modules` (see
+The roles come from `blocks.access.roles`. Change modules through `blocks` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.
 
@@ -288,7 +288,7 @@ typed `DbError`s through the repository.
 ## Existing tables: managed, adopt and custom
 
 Each module has a contract: the functions policies, other modules and the
-TypeScript side call. `sql.modules.<module>.mode` decides what stands behind it.
+TypeScript side call. `blocks.<module>.mode` decides what stands behind it.
 
 | Mode                | The module writes                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------- |
@@ -305,19 +305,17 @@ own names:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      tenant: {
-        mode: "adopt",
-        tables: { memberships: "public.organization_users" },
-        columns: {
-          memberships: { tenant: "organization_id", lastUsedAt: null },
-        },
-        options: { claimFormat: "map" },
+  blocks: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: {
+        memberships: { tenant: "organization_id", lastUsedAt: null },
       },
-      invitations: {
-        permissions: { invite: "organization.members.invite" },
-      },
+      options: { claimFormat: "map" },
+    },
+    invitations: {
+      permissions: { invite: "organization.members.invite" },
     },
   },
 });
@@ -351,12 +349,10 @@ belongs in `[api] schemas` (doctor reports it as
 isolate without a Postgres connection, give it an API schema:
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    settings: { api: "api" },
-    notifications: {
-      api: { schema: "api", functions: ["list_notifications", "notification_counts"] },
-    },
+blocks: {
+  settings: { api: "api" },
+  notifications: {
+    api: { schema: "api", functions: ["list_notifications", "notification_counts"] },
   },
 },
 ```
@@ -368,11 +364,11 @@ points. `sql.schema` works the same way for the module schema.
 ```ts title="better-supabase.config.ts"
 sql: {
   api: "api",
-  modules: {
-    settings: {},
-    notifications: {},
-    jobs: { api: false },
-  },
+},
+blocks: {
+  settings: {},
+  notifications: {},
+  jobs: { api: false },
 },
 ```
 
@@ -419,7 +415,7 @@ An unknown table, column or module, or a mode a module doesn't support, stops
 module version and mode (`-- @bs-module tenant@2 adopt`), and the data migration
 records them in `better_supabase.modules`. An option a module doesn't read
 stops `sql add` as well, so a misspelled option can't fall back to its default
-without notice. Only `sql.modules.access` takes the access keys (`model`, `roles`,
+without notice. Only `blocks.access` takes the access keys (`model`, `roles`,
 `functions`, `activeTenant` and the rest).
 
 ## Audit log
@@ -558,7 +554,7 @@ end;
 $$;
 ```
 
-The module options (`sql.modules.audit.options`):
+The module options (`blocks.audit.options`):
 
 | Option                | Default                  | What it does                                                                                                                                                                                                                                                                                        |
 | --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -603,7 +599,7 @@ module's data file deletes them, so the next `sql data` migration cleans
 them up, and [doctor BS322](/docs/cli/doctor#bs322) reports any that remain
 on a database.
 
-An app with its own audit table adopts it: map `sql.modules.audit.tables.log` and
+An app with its own audit table adopts it: map `blocks.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
 snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
@@ -616,29 +612,27 @@ option as migration-only ([BS314](/docs/cli/doctor#bs314)).
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      audit: {
-        mode: "adopt",
-        tables: { log: "public.activity_log" },
-        columns: {
-          log: {
-            tenant: "workspace_id",
-            actorKind: "actor_type",
-            tenantLabel: "workspace_name",
-          },
+  blocks: {
+    audit: {
+      mode: "adopt",
+      tables: { log: "public.activity_log" },
+      columns: {
+        log: {
+          tenant: "workspace_id",
+          actorKind: "actor_type",
+          tenantLabel: "workspace_name",
         },
-        options: {
-          values: {
-            scope: { tenant: "workspace", platform: "global" },
-            actorKind: { user: "member", service: "api" },
-            outcome: { success: "ok", failure: "error" },
-            source: { database: "db" },
-            category: { data: "record", system: "platform" },
-          },
-          tenantLabel: "public.workspaces.title",
-          tenantLabelKey: "workspace_id",
+      },
+      options: {
+        values: {
+          scope: { tenant: "workspace", platform: "global" },
+          actorKind: { user: "member", service: "api" },
+          outcome: { success: "ok", failure: "error" },
+          source: { database: "db" },
+          category: { data: "record", system: "platform" },
         },
+        tenantLabel: "public.workspaces.title",
+        tenantLabelKey: "workspace_id",
       },
     },
   },
@@ -767,7 +761,7 @@ select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supaba
 
 Tenants can keep entries for different periods, a plan's retention for
 example. Write an `audit_retention(tenant)` function that returns an interval
-(or null for the default) in the schema `sql.modules.audit.hooks` points at, and
+(or null for the default) in the schema `blocks.audit.hooks` points at, and
 `purge_audit_log` uses it for every entry. Like every SQL hook, it is
 optional: the module calls hooks through dynamic SQL, so `supabase db lint`
 passes without them. To decide in TypeScript instead,
@@ -892,15 +886,13 @@ the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional. In
 `options.approval: "none"`.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    "support-sessions": {
-      mode: "adopt",
-      tables: { sessions: "public.impersonation_sessions" },
-      columns: { sessions: { admin: "impersonator_id", metadata: null } },
-      permissions: { start: "system.users.impersonate" },
-      options: { claimsHook: "public.custom_access_token_hook" },
-    },
+blocks: {
+  "support-sessions": {
+    mode: "adopt",
+    tables: { sessions: "public.impersonation_sessions" },
+    columns: { sessions: { admin: "impersonator_id", metadata: null } },
+    permissions: { start: "system.users.impersonate" },
+    options: { claimsHook: "public.custom_access_token_hook" },
   },
 },
 ```
@@ -956,7 +948,7 @@ still points at `check_request()` instead of adding one.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: { "rate-limit": { options: { preRequest: false } } } },
+  blocks: { "rate-limit": { options: { preRequest: false } } },
 });
 ```
 
@@ -1000,7 +992,7 @@ Apps that reach the database over the Data API instead of a direct
 connection pass a service-role `BlockTransport`, like the other blocks:
 `createRateLimit(rpcTransport(adminClient))`. It calls
 `check_rate_limit(scope, key, max_requests, period)`, which returns the same
-decision as JSON; with `sql.modules.rate-limit.api` set, pass the API schema
+decision as JSON; with `blocks.rate-limit.api` set, pass the API schema
 as `rpcTransport(adminClient, { schema: "api" })`.
 
 The limit is the scope's rule from `set_rate_limit`, or one given per call
@@ -1036,7 +1028,7 @@ export default defineConfig({
       schema: CustomerMetadata,
     },
   },
-  sql: { modules: ["jsonb-schemas"] },
+  blocks: ["jsonb-schemas"],
 });
 ```
 
@@ -1088,7 +1080,7 @@ export default defineConfig({
     },
     customer: { table: "public.customers", title: "name" },
   },
-  sql: { modules: ["tenant", "access", "subjects", "tags", "comments"] },
+  blocks: ["tenant", "access", "subjects", "tags", "comments"],
 });
 ```
 
@@ -1176,9 +1168,9 @@ you add other modules. List the modules you use in the config:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   sql: {
-    modules: ["audit", "jobs", "invitations"],
     testsDir: "supabase/tests",
   },
+  blocks: ["audit", "jobs", "invitations"],
 });
 ```
 
@@ -1196,7 +1188,7 @@ export default defineConfig({
 | `sql.testsDir` | `supabase/tests`                                               |
 | `sql.schema`   | `better_supabase`, for every module that sets no `schema`      |
 | `sql.api`      | unset; the Data API schema for every module that sets no `api` |
-| `sql.modules`  | `[]`                                                           |
+| `blocks`       | `[]`                                                           |
 
 ## Upgrading modules
 
@@ -1272,8 +1264,8 @@ and mode in a file's header.
 `moduleFilePaths(names, layout)` maps each module a set of names pulls in to its
 schema and test paths without rendering it. `modulePermissionKeys(blocks, names)`
 lists the permission keys those modules check, with the action, the key after
-`sql.modules.<module>.permissions` and whether a tenant or a platform check asks for
-it. Under `sql.modules.access.model: 'provider'`, `sql add` and doctor (BS411) check
+`blocks.<module>.permissions` and whether a tenant or a platform check asks for
+it. Under `blocks.access.model: 'provider'`, `sql add` and doctor (BS411) check
 each key against the provider's `permissions`; a script can do the same:
 
 ```ts title="scripts/check-module-keys.ts"
@@ -1289,8 +1281,8 @@ const scopeOnly = new Set(
     .map((entry) => entry.key),
 );
 for (const { module, action, key } of modulePermissionKeys(
-  sql.modules,
-  sql.moduleNames,
+  blocks,
+  blockNames,
 )) {
   if (!scopeOnly.has(key)) console.error(`${module}.${action}: ${key}`);
 }

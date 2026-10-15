@@ -14,7 +14,7 @@ import {
 } from "../assistant-server";
 import { assistantTurn, researchTurn } from "./durable-workflows";
 
-/** `sql.modules["ai-chat"].api` and `streams.api`. */
+/** `blocks["ai-chat"].api` and `streams.api`. */
 const API_SCHEMA = "api";
 
 /** The agents a durable chat can run; the client sends one as `agent`. */

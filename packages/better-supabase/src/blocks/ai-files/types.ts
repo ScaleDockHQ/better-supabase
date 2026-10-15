@@ -43,7 +43,7 @@ export interface AiFilesOptions extends BlockTemporalOptions {
   readonly service?: BlockTransport;
   /** The service role's `supabase.storage`, for `store` and `purge`. */
   readonly serviceStorage?: AiFileStorage;
-  /** The module schema (`sql.modules["ai-files"].schema`), default `better_supabase`. */
+  /** The module schema (`blocks["ai-files"].schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Lifetime of a signed download URL in seconds. Default 300. */

@@ -85,7 +85,7 @@ function channels(ctx: ModuleContext): readonly string[] {
   for (const channel of list) {
     if (!NAME.test(channel)) {
       throw new TypeError(
-        `sql.modules.notifications.options.channels: "${channel}" is not a channel name`,
+        `blocks.notifications.options.channels: "${channel}" is not a channel name`,
       );
     }
   }
@@ -151,7 +151,7 @@ function notify(
   const maxRecipients = ctx.number("maxRecipients", 1000);
   if (!Number.isInteger(maxRecipients) || maxRecipients < 1) {
     throw new TypeError(
-      "sql.modules.notifications.options.maxRecipients must be a whole number above zero",
+      "blocks.notifications.options.maxRecipients must be a whole number above zero",
     );
   }
 

@@ -1,3 +1,4 @@
+import type { CredentialsEvents } from "../../blocks/credentials/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -9,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<CredentialsEvents> = {
   "credential.set": {
     subject: "credentials",
     payload: ["provider", "name"],
@@ -96,13 +97,13 @@ function vaultStorage(ctx: ModuleContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
-      `sql.modules.credentials.options.secretStorage must be "vault" or "column", not "${storage}"`,
+      `blocks.credentials.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
   const vault = storage === "vault";
   if (!ctx.has("secrets", vault ? "vaultId" : "secret")) {
     throw new TypeError(
-      `sql.modules.credentials: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
+      `blocks.credentials: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
     );
   }
   return vault;
@@ -325,7 +326,7 @@ function build(ctx: ModuleContext): string {
   const renamed = Object.keys(ctx.config.columns["secrets"] ?? {});
   if (renamed.length > 0) {
     throw new TypeError(
-      `sql.modules.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with mode "adopt"`,
+      `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with mode "adopt"`,
     );
   }
   const fn = (name: string): string => ctx.fn(name);

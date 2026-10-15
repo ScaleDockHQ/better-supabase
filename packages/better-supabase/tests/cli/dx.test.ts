@@ -535,7 +535,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
     await project(
       {},
       {
-        "better-supabase.config.ts": `export default { readSets: ['src/read-sets.ts'], sql: { modules: ['read-sets'] } };\n`,
+        "better-supabase.config.ts": `export default { readSets: ['src/read-sets.ts'], blocks: ['read-sets'] };\n`,
         "src/read-sets.ts": readSetModule,
       },
     );

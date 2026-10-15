@@ -33,20 +33,18 @@ await approvals.approve(request.id, "Looks right").orThrow();
 `options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.subjects`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
 
 ```ts title="better-supabase.config.ts"
-sql: {
-  modules: {
-    approvals: {
-      options: {
-        policies: {
-          invoice: {
-            send: {
-              steps: [
-                { approvers: { permission: "invoices.approve" }, required: 2 },
-                { approvers: { users: ["8b0f6c1e-0000-4000-8000-000000000001"] }, required: "all" },
-              ],
-              expiresIn: "P7D",
-              run: { transition: "sent" },
-            },
+blocks: {
+  approvals: {
+    options: {
+      policies: {
+        invoice: {
+          send: {
+            steps: [
+              { approvers: { permission: "invoices.approve" }, required: 2 },
+              { approvers: { users: ["8b0f6c1e-0000-4000-8000-000000000001"] }, required: "all" },
+            ],
+            expiresIn: "P7D",
+            run: { transition: "sent" },
           },
         },
       },

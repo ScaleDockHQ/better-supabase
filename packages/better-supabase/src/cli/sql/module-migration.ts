@@ -53,7 +53,7 @@ export function renderModuleMigration(parts: ModuleMigrationParts): string {
     [
       `-- better-supabase sql: ${modules.length > 0 ? `the SQL modules ${modules.join(", ")}` : "the realtime topic policies"}, in one migration (sql.workflow: 'migrations').`,
       "-- Managed by `better-supabase sql`, which writes a new migration when they change.",
-      "-- Change them through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.",
+      "-- Change them through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ].join("\n"),
     ...(extensions.length > 0
       ? [extensions.map((extension) => extension.statement).join("\n")]

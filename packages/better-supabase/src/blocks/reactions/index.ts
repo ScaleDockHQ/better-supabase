@@ -22,3 +22,6 @@ export type {
   ReactionsControllerOptions,
   ReactionsSnapshot,
 } from "./client.ts";
+export { reactionsBlock } from "./manifest.ts";
+export { reactionsEvents } from "./events.ts";
+export type { ReactionsEvents } from "./events.ts";

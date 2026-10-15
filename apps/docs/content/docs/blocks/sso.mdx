@@ -18,13 +18,13 @@ better-supabase sql add sso   # adds tenant and access as well
 The module assigns roles by name. Under the `roles` and `catalog` access
 models it takes them from the config. Under the `provider` and `custom`
 models the roles live elsewhere, so list the roles SCIM and auto-join may
-assign in `sql.modules.sso.options.roleOrder`, highest first; `sql add` stops
+assign in `blocks.sso.options.roleOrder`, highest first; `sql add` stops
 without it. A memberships table that stores role ids reads them through
-`sql.modules.tenant.options.roleThrough`, which an authorization provider's
+`blocks.tenant.options.roleThrough`, which an authorization provider's
 `roleSources` fill in.
 Setting a domain's `auto_join_role` also needs `can_assign(tenant, role)` for
 the caller, which is the provider's `canAssign` under the provider model
-(or `sql.modules.access.functions.canAssign`), so a manager can't make a domain
+(or `blocks.access.functions.canAssign`), so a manager can't make a domain
 hand out a role they couldn't grant themselves (`SSO_ROLE_FORBIDDEN`).
 
 | Table                        | Holds                                                                                    |
@@ -77,7 +77,7 @@ const result = await admin.verifyDomain(domainId, { actorId: user.id });
 ```
 
 A verified domain emits `organization.domain_verified` through the outbox.
-Change the record's prefix with `sql.modules.sso.options.txtPrefix`.
+Change the record's prefix with `blocks.sso.options.txtPrefix`.
 
 ## Auto-join
 
@@ -202,14 +202,12 @@ in none gets `defaultRole`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      sso: {
-        options: {
-          defaultRole: "member",
-          roleOrder: ["admin", "member"],
-          groupRoles: { "Engineering Leads": "admin" },
-        },
+  blocks: {
+    sso: {
+      options: {
+        defaultRole: "member",
+        roleOrder: ["admin", "member"],
+        groupRoles: { "Engineering Leads": "admin" },
       },
     },
   },

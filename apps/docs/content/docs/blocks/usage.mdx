@@ -232,7 +232,7 @@ In SQL, `record_usage_batch(tenant, entries, idempotency_key, check)` takes
 ## Usage history
 
 A usage page shows who and what used a meter. Set
-`sql.modules.usage.options.history` to `true` and every recorded quantity also
+`blocks.usage.options.history` to `true` and every recorded quantity also
 goes to `usage_history`, with the user who used it and the `source` and
 `metadata` you pass:
 

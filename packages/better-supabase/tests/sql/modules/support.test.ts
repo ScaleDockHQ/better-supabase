@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleConfig } from "../../../src/config/modules.ts";
+import type { BlockConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const support = (config: ModuleConfig = {}) =>
+const support = (config: BlockConfig = {}) =>
   moduleBody("support-sessions", { modules: { "support-sessions": config } })!;
 
 describe("support-sessions module", () => {

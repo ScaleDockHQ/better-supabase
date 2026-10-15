@@ -2,7 +2,7 @@
 -- @bs-module ai-tasks@2 managed
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -344,7 +344,7 @@ $$;
 revoke execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) to service_role;
 
--- sql.modules.ai-tasks.api: entry points for the Data API.
+-- blocks.ai-tasks.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

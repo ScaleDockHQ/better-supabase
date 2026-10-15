@@ -5,6 +5,7 @@ import type {
 } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { Notifier } from "../ports.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
 import { dbError, isDbError } from "../../core/errors.ts";
@@ -19,6 +20,27 @@ import {
   textOf,
 } from "../shared.ts";
 
+/** Sends `notification` through `notifier` for a delivered reminder. */
+function notifyThrough(
+  options: Pick<RemindersOptions, "notifier" | "notification">,
+): ((delivery: DeliveryPayload) => unknown) | undefined {
+  const { notifier, notification } = options;
+  if (notifier === undefined || notification === undefined) return undefined;
+  return (delivery) =>
+    notifier.send(notification, {
+      recipients: delivery.userId === undefined ? [] : [delivery.userId],
+      tenant: delivery.organizationId,
+      key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt}`,
+      ...(delivery.subjectType === undefined || delivery.subjectId === undefined
+        ? {}
+        : { subject: { type: delivery.subjectType, id: delivery.subjectId } }),
+      data: {
+        reminderId: delivery.reminderId,
+        occurrenceAt: delivery.occurrenceAt,
+      },
+    });
+}
+
 /** The queue `reminders.job` handles. */
 export const REMINDER_DELIVERY_QUEUE = "reminders.deliver";
 
@@ -27,11 +49,18 @@ export interface RemindersOptions {
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * Runs after `deliver` records an occurrence for the first time. Set by
-   * `createBlocks` when it also builds `notifications` and has a
-   * `reminderNotification` type.
+   * Runs after `deliver` records an occurrence for the first time. Defaults
+   * to sending `notification` through `notifier`.
    */
   readonly notifyDelivery?: (delivery: DeliveryPayload) => unknown;
+  /** The `notifier` port: the `notifications` block, from `createBlocks`. */
+  readonly notifier?: Notifier;
+  /**
+   * The notification type `notifier` sends for a delivered reminder, to the
+   * user who set it and the reminded subject's watchers. Its data is
+   * `{ reminderId, occurrenceAt }`.
+   */
+  readonly notification?: string;
   /**
    * Checks the reminder's user before `notifyDelivery` runs; a user it
    * leaves out gets nothing, and a throw fails the delivery so the job
@@ -84,6 +113,7 @@ function deliveryOf(value: unknown): DeliveryPayload {
 
 export function createReminders(options: RemindersOptions): Reminders {
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
   const audience =
     options.audience ??
     options.authorization?.delivery?.audience ??
@@ -131,14 +161,14 @@ export function createReminders(options: RemindersOptions): Reminders {
       (value) => value === true,
     );
   const deliver: Reminders["deliver"] = (delivery) =>
-    (options.notifyDelivery === undefined
+    (notifyDelivery === undefined
       ? AsyncResult.ok(false)
       : permitted(delivery)
     ).andThen((allowed) =>
       markSent(delivery.reminderId, delivery.occurrenceAt).andThen(
         async (sent) => {
-          if (sent && allowed && options.notifyDelivery !== undefined) {
-            const outcome: unknown = await options.notifyDelivery(delivery);
+          if (sent && allowed && notifyDelivery !== undefined) {
+            const outcome: unknown = await notifyDelivery(delivery);
             if (
               isRecord(outcome) &&
               outcome["ok"] === false &&

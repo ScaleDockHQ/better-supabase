@@ -34,7 +34,7 @@ function valueSql(at: string, value: unknown): string {
 }
 
 function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
-  const where = "sql.modules.data-lifecycle.options.anonymize";
+  const where = "blocks.data-lifecycle.options.anonymize";
   const value = ctx.option("anonymize");
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
@@ -122,7 +122,7 @@ export function anonymizeSql(ctx: ModuleContext): string {
   v_done := v_done || jsonb_build_object(${sqlString(rule.name)}, v_count);`,
   );
   return `
--- Anonymizes the rows sql.modules.data-lifecycle.options.anonymize names once
+-- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,
 -- marked with the time. Returns { table: rows }.
 create or replace function ${fn}(max_rows integer default 1000)

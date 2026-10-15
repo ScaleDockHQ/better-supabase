@@ -1,3 +1,4 @@
+import type { WorkItemsEvents } from "../../blocks/work-items/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -27,7 +28,7 @@ const ITEM = [
   "title",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<WorkItemsEvents> = {
   "work_item.created": { subject: "work-items", payload: [...ITEM] },
   "work_item.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
   "work_item.assigned": {
@@ -316,7 +317,7 @@ function build(ctx: ModuleContext): string {
   const maxAssignees = ctx.number("maxAssignees", 0);
   if (!Number.isInteger(maxAssignees) || maxAssignees < 0) {
     throw new TypeError(
-      "sql.modules.work-items.options.maxAssignees must be 0 (no limit) or a positive integer",
+      "blocks.work-items.options.maxAssignees must be 0 (no limit) or a positive integer",
     );
   }
   const n: WorkItemNames = {

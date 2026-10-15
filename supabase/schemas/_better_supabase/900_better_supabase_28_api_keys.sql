@@ -2,7 +2,7 @@
 -- @bs-module api-keys@3 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -463,7 +463,7 @@ grant execute on function "better_supabase"."verify_api_key"(text, text) to serv
 grant execute on function "better_supabase"."has_scope"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."api_key_tenant"() to anon, authenticated, service_role;
 
--- sql.modules.api-keys.api: entry points for the Data API.
+-- blocks.api-keys.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 

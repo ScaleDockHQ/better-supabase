@@ -23,7 +23,7 @@ import { lazyStripe, type StripeSource } from "../stripe.ts";
 
 export interface UsageOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.usage.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.usage.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -35,7 +35,7 @@ export interface RecordUsageOptions {
   readonly idempotencyKey?: string;
   /**
    * What used it, such as `feature:summary` or `api:/v1/search`, kept in the
-   * history with `sql.modules.usage.options.history`.
+   * history with `blocks.usage.options.history`.
    */
   readonly source?: string;
   /** More detail for the history entry, such as a document id. */
@@ -105,7 +105,7 @@ export interface UsageRecorded {
  */
 export type UsagePeriod = "day" | "week" | "month" | "year" | "billing";
 
-/** One meter of `sql.modules.usage.options.meters`. */
+/** One meter of `blocks.usage.options.meters`. */
 export interface UsageMeterInfo {
   readonly unit?: string;
   readonly category?: string;
@@ -172,7 +172,7 @@ export interface Usage {
   meters(): AsyncResult<Readonly<Record<string, UsageMeterInfo>>>;
   /**
    * The tenant's usage entries, newest first, with who and what used each
-   * (`usage.read`). Empty without `sql.modules.usage.options.history`.
+   * (`usage.read`). Empty without `blocks.usage.options.history`.
    */
   history(
     organizationId: string,

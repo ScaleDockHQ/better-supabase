@@ -33,7 +33,7 @@ const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 // never carries the subject's platform permissions.
 const NOT_ACTING = `(platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)`;
 
-/** Fills `{name}` placeholders of a `sql.modules.access.functions` template. */
+/** Fills `{name}` placeholders of a `blocks.access.functions` template. */
 function fill(
   template: string,
   values: Readonly<Record<string, string>>,
@@ -42,7 +42,7 @@ function fill(
     const value = values[name];
     if (value === undefined) {
       throw new TypeError(
-        `sql.modules.access.functions: ${match} is not available here. Use ${Object.keys(
+        `blocks.access.functions: ${match} is not available here. Use ${Object.keys(
           values,
         )
           .map((key) => `{${key}}`)
@@ -484,12 +484,12 @@ function providerOf(
   const provider = layout.accessProvider;
   if (!provider) {
     throw new TypeError(
-      "sql.modules.access.model 'provider' needs an authorization provider: set authorization in better-supabase.config.ts.",
+      "blocks.access.model 'provider' needs an authorization provider: set authorization in better-supabase.config.ts.",
     );
   }
   if (provider.idType !== ctx.idType) {
     throw new TypeError(
-      `sql.modules.access: the authorization provider (${provider.name}) gives scope "${provider.scope}" the type ${provider.idType}, but the access module renders ${ctx.idType} ids. Set sql.modules.access.idType to "${provider.idType}".`,
+      `blocks.access: the authorization provider (${provider.name}) gives scope "${provider.scope}" the type ${provider.idType}, but the access module renders ${ctx.idType} ids. Set blocks.access.idType to "${provider.idType}".`,
     );
   }
   return provider;
@@ -605,7 +605,7 @@ export function providerForUser(layout: ModuleLayout): {
 
 /**
  * The body of `can_assign_as(member, tenant, role)` under the provider and
- * custom models: `sql.modules.access.functions.canAssignFor`, else the
+ * custom models: `blocks.access.functions.canAssignFor`, else the
  * provider's `canAssignFor`. Undefined when there is none, so nothing can
  * check a stored user's authority.
  */
@@ -743,7 +743,7 @@ as $$
     and not better_supabase.tenant_disabled(t.id::${id})${notSuspended(ctx, `t.id::${id}`, "auth.uid()")}
 $$;
 
--- sql.modules.access.functions.canAssign, else authorization.functions.canAssign,
+-- blocks.access.functions.canAssign, else authorization.functions.canAssign,
 -- decides who assigns which role. Without either, only the service role
 -- assigns roles.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
@@ -765,7 +765,7 @@ function customFunctions(ctx: ModuleContext): string {
   ).filter((name) => !functions[name]);
   if (missing.length > 0) {
     throw new TypeError(
-      `sql.modules.access.model 'custom' needs sql.modules.access.functions.${missing.join(", ")}`,
+      `blocks.access.model 'custom' needs blocks.access.functions.${missing.join(", ")}`,
     );
   }
   const can = (member: string, tenant: string, permission: string) =>
@@ -791,7 +791,7 @@ as $$
   end
 $$;`;
   return `
--- The custom model: the app's own functions, from sql.modules.access.functions.
+-- The custom model: the app's own functions, from blocks.access.functions.
 ${memberCan("member_can", true)}
 ${WHILE_DELETING}${memberCan("member_can_while_deleting", false)}
 

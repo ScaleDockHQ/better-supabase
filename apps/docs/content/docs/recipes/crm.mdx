@@ -40,30 +40,28 @@ export default defineConfig({
       rank: { column: "rank", group: "stage" },
     },
   },
-  sql: {
-    modules: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
-      comments: {},
-      tags: {},
-      "custom-fields": {},
-      rank: {},
-      reminders: {},
-      "state-machine": {
-        options: {
-          machines: {
-            deal: {
-              table: "public.deals",
-              column: "stage",
-              initial: "lead",
-              tenant: "organization_id",
-              transitions: {
-                lead: ["qualified", "lost"],
-                qualified: ["won", "lost"],
-                won: [],
-                lost: ["lead"],
-              },
+  blocks: {
+    organizations: {},
+    outbox: {},
+    notifications: {},
+    comments: {},
+    tags: {},
+    "custom-fields": {},
+    rank: {},
+    reminders: {},
+    "state-machine": {
+      options: {
+        machines: {
+          deal: {
+            table: "public.deals",
+            column: "stage",
+            initial: "lead",
+            tenant: "organization_id",
+            transitions: {
+              lead: ["qualified", "lost"],
+              qualified: ["won", "lost"],
+              won: [],
+              lost: ["lead"],
             },
           },
         },

@@ -92,7 +92,6 @@
       "BetterResultValue",
       "BetterSupabaseEvents",
       "BlockEvent",
-      "BlockEventMap",
       "BlockEventType",
       "BlockProblemOptions",
       "CacheAdapter",
@@ -120,7 +119,9 @@
       "ErrorMapper",
       "ErrorMessages",
       "EventHandler",
+      "EventMap",
       "EventName",
+      "Events",
       "ExecuteContext",
       "ExecuteResult",
       "Executor",
@@ -227,7 +228,7 @@
     ],
     "types": [
       "* from ./snapshot.ts",
-      "AccessModuleConfig",
+      "AccessBlockConfig",
       "ActiveTenantSource",
       "ActorConfig",
       "AuthorizationFunctions",
@@ -240,6 +241,9 @@
       "AuthorizationScope",
       "AuthorizationTokenHook",
       "BetterSupabaseConfig",
+      "BlockConfig",
+      "BlockMode",
+      "BlocksConfig",
       "BucketConfig",
       "Casing",
       "ClaimPaths",
@@ -269,9 +273,6 @@
       "JsonSchemaTarget",
       "JsonTypeConfig",
       "KeysConfig",
-      "ModuleConfig",
-      "ModuleMode",
-      "ModulesConfig",
       "OpenApiConfig",
       "PluginFlagsConfig",
       "Privilege",
@@ -652,6 +653,7 @@
       "supportCookieValue",
       "supportOf",
       "supportSessions",
+      "supportSessionsEvents",
       "supportStorage",
       "suspendAccount",
       "tagCache",
@@ -786,6 +788,7 @@
       "SupportRequestInput",
       "SupportSession",
       "SupportSessions",
+      "SupportSessionsEvents",
       "SupportSessionStore",
       "SupportStartInput",
       "SupportStartRequest",
@@ -1484,14 +1487,18 @@
       "dbTransport",
       "devDrain",
       "devDrainSecret",
+      "idempotencyBlock",
+      "jobsBlock",
       "nextCronRun",
       "pgmqPublicBackend",
       "purgeWebhookInbox",
+      "rateLimitBlock",
       "rateLimited",
       "rpcTransport",
       "sqlQueueBackend",
       "sqlTransport",
       "transportQueueBackend",
+      "webhookInboxBlock",
       "withLease"
     ],
     "types": [
@@ -1564,46 +1571,77 @@
       "blockFields",
       "createBlocks",
       "dbTransport",
+      "defineBlock",
+      "defineBlocks",
+      "defineEvents",
       "defineTransportMiddleware",
+      "event",
       "extendBlock",
       "FINAL_RUN_STATES",
+      "mergeEvents",
+      "onBlockEvent",
+      "optionKeys",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
       "wrapTransport"
     ],
     "types": [
+      "AnyBlock",
+      "Block",
+      "BlockCategory",
+      "BlockConsumes",
       "BlockContext",
-      "BlockFactories",
-      "BlockFactory",
+      "BlockDefinition",
+      "BlockEmit",
       "BlockFields",
       "BlockHookInfo",
       "BlockHooks",
+      "BlockMap",
       "BlockMethodHooks",
       "BlockMethodName",
+      "BlockOf",
       "BlockOptions",
+      "BlockOptionSchemas",
+      "BlockPorts",
+      "BlockProvides",
       "Blocks",
+      "BlockSet",
+      "BlocksEventMap",
       "BlocksHooks",
       "BlockSinks",
       "BlockTransport",
       "BlockTransportMiddleware",
       "BlockTransportRequest",
+      "ClientOf",
+      "ConsumedPorts",
       "CreateBlocksOptions",
       "CursorPageOptions",
       "DbTransportOptions",
       "DbTransportSource",
+      "EventMap",
+      "EventMapOf",
+      "Events",
+      "EventSpec",
       "ExtendBlockOptions",
       "ExtendBlockTools",
       "FieldsOf",
       "FinalRunState",
+      "Notifier",
+      "NotifierInput",
+      "PortName",
+      "ProvidedPorts",
       "RpcClient",
       "RunState",
+      "UsingOptions",
       "WithBlockHooksOptions"
     ]
   },
   "./blocks/audit": {
     "values": [
+      "auditBlock",
       "auditEventOf",
+      "auditEvents",
       "auditListQuery",
       "auditSink",
       "createAuditLog",
@@ -1623,6 +1661,7 @@
       "AuditDetails",
       "AuditEntry",
       "AuditEventInput",
+      "AuditEvents",
       "AuditExportBucket",
       "AuditExportOptions",
       "AuditExportToStorageOptions",
@@ -1646,6 +1685,7 @@
   "./blocks/outbox": {
     "values": [
       "createOutbox",
+      "outboxBlock",
       "outboxCloudEvent"
     ],
     "types": [
@@ -1670,6 +1710,8 @@
       "createOrganizations",
       "dbTransport",
       "extendBlock",
+      "organizationsBlock",
+      "organizationsEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -1692,6 +1734,7 @@
       "OrganizationMember",
       "OrganizationMembership",
       "Organizations",
+      "OrganizationsEvents",
       "OrganizationsOptions",
       "RpcClient",
       "SlugProblem",
@@ -1703,6 +1746,7 @@
       "createProfiles",
       "dbTransport",
       "extendBlock",
+      "profilesBlock",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -1726,6 +1770,8 @@
       "emailChannel",
       "extendBlock",
       "mailHeaders",
+      "notificationsBlock",
+      "notificationsEvents",
       "resendDeliveryEvent",
       "ResendError",
       "resendSuppressions",
@@ -1773,6 +1819,7 @@
       "NotificationsController",
       "NotificationsControllerOptions",
       "NotificationSendResult",
+      "NotificationsEvents",
       "NotificationSinkOptions",
       "NotificationsOptions",
       "NotificationSource",
@@ -2073,11 +2120,15 @@
       "BLOCK_EVENT_RENAMES",
       "blockCloudEvent",
       "blockEventAttributes",
+      "defineEvents",
+      "emitBlockEvent",
+      "event",
       "forwardBlockEvents",
       "forwardMutations",
       "fromHttp",
       "httpSink",
       "isCloudEvent",
+      "mergeEvents",
       "onBlockEvent",
       "ROW_EVENT_TYPES",
       "toCloudEvents",
@@ -2094,8 +2145,8 @@
       "AttachmentEventData",
       "AuditRevealEventData",
       "BillingEventData",
+      "BlockEmit",
       "BlockEvent",
-      "BlockEventMap",
       "BlockEventMeta",
       "BlockEventPattern",
       "BlockEventsMatching",
@@ -2115,7 +2166,11 @@
       "DealEventData",
       "EmployeeEventData",
       "EngagementEventData",
+      "EventMap",
+      "EventMapOf",
+      "Events",
       "EventSink",
+      "EventSpec",
       "FlagEventData",
       "FormEventData",
       "FormSubmissionEventData",
@@ -2129,6 +2184,7 @@
       "InviteCodeEventData",
       "InvoiceEventData",
       "JobEventData",
+      "MergedEventMap",
       "NotificationDeliveryEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
@@ -2176,6 +2232,8 @@
       "hookError",
       "inboxDestination",
       "INCOMING_ENDPOINT_HEADER",
+      "incomingWebhooksBlock",
+      "incomingWebhooksEvents",
       "isDatabaseWebhook",
       "isPublicAddress",
       "jobsDestination",
@@ -2193,7 +2251,9 @@
       "verifySharedSecret",
       "verifyStripeWebhook",
       "verifyWebhook",
-      "WebhookPolicyError"
+      "WebhookPolicyError",
+      "webhooksBlock",
+      "webhooksEvents"
     ],
     "types": [
       "AllowUrl",
@@ -2216,6 +2276,7 @@
       "IncomingVerify",
       "IncomingWebhook",
       "IncomingWebhooks",
+      "IncomingWebhooksEvents",
       "IncomingWebhooksOptions",
       "JobsDestinationOptions",
       "PublicUrlOptions",
@@ -2238,6 +2299,7 @@
       "WebhookResponse",
       "Webhooks",
       "WebhookSecretStore",
+      "WebhooksEvents",
       "WebhookSigner",
       "WebhookSignInput",
       "WebhookSinkOptions",
@@ -2250,6 +2312,7 @@
     "values": [
       "entitlementMembers",
       "ENTITLEMENTS_UPDATED",
+      "entitlementsBlock",
       "hasEntitlement"
     ],
     "types": [
@@ -2262,6 +2325,8 @@
       "apiKeyChecksum",
       "apiKeyClaims",
       "apiKeyResolver",
+      "apiKeysBlock",
+      "apiKeysEvents",
       "createApiKeys",
       "dbTransport",
       "parseApiKey",
@@ -2278,6 +2343,7 @@
       "ApiKeyExtraClaim",
       "ApiKeyResolverOptions",
       "ApiKeys",
+      "ApiKeysEvents",
       "ApiKeysOptions",
       "ApiKeyState",
       "BlockTransport",
@@ -2292,6 +2358,8 @@
       "dbTransport",
       "defineSettings",
       "rpcTransport",
+      "settingsBlock",
+      "settingsEvents",
       "sqlTransport"
     ],
     "types": [
@@ -2304,6 +2372,7 @@
       "SettingsClient",
       "SettingsConnectOptions",
       "SettingsDefinition",
+      "SettingsEvents",
       "SettingsSpec",
       "SettingValues",
       "UserSettings"
@@ -2315,7 +2384,8 @@
       "dbTransport",
       "reportUsageToStripe",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "usageBlock"
     ],
     "types": [
       "BlockTransport",
@@ -2340,6 +2410,8 @@
   },
   "./blocks/billing": {
     "values": [
+      "billingBlock",
+      "billingEvents",
       "createBilling",
       "dbTransport",
       "rpcTransport",
@@ -2353,6 +2425,7 @@
       "BillingCustomer",
       "BillingCustomerUpdate",
       "BillingEventData",
+      "BillingEvents",
       "BillingOptions",
       "BillingStatus",
       "BlockTransport",
@@ -2382,6 +2455,8 @@
       "flagBucket",
       "flagContext",
       "flagDefinitionsOf",
+      "flagsBlock",
+      "flagsEvents",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2403,6 +2478,7 @@
       "FlagReason",
       "FlagResolution",
       "FlagRule",
+      "FlagsEvents",
       "FlagsProvider",
       "FlagsProviderOptions",
       "FlagType",
@@ -2414,6 +2490,8 @@
     "values": [
       "activityListQuery",
       "activitySink",
+      "commentsBlock",
+      "commentsEvents",
       "createComments",
       "dbTransport",
       "mentionsIn",
@@ -2432,6 +2510,7 @@
       "Comment",
       "CommentEdit",
       "Comments",
+      "CommentsEvents",
       "CommentsOptions",
       "CommentSubject",
       "ListCommentsOptions",
@@ -2440,6 +2519,8 @@
   },
   "./blocks/attachments": {
     "values": [
+      "attachmentsBlock",
+      "attachmentsEvents",
       "createAttachments",
       "createAttachmentScanner",
       "createObjectScanner",
@@ -2455,6 +2536,7 @@
       "AttachmentScanJob",
       "AttachmentScanner",
       "AttachmentScannerOptions",
+      "AttachmentsEvents",
       "AttachmentsOptions",
       "AttachmentStatus",
       "AttachmentStorage",
@@ -2473,6 +2555,8 @@
       "createDataExporter",
       "createDataLifecycle",
       "createOrganizationPurger",
+      "dataLifecycleBlock",
+      "dataLifecycleEvents",
       "dbTransport",
       "rpcTransport",
       "sqlTransport"
@@ -2486,6 +2570,7 @@
       "DataExportJob",
       "DataExportStatus",
       "DataLifecycle",
+      "DataLifecycleEvents",
       "DataLifecycleOptions",
       "LifecycleBucket",
       "LifecycleStorage",
@@ -2512,7 +2597,9 @@
       "SCIM_USER",
       "ScimFilterError",
       "scimHandler",
-      "sqlTransport"
+      "sqlTransport",
+      "ssoBlock",
+      "ssoEvents"
     ],
     "types": [
       "BlockTransport",
@@ -2530,6 +2617,7 @@
       "SsoAdminOptions",
       "SsoAuthAdmin",
       "SsoDomain",
+      "SsoEvents",
       "SsoOptions",
       "SsoProvider",
       "TxtResolver"
@@ -2540,6 +2628,7 @@
       "createOnboardingController",
       "dbTransport",
       "defineChecklist",
+      "onboardingBlock",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2615,6 +2704,8 @@
       "generateInviteCode",
       "rpcTransport",
       "sqlTransport",
+      "waitlistBlock",
+      "waitlistEvents",
       "waitlistHook"
     ],
     "types": [
@@ -2624,6 +2715,7 @@
       "Redemption",
       "Waitlist",
       "WaitlistEntry",
+      "WaitlistEvents",
       "WaitlistHookOptions",
       "WaitlistOptions",
       "WaitlistPlace",
@@ -2637,7 +2729,9 @@
       "createWorkflows",
       "dbTransport",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "workflowsBlock",
+      "workflowsEvents"
     ],
     "types": [
       "BlockTransport",
@@ -2656,6 +2750,7 @@
       "Workflows",
       "WorkflowSchedule",
       "WorkflowScheduleInput",
+      "WorkflowsEvents",
       "WorkflowsOptions",
       "WorkflowStartCall",
       "WorkflowStarter",
@@ -2729,7 +2824,7 @@
     "values": [
       "approvalToken",
       "approved",
-      "createBuilder",
+      "createWorkflowBuilder",
       "createWorkflowBuilderController",
       "createWorkflowCanvasRunController",
       "dbTransport",
@@ -2742,7 +2837,9 @@
       "sqlTransport",
       "startNodeOf",
       "topologicalOrder",
-      "validateGraph"
+      "validateGraph",
+      "workflowBuilderBlock",
+      "workflowBuilderEvents"
     ],
     "types": [
       "AlertInput",
@@ -2772,6 +2869,7 @@
       "WorkflowBuilderActions",
       "WorkflowBuilderController",
       "WorkflowBuilderControllerOptions",
+      "WorkflowBuilderEvents",
       "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunController",
@@ -3018,6 +3116,7 @@
     "values": [
       "credentialRefInTenant",
       "credentialRouter",
+      "credentialsEvents",
       "dbTransport",
       "foreignCredentialRef",
       "revokeIfConfigured",
@@ -3033,6 +3132,7 @@
       "CredentialCapabilities",
       "CredentialProvider",
       "CredentialRef",
+      "CredentialsEvents",
       "CredentialSubject",
       "CredentialToken",
       "GetTokenOptions",
@@ -3093,6 +3193,8 @@
       "createInboxWidgetController",
       "dbTransport",
       "INBOX_CHANNELS",
+      "inboxBlock",
+      "inboxEvents",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -3120,6 +3222,7 @@
       "InboxController",
       "InboxControllerOptions",
       "InboxCounts",
+      "InboxEvents",
       "InboxListActions",
       "InboxListSnapshot",
       "InboxMessage",
@@ -3304,6 +3407,8 @@
     "values": [
       "AI_MESSAGE_PART_TYPES",
       "AI_MESSAGE_SCHEMA_ID",
+      "aiChatBlock",
+      "aiChatEvents",
       "aiChatListTopic",
       "aiChatTopic",
       "aiMessageSchema",
@@ -3327,6 +3432,7 @@
       "AiApprovalDecision",
       "AiAssistantMessageOptions",
       "AiChat",
+      "AiChatEvents",
       "AiChatInput",
       "AiChatOptions",
       "AiChatPage",
@@ -3499,6 +3605,7 @@
   },
   "./blocks/ai-files": {
     "values": [
+      "aiFilesBlock",
       "aiFileUrl",
       "createAiFiles",
       "dbTransport",
@@ -3533,6 +3640,7 @@
       "chunk",
       "createKnowledge",
       "dbTransport",
+      "knowledgeBlock",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -3556,6 +3664,7 @@
     "values": [
       "createMemory",
       "dbTransport",
+      "memoryBlock",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -3577,6 +3686,8 @@
   },
   "./blocks/agents": {
     "values": [
+      "agentsBlock",
+      "agentsEvents",
       "createAgents",
       "dbTransport",
       "rpcTransport",
@@ -3588,6 +3699,7 @@
       "AgentFilter",
       "AgentKnowledgeScope",
       "Agents",
+      "AgentsEvents",
       "AgentSkill",
       "AgentsOptions",
       "AgentVisibility",
@@ -3597,6 +3709,8 @@
   },
   "./blocks/connectors": {
     "values": [
+      "connectorsBlock",
+      "connectorsEvents",
       "createConnectors",
       "dbTransport",
       "rpcTransport",
@@ -3610,6 +3724,7 @@
       "ConnectorServer",
       "ConnectorServerFields",
       "ConnectorSession",
+      "ConnectorsEvents",
       "ConnectorsOptions",
       "ConnectorTransport",
       "FingerprintStatus"
@@ -3617,6 +3732,7 @@
   },
   "./blocks/ai-tasks": {
     "values": [
+      "aiTasksBlock",
       "createAiTasks",
       "dbTransport",
       "rpcTransport",
@@ -3637,6 +3753,7 @@
   },
   "./blocks/ai-cache": {
     "values": [
+      "aiCacheBlock",
       "cacheKey",
       "createAiCache",
       "dbTransport",
@@ -3654,6 +3771,8 @@
   },
   "./blocks/ai-providers": {
     "values": [
+      "aiProvidersBlock",
+      "aiProvidersEvents",
       "createAiProviders",
       "dbTransport",
       "rpcTransport",
@@ -3670,6 +3789,7 @@
       "AiProviderKey",
       "AiProviderKeyInput",
       "AiProviders",
+      "AiProvidersEvents",
       "AiProvidersOptions",
       "BlockTransport",
       "NewAiBatch",
@@ -3930,6 +4050,8 @@
   },
   "./blocks/announcements": {
     "values": [
+      "announcementsBlock",
+      "announcementsEvents",
       "createAnnouncements",
       "createAnnouncementsController",
       "dbTransport",
@@ -3944,6 +4066,7 @@
       "AnnouncementsActions",
       "AnnouncementsController",
       "AnnouncementsControllerOptions",
+      "AnnouncementsEvents",
       "AnnouncementSeverity",
       "AnnouncementsOptions",
       "AnnouncementsSnapshot",
@@ -3953,20 +4076,26 @@
   },
   "./blocks/number-sequences": {
     "values": [
-      "createNumberSequences"
+      "createNumberSequences",
+      "numberSequencesBlock",
+      "numberSequencesEvents"
     ],
     "types": [
       "NumberSequences",
+      "NumberSequencesEvents",
       "NumberSequencesOptions"
     ]
   },
   "./blocks/teams": {
     "values": [
-      "createTeams"
+      "createTeams",
+      "teamsBlock",
+      "teamsEvents"
     ],
     "types": [
       "Team",
       "Teams",
+      "TeamsEvents",
       "TeamsOptions"
     ]
   },
@@ -3979,6 +4108,7 @@
       "rpcTransport",
       "sqlTransport",
       "UNDO_FUNCTIONS",
+      "undoBlock",
       "undoToken"
     ],
     "types": [
@@ -4042,20 +4172,26 @@
   },
   "./blocks/tags": {
     "values": [
-      "createTags"
+      "createTags",
+      "tagsBlock",
+      "tagsEvents"
     ],
     "types": [
       "Tag",
       "Tags",
+      "TagsEvents",
       "TagsOptions"
     ]
   },
   "./blocks/state-machine": {
     "values": [
-      "createStateMachine"
+      "createStateMachine",
+      "stateMachineBlock",
+      "stateMachineEvents"
     ],
     "types": [
       "StateMachine",
+      "StateMachineEvents",
       "StateMachineOptions",
       "StatusChange",
       "StatusStage",
@@ -4064,23 +4200,29 @@
   },
   "./blocks/custom-fields": {
     "values": [
-      "createCustomFields"
+      "createCustomFields",
+      "customFieldsBlock",
+      "customFieldsEvents"
     ],
     "types": [
       "CustomFields",
+      "CustomFieldsEvents",
       "CustomFieldsOptions",
       "FieldDefinition"
     ]
   },
   "./blocks/share-links": {
     "values": [
-      "createShareLinks"
+      "createShareLinks",
+      "shareLinksBlock",
+      "shareLinksEvents"
     ],
     "types": [
       "CreatedShareLink",
       "CreateShareLinkOptions",
       "ResolvedShareLink",
       "ShareLinks",
+      "ShareLinksEvents",
       "ShareLinksOptions"
     ]
   },
@@ -4089,6 +4231,7 @@
       "beginLink",
       "createIdentities",
       "dbTransport",
+      "identitiesBlock",
       "identityResolver",
       "redeemLink",
       "rpcTransport",
@@ -4113,6 +4256,8 @@
       "dbTransport",
       "rpcTransport",
       "SERVICE_PRINCIPAL_CLAIM",
+      "servicePrincipalsBlock",
+      "servicePrincipalsEvents",
       "sqlTransport"
     ],
     "types": [
@@ -4123,6 +4268,7 @@
       "ServicePrincipalActor",
       "ServicePrincipalAuthAdmin",
       "ServicePrincipals",
+      "ServicePrincipalsEvents",
       "ServicePrincipalsOptions"
     ]
   },
@@ -4133,6 +4279,8 @@
       "expandRule",
       "planReminderDeliveries",
       "REMINDER_DELIVERY_QUEUE",
+      "remindersBlock",
+      "remindersEvents",
       "weekdayName"
     ],
     "types": [
@@ -4141,6 +4289,7 @@
       "PlannedDelivery",
       "ReminderPlanInput",
       "Reminders",
+      "RemindersEvents",
       "RemindersOptions"
     ]
   },
@@ -4149,6 +4298,8 @@
       "createImports",
       "defineImport",
       "dryRun",
+      "importsBlock",
+      "importsEvents",
       "parseCsv",
       "runImport",
       "suggestMapping"
@@ -4159,6 +4310,7 @@
       "ImportDefinition",
       "ImportRowError",
       "Imports",
+      "ImportsEvents",
       "ImportsOptions",
       "RunImportResult"
     ]
@@ -4171,6 +4323,7 @@
       "RANK_REBALANCE_QUEUE",
       "rankBetween",
       "rankBetweenResult",
+      "rankBlock",
       "rankKeys"
     ],
     "types": [
@@ -4195,6 +4348,8 @@
       "SAVED_VIEW_KINDS",
       "SAVED_VIEW_SCOPES",
       "savedViewIssues",
+      "savedViewsBlock",
+      "savedViewsEvents",
       "savedViewStateSchema",
       "urlStateFromQuery"
     ],
@@ -4216,6 +4371,7 @@
       "SavedViewsController",
       "SavedViewsControllerOptions",
       "SavedViewScope",
+      "SavedViewsEvents",
       "SavedViewsMatch",
       "SavedViewsOptions",
       "SavedViewsSnapshot",
@@ -4227,6 +4383,8 @@
   "./blocks/relations": {
     "values": [
       "createRelations",
+      "relationsBlock",
+      "relationsEvents",
       "toGanttTasks",
       "toTreeItems"
     ],
@@ -4240,6 +4398,7 @@
       "RelationNode",
       "RelationRollup",
       "Relations",
+      "RelationsEvents",
       "RelationsOptions",
       "RollupInput",
       "SubjectRef",
@@ -4250,6 +4409,8 @@
   },
   "./blocks/bulk": {
     "values": [
+      "bulkBlock",
+      "bulkEvents",
       "createBulk"
     ],
     "types": [
@@ -4257,6 +4418,7 @@
       "Bulk",
       "BulkActionArgs",
       "BulkDrainOptions",
+      "BulkEvents",
       "BulkInput",
       "BulkOptions",
       "BulkOutcome",
@@ -4325,6 +4487,7 @@
       "dbTransport",
       "rpcTransport",
       "SEARCH_SINK_DEFAULTS",
+      "searchBlock",
       "searchSink",
       "sqlTransport"
     ],
@@ -4403,6 +4566,7 @@
       "defineMetric",
       "METRIC_GRAINS",
       "METRICS_ROLLUP_QUEUE",
+      "metricsBlock",
       "metricsOf",
       "metricsSink",
       "previousRange",
@@ -4508,7 +4672,9 @@
   },
   "./blocks/calendar": {
     "values": [
+      "calendarBlock",
       "calendarEventOf",
+      "calendarEvents",
       "createCalendar",
       "createCalendarController",
       "expandOccurrences",
@@ -4530,6 +4696,7 @@
       "CalendarControllerOptions",
       "CalendarEvent",
       "CalendarEventInput",
+      "CalendarEvents",
       "CalendarEventStatus",
       "CalendarImport",
       "CalendarInfo",
@@ -4599,6 +4766,8 @@
     "values": [
       "BOOKING_EXPIRE_QUEUE",
       "bookingOf",
+      "bookingsBlock",
+      "bookingsEvents",
       "createAvailableSlotsController",
       "createBookings",
       "slotsByDay",
@@ -4619,6 +4788,7 @@
       "BookingResourceInput",
       "Bookings",
       "BookingServiceInput",
+      "BookingsEvents",
       "BookingSlot",
       "BookingsOptions",
       "BookingStatus",
@@ -4681,7 +4851,9 @@
       "jsonEqual",
       "JsonPatchError",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "versionsBlock",
+      "versionsEvents"
     ],
     "types": [
       "BlockTransport",
@@ -4693,6 +4865,7 @@
       "Version",
       "VersionListOptions",
       "Versions",
+      "VersionsEvents",
       "VersionsOptions",
       "VersionSource"
     ]
@@ -4702,12 +4875,15 @@
       "createTrash",
       "dbTransport",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "trashBlock",
+      "trashEvents"
     ],
     "types": [
       "BlockTransport",
       "Trash",
       "TrashBatch",
+      "TrashEvents",
       "TrashItem",
       "TrashListOptions",
       "TrashOptions"
@@ -4718,6 +4894,8 @@
       "createReactions",
       "createReactionsController",
       "dbTransport",
+      "reactionsBlock",
+      "reactionsEvents",
       "reactionsTopic",
       "rpcTransport",
       "sqlTransport"
@@ -4731,6 +4909,7 @@
       "ReactionsActions",
       "ReactionsController",
       "ReactionsControllerOptions",
+      "ReactionsEvents",
       "ReactionsOptions",
       "ReactionsSnapshot",
       "ReactOptions"
@@ -4738,6 +4917,8 @@
   },
   "./blocks/approvals": {
     "values": [
+      "approvalsBlock",
+      "approvalsEvents",
       "createApprovals",
       "dbTransport",
       "rpcTransport",
@@ -4751,6 +4932,7 @@
       "ApprovalRequestDetail",
       "ApprovalRequestInput",
       "Approvals",
+      "ApprovalsEvents",
       "ApprovalsOptions",
       "ApprovalStatus",
       "ApprovalStep",
@@ -4759,6 +4941,8 @@
   },
   "./blocks/access-requests": {
     "values": [
+      "accessRequestsBlock",
+      "accessRequestsEvents",
       "createAccessRequests",
       "dbTransport",
       "rpcTransport",
@@ -4769,6 +4953,7 @@
       "AccessRequestInput",
       "AccessRequestListOptions",
       "AccessRequests",
+      "AccessRequestsEvents",
       "AccessRequestsOptions",
       "AccessRequestStatus",
       "BlockTransport"
@@ -4778,6 +4963,8 @@
     "values": [
       "createDocuments",
       "dbTransport",
+      "documentsBlock",
+      "documentsEvents",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -4786,6 +4973,7 @@
       "DocumentInfo",
       "DocumentRef",
       "Documents",
+      "DocumentsEvents",
       "DocumentsOptions",
       "DocumentState",
       "DocumentUpdate",
@@ -4798,6 +4986,8 @@
       "createDrive",
       "dbTransport",
       "DRIVE_ROOT",
+      "driveBlock",
+      "driveEvents",
       "driveSubject",
       "driveTree",
       "fileTypeCategory",
@@ -4812,6 +5002,7 @@
       "DriveBinEntry",
       "DriveConflict",
       "DriveCrumb",
+      "DriveEvents",
       "DriveFile",
       "DriveFileType",
       "DriveGrant",
@@ -4843,13 +5034,17 @@
       "FORM_FIELD_TYPES",
       "FORM_SCHEMA_DIALECT",
       "formDefinitionProblems",
+      "formsBlock",
       "formSchema",
+      "formsEvents",
       "initialQuestionnaire",
       "isFormDefinition",
       "pruneAnswers",
       "questionnaireReducer",
       "questionnaireSteps",
       "rpcTransport",
+      "signaturesBlock",
+      "signaturesEvents",
       "sqlTransport",
       "stepIssues",
       "validateAnswers",
@@ -4870,6 +5065,7 @@
       "FormJsonSchema",
       "FormOption",
       "Forms",
+      "FormsEvents",
       "FormsOptions",
       "FormStatus",
       "FormStep",
@@ -4898,6 +5094,7 @@
       "SignatureRequestListOptions",
       "SignatureRequestStatus",
       "Signatures",
+      "SignaturesEvents",
       "SignaturesOptions",
       "SignatureVerification",
       "SignInput",
@@ -4958,6 +5155,8 @@
       "sqlTransport",
       "TIME_TRACKING_METRIC_EVENTS",
       "timeEntryMetricTime",
+      "timeTrackingBlock",
+      "timeTrackingEvents",
       "timeTrackingMetrics",
       "toWeeklyGrid"
     ],
@@ -4974,6 +5173,7 @@
       "TimesheetStatus",
       "TimesheetTotals",
       "TimeTracking",
+      "TimeTrackingEvents",
       "TimeTrackingMetrics",
       "TimeTrackingMetricsOptions",
       "TimeTrackingOptions",
@@ -4996,7 +5196,9 @@
       "rpcTransport",
       "sqlTransport",
       "TEMPLATES_APPLY_STEP",
-      "templatesApplyStep"
+      "templatesApplyStep",
+      "templatesBlock",
+      "templatesEvents"
     ],
     "types": [
       "ApplyOptions",
@@ -5019,6 +5221,7 @@
       "Templates",
       "TemplatesApplyOutput",
       "TemplateScope",
+      "TemplatesEvents",
       "TemplatesOptions",
       "TemplateStarter",
       "TemplateSubject",
@@ -5033,6 +5236,8 @@
       "createPipelines",
       "dbTransport",
       "extendBlock",
+      "pipelinesBlock",
+      "pipelinesEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -5048,6 +5253,7 @@
       "PipelineInput",
       "PipelineOutcome",
       "Pipelines",
+      "PipelinesEvents",
       "PipelinesOptions",
       "PipelineStage",
       "PipelineStageInput",
@@ -5062,6 +5268,8 @@
       "createParties",
       "dbTransport",
       "extendBlock",
+      "partiesBlock",
+      "partiesEvents",
       "partiesSubjects",
       "rpcTransport",
       "sqlTransport",
@@ -5076,6 +5284,7 @@
       "CompanyInput",
       "CompanyPerson",
       "Parties",
+      "PartiesEvents",
       "PartiesOptions",
       "PartyCursor",
       "PartyListOptions",
@@ -5088,6 +5297,8 @@
   "./blocks/collections": {
     "values": [
       "COLLECTION_SCOPES",
+      "collectionsBlock",
+      "collectionsEvents",
       "createCollections",
       "dbTransport",
       "extendBlock",
@@ -5108,6 +5319,7 @@
       "CollectionListOptions",
       "Collections",
       "CollectionScope",
+      "CollectionsEvents",
       "CollectionsOptions",
       "CollectionSubject",
       "CreateCollectionInput",
@@ -5120,6 +5332,8 @@
     "values": [
       "createEngagements",
       "dbTransport",
+      "engagementsBlock",
+      "engagementsEvents",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -5133,6 +5347,7 @@
       "Engagement",
       "EngagementInput",
       "Engagements",
+      "EngagementsEvents",
       "EngagementsOptions",
       "EngagementSubject",
       "RpcClient"
@@ -5142,6 +5357,8 @@
     "values": [
       "createDeals",
       "dbTransport",
+      "dealsBlock",
+      "dealsEvents",
       "dealsSubjects",
       "extendBlock",
       "rpcTransport",
@@ -5165,6 +5382,7 @@
       "DealOutcome",
       "DealParty",
       "Deals",
+      "DealsEvents",
       "DealsOptions",
       "DealTotals",
       "ForecastCategory",
@@ -5179,6 +5397,8 @@
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
+      "workItemsBlock",
+      "workItemsEvents",
       "workItemsSubjects",
       "wrapTransport"
     ],
@@ -5198,6 +5418,7 @@
       "WorkItemListOptions",
       "WorkItemNode",
       "WorkItems",
+      "WorkItemsEvents",
       "WorkItemsOptions",
       "WorkItemState"
     ]
@@ -5207,6 +5428,8 @@
       "createQuotes",
       "dbTransport",
       "extendBlock",
+      "quotesBlock",
+      "quotesEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -5223,6 +5446,7 @@
       "QuoteDecision",
       "QuoteInput",
       "Quotes",
+      "QuotesEvents",
       "QuotesOptions",
       "QuoteStatus",
       "RecordRef",
@@ -5235,6 +5459,8 @@
       "createInvoices",
       "dbTransport",
       "extendBlock",
+      "invoicesBlock",
+      "invoicesEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -5249,6 +5475,7 @@
       "InvoiceInput",
       "InvoicePayment",
       "Invoices",
+      "InvoicesEvents",
       "InvoicesOptions",
       "InvoiceStatus",
       "Line",
@@ -5264,6 +5491,8 @@
       "dbTransport",
       "extendBlock",
       "rpcTransport",
+      "slaBlock",
+      "slaEvents",
       "sqlTransport",
       "withBlockHooks",
       "wrapTransport"
@@ -5276,6 +5505,7 @@
       "Sla",
       "SlaClock",
       "SlaEvent",
+      "SlaEvents",
       "SlaMetric",
       "SlaOptions",
       "SlaPolicy",
@@ -5290,6 +5520,7 @@
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
+      "targetsBlock",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -5311,6 +5542,8 @@
       "createHiring",
       "dbTransport",
       "extendBlock",
+      "hiringBlock",
+      "hiringEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -5325,6 +5558,7 @@
       "BlockTransportMiddleware",
       "Candidate",
       "Hiring",
+      "HiringEvents",
       "HiringOptions",
       "Interview",
       "Job",
@@ -5339,6 +5573,8 @@
     "values": [
       "createEmployees",
       "dbTransport",
+      "employeesBlock",
+      "employeesEvents",
       "employeesSubjects",
       "extendBlock",
       "rpcTransport",
@@ -5359,6 +5595,7 @@
       "EmployeeField",
       "EmployeeInput",
       "Employees",
+      "EmployeesEvents",
       "EmployeesOptions",
       "EmployeeStatus",
       "OrgChartEntry",
@@ -5415,6 +5652,8 @@
   },
   "./blocks/catalog": {
     "values": [
+      "catalogBlock",
+      "catalogEvents",
       "catalogSubjects",
       "createCatalog",
       "dbTransport",
@@ -5431,6 +5670,7 @@
       "BlockTransport",
       "BlockTransportMiddleware",
       "Catalog",
+      "CatalogEvents",
       "CatalogOptions",
       "CatalogSubjectsOptions",
       "CategoryInput",
@@ -5461,6 +5701,8 @@
       "createInventory",
       "dbTransport",
       "extendBlock",
+      "inventoryBlock",
+      "inventoryEvents",
       "LOCATION_KINDS",
       "PURCHASE_ORDER_STATUSES",
       "rpcTransport",
@@ -5474,6 +5716,7 @@
       "BlockTransport",
       "BlockTransportMiddleware",
       "Inventory",
+      "InventoryEvents",
       "InventoryOptions",
       "LocationInput",
       "LocationKind",
@@ -5501,6 +5744,8 @@
       "ORDER_METRIC_EVENTS",
       "ORDER_STATUSES",
       "orderMetrics",
+      "ordersBlock",
+      "ordersEvents",
       "REFUND_STATUSES",
       "RETURN_STATUSES",
       "rpcTransport",
@@ -5533,6 +5778,7 @@
       "OrderRefundStatus",
       "OrderReturn",
       "Orders",
+      "OrdersEvents",
       "OrdersOptions",
       "OrderStatus",
       "PaymentEventOutcome",
@@ -5555,6 +5801,8 @@
       "extendBlock",
       "PROMOTION_KINDS",
       "PROMOTION_SCOPES",
+      "promotionsBlock",
+      "promotionsEvents",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -5572,6 +5820,7 @@
       "PromotionKind",
       "Promotions",
       "PromotionScope",
+      "PromotionsEvents",
       "PromotionsOptions",
       "RpcClient"
     ]
@@ -6126,10 +6375,12 @@
   },
   "./blocks/push": {
     "values": [
-      "createPushDevices",
+      "createPush",
       "dbTransport",
       "expoPush",
       "expoPushChannel",
+      "pushBlock",
+      "pushEvents",
       "registerDevice",
       "rpcTransport",
       "sqlTransport",
@@ -6147,6 +6398,7 @@
       "PushDeviceInput",
       "PushDevices",
       "PushDevicesOptions",
+      "PushEvents",
       "PushPlatform",
       "PushProvider",
       "PushTarget",

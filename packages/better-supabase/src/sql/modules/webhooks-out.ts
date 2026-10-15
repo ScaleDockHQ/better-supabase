@@ -1,3 +1,4 @@
+import type { WebhooksEvents } from "../../blocks/webhooks/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -16,7 +17,7 @@ import {
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<WebhooksEvents> = {
   "webhook.disabled": {
     subject: "webhooks",
     payload: ["endpointId", "organizationId", "failingSince"],

@@ -40,7 +40,7 @@ export interface AiChatsControllerOptions {
   readonly ports: Ports;
   /** The list's filters and page size. */
   readonly query?: Omit<AiChatQuery, "cursor">;
-  /** The prefix of the list topic (`sql.modules["ai-chat"].options.listTopic`); `null` loads once. */
+  /** The prefix of the list topic (`blocks["ai-chat"].options.listTopic`); `null` loads once. */
   readonly topic?: string | null;
 }
 
@@ -217,7 +217,7 @@ export interface AiChatTreeControllerOptions {
   readonly ports: Ports;
   /** `null` or `undefined` waits. */
   readonly chatId: string | null | undefined;
-  /** The prefix of the chat topic (`sql.modules["ai-chat"].options.topic`); `null` loads once. */
+  /** The prefix of the chat topic (`blocks["ai-chat"].options.topic`); `null` loads once. */
   readonly topic?: string | null;
 }
 

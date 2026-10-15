@@ -55,7 +55,7 @@ function configOf(ctx: ModuleContext): string {
   const config = ctx.text("config", "simple");
   if (!REGCONFIG.test(config)) {
     throw new TypeError(
-      "sql.modules.search.options.config must be a text search configuration name such as simple or english",
+      "blocks.search.options.config must be a text search configuration name such as simple or english",
     );
   }
   return config;
@@ -66,7 +66,7 @@ function dimensionsOf(ctx: ModuleContext): number {
   const dimensions = ctx.number("dimensions", 0);
   if (!Number.isInteger(dimensions) || dimensions < 0 || dimensions > 16000) {
     throw new TypeError(
-      "sql.modules.search.options.dimensions must be the embedding size, a whole number up to 16000",
+      "blocks.search.options.dimensions must be the embedding size, a whole number up to 16000",
     );
   }
   return dimensions;

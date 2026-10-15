@@ -83,3 +83,9 @@ export type {
   WorkOptions,
 } from "./types.ts";
 export type { SqlClient } from "../../postgres/executor.ts";
+export {
+  jobsBlock,
+  idempotencyBlock,
+  rateLimitBlock,
+  webhookInboxBlock,
+} from "./manifest.ts";

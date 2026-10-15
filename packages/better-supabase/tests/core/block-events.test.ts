@@ -1,5 +1,11 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { NotificationsEvents } from "../../src/blocks/notifications/events.ts";
+
+import {
+  organizationsEvents,
+  type OrganizationsEvents,
+} from "../../src/blocks/organizations/events.ts";
 import {
   blockEmitter,
   emitBlockEvent,
@@ -19,7 +25,7 @@ describe("blockEmitter", () => {
     events.on("block", (event) => {
       seen.push(event);
     });
-    const emit = blockEmitter({ events, actorId: "u9" });
+    const emit = blockEmitter<NotificationsEvents>({ events, actorId: "u9" });
     emit("notification.created", data, "notifications/n1", "t1");
     emit("notification.created", data, "notifications/n1", null);
     expect(seen[0]).toMatchObject({
@@ -32,7 +38,11 @@ describe("blockEmitter", () => {
 
   it("does nothing without an event hub", () => {
     expect(() => {
-      blockEmitter({})("notification.created", data, "notifications/n1");
+      blockEmitter<NotificationsEvents>({})(
+        "notification.created",
+        data,
+        "notifications/n1",
+      );
     }).not.toThrow();
   });
 });
@@ -45,12 +55,12 @@ describe("block events", () => {
       type: "mention",
       recipientIds: ["u1"],
     };
-    emitBlockEvent(events, "notification.created", data);
+    emitBlockEvent<NotificationsEvents>(events, "notification.created", data);
     const seen: BlockEvent[] = [];
     events.on("block", (event) => {
       seen.push(event);
     });
-    emitBlockEvent(events, "notification.created", data, {
+    emitBlockEvent<NotificationsEvents>(events, "notification.created", data, {
       subject: "notifications/n1",
       tenant: "t1",
     });
@@ -68,26 +78,44 @@ describe("block events", () => {
   it("filters by type or prefix pattern", () => {
     const events = new EventHub();
     const types: string[] = [];
-    const stop = onBlockEvent({ events }, "invitation.*", (event) => {
-      expectTypeOf(event.type).toEqualTypeOf<
-        | "invitation.created"
-        | "invitation.resent"
-        | "invitation.updated"
-        | "invitation.accepted"
-        | "invitation.declined"
-        | "invitation.revoked"
-      >();
-      types.push(event.type);
+    const stop = onBlockEvent(
+      { events },
+      organizationsEvents,
+      "invitation.*",
+      (event) => {
+        expectTypeOf(event.type).toEqualTypeOf<
+          | "invitation.created"
+          | "invitation.resent"
+          | "invitation.updated"
+          | "invitation.accepted"
+          | "invitation.declined"
+          | "invitation.revoked"
+        >();
+        types.push(event.type);
+      },
+    );
+    onBlockEvent(
+      { events },
+      organizationsEvents,
+      "organization.created",
+      (event) => {
+        expectTypeOf(event.data.organizationId).toBeString();
+        types.push(event.type);
+      },
+    );
+    emitBlockEvent<OrganizationsEvents>(events, "invitation.accepted", {
+      invitationId: "i1",
     });
-    onBlockEvent({ events }, "organization.created", (event) => {
-      expectTypeOf(event.data.organizationId).toBeString();
-      types.push(event.type);
+    emitBlockEvent<OrganizationsEvents>(events, "organization.created", {
+      organizationId: "o1",
     });
-    emitBlockEvent(events, "invitation.accepted", { invitationId: "i1" });
-    emitBlockEvent(events, "organization.created", { organizationId: "o1" });
-    emitBlockEvent(events, "organization.switched", { organizationId: "o1" });
+    emitBlockEvent<OrganizationsEvents>(events, "organization.switched", {
+      organizationId: "o1",
+    });
     stop();
-    emitBlockEvent(events, "invitation.revoked", { invitationId: "i1" });
+    emitBlockEvent<OrganizationsEvents>(events, "invitation.revoked", {
+      invitationId: "i1",
+    });
     expect(types).toEqual(["invitation.accepted", "organization.created"]);
   });
 

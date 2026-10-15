@@ -30,3 +30,6 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { apiKeysBlock } from "./manifest.ts";
+export { apiKeysEvents } from "./events.ts";
+export type { ApiKeysEvents } from "./events.ts";

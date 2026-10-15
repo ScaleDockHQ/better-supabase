@@ -1,12 +1,8 @@
 import type { AuthorizationProvider } from "./authorization.ts";
-import type { ModulesConfig } from "./modules.ts";
+import type { BlocksConfig } from "./blocks.ts";
 import type { Generator } from "./types/codegen.ts";
 import type { BetterSupabaseConfig, ResolvedConfig } from "./types/config.ts";
-import type {
-  ResolvedSqlConfig,
-  SqlConfig,
-  VectorSearchConfig,
-} from "./types/database.ts";
+import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
@@ -73,39 +69,40 @@ function vectorSearchOf(
  * `provider`, so `can`, `tenant_ids_with` and every module check answer
  * from the provider's templates instead of the built-in roles.
  */
-function sqlModulesOf(
+function blocksOf(
+  blocks: BetterSupabaseConfig["blocks"],
   sql: SqlConfig = {},
   provider: boolean,
-): Pick<ResolvedSqlConfig, "modules" | "moduleNames"> {
-  const config = sql.modules ?? [];
-  const moduleNames = isModuleList(config) ? config : Object.keys(config);
-  const modules = withSqlDefaults(
-    isModuleList(config) ? {} : config,
-    moduleNames,
+): Pick<ResolvedConfig, "blocks" | "blockNames"> {
+  const config = blocks ?? [];
+  const blockNames = isBlockList(config) ? config : Object.keys(config);
+  const resolved = withSqlDefaults(
+    isBlockList(config) ? {} : config,
+    blockNames,
     sql,
   );
   if (
     !provider ||
-    !moduleNames.includes("access") ||
-    modules.access?.model !== undefined
+    !blockNames.includes("access") ||
+    resolved.access?.model !== undefined
   ) {
-    return { modules, moduleNames };
+    return { blocks: resolved, blockNames };
   }
   return {
-    modules: { ...modules, access: { ...modules.access, model: "provider" } },
-    moduleNames,
+    blocks: { ...resolved, access: { ...resolved.access, model: "provider" } },
+    blockNames,
   };
 }
 
 /**
- * `sql.schema` and `sql.api` on every module that leaves its own unset. A
- * module's `api: false` keeps it out of the API schema.
+ * `sql.schema` and `sql.api` on every block that leaves its own unset. A
+ * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(
-  modules: ModulesConfig,
+  modules: BlocksConfig,
   names: readonly string[],
   sql: SqlConfig,
-): ModulesConfig {
+): BlocksConfig {
   if (sql.schema === undefined && sql.api === undefined) return modules;
   const { schema, api } = sql;
   return Object.fromEntries(
@@ -125,8 +122,8 @@ function withSqlDefaults(
   );
 }
 
-function isModuleList(
-  config: NonNullable<SqlConfig["modules"]>,
+function isBlockList(
+  config: NonNullable<BetterSupabaseConfig["blocks"]>,
 ): config is readonly string[] {
   return Array.isArray(config);
 }
@@ -256,8 +253,8 @@ export function resolveConfig(
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
-      ...sqlModulesOf(config.sql, config.authorization !== undefined),
     },
+    ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
       output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,

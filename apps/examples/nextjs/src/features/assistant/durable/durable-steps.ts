@@ -17,7 +17,7 @@ import {
   serviceSupabase,
 } from "../../workflows/workflow-steps";
 
-/** `sql.modules["ai-chat"].api`. */
+/** `blocks["ai-chat"].api`. */
 const API_SCHEMA = "api";
 
 /**

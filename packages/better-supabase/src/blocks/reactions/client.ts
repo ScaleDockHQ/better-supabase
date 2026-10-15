@@ -15,7 +15,7 @@ export interface ReactionsControllerOptions {
   readonly subjectType: string;
   /** The subjects on screen, at most 200; `setSubjects` changes them. */
   readonly subjectIds: readonly string[];
-  /** `sql.modules.reactions.options.topic`; `null` loads without listening. */
+  /** `blocks.reactions.options.topic`; `null` loads without listening. */
   readonly topic?: string | null;
 }
 

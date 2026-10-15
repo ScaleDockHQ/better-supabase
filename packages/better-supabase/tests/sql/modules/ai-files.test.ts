@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -8,10 +8,10 @@ import {
   renderModules,
 } from "../../../src/sql/render.ts";
 
-const body = (modules: ModulesConfig = {}) =>
+const body = (modules: BlocksConfig = {}) =>
   moduleBody("ai-files", { modules })!;
 
-const rendered = (names: readonly string[], modules: ModulesConfig = {}) =>
+const rendered = (names: readonly string[], modules: BlocksConfig = {}) =>
   renderModules([...names, "ai-files"], { modules })
     .filter((file) => file.module === "ai-files")
     .map((file) => file.contents)

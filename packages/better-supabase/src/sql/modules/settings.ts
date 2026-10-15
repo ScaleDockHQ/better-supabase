@@ -1,3 +1,4 @@
+import type { SettingsEvents } from "../../blocks/settings/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -17,7 +18,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SettingsEvents> = {
   "organization_setting.reset": {
     subject: "organizations",
     payload: ["organizationId", "key"],
@@ -100,7 +101,7 @@ function platformKeys(ctx: ModuleContext): {
   };
   readonly keys: readonly PlatformKey[];
 } {
-  const where = "sql.modules.settings.options";
+  const where = "blocks.settings.options";
   const option = ctx.option("platform") ?? {};
   if (!isObject(option)) {
     throw new TypeError(`${where}.platform must be { permission?, read? }`);
@@ -182,7 +183,7 @@ function jsonSchemaOf(
 }
 
 /**
- * `sql.modules.settings.options.schemas`: `{ user, organization }` maps of
+ * `blocks.settings.options.schemas`: `{ user, organization }` maps of
  * key to schema, or a `defineSettings()` result (its `schemas`).
  */
 function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
@@ -192,7 +193,7 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
     isObject(option) && "schemas" in option ? option["schemas"] : option;
   if (!isObject(raw)) {
     throw new TypeError(
-      "sql.modules.settings.options.schemas: pass { user, organization, platform } or a defineSettings() result",
+      "blocks.settings.options.schemas: pass { user, organization, platform } or a defineSettings() result",
     );
   }
   const checks: JsonSchemaCheck[] = [];
@@ -205,7 +206,7 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
     if (entries === undefined) continue;
     if (!isObject(entries)) {
       throw new TypeError(
-        `sql.modules.settings.options.schemas.${scope}: pass an object of key to schema`,
+        `blocks.settings.options.schemas.${scope}: pass an object of key to schema`,
       );
     }
     const target = ctx.tableName(table);
@@ -222,7 +223,7 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   }
   if (checks.length > 0 && !ctx.installed("jsonb-schemas")) {
     throw new TypeError(
-      "sql.modules.settings.options.schemas: add the jsonb-schemas module, which installs pg_jsonschema for these checks",
+      "blocks.settings.options.schemas: add the jsonb-schemas module, which installs pg_jsonschema for these checks",
     );
   }
   return checks;

@@ -16,7 +16,7 @@ const isOperationModule = (name: string): name is OperationModule =>
 
 /**
  * The permission key of every operation the layout knows: each installed
- * module's `OPERATIONS` after `sql.modules.<name>.permissions` renames, with
+ * module's `OPERATIONS` after `blocks.<name>.permissions` renames, with
  * the provider's `authorization.operations` over them.
  */
 function operationKeys(

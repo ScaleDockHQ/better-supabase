@@ -14,7 +14,7 @@ import {
   runImport,
 } from "better-supabase/blocks/imports";
 import { createInventory } from "better-supabase/blocks/inventory";
-import { createMetrics } from "better-supabase/blocks/metrics";
+import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
 import {
   createOrders,
   ORDER_METRIC_EVENTS,
@@ -266,17 +266,23 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       // The metrics sink rolls up the order's day when order.paid is relayed.
       const app = createBlocks(
+        { transport, service },
         {
-          transport,
-          service,
-          metricEvents: {
-            ...ORDER_METRIC_EVENTS,
-            "order.paid": [...ORDER_METRIC_EVENTS["order.paid"], "units_sold"],
-          },
-        },
-        {
-          metrics: (options) =>
-            createMetrics({ ...options, metrics: commerceMetrics }),
+          metrics: metricsBlock
+            .with({
+              sink: {
+                on: {
+                  ...ORDER_METRIC_EVENTS,
+                  "order.paid": [
+                    ...ORDER_METRIC_EVENTS["order.paid"],
+                    "units_sold",
+                  ],
+                },
+              },
+            })
+            .using((options) =>
+              createMetrics({ ...options, metrics: commerceMetrics }),
+            ),
         },
       );
       await watchers.send(app.sinks.metrics!);

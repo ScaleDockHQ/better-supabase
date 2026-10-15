@@ -26,17 +26,15 @@ A machine without a `table` takes its table, id type and tenant column from [`co
 subjects: {
   quote: { table: "public.quotes", idType: "uuid", tenant: "organization_id" },
 },
-sql: {
-  modules: {
-    "state-machine": {
-      options: {
-        machines: {
-          quote: {
-            column: "status",
-            initial: "draft",
-            transitions: { draft: ["sent", "void"], sent: ["accepted", "void"] },
-            order: ["draft", "sent", "accepted"],
-          },
+blocks: {
+  "state-machine": {
+    options: {
+      machines: {
+        quote: {
+          column: "status",
+          initial: "draft",
+          transitions: { draft: ["sent", "void"], sent: ["accepted", "void"] },
+          order: ["draft", "sent", "accepted"],
         },
       },
     },

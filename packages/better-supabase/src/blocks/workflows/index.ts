@@ -36,3 +36,6 @@ export type {
   WorkflowRunSnapshot,
   WorkflowRunsSnapshot,
 } from "./client.ts";
+export { workflowsBlock } from "./manifest.ts";
+export { workflowsEvents } from "./events.ts";
+export type { WorkflowsEvents } from "./events.ts";

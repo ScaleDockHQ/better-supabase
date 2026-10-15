@@ -1,3 +1,4 @@
+import type { BulkEvents } from "../../blocks/bulk/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -33,7 +34,7 @@ const DEFAULT_LIMIT = 500;
 const MAX_RUN = 100_000;
 const DEFAULT_CHUNK = 200;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<BulkEvents> = {
   "bulk_run.completed": {
     subject: "bulk-runs",
     payload: ["organizationId", "id", "kind", "status", "count", "failed"],
@@ -69,7 +70,7 @@ const NAMES: ModuleNames = {
 
 /** `options.actions`: an app's own actions, each a `schema.function(tenant, subject_type, id, args)`. */
 function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
-  const where = "sql.modules.bulk.options.actions";
+  const where = "blocks.bulk.options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(`${where} must map action names to functions`);
@@ -171,7 +172,7 @@ function build(ctx: ModuleContext): string {
   const limit = ctx.number("limit", DEFAULT_LIMIT);
   if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) {
     throw new TypeError(
-      "sql.modules.bulk.options.limit must be an integer from 1 to 10000",
+      "blocks.bulk.options.limit must be an integer from 1 to 10000",
     );
   }
   const custom = bulkActions(ctx);

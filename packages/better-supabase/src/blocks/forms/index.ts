@@ -82,3 +82,6 @@ export type {
   QuestionnaireOptions,
   QuestionnaireSnapshot,
 } from "./client.ts";
+export { formsBlock, signaturesBlock } from "./manifest.ts";
+export { formsEvents, signaturesEvents } from "./events.ts";
+export type { FormsEvents, SignaturesEvents } from "./events.ts";

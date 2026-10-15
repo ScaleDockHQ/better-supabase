@@ -1,3 +1,4 @@
+import type { ServicePrincipalsEvents } from "../../blocks/service-principals/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -20,7 +21,7 @@ import { checkRole, roleValue } from "./organizations.ts";
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
 const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<ServicePrincipalsEvents> = {
   "service_principal.created": {
     subject: "service-principals",
     payload: ["organizationId", "id", "name", "role"],

@@ -150,7 +150,7 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
     }
   });
 
-  it("checks the inviter with sql.modules.access.functions.canAssignFor", async () => {
+  it("checks the inviter with blocks.access.functions.canAssignFor", async () => {
     const s = await BlockSession.open(pool);
     try {
       const owner = await s.user("owner");

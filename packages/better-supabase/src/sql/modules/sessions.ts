@@ -7,7 +7,7 @@ import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";
 
 /**
- * `sql.modules.sessions.options.policies`: a restrictive session policy on
+ * `blocks.sessions.options.policies`: a restrictive session policy on
  * every table the schema files create in `schemas`, except `exclude`.
  */
 function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
@@ -27,8 +27,8 @@ create policy bs_session_active on ${target} as restrictive
   });
   return `
 
--- sql.modules.sessions.options.policies: every table in the schema files,
--- except sql.modules.sessions.options.exclude. \`sql sync\` rewrites these.
+-- blocks.sessions.options.policies: every table in the schema files,
+-- except blocks.sessions.options.exclude. \`sql sync\` rewrites these.
 ${statements.join("\n")}`;
 }
 

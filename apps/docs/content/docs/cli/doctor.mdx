@@ -156,7 +156,7 @@ projects from October 30, 2026). Without a grant, every request fails with
 need exactly the privileges listed; other tables in the generated schemas need
 `select` for `authenticated`, except tables with RLS on and no permissive
 policy when
-`sql.modules.grants.options.fromPolicies` is on: those are service-only, so
+`blocks.grants.options.fromPolicies` is on: those are service-only, so
 BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
 and run `better-supabase sql add grants`. When `config.toml` sets
 `[api] auto_expose_new_tables = false`, the finding says so.
@@ -254,7 +254,7 @@ covers the functions policies call, and the functions those call.
 **Warning: table without a policy still granted to the Data API.** A table
 with RLS on and no permissive policy for `anon` or `authenticated` answers
 every request with no rows or a denied write, yet a grant lists it in the API
-schema. With `sql.modules.grants.options.fromPolicies`, `better-supabase sql sync`
+schema. With `blocks.grants.options.fromPolicies`, `better-supabase sql sync`
 revokes `anon`, `authenticated` and `public` on every table in `schemas` with
 RLS on that no `expose` entry and no permissive policy reaches, and keeps the privileges
 of `service_role`. Until the migration is applied, doctor reports the grants
@@ -578,7 +578,7 @@ is the same check as `gen --check`.
 
 ### BS304
 
-**Warning: SQL module files are out of date.** A module in `sql.modules` differs from
+**Warning: SQL module files are out of date.** A module in `blocks` differs from
 the version this release ships. Doctor renders the files with the same layout
 as `sql sync` (grants from policies, session policies, audited tables and the
 vector schema), so the two agree on what is out of date. Run `better-supabase sql sync`, then
@@ -608,7 +608,7 @@ primary key, or run `alter table ... replica identity full`.
 
 ### BS307
 
-**Error: custom SQL module without its contract.** A module in `sql.modules` uses
+**Error: custom SQL module without its contract.** A module in `blocks` uses
 `mode: 'custom'`, so the app writes the functions other modules and the
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
@@ -619,7 +619,7 @@ print <module>` lists the signatures.
 ### BS308
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
-`sql.modules.access.activeTenant: 'claim'`, `current_tenant_id()` and the
+`blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
@@ -630,7 +630,7 @@ the URL or a profile, use the default `'resolver'` (with
 ### BS309
 
 **Warning: deprecated SQL module symbol.** A file in `supabase/schemas` or a
-policy uses a function, table, column or claim that a SQL module in `sql.modules`
+policy uses a function, table, column or claim that a SQL module in `blocks`
 deprecated or removed, such as `better_supabase.current_org_id()` or the
 `org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
 one minor release; a removed one fails at run time. The message names the
@@ -659,11 +659,11 @@ files, then create the schema migration. BS304 skips files this check reports.
 ### BS312
 
 **Error: block schema exposed through the Data API.** `[api] schemas` in
-`supabase/config.toml` lists `better_supabase` or a schema a module in `sql.modules`
+`supabase/config.toml` lists `better_supabase` or a schema a module in `blocks`
 sets. Block schemas hold internal tables and helpers that `authenticated` can
 execute so policies can call them; exposing the schema makes them callable over
 REST and RPC as well. Remove the schema from `[api] schemas` and from the
-exposed schemas in the dashboard, and set `sql.modules.<module>.api` to an
+exposed schemas in the dashboard, and set `blocks.<module>.api` to an
 exposed schema such as `api`: `sql add` writes `security invoker` entry points
 there for the module's client functions, and `rpcTransport(supabase, { schema:
 "api" })` calls them. Doctor reads `[api] schemas` for every exposure check and falls
@@ -672,18 +672,18 @@ back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 ### BS313
 
 **Warning: rate limits not wired to PostgREST.** The `rate-limit` module is in
-`sql.modules`, but on the live database `pgrst.db_pre_request` for the
+`blocks`, but on the live database `pgrst.db_pre_request` for the
 `authenticator` role is unset, or names a function whose body doesn't call
 `better_supabase.check_request()`, so Data API writes are never counted. Apply
 the migration `better-supabase sql data` writes, which sets the hook when no
 other one is set, or call `check_request()` from your own pre-request
 function. Doctor needs a database connection for this check. With
-`sql.modules["rate-limit"].options.preRequest` set to `false`, the app calls
+`blocks["rate-limit"].options.preRequest` set to `false`, the app calls
 `check_request()` itself and BS313 does not run.
 
 ### BS314
 
-**Warning: migration-only block option.** A module in `sql.modules` sets an option
+**Warning: migration-only block option.** A module in `blocks` sets an option
 that only exists to match a schema you are adopting: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` for credentials,
 `secretStorage: "column"` or an `eventIdType` or `runIdType` other than
@@ -695,20 +695,18 @@ the secrets into Vault), then remove the option.
 ### BS315
 
 **Warning: table without an audit trigger.** The `audit` module is in
-`sql.modules`, and a table in `schemas` has no `bs_audit` trigger, nor another
+`blocks`, and a table in `schemas` has no `bs_audit` trigger, nor another
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
 skips the block schemas and the tables SQL modules adopt; list other tables in
-`sql.modules.audit.options.exempt` as `schema.table` globs, where `*` matches any run
+`blocks.audit.options.exempt` as `schema.table` globs, where `*` matches any run
 of characters:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    modules: {
-      audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
-    },
+  blocks: {
+    audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
   },
 });
 ```
@@ -716,7 +714,7 @@ export default defineConfig({
 ### BS316
 
 **Warning: legacy migra diff engine.** The project keeps declarative schemas
-in `supabase/schemas` or lists `sql.modules`, but `supabase/config.toml` has
+in `supabase/schemas` or lists `blocks`, but `supabase/config.toml` has
 no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs the
 schema with migra. Migra drops grants, comments and `security_invoker` on
 views, and runs only while the stack is stopped. Projects from `supabase init`
@@ -783,13 +781,13 @@ your own role for anything else.
 ### BS320
 
 **Warning: table without the session policy.** The `sessions` module is in
-`sql.modules`, and a table with RLS in `schemas` has no restrictive policy
+`blocks`, and a table with RLS in `schemas` has no restrictive policy
 that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
-until it expires. Set `sql.modules.sessions.options.policies` to `true` and
+until it expires. Set `blocks.sessions.options.policies` to `true` and
 run `better-supabase sql sync` to write the policy on every table, or add it
 by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
-other tables in `sql.modules.sessions.options.exclude` as `schema.table`
+other tables in `blocks.sessions.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 
 ### BS321
@@ -808,7 +806,7 @@ one that uses it. The rule stays quiet until the project has a migration.
 ### BS322
 
 **Warning: audit registration of a dropped table.** The `audit` module is in
-`sql.modules`, and `better_supabase.audited_tables` on the live database has
+`blocks`, and `better_supabase.audited_tables` on the live database has
 a row whose table no longer exists. Since the module installs the
 `bs_audit_forget_dropped` event trigger, dropping a table deletes its row,
 but a table dropped before that keeps it. Run `better-supabase sql sync`
@@ -818,7 +816,7 @@ against a database.
 
 ### BS323
 
-**Warning: module event trigger missing.** A module in `sql.modules`
+**Warning: module event trigger missing.** A module in `blocks`
 creates an event trigger (`bs_audit_forget_dropped` for `audit`,
 `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without
 a database, that no migration in `supabase/migrations` creates. Event
@@ -840,7 +838,7 @@ platform role, or a platform invitation a tenant role. `better-supabase sql
 sync` refuses the config. Set `where` on both, a condition on the roles row
 `{row}` such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.
 A `roleThrough` from the provider's `roleSources` has no `where`, so set
-`sql.modules.tenant.options.roleThrough` in the config.
+`blocks.tenant.options.roleThrough` in the config.
 
 ### BS325
 
@@ -888,7 +886,7 @@ with `supabase lite upgrade`.
 **Error: adopted table without a mapped column.** A module in adopt mode
 maps a table, or a column of it, that the live database lacks, so the
 module's functions fail when they run. Doctor reads every column the
-module's SQL names: the ones in `sql.modules.<name>.columns` and the
+module's SQL names: the ones in `blocks.<name>.columns` and the
 defaults for the unmapped ones, leaving out the columns mapped to `null`.
 Map the logical column to the column that holds it, map it to `null` when
 the module allows that, or add the column. `better-supabase sql sync`
@@ -1075,7 +1073,7 @@ With `entitlements.memberships: "provider"` (the default when the config has
 module](/docs/blocks/entitlements) reads memberships through the provider's
 `memberIds` template in `has_entitlement`, which runs as `authenticated`, and
 `memberIdsFor` in `feature_claims`, which the provider's hook calls as
-`supabase_auth_admin`. When `entitlements` is in `sql.modules`, doctor warns
+`supabase_auth_admin`. When `entitlements` is in `blocks`, doctor warns
 when:
 
 - the provider can't back the mode: `tenantScope` is not one of its scopes,
@@ -1102,7 +1100,7 @@ disagree.** The provider's hook writes the active tenant to
 claim, because the tenant plugin, the guards and the module's RLS would then
 read a claim the hook never writes. It notes when `claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
-`suspension` or `roleSources` while `sql.modules.access.model` is not
+`suspension` or `roleSources` while `blocks.access.model` is not
 `provider` (only that model reads them), and reports every entry of the
 provider's `problems`, such as a file version it can't read.
 
@@ -1126,13 +1124,13 @@ finding; verify the request there with `authHook` from
 ### BS411
 
 **Error: the provider access model can't use the authorization provider.**
-With `sql.modules.access.model: "provider"`, `can()` and the SQL modules fill
+With `blocks.access.model: "provider"`, `can()` and the SQL modules fill
 the provider's `idsWith` template for tenant checks and `isPlatform` for
 platform checks, at its `tenantScope`. Doctor reports, and `sql add` refuses:
 
 - a config without `authorization`;
 - a `tenantScope` the provider doesn't declare, a scope `idType` other than
-  `uuid`, `text`, `bigint` or `integer`, or a `sql.modules.access.idType`
+  `uuid`, `text`, `bigint` or `integer`, or a `blocks.access.idType`
   that differs from it;
 - a function those templates call that `authorization.requires` doesn't list,
   doesn't let `authenticated` execute, or the database lacks;
@@ -1140,9 +1138,9 @@ platform checks, at its `tenantScope`. Doctor reports, and `sql add` refuses:
   `better-supabase/sql` lists them) that the provider doesn't mark
   `sqlComplete: true`. Its functions decide by role and scope only, so a key
   with other conditions would be granted everywhere in the scope. Map the
-  action to another key in `sql.modules.<module>.permissions`.
+  action to another key in `blocks.<module>.permissions`.
 
-It warns when neither `sql.modules.access.functions.canAssign` nor the
+It warns when neither `blocks.access.functions.canAssign` nor the
 provider's `canAssign` is set, because only the service role then assigns
 roles. See [the access block](/docs/blocks/access) for the recipe.
 
@@ -1156,7 +1154,7 @@ provider doesn't set, and names the modules:
 | `canAssignFor`  | `invitations`                                                                                  | the inviter's right to assign the role is not checked again at acceptance |
 | `memberIds`     | `usage`                                                                                        | membership checks read the tenant module's `memberships` table instead    |
 
-`sql.modules.access.functions.canAssignFor` silences the `canAssignFor`
+`blocks.access.functions.canAssignFor` silences the `canAssignFor`
 warning.
 
 ### BS412
@@ -1176,7 +1174,7 @@ cookie, or reads a session without one and `session.user` throws. Set the same
 ### BS413
 
 **Warning: support sessions are not tied to the provider's read-only check.**
-Support sessions are installed, `sql.modules.access.model` is `provider`, and
+Support sessions are installed, `blocks.access.model` is `provider`, and
 `authorization.functions.actorMayWrite` is not set. Writes still refuse a
 read-only `act` through the built-in check. Set `actorMayWrite` to the
 provider's read-only helper so that helper is the only check.
@@ -1184,7 +1182,7 @@ provider's read-only helper so that helper is the only check.
 ### BS414
 
 **Warning: the access contract answers from built-in roles next to a
-provider.** The config sets `authorization`, but `sql.modules.access.model`
+provider.** The config sets `authorization`, but `blocks.access.model`
 names another model, so `better_supabase.can()` and
 `better_supabase.tenant_ids_with()` answer from the built-in roles. Doctor
 reports each policy and each function in `schemas` that calls them. Remove

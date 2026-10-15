@@ -40,3 +40,6 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+export { catalogBlock } from "./manifest.ts";
+export { catalogEvents } from "./events.ts";
+export type { CatalogEvents } from "./events.ts";

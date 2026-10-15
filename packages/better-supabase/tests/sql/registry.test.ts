@@ -2,7 +2,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import type { ModulesConfig } from "../../src/config/modules.ts";
+import type { BlocksConfig } from "../../src/config/blocks.ts";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
@@ -547,7 +547,7 @@ describe("sameModuleFile", () => {
     const config = resolveConfig(
       {
         expose: { customers: ["select"] },
-        sql: { modules: { grants: { options: { fromPolicies: true } } } },
+        blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
     );
@@ -567,7 +567,7 @@ describe("sameModuleFile", () => {
       ],
     });
     expect(file!.contents).toContain(
-      "-- config.expose and the policies (sql.modules.grants.options.fromPolicies)",
+      "-- config.expose and the policies (blocks.grants.options.fromPolicies)",
     );
     expect(file!.contents).toContain(
       'grant select on table "public"."customers" to authenticated;',
@@ -588,7 +588,7 @@ describe("sameModuleFile", () => {
     const config = resolveConfig(
       {
         expose: { customers: ["select"] },
-        sql: { modules: { grants: { options: { fromPolicies: true } } } },
+        blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
     );
@@ -1010,7 +1010,7 @@ describe("modulePermissionKeys", () => {
   });
 
   it("defaults sibling actions to the key they follow", () => {
-    const key = (modules: ModulesConfig, module: string, action: string) =>
+    const key = (modules: BlocksConfig, module: string, action: string) =>
       modulePermissionKeys(modules, [module]).find(
         (entry) => entry.module === module && entry.action === action,
       )?.key;
@@ -1048,7 +1048,7 @@ describe("modulePermissionKeys", () => {
     expect(key({}, "waitlist", "invite")).toBe("members.invite");
   });
 
-  it("applies sql.modules.<module>.permissions and skips custom modules", () => {
+  it("applies blocks.<module>.permissions and skips custom modules", () => {
     expect(
       modulePermissionKeys(
         { notifications: { permissions: { send: "alerts.send" } } },

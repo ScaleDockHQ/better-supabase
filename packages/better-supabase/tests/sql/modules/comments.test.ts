@@ -156,7 +156,7 @@ describe("comments module", () => {
       sqlOf(["comments"], {
         subjects: { project: { table: "projects", scope: "project" } },
       }),
-    ).toThrow(/needs sql.modules.access.model "provider"/);
+    ).toThrow(/needs blocks.access.model "provider"/);
   });
 
   it("applies an enforced readableBy to the read policy", () => {

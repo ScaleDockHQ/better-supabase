@@ -104,7 +104,7 @@ function webhookInboxSql(ctx: ModuleContext): string {
   const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
   if (managed && renamed.length > 0) {
     throw new TypeError(
-      `sql.modules.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
+      `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
     );
   }
   const t = managed ? "better_supabase.webhook_inbox" : ctx.table("messages");

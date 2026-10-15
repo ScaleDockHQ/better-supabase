@@ -66,7 +66,7 @@ export function entries(ctx: ModuleContext): readonly Entry[] {
     }
   }
 
-  const where = "sql.modules.data-lifecycle.options.tables";
+  const where = "blocks.data-lifecycle.options.tables";
   const option = ctx.option("tables");
   if (option === undefined || option === "auto") return list;
   const configured: Entry[] = [];
@@ -140,7 +140,7 @@ export function bucketOf(ctx: ModuleContext): string {
   const bucket = ctx.text("bucket", "data-exports");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.data-lifecycle.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
+      "blocks.data-lifecycle.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   return bucket;
@@ -159,11 +159,11 @@ export function tenantRowOf(
   if (configured !== undefined) {
     if (typeof configured !== "string") {
       throw new TypeError(
-        'sql.modules.data-lifecycle.options.tenantRow must be "schema.table.column" or false',
+        'blocks.data-lifecycle.options.tenantRow must be "schema.table.column" or false',
       );
     }
     const ref = columnRef(
-      "sql.modules.data-lifecycle.options.tenantRow",
+      "blocks.data-lifecycle.options.tenantRow",
       configured,
     );
     return { table: ref.table, key: ref.column };
@@ -185,7 +185,7 @@ export function disabling(
 ): { table: string; key: string; column: string } | undefined {
   const configured = ctx.modules.access?.disabled?.tenant;
   if (typeof configured === "string") {
-    const ref = columnRef("sql.modules.access.disabled.tenant", configured);
+    const ref = columnRef("blocks.access.disabled.tenant", configured);
     return { table: ref.table, key: '"id"', column: ref.column };
   }
   if (configured) {

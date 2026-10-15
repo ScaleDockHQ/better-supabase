@@ -1,5 +1,6 @@
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
+import type { BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
 import type {
   ActorConfig,
@@ -128,6 +129,15 @@ export interface BetterSupabaseConfig {
    * `can_subject` from it, and `gen` types `SubjectType` from its keys.
    */
   readonly subjects?: SubjectsConfig;
+  /**
+   * The blocks to install and keep in sync (`better-supabase sql add`): a
+   * list of names, or an object keyed by block name whose values set each
+   * block's mode, schema, table and column names, permission keys and
+   * options. The foundation blocks (`tenant`, `access`, `updated-at`,
+   * `ensure-rls`, ...) are configured here too.
+   */
+  readonly blocks?: readonly string[] | BlocksConfig;
+  /** SQL-wide settings: the workflow, paths, and the `schema` and `api` every block inherits. */
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
   /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
@@ -216,6 +226,10 @@ export interface ResolvedConfig {
   readonly realtime: Required<Omit<RealtimeConfig, "policies">> & {
     readonly policies?: TopicPoliciesConfig;
   };
+  /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
+  readonly blocks: BlocksConfig;
+  /** The installed blocks, in config order. */
+  readonly blockNames: readonly string[];
   readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;

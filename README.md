@@ -168,22 +168,20 @@ Blocks are the features most SaaS apps build by hand. Each one installs [SQL mod
 pnpm better-supabase sql add organizations invitations
 ```
 
-List them in `sql.modules` in `better-supabase.config.ts` so `better-supabase sql sync` keeps the files up to date. Each key is a module, and its value holds that module's settings, such as its roles, permission keys or the existing tables it adopts:
+List them in `blocks` in `better-supabase.config.ts` so `better-supabase sql sync` keeps the files up to date. Each key is a module, and its value holds that module's settings, such as its roles, permission keys or the existing tables it adopts:
 
 ```ts
 export default defineConfig({
-  sql: {
-    modules: {
-      access: {
-        roles: {
-          owner: ["*"],
-          admin: ["organization.*", "members.*"],
-          member: ["organization.read"],
-        },
+  blocks: {
+    access: {
+      roles: {
+        owner: ["*"],
+        admin: ["organization.*", "members.*"],
+        member: ["organization.read"],
       },
-      organizations: {},
-      invitations: { permissions: { invite: "organization.members.invite" } },
     },
+    organizations: {},
+    invitations: { permissions: { invite: "organization.members.invite" } },
   },
 });
 ```
@@ -199,7 +197,7 @@ await organizations.invite({ organizationId, email, role: "member" });
 
 | Block                                                                                                                                                                                                                                 | Import                                                                                     | SQL modules                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| [createBlocks](https://bettersupabase.com/docs/blocks/create-blocks): builds several blocks from one set of options and wires the blocks that use each other                                                                          | `better-supabase/blocks`                                                                   | none                                   |
+| [createBlocks](https://bettersupabase.com/docs/blocks/create-blocks): builds several blocks from one set of options and wires them on the ports they provide and consume                                                              | `better-supabase/blocks`                                                                   | none                                   |
 | [Access contract](https://bettersupabase.com/docs/blocks/access): `can()` for policies, over fixed roles, your own permission catalog or an authorization provider                                                                    | SQL only                                                                                   | `access`, `tenant`                     |
 | [Organizations](https://bettersupabase.com/docs/blocks/organizations): members, invitations, roles and switching                                                                                                                      | `better-supabase/blocks/organizations`                                                     | `organizations`, `invitations`         |
 | [Profiles](https://bettersupabase.com/docs/blocks/profiles): a profile row per user, synced from Auth                                                                                                                                 | `better-supabase/blocks/profiles`                                                          | `profiles`                             |

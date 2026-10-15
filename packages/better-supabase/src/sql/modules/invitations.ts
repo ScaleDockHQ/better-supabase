@@ -1,3 +1,4 @@
+import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
@@ -46,7 +47,7 @@ import {
 import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<OrganizationsEvents> = {
   "invitation.created": {
     subject: "invitations",
     payload: ["invitationId", "organizationId", "email", "role"],
@@ -238,7 +239,7 @@ create policy bs_platform_invitations_read on ${p.table} for select to authentic
 `;
 }
 
-/** Raises unless `valid_for` is positive and at most `sql.modules.invitations.options.maxValidFor`. */
+/** Raises unless `valid_for` is positive and at most `blocks.invitations.options.maxValidFor`. */
 function validity(ctx: ModuleContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
   return `if valid_for is null or valid_for <= interval '0' or valid_for > ${max}::interval then
@@ -254,7 +255,7 @@ function platformInvite(
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
-      "Platform invitations need platform roles: sql.modules.access.model 'catalog' with platform assignments, or sql.modules.invitations.options.platformRoles under 'provider'",
+      "Platform invitations need platform roles: blocks.access.model 'catalog' with platform assignments, or blocks.invitations.options.platformRoles under 'provider'",
     );
   }
   const c = (logical: string) => p.col(logical);
@@ -339,7 +340,7 @@ function invite(ctx: ModuleContext): string {
     : "";
   return `
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function ${ctx.fn("invite_member")}(
@@ -587,7 +588,7 @@ function preview(ctx: ModuleContext): string {
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
 -- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
 -- keys, such as a role's display name or branding from another table.
 create or replace function ${ctx.fn("invitation_preview")}(token text)
@@ -855,7 +856,7 @@ export const INVITATIONS: ModuleDefinition = {
     {
       from: 1,
       description:
-        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from sql.modules.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
+        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

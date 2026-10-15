@@ -1,10 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  createPushDevices,
-  sqlTransport,
-} from "../../src/blocks/push/index.ts";
+import { createPush, sqlTransport } from "../../src/blocks/push/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -19,7 +16,7 @@ describe.skipIf(!live)("push module", () => {
       await s.install(["push"]);
       const alice = await s.user("alice");
       const bob = await s.user("bob");
-      const devices = createPushDevices({ transport: sqlTransport(s.sql) });
+      const devices = createPush({ transport: sqlTransport(s.sql) });
       const token = `ExponentPushToken[${crypto.randomUUID()}]`;
 
       await s.as(alice);

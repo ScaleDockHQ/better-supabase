@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
 
-/** `sql.modules.search.api` in better-supabase.config.ts. */
+/** `blocks.search.api` in better-supabase.config.ts. */
 const API_SCHEMA = "api";
 
 /** Cmd+K over the search index: customers by name, plus recents and favorites. */

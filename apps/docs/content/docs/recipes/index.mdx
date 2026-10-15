@@ -63,18 +63,20 @@ Watchers at level `all` get every mapped event. See
 [watchers](/docs/blocks/notifications#watchers) for rules with `activity`,
 `recipients` and `summary`.
 
-Reminders deliver through the `notifications` block when `createBlocks` gets
-`reminderNotification`. The reminder's owner and the subject's watchers get
+Reminders deliver through the `notifications` block, the `notifier` port,
+when the reminders block has a `notification` type. The reminder's owner and the subject's watchers get
 one notification per occurrence:
 
 ```ts title="lib/blocks.ts"
 const { comments, reminders, stateMachine } = createBlocks(
-  { transport, service, reminderNotification: "reminder.due" },
+  { transport, service },
   {
-    notifications: (options) => createNotifications({ ...options, types }),
-    comments: createComments,
-    reminders: createReminders,
-    stateMachine: createStateMachine,
+    notifications: notificationsBlock.using((options) =>
+      createNotifications({ ...options, types }),
+    ),
+    comments: commentsBlock,
+    reminders: remindersBlock.with({ notification: "reminder.due" }),
+    stateMachine: stateMachineBlock,
   },
 );
 ```

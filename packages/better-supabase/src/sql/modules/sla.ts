@@ -1,3 +1,4 @@
+import type { SlaEvents } from "../../blocks/sla/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -32,7 +33,7 @@ const CLOCK = [
   "dueAt",
 ] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<SlaEvents> = {
   "sla.warned": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.breached": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.completed": { subject: "sla-clocks", payload: [...CLOCK, "late"] },
@@ -100,7 +101,7 @@ interface BusinessHours {
 
 function businessHours(ctx: ModuleContext): BusinessHours {
   const raw = ctx.option("businessHours") ?? {};
-  const where = "sql.modules.sla.options.businessHours";
+  const where = "blocks.sla.options.businessHours";
   if (!isRecord(raw)) throw new TypeError(`${where} must be an object`);
   const timeZone = raw["timeZone"] ?? "UTC";
   const start = raw["start"] ?? "09:00";
@@ -154,11 +155,11 @@ interface SlaBinding {
 function bindings(ctx: ModuleContext): readonly SlaBinding[] {
   const raw = ctx.option("subjects") ?? {};
   if (!isRecord(raw)) {
-    throw new TypeError("sql.modules.sla.options.subjects must be an object");
+    throw new TypeError("blocks.sla.options.subjects must be an object");
   }
   const registry = registeredSubjects(ctx.subjects);
   return Object.entries(raw).map(([type, entry]) => {
-    const where = `sql.modules.sla.options.subjects.${type}`;
+    const where = `blocks.sla.options.subjects.${type}`;
     const subject = registry.find((item) => item.type === type);
     if (subject?.tenant === undefined) {
       throw new TypeError(

@@ -1,13 +1,13 @@
 import type { SubjectsConfig } from "../config/types/subjects.ts";
-import type { BlockEventMap, BlockEventType } from "../core/block-events.ts";
+import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
-  type ModuleMode,
-  type ModulesConfig,
+  type BlockMode,
+  type BlocksConfig,
   type ResolvedModule,
   resolveModule,
-} from "../config/modules.ts";
+} from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
@@ -50,7 +50,7 @@ export interface ModuleTableSpec {
    * leaves out the feature that needs them.
    */
   readonly optional?: readonly string[];
-  /** The app may lack the whole table (`sql.modules.<name>.tables.<table>: null`). */
+  /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
   readonly lifecycle?: ModuleTableLifecycle;
 }
@@ -73,30 +73,36 @@ export interface ModuleTableLifecycle {
 
 export interface ModuleNames {
   readonly tables: Readonly<Record<string, ModuleTableSpec>>;
-  /** The `before_*` and `after_*` hooks the module calls, so `sql.modules.<name>.hooks.functions` is checked. */
+  /** The `before_*` and `after_*` hooks the module calls, so `blocks.<name>.hooks.functions` is checked. */
   readonly hooks?: readonly string[];
-  /** The `sql.modules.<name>.options` keys the module reads; any other key is rejected. */
+  /** The `blocks.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
-  /** The events the module records; `record` rejects any other type. */
-  readonly events?: ModuleEvents;
+  /**
+   * The events the module records, typed against its block's event map
+   * (`ModuleEvents<CommentsEvents>`); `record` rejects any other type.
+   */
+  readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
 }
 
 /** An event in a module's catalog, checked against what `record` renders. */
-export interface ModuleEventSpec<K extends BlockEventType = BlockEventType> {
+export interface ModuleEventSpec<
+  M extends EventMap = EventMap,
+  K extends BlockEventType<M> = BlockEventType<M>,
+> {
   /** The kebab-case collection every subject starts with, e.g. `organizations`. */
   readonly subject: string;
-  /** The payload keys, all of them in the event's `BlockEventMap` data. */
-  readonly payload: readonly PayloadKey<K>[];
+  /** The payload keys, all of them in the event's data in the block's event map. */
+  readonly payload: readonly PayloadKey<M, K>[];
   /** A job, a webhook or an engine may call the writer again, so the event needs a `key`. */
   readonly retries?: boolean;
 }
 
-type PayloadKey<K extends BlockEventType> = K extends BlockEventType
-  ? keyof BlockEventMap[K] & string
-  : never;
+type PayloadKey<M extends EventMap, K extends BlockEventType<M>> =
+  K extends BlockEventType<M> ? keyof M[K] & string : never;
 
-export type ModuleEvents = {
-  readonly [K in BlockEventType]?: ModuleEventSpec<K>;
+/** The events a module records, typed by its block's event map `M`. */
+export type ModuleEvents<M extends EventMap = EventMap> = {
+  readonly [K in BlockEventType<M>]?: ModuleEventSpec<M, K>;
 };
 
 interface CheckedEventSpec {
@@ -123,7 +129,7 @@ export interface ModuleEmit {
 
 /**
  * The categories module actions are audited under. An adopted log with its
- * own names maps them through `sql.modules.audit.options.values.category`.
+ * own names maps them through `blocks.audit.options.values.category`.
  */
 export const AUDIT_CATEGORIES = [
   "membership",
@@ -140,7 +146,7 @@ export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
 /** How `record` writes an action to the audit log, as SQL expressions. */
 export interface ModuleAudit {
-  /** The audit category, mapped through `sql.modules.audit.options.values`. */
+  /** The audit category, mapped through `blocks.audit.options.values`. */
   readonly category: AuditCategory;
   /** What the action changed, e.g. `user` or `api_key`. */
   readonly targetType?: string;
@@ -178,7 +184,7 @@ export interface ModuleAction extends ModuleEmit {
 }
 
 // These modules write their functions into better_supabase whatever
-// sql.modules.<name>.schema says; the schema only places their tables.
+// blocks.<name>.schema says; the schema only places their tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
   "access",
   "jobs",
@@ -208,14 +214,14 @@ export interface ModuleContractFunction {
 /** What a module's `build` reads: resolved names for one layout. */
 export interface ModuleContext {
   readonly module: string;
-  readonly mode: ModuleMode;
+  readonly mode: BlockMode;
   readonly config: ResolvedModule;
   /** The quoted schema of the module's functions and managed tables. */
   readonly schema: string;
   readonly schemaName: string;
   readonly idType: ModuleIdType;
   readonly claims: ClaimsMeta;
-  readonly modules: ModulesConfig;
+  readonly modules: BlocksConfig;
   /** The app-wide subject registry (`config.subjects`). */
   readonly subjects: SubjectsConfig;
   /** `schema.name` of a module function, quoted. */
@@ -249,7 +255,7 @@ export interface ModuleContext {
   installed(module: string): boolean;
   /** The context of another module in the same layout. */
   of(module: string): ModuleContext;
-  /** A string module option (`sql.modules.<name>.options`). */
+  /** A string module option (`blocks.<name>.options`). */
   text(name: string, fallback: string): string;
   number(name: string, fallback: number): number;
   flag(name: string, fallback: boolean): boolean;
@@ -279,7 +285,7 @@ export interface ModuleContext {
   hookTarget(name: string): string;
   /**
    * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
-   * `outbox` module is installed and `sql.modules.<name>.events` isn't false;
+   * `outbox` module is installed and `blocks.<name>.events` isn't false;
    * otherwise an empty string. `record` without the audit entry.
    */
   emit(event: ModuleEmit): string;
@@ -334,7 +340,7 @@ const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
 const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface ModuleContextSource {
-  readonly modules?: ModulesConfig;
+  readonly modules?: BlocksConfig;
   /** `config.subjects`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
   readonly claims?: ClaimsMeta;
@@ -379,7 +385,7 @@ export function createModuleContext(
 ): ModuleContext {
   const modules = source.modules ?? {};
   const config = resolveModule(modules[module]);
-  const where = `sql.modules.${module}`;
+  const where = `blocks.${module}`;
   const names = namesOf(module) ?? { tables: {} };
   checkIdent(`${where}.schema`, config.schema);
 
@@ -465,7 +471,7 @@ export function createModuleContext(
     const mapped = config.tables[logical];
     if (mapped === null) {
       throw new TypeError(
-        `Module "${module}" needs table "${logical}", which sql.modules.${module}.tables maps to null`,
+        `Module "${module}" needs table "${logical}", which blocks.${module}.tables maps to null`,
       );
     }
     const parts = splitTable(mapped ?? table.name, config.schema);
@@ -487,7 +493,7 @@ export function createModuleContext(
     const name = column(table, logical);
     if (name === null) {
       throw new TypeError(
-        `Module "${module}" needs ${table}.${logical}, which sql.modules.${module}.columns maps to null`,
+        `Module "${module}" needs ${table}.${logical}, which blocks.${module}.columns maps to null`,
       );
     }
     return name;
@@ -574,9 +580,7 @@ export function createModuleContext(
     const template =
       outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
     if (typeof template !== "string") {
-      throw new TypeError(
-        "sql.modules.outbox.options.blockSource must be a string",
-      );
+      throw new TypeError("blocks.outbox.options.blockSource must be a string");
     }
     return `perform ${sqlIdent(outboxConfig.schema)}.emit_event(${[
       sqlString(event.type),

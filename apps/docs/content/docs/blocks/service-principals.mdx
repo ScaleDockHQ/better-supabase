@@ -100,9 +100,9 @@ back to their declared permissions.
 
 Under the provider model, the membership row the module writes is what your
 provider reads, so a provider that keeps roles elsewhere must give the
-principal its role there too. With `sql.modules.tenant.mode: "custom"` the
+principal its role there too. With `blocks.tenant.mode: "custom"` the
 module writes no membership at all. If you switch users off through
-`sql.modules.access.disabled.user` with an active-row table (such as
+`blocks.access.disabled.user` with an active-row table (such as
 `profiles`), add a row for each principal; a user without one is disabled.
 
 ## Events

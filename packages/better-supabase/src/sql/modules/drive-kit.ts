@@ -1,3 +1,4 @@
+import type { DriveEvents } from "../../blocks/drive/events.ts";
 import type {
   ModuleAudit,
   ModuleContext,
@@ -27,7 +28,7 @@ const PATH_SEGMENT = "drive-nodes";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DriveEvents> = {
   "drive.node_created": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "kind", "name", "parentId"],
@@ -50,7 +51,7 @@ const EVENTS: ModuleEvents = {
   },
 };
 
-export const FILE_EVENTS: ModuleEvents = {
+export const FILE_EVENTS: ModuleEvents<DriveEvents> = {
   "drive.node_purged": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],
@@ -144,7 +145,7 @@ export interface DriveRoles {
 
 /** `options.roles` (lowest first) and the roles each action needs. */
 function driveRoles(ctx: ModuleContext): DriveRoles {
-  const where = "sql.modules.drive.options";
+  const where = "blocks.drive.options";
   const all = ctx.list("roles", ["viewer", "editor", "owner"]);
   if (
     all.length === 0 ||
@@ -185,7 +186,7 @@ function driveSubjectType(ctx: ModuleContext): string {
   const type = ctx.text("subjectType", "drive_node");
   if (!SUBJECT_TYPE.test(type)) {
     throw new TypeError(
-      "sql.modules.drive.options.subjectType must be lowercase letters, digits and underscores",
+      "blocks.drive.options.subjectType must be lowercase letters, digits and underscores",
     );
   }
   return type;
@@ -195,7 +196,7 @@ function conflictDefault(ctx: ModuleContext): string {
   const conflict = ctx.text("conflict", "fail");
   if (!CONFLICTS.some((value) => value === conflict)) {
     throw new TypeError(
-      `sql.modules.drive.options.conflict must be one of ${CONFLICTS.join(", ")}`,
+      `blocks.drive.options.conflict must be one of ${CONFLICTS.join(", ")}`,
     );
   }
   return conflict;
@@ -312,7 +313,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
   const typed = ctx.has("grants", "principalType");
   if (!typed && !ctx.has("grants", "user")) {
     throw new TypeError(
-      "sql.modules.drive.columns.grants needs principalType and principalId, or user (and team)",
+      "blocks.drive.columns.grants needs principalType and principalId, or user (and team)",
     );
   }
   const teamColumn = !typed && ctx.has("grants", "team");

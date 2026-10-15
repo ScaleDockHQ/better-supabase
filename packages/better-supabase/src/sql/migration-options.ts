@@ -1,4 +1,4 @@
-import type { ModuleConfig, ModulesConfig } from "../config/modules.ts";
+import type { BlockConfig, BlocksConfig } from "../config/blocks.ts";
 
 /** A module option that only fits a schema being adopted. */
 interface MigrationOption {
@@ -79,19 +79,19 @@ export interface MigrationOptionUse {
   readonly option: string;
   readonly value: unknown;
   readonly adopted: boolean;
-  /** `sql.modules.<module>.options.<option> ... It <effect>.` */
+  /** `blocks.<module>.options.<option> ... It <effect>.` */
   readonly message: string;
 }
 
 /**
- * The migration-only options `sql.modules` sets to a value other than the managed
+ * The migration-only options `blocks` sets to a value other than the managed
  * default. They are accepted in `adopt` mode only; doctor warns about each.
  */
 export function migrationOptionUses(
-  modules: ModulesConfig = {},
+  modules: BlocksConfig = {},
 ): MigrationOptionUse[] {
   return MIGRATION_OPTIONS.flatMap((entry) => {
-    const config: ModuleConfig | undefined = modules[entry.module];
+    const config: BlockConfig | undefined = modules[entry.module];
     const options = config?.options ?? {};
     if (!(entry.option in options)) return [];
     const value = options[entry.option];
@@ -102,7 +102,7 @@ export function migrationOptionUses(
         option: entry.option,
         value,
         adopted: config?.mode === "adopt",
-        message: `sql.modules.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
+        message: `blocks.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
       },
     ];
   });

@@ -160,7 +160,7 @@ async function moduleVersionsBehind(
     });
   }
   const db = context.database;
-  if (!db || "skipped" in db || context.config.sql.moduleNames.length === 0) {
+  if (!db || "skipped" in db || context.config.blockNames.length === 0) {
     return findings;
   }
   let rows: { name: string; version: number }[];
@@ -171,7 +171,7 @@ async function moduleVersionsBehind(
   }
   for (const row of rows) {
     const module = SQL_MODULES[row.name];
-    if (!module || !context.config.sql.moduleNames.includes(row.name)) continue;
+    if (!module || !context.config.blockNames.includes(row.name)) continue;
     const version = moduleVersion(module);
     if (row.version >= version) continue;
     findings.push({
@@ -280,7 +280,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table not granted to the Data API",
     description:
-      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with RLS on and no permissive policy under `sql.modules.grants.options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
+      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with RLS on and no permissive policy under `blocks.grants.options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
     check: (context) => {
       const auto = context.configToml
         ? tomlGet(context.configToml.document, [
@@ -325,9 +325,8 @@ const OWN_RULES: readonly Rule[] = [
           });
         }
         const serviceOnly =
-          context.config.sql.moduleNames.includes("grants") &&
-          context.config.sql.modules["grants"]?.options?.["fromPolicies"] ===
-            true &&
+          context.config.blockNames.includes("grants") &&
+          context.config.blocks["grants"]?.options?.["fromPolicies"] === true &&
           table.rls &&
           !table.policies.some(
             (policy) =>
@@ -648,7 +647,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL module files are out of date",
     description:
-      "A module listed in `sql.modules` differs from the version in this release. Same check as `sql sync --check`.",
+      "A module listed in `blocks` differs from the version in this release. Same check as `sql sync --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
       const workflow = workflowOf(context);
@@ -660,7 +659,7 @@ const OWN_RULES: readonly Rule[] = [
         const edited =
           current === undefined || migrated
             ? ""
-            : ` If you edited it, move the change to \`sql.modules.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+            : ` If you edited it, move the change to \`blocks.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
         const next =
           file.kind === "data" && !migrated
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
@@ -702,7 +701,7 @@ const OWN_RULES: readonly Rule[] = [
         return [];
       const schemas = `${toml.dir}/schemas/`;
       const declarative =
-        context.config.sql.moduleNames.length > 0 ||
+        context.config.blockNames.length > 0 ||
         (context.sqlFiles ?? []).some((file) => file.path.startsWith(schemas));
       if (!declarative) return [];
       const keep =

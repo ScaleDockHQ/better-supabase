@@ -1,3 +1,4 @@
+import type { StateMachineEvents } from "../../blocks/state-machine/events.ts";
 import type { SubjectsConfig } from "../../config/types/subjects.ts";
 import type {
   ModuleContext,
@@ -20,7 +21,7 @@ import {
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<StateMachineEvents> = {
   "status.changed": {
     subject: "statuses",
     payload: [...SUBJECT, "from", "to"],
@@ -144,7 +145,7 @@ function machines(ctx: ModuleContext): readonly Machine[] {
   if (raw === undefined) return [];
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
-      "sql.modules.state-machine.options.machines must be an object",
+      "blocks.state-machine.options.machines must be an object",
     );
   }
   return Object.entries(raw).map(([name, entry]) =>
@@ -178,7 +179,7 @@ function machine(
   entry: unknown,
   registry: SubjectsConfig,
 ): Machine {
-  const where = `sql.modules.state-machine.options.machines.${name}`;
+  const where = `blocks.state-machine.options.machines.${name}`;
   if (!NAME.test(name)) throw new TypeError(`${where} has an invalid name`);
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
     throw new TypeError(`${where} must be an object`);
@@ -402,7 +403,7 @@ function approvalGate(ctx: ModuleContext, item: Machine): string {
     ([, to]) => to.length > 0,
   );
   if (gated.length === 0) return "";
-  const where = `sql.modules.state-machine.options.machines.${item.name}.requiresApproval`;
+  const where = `blocks.state-machine.options.machines.${item.name}.requiresApproval`;
   if (!ctx.installed("approvals")) {
     throw new TypeError(`${where} needs the approvals module`);
   }
@@ -883,12 +884,12 @@ function build(ctx: ModuleContext): string {
   for (const item of list) {
     if (item.stages && !ctx.hasTable("stages")) {
       throw new TypeError(
-        `sql.modules.state-machine.options.machines.${item.name}.stages needs the stages table`,
+        `blocks.state-machine.options.machines.${item.name}.stages needs the stages table`,
       );
     }
     if (item.lifecycle && !ctx.hasTable("lifecycles")) {
       throw new TypeError(
-        `sql.modules.state-machine.options.machines.${item.name}.lifecycle needs the lifecycles table`,
+        `blocks.state-machine.options.machines.${item.name}.lifecycle needs the lifecycles table`,
       );
     }
   }

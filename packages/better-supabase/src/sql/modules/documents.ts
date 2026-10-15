@@ -1,3 +1,4 @@
+import type { DocumentsEvents } from "../../blocks/documents/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -28,7 +29,7 @@ const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
-const EVENTS: ModuleEvents = {
+const EVENTS: ModuleEvents<DocumentsEvents> = {
   "document.created": {
     subject: "documents",
     payload: ["organizationId", "subjectType", "subjectId", "id", "name"],
@@ -85,7 +86,7 @@ function documentsTopic(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "documents");
   if (!TOPIC.test(topic)) {
     throw new TypeError(
-      "sql.modules.documents.options.topic must be a lowercase name of at most 31 characters",
+      "blocks.documents.options.topic must be a lowercase name of at most 31 characters",
     );
   }
   return topic;
@@ -112,12 +113,12 @@ function build(ctx: ModuleContext): string {
   const compactAfter = ctx.number("compactAfter", 200);
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new TypeError(
-      "sql.modules.documents.options.maxUpdateBytes must be a positive whole number",
+      "blocks.documents.options.maxUpdateBytes must be a positive whole number",
     );
   }
   if (!Number.isInteger(compactAfter) || compactAfter < 1) {
     throw new TypeError(
-      "sql.modules.documents.options.compactAfter must be a positive whole number",
+      "blocks.documents.options.compactAfter must be a positive whole number",
     );
   }
   const readable = (row: string): string =>

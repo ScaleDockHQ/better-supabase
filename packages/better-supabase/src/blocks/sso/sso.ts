@@ -61,7 +61,7 @@ export interface SsoDomain {
 export interface SsoOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.sso.schema`), default `better_supabase`. */
+  /** The module schema (`blocks.sso.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
