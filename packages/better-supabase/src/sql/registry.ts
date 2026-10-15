@@ -1,7 +1,11 @@
-import type { BlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout } from "./module-types.ts";
 import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 
+import {
+  BLOCK_SCOPES,
+  type BlockScope,
+  type BlocksConfig,
+} from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
@@ -122,14 +126,45 @@ function built(definition: ModuleDefinition): SqlModule {
   };
 }
 
+/** The scope `name` runs in for `layout`: its own, then `sql.scope`, then `tenant`. */
+export function blockScope(name: string, layout: ModuleLayout): BlockScope {
+  return layout.modules?.[name]?.scope ?? layout.scope ?? "tenant";
+}
+
+// Outside tenant scope a module checks the caller itself, so the tenant
+// module and the access contract drop from what it needs.
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+
 const requiresOf = (
   module: SqlModule,
   layout: ModuleLayout,
-): readonly string[] =>
-  module.dependencies?.(layout) ??
-  (layout.entitlementsProvider && module.providerRequires
-    ? module.providerRequires
-    : module.requires);
+): readonly string[] => {
+  const requires =
+    module.dependencies?.(layout) ??
+    (layout.entitlementsProvider && module.providerRequires
+      ? module.providerRequires
+      : module.requires);
+  return blockScope(module.name, layout) === "tenant"
+    ? requires
+    : requires.filter((name) => !TENANT_PROVIDERS.has(name));
+};
+
+/**
+ * Why `module` can't run in its scope for `layout`, or undefined. The
+ * tenant module and the access contract run wherever a tenant-scoped
+ * module needs them.
+ */
+export function scopeProblem(
+  module: SqlModule,
+  layout: ModuleLayout,
+): string | undefined {
+  if (TENANT_PROVIDERS.has(module.name)) return undefined;
+  const scope = blockScope(module.name, layout);
+  const scopes = module.scopes ?? BLOCK_SCOPES;
+  if (scopes.includes(scope)) return undefined;
+  const own = layout.modules?.[module.name]?.scope !== undefined;
+  return `blocks.${module.name}: the ${module.name} module runs in ${scopes.join(" or ")} scope, not ${scope}${own ? "" : " (from sql.scope)"}. ${scopes.includes("tenant") ? `Set blocks.${module.name}.scope to "tenant" or remove the block.` : "Remove the block."}`;
+}
 
 /** New modules go at the end: the position is part of the file name. */
 export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
@@ -267,6 +302,12 @@ export function resolveModules(
       );
     }
     if (ordered.includes(module)) return;
+    const problem = scopeProblem(module, layout);
+    if (problem) {
+      throw new TypeError(
+        from ? `${problem} It is required by ${from}.` : problem,
+      );
+    }
     for (const dependency of requiresOf(module, layout))
       visit(dependency, name);
     ordered.push(module);

@@ -83,7 +83,9 @@ export type {
   DisabledRow,
   BlockMode,
   BlockConfig,
+  BlockScope,
   BlocksConfig,
+  SqlNaming,
 } from "./blocks.ts";
 export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
 export type * from "./snapshot.ts";

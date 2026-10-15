@@ -111,6 +111,7 @@ export function renderModules(
     const extra = module.extras?.(ctx, layout) ?? "";
     const wrappers = deprecationWrappers(module, ctx);
     const body = moduleSql(module, ctx, layout).trim();
+    module.contract?.(ctx);
     const api = ctx.config.api
       ? apiWrappers(
           body,
@@ -121,6 +122,7 @@ export function renderModules(
         )
       : "";
     if (module.target === "test") {
+      checkFunctionRenames(ctx);
       return [
         {
           module: module.name,
@@ -157,6 +159,8 @@ export function renderModules(
       `-- @bs-module-test ${module.name}`,
       ...managed,
     ].join("\n");
+    const tests = module.tests?.(ctx, layout) ?? [];
+    checkFunctionRenames(ctx);
     return [
       {
         module: module.name,
@@ -170,7 +174,7 @@ export function renderModules(
         path: moduleDataPath(module, layout),
         contents: `${dataHeader}\n\n${data}\n`,
       },
-      ...(module.tests?.(ctx, layout) ?? []).map((test): ModuleFile => ({
+      ...tests.map((test): ModuleFile => ({
         module: module.name,
         kind: "test",
         path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
@@ -178,6 +182,15 @@ export function renderModules(
       })),
     ];
   });
+}
+
+/** Throws on a `blocks.<name>.functions` key the module writes no function for. */
+function checkFunctionRenames(ctx: ModuleContext): void {
+  const unknown = ctx.unusedFunctions();
+  if (unknown.length === 0) return;
+  throw new TypeError(
+    `blocks.${ctx.module}.functions: the ${ctx.module} module writes no function ${unknown.map((name) => `"${name}"`).join(", ")}`,
+  );
 }
 
 export interface ModuleTopic {
@@ -219,7 +232,10 @@ export function customContracts(
         module: module.name,
         schema: ctx.schemaName,
         idType: ctx.idType,
-        functions: module.contract(ctx),
+        functions: module.contract(ctx).map((fn) => ({
+          ...fn,
+          name: ctx.fnName(fn.name),
+        })),
       },
     ];
   });

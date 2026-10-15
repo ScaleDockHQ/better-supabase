@@ -35,6 +35,8 @@ export function moduleLayout(
     entitlements: config.entitlements,
     claims: config.claims,
     modules: config.blocks,
+    ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
+    ...(config.sql.naming === undefined ? {} : { naming: config.sql.naming }),
     subjects: config.subjects,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
