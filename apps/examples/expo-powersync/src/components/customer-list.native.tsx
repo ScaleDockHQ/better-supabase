@@ -8,6 +8,7 @@ import { customerTables, local, powersync } from "../lib/powersync/database";
 import { signOut } from "../lib/push";
 import { customerColumns, customerList } from "../lists";
 import { CustomerRows } from "./customer-rows";
+import { UnreadBadge } from "./unread-badge";
 
 /** iOS and Android: the same list over the synced SQLite database, rerun on every change. */
 export function CustomerList() {
@@ -32,6 +33,7 @@ export function CustomerList() {
 
   return (
     <View style={{ flex: 1 }}>
+      <UnreadBadge />
       <TextInput
         value={search.value}
         onChangeText={onSearch}

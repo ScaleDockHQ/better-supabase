@@ -2,121 +2,18 @@ import type * as ReactModule from "react";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  type CommandSearchState,
-  useCommandSearch,
-} from "../../../../src/blocks/search/react/index.ts";
+import { useCommandSearch } from "../../../../src/blocks/search/react/index.ts";
+import { webKeyboard } from "../../../../src/client/web-ports.ts";
 import {
   BetterSupabaseProvider,
   type ClientLike,
 } from "../../../../src/react/hooks.ts";
+import { renderHook as render } from "../../../fixtures/hook-runtime.ts";
 
-/**
- * A synchronous hook runtime standing in for React's dispatcher: effects run
- * after each render, and state updates render again.
- */
-const runtime = vi.hoisted(() => {
-  interface Slot {
-    value?: unknown;
-    deps?: readonly unknown[] | undefined;
-    cleanup?: (() => void) | undefined;
-    setter?: (next: unknown) => void;
-  }
-  const state = {
-    slots: [] as Slot[],
-    index: 0,
-    pending: [] as (() => void)[],
-    provided: new Map<object, unknown>(),
-    rendering: false,
-    flushing: false,
-    dirty: false,
-    render: (() => undefined) as () => void,
-  };
-  const slot = (): Slot => {
-    const index = state.index;
-    state.index += 1;
-    return (state.slots[index] ??= {});
-  };
-  const changed = (
-    before: readonly unknown[] | undefined,
-    after: readonly unknown[] | undefined,
-  ): boolean =>
-    before === undefined ||
-    after === undefined ||
-    before.length !== after.length ||
-    before.some((value, index) => !Object.is(value, after[index]));
-  const schedule = (): void => {
-    if (state.rendering || state.flushing) state.dirty = true;
-    else state.render();
-  };
-  return { state, slot, changed, schedule };
-});
-
-vi.mock("react", async (importOriginal) => {
-  const actual = await importOriginal<typeof ReactModule>();
-  const { state, slot, changed, schedule } = runtime;
-  return {
-    ...actual,
-    createElement: (
-      type: unknown,
-      props: { value?: unknown } | null,
-      ...children: unknown[]
-    ) => {
-      // A context object is its own provider in React 19.
-      if (typeof type === "object" && type !== null && "Consumer" in type)
-        state.provided.set(type, props?.value);
-      return { type, props, children };
-    },
-    useContext: (context: object) => state.provided.get(context) ?? null,
-    useState: (initial: unknown) => {
-      const cell = slot();
-      if (!cell.setter) {
-        cell.value = typeof initial === "function" ? initial() : initial;
-        cell.setter = (next) => {
-          const value = typeof next === "function" ? next(cell.value) : next;
-          if (Object.is(value, cell.value)) return;
-          cell.value = value;
-          schedule();
-        };
-      }
-      return [cell.value, cell.setter];
-    },
-    useRef: (initial: unknown) => {
-      const cell = slot();
-      if (!("value" in cell)) cell.value = { current: initial };
-      return cell.value;
-    },
-    useMemo: (factory: () => unknown, deps: readonly unknown[]) => {
-      const cell = slot();
-      if (changed(cell.deps, deps)) {
-        cell.value = factory();
-        cell.deps = deps;
-      }
-      return cell.value;
-    },
-    useCallback: (fn: unknown, deps: readonly unknown[]) => {
-      const cell = slot();
-      if (changed(cell.deps, deps)) {
-        cell.value = fn;
-        cell.deps = deps;
-      }
-      return cell.value;
-    },
-    useEffect: (
-      effect: () => (() => void) | undefined,
-      deps?: readonly unknown[],
-    ) => {
-      const cell = slot();
-      if (!changed(cell.deps, deps)) return;
-      cell.deps = deps;
-      state.pending.push(() => {
-        cell.cleanup?.();
-        const cleanup = effect();
-        cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
-      });
-    },
-  };
-});
+vi.mock("react", async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactModule>()),
+  ...(await import("../../../fixtures/hook-runtime.ts")).reactHooks,
+}));
 
 const rpc = {
   handler: (_fn: string, _args: Record<string, unknown>): unknown => null,
@@ -136,48 +33,16 @@ const supabase = {
   }),
 };
 
-const client = { supabase } as unknown as ClientLike;
+// SAFETY: the hook reads only `supabase` and the keyboard port from the client.
+const client = {
+  supabase,
+  ports: { keyboard: webKeyboard() },
+} as unknown as ClientLike;
 
-function renderHook(hook: () => CommandSearchState): {
-  readonly result: CommandSearchState;
-  unmount: () => void;
-} {
-  const { state } = runtime;
-  state.slots = [];
-  state.provided = new Map();
-  let current: CommandSearchState | undefined;
-  state.render = () => {
-    do {
-      state.dirty = false;
-      state.rendering = true;
-      state.index = 0;
-      try {
-        BetterSupabaseProvider({ client });
-        current = hook();
-      } finally {
-        state.rendering = false;
-      }
-      state.flushing = true;
-      try {
-        for (const effect of state.pending.splice(0)) effect();
-      } finally {
-        state.flushing = false;
-      }
-      // Effects set `dirty` through state updates, which control flow can't see.
-    } while ((state as { dirty: boolean }).dirty);
-  };
-  state.render();
-  return {
-    get result(): CommandSearchState {
-      return current!;
-    },
-    unmount() {
-      for (const cell of state.slots) cell.cleanup?.();
-      state.slots = [];
-      state.render = () => undefined;
-    },
-  };
-}
+const renderHook = <R>(hook: () => R) =>
+  render(hook, undefined, () => {
+    BetterSupabaseProvider({ client });
+  });
 
 const hit = (subjectType: string, subjectId: string) => ({
   organizationId: "org",

@@ -184,9 +184,17 @@ export function ConversationList({
 | `useConversation({ conversationId, load })` | The messages as `items`, who is `typing` and a `setTyping`       |
 | `useInboxWidget({ open, send, load })`      | An in-app widget: `submit`, `reset` and the open conversation    |
 
-`useInboxWidget` keeps the open conversation id in `localStorage` under
-`storageKey`, so mount it only in the browser. Throttle `setTyping`
-yourself; a ping counts for `typingMs` (5000 by default).
+`useInboxWidget` keeps the open conversation id under `storageKey` in the
+client's storage port: `localStorage` on the web, and the store passed to
+`nativePorts({ storage })` on React Native (see
+[block controllers](/docs/frontend/block-controllers)). Without a storage
+port it forgets the conversation on reload. Throttle `setTyping` yourself;
+a ping counts for `typingMs` (5000 by default).
+
+Each hook wraps a controller from `better-supabase/blocks/inbox`
+(`createInboxController`, `createConversationController` and
+`createInboxWidgetController`) that a Vue, Svelte or plain TypeScript UI
+can use directly.
 
 ## Block events
 

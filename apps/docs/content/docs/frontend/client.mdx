@@ -57,6 +57,14 @@ imports `@supabase/ssr`, stores the session in the device keychain with
 The publishable key and URL are validated like on the server: a secret key
 or a legacy JWT key is rejected before any request is made.
 
+## Ports
+
+`bs.ports` holds the platform services the block hooks use: `localStorage`,
+the Cmd+K listener, a file picker, deep links and uploads to Supabase
+Storage. `ports` in the options adds or replaces them, such as a push port
+with `webPushToken({ vapidPublicKey })`. See
+[block controllers](/docs/frontend/block-controllers).
+
 ## Edge Functions
 
 `functions<Contracts>(bs.supabase)` calls Edge Functions defined with

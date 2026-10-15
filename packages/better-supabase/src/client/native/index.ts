@@ -22,6 +22,38 @@ export type {
 export { autoRefreshOnForeground } from "./auto-refresh.ts";
 export type { AppStateLike, AutoRefreshClient } from "./auto-refresh.ts";
 export { keyValue } from "./key-value.ts";
+export {
+  expoPushToken,
+  nativeDeepLinks,
+  nativeFilePicker,
+  nativePorts,
+  nativeStorage,
+} from "./ports.ts";
+export type {
+  DocumentPickerAsset,
+  DocumentPickerLike,
+  ExpoNotificationsLike,
+  ExpoPushTokenOptions,
+  LinkingLike,
+  NativePortsOptions,
+} from "./ports.ts";
+export { memoryStorage, storageUpload } from "../ports.ts";
+export type {
+  ClientPorts,
+  DeepLinkPort,
+  FilePickerPort,
+  KeyboardPort,
+  PickedFile,
+  PickFilesOptions,
+  PushTokenPort,
+  Shortcut,
+  StoragePort,
+  TopicHandle,
+  TopicPort,
+  TopicWatch,
+  UploadDestination,
+  UploadPort,
+} from "../ports.ts";
 export type {
   AsyncStorageLike,
   KeyValue,

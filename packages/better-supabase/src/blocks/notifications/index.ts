@@ -88,3 +88,13 @@ export type {
   NotificationSubject,
   RenderedText,
 } from "./types.ts";
+
+export { createNotificationsController, unreadCount } from "./client.ts";
+export type {
+  NotificationFeedOptions,
+  NotificationsActions,
+  NotificationsController,
+  NotificationsControllerOptions,
+  NotificationSource,
+  NotificationsSnapshot,
+} from "./client.ts";

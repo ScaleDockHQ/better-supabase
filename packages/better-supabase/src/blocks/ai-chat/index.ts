@@ -93,3 +93,28 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export {
+  createAiChatsController,
+  createAiChatTreeController,
+  createAiModelsController,
+  createAiShareController,
+} from "./client.ts";
+export type {
+  AiChatsActions,
+  AiChatsController,
+  AiChatsControllerOptions,
+  AiChatsSnapshot,
+  AiChatTreeActions,
+  AiChatTreeController,
+  AiChatTreeControllerOptions,
+  AiChatTreeSnapshot,
+  AiModelsActions,
+  AiModelsController,
+  AiModelsControllerOptions,
+  AiModelsSnapshot,
+  AiShareActions,
+  AiShareController,
+  AiShareControllerOptions,
+  AiShareSnapshot,
+} from "./client.ts";

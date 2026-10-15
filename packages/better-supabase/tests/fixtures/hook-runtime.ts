@@ -1,6 +1,7 @@
 /**
  * A synchronous stand-in for React's dispatcher, for hooks built on
- * `useState`, `useMemo`, `useCallback` and `useEffect`. No renderer is
+ * `useState`, `useRef`, `useMemo`, `useCallback`, `useEffect` and
+ * `useSyncExternalStore`. No renderer is
  * installed: effects run after each render, and a state update renders again.
  * A test spreads `reactHooks` into its `vi.mock("react")` factory. This module
  * imports nothing from React, so the factory can load it.
@@ -13,6 +14,7 @@ interface Slot {
   deps?: Deps | undefined;
   cleanup?: (() => void) | undefined;
   setter?: (next: unknown) => void;
+  subscribe?: unknown;
 }
 
 const state = {
@@ -53,6 +55,11 @@ export interface ReactHooks {
   useMemo(factory: () => unknown, deps: Deps): unknown;
   useCallback(fn: unknown, deps: Deps): unknown;
   useEffect(effect: () => (() => void) | undefined, deps?: Deps): void;
+  useRef(initial: unknown): { current: unknown };
+  useSyncExternalStore(
+    subscribe: (listener: () => void) => () => void,
+    getSnapshot: () => unknown,
+  ): unknown;
 }
 
 export const reactHooks: ReactHooks = {
@@ -104,6 +111,24 @@ export const reactHooks: ReactHooks = {
       const cleanup = effect();
       cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
     });
+  },
+  useRef(initial) {
+    const cell = slot();
+    if (!("value" in cell)) cell.value = { current: initial };
+    // SAFETY: the branch above stored a ref object in this slot.
+    return cell.value as { current: unknown };
+  },
+  useSyncExternalStore(subscribe, getSnapshot) {
+    const cell = slot();
+    if (cell.subscribe !== subscribe) {
+      cell.cleanup?.();
+      cell.subscribe = subscribe;
+      cell.cleanup = subscribe(() => {
+        if (!Object.is(getSnapshot(), cell.value)) schedule();
+      });
+    }
+    cell.value = getSnapshot();
+    return cell.value;
   },
 };
 

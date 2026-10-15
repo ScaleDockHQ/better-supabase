@@ -6,3 +6,12 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export { createUndoController } from "./client.ts";
+export type {
+  UndoActions,
+  UndoController,
+  UndoEntry,
+  UndoSnapshot,
+  UndoStackOptions,
+} from "./client.ts";

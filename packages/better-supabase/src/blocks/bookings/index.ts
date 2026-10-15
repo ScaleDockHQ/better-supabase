@@ -23,3 +23,11 @@ export {
   toEventCalendarBookings,
   type BookingEventOptions,
 } from "./event-calendar.ts";
+
+export { createAvailableSlotsController } from "./client.ts";
+export type {
+  AvailableSlotsActions,
+  AvailableSlotsController,
+  AvailableSlotsOptions,
+  AvailableSlotsSnapshot,
+} from "./client.ts";

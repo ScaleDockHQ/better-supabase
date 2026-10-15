@@ -74,3 +74,11 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export { createQuestionnaireController } from "./client.ts";
+export type {
+  QuestionnaireActions,
+  QuestionnaireController,
+  QuestionnaireOptions,
+  QuestionnaireSnapshot,
+} from "./client.ts";

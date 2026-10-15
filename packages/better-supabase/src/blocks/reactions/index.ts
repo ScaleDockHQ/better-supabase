@@ -14,3 +14,11 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export { createReactionsController } from "./client.ts";
+export type {
+  ReactionsActions,
+  ReactionsController,
+  ReactionsControllerOptions,
+  ReactionsSnapshot,
+} from "./client.ts";

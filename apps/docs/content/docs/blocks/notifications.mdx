@@ -265,6 +265,12 @@ export function Inbox({
 }
 ```
 
+The same hook runs in React Native: the Expo example
+(`apps/examples/expo-powersync/src/lib/notifications.ts`) shows an unread
+count with it. Outside React, `createNotificationsController` from
+`better-supabase/blocks/notifications` holds the same state (see
+[block controllers](/docs/frontend/block-controllers)).
+
 | Option         | Default                  | Meaning                                                                  |
 | -------------- | ------------------------ | ------------------------------------------------------------------------ |
 | `realtime`     | `broadcast`              | `broadcast`, `changes` (adds the table to `supabase_realtime`) or `none` |

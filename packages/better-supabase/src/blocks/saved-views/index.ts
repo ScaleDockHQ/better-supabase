@@ -32,3 +32,14 @@ export {
   urlStateFromQuery,
 } from "./query-state.ts";
 export type { ListUrlState } from "./query-state.ts";
+
+export { createSavedViewsController, matchSavedViews } from "./client.ts";
+export type {
+  SavedViewsSyncOptions,
+  SavedViewLike,
+  SavedViewsActions,
+  SavedViewsController,
+  SavedViewsControllerOptions,
+  SavedViewsMatch,
+  SavedViewsSnapshot,
+} from "./client.ts";

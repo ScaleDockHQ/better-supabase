@@ -4,6 +4,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
@@ -55,6 +56,8 @@ export interface BetterClient<
   /** TanStack Query option factories over `db`. */
   readonly queries: BetterQueries<M, E, F>;
   readonly auth: ClientAuth;
+  /** The platform services block controllers use: storage, shortcuts, files, push, links. */
+  readonly ports: ClientPorts;
   /**
    * Stops following `supabase`'s session. Call it when the client goes away
    * before the app does: Fast Refresh, tests, a client per account.
@@ -68,6 +71,11 @@ export interface BindClientOptions {
    * or a window focus reuses cached rows instead of refetching them.
    */
   readonly staleTime?: number;
+  /**
+   * Platform services for the block hooks. React Native apps pass
+   * `nativePorts()` from `better-supabase/client/native`.
+   */
+  readonly ports?: ClientPorts;
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -158,6 +166,7 @@ export function bindClient<
   const client: BetterClient<M, F, E, C, P> = {
     betterSupabase,
     supabase,
+    ports: options.ports ?? {},
     get db() {
       db ??= betterSupabase.connect(supabase, contextOf(snapshot));
       return db;

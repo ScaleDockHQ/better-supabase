@@ -40,3 +40,24 @@ export type {
   PurgedContact,
   StoredInboundEvent,
 } from "./types.ts";
+
+export {
+  createConversationController,
+  createInboxController,
+  createInboxWidgetController,
+} from "./client.ts";
+export type {
+  ConversationActions,
+  ConversationController,
+  ConversationControllerOptions,
+  ConversationSnapshot,
+  InboxController,
+  InboxControllerOptions,
+  InboxListActions,
+  InboxListSnapshot,
+  InboxSource,
+  InboxWidgetActions,
+  InboxWidgetController,
+  InboxWidgetControllerOptions,
+  InboxWidgetSnapshot,
+} from "./client.ts";

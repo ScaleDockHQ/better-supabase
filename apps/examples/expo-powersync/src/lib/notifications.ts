@@ -1,0 +1,40 @@
+import {
+  createNotifications,
+  type NotificationCounts,
+  rpcTransport,
+} from "better-supabase/blocks/notifications";
+import { useNotifications } from "better-supabase/blocks/notifications/react";
+import { useAuth } from "better-supabase/react";
+
+import { supabase } from "./supabase/native";
+
+/** Reads counts only, so it needs no notification types. */
+const notifications = createNotifications({
+  transport: rpcTransport(supabase, { schema: "api" }),
+  types: {},
+});
+
+async function loadCounts(): Promise<readonly NotificationCounts[]> {
+  const result = await notifications.counts();
+  return result.ok ? [result.data] : [];
+}
+
+const unreadOf = (counts: readonly NotificationCounts[]): number =>
+  counts[0]?.unread ?? 0;
+
+/**
+ * The caller's unread count, loaded again after each broadcast on
+ * `notifications:<user id>`. It is the hook the Next.js example's header
+ * badge calls, imported from the same entry: the controller behind it uses
+ * the client's ports, so it runs on React Native unchanged.
+ */
+export function useUnreadCount() {
+  const auth = useAuth();
+  const userId = auth.user?.id;
+  const { items, count, status } = useNotifications({
+    topic: userId ? `notifications:${userId}` : null,
+    load: loadCounts,
+    count: unreadOf,
+  });
+  return { count: items === undefined ? undefined : count, status };
+}

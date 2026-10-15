@@ -21,3 +21,18 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export {
+  createWorkflowRunController,
+  createWorkflowRunsController,
+} from "./client.ts";
+export type {
+  WorkflowRunActions,
+  WorkflowRunController,
+  WorkflowRunControllerOptions,
+  WorkflowRunsActions,
+  WorkflowRunsController,
+  WorkflowRunsControllerOptions,
+  WorkflowRunSnapshot,
+  WorkflowRunsSnapshot,
+} from "./client.ts";

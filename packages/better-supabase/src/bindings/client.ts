@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
 import type { AuthSnapshot, ClientAuth } from "../client/index.ts";
+import type { ClientPorts } from "../client/ports.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type {
@@ -36,6 +37,8 @@ export interface ClientLike {
   readonly auth: ClientAuth;
   readonly db: object;
   readonly queries: object;
+  /** The platform services block controllers use; see `ClientPorts`. */
+  readonly ports?: ClientPorts;
 }
 
 /** A value that changes, read with `current()` and watched with `subscribe()`. */

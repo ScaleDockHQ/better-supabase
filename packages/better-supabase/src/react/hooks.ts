@@ -4,8 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
 import {
-  type Context,
-  createContext,
   createElement,
   type ReactNode,
   useContext,
@@ -48,6 +46,7 @@ import {
 } from "../bindings/client.ts";
 import { sessionUserId, specKey } from "../bindings/keys.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
+import { ClientContext, type ContextValue } from "./context.ts";
 import { useSession } from "./session.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
@@ -59,13 +58,7 @@ export type {
   LiveQueryHookOptions,
 } from "../bindings/client.ts";
 
-export interface ContextValue {
-  readonly client: ClientLike;
-  readonly queryClient: QueryClient | undefined;
-}
-
-export const ClientContext: Context<ContextValue | null> =
-  createContext<ContextValue | null>(null);
+export { ClientContext } from "./context.ts";
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
