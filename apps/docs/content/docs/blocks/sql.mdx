@@ -357,10 +357,9 @@ A tenant name that would rename a table or column to a name a block already
 uses is refused. `team`, for example, can't run with `teams`, `profiles` or the
 other blocks with a `team_id` column.
 
-`better-supabase gen` writes the names to the generated module as
-`blockNaming`. Wrap the blocks' transport with `blockNames(blockNaming)` so
-the block clients call the renamed functions; see
-[transports](/docs/blocks/create-blocks#renamed-functions).
+`better-supabase gen` writes the names to `blocks.generated.ts`, and
+`defineBlocks` makes the block clients call the renamed functions; see
+[renamed functions](/docs/blocks/create-blocks#renamed-functions).
 
 ## Existing tables: managed, adopt and custom
 

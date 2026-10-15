@@ -310,6 +310,17 @@ describe("addBlocksToWiring", () => {
     });
   });
 
+  it("adds to the blocks object of defineBlocks(blockConfig, { ... })", () => {
+    const edit = addBlocksToWiring(
+      "export const blockSet = defineBlocks(blockConfig, { tags: tagsBlock });\n",
+      [block],
+    );
+    expect(edit).toEqual({
+      ok: true,
+      text: 'import { commentsBlock } from "better-supabase/blocks/comments";\n\nexport const blockSet = defineBlocks(blockConfig, { tags: tagsBlock, comments: commentsBlock });\n',
+    });
+  });
+
   it("puts the import first in a file without imports", () => {
     const edit = addBlocksToWiring("createBlocks(options, {});\n", [block]);
     expect(edit).toEqual({
@@ -321,7 +332,7 @@ describe("addBlocksToWiring", () => {
   it("refuses wiring it can't follow", () => {
     expect(addBlocksToWiring("export {};\n", [block])).toEqual({
       ok: false,
-      reason: "it doesn't call createBlocks()",
+      reason: "it doesn't call defineBlocks() or createBlocks()",
     });
     expect(
       addBlocksToWiring("createBlocks(options, blocks);\n", [block]),

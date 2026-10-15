@@ -1,5 +1,5 @@
 import type { AuthorizationProvider } from "./authorization.ts";
-import type { BlocksConfig } from "./blocks.ts";
+import type { AnyBlocksConfig } from "./blocks.ts";
 import type { Generator } from "./types/codegen.ts";
 import type { BetterSupabaseConfig, ResolvedConfig } from "./types/config.ts";
 import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
@@ -100,10 +100,10 @@ function blocksOf(
  * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(
-  modules: BlocksConfig,
+  modules: AnyBlocksConfig,
   names: readonly string[],
   sql: SqlConfig,
-): BlocksConfig {
+): AnyBlocksConfig {
   if (sql.schema === undefined && sql.api === undefined) return modules;
   const { schema, api } = sql;
   return Object.fromEntries(

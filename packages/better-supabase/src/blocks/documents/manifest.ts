@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { DocumentsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createDocuments } from "./documents.ts";
 import { documentsEvents } from "./events.ts";
+import { documentsSqlOptions } from "./options.ts";
 
 /** The `documents` block's manifest (ADR 0029). */
 export const documentsBlock: BlockOf<
@@ -14,12 +15,7 @@ export const documentsBlock: BlockOf<
   name: "documents",
   sql: ["documents"],
   options: {
-    documents: optionKeys([
-      "subjects",
-      "topic",
-      "maxUpdateBytes",
-      "compactAfter",
-    ]),
+    documents: documentsSqlOptions,
   },
   events: documentsEvents,
   create: createDocuments,

@@ -15,7 +15,7 @@ export interface UseReactionsOptions {
   readonly subjectType: string;
   /** The subjects on screen, at most 200. */
   readonly subjectIds: readonly string[];
-  /** `blocks.reactions.options.topic`; `null` loads without listening. */
+  /** `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null` loads without listening. */
   readonly topic?: string | null;
   /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
   readonly schema?: string;

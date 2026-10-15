@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { EngagementsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createEngagements } from "./engagements.ts";
 import { engagementsEvents } from "./events.ts";
+import { engagementsSqlOptions } from "./options.ts";
 
 /** The `engagements` block's manifest (ADR 0029). */
 export const engagementsBlock: BlockOf<
@@ -14,7 +15,7 @@ export const engagementsBlock: BlockOf<
   name: "engagements",
   sql: ["engagements"],
   options: {
-    engagements: optionKeys(["types"]),
+    engagements: engagementsSqlOptions,
   },
   events: engagementsEvents,
   create: createEngagements,

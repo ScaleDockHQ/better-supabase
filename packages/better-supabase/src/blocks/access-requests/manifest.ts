@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { AccessRequestsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createAccessRequests } from "./access-requests.ts";
 import { accessRequestsEvents } from "./events.ts";
+import { accessRequestsSqlOptions } from "./options.ts";
 
 /** The `access-requests` block's manifest (ADR 0029). */
 export const accessRequestsBlock: BlockOf<
@@ -14,7 +15,7 @@ export const accessRequestsBlock: BlockOf<
   name: "access-requests",
   sql: ["access-requests"],
   options: {
-    "access-requests": optionKeys(["roles", "policy", "maxDuration", "join"]),
+    "access-requests": accessRequestsSqlOptions,
   },
   events: accessRequestsEvents,
   create: createAccessRequests,

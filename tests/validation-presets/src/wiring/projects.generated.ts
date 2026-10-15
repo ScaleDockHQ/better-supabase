@@ -1,6 +1,6 @@
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -19,29 +19,31 @@ import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { timeTrackingBlock } from "better-supabase/blocks/time-tracking";
 
+import { blockConfig } from "./projects.blocks.generated.ts";
+
+/** The installed blocks, with the settings `better-supabase gen` writes from the config. */
+export const blockSet = defineBlocks(blockConfig, {
+  apiKeys: apiKeysBlock,
+  approvals: approvalsBlock,
+  attachments: attachmentsBlock,
+  audit: auditBlock,
+  billing: billingBlock,
+  comments: commentsBlock,
+  notifications: notificationsBlock,
+  organizations: organizationsBlock,
+  profiles: profilesBlock,
+  rank: rankBlock,
+  reminders: remindersBlock,
+  stateMachine: stateMachineBlock,
+  tags: tagsBlock,
+  teams: teamsBlock,
+  timeTracking: timeTrackingBlock,
+});
+
 /**
  * The blocks as typed clients, acting as the caller of `supabase`: its
  * token, so RLS and each function's checks apply.
  */
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    { transport: rpcTransport(supabase) },
-    {
-      apiKeys: apiKeysBlock,
-      approvals: approvalsBlock,
-      attachments: attachmentsBlock,
-      audit: auditBlock,
-      billing: billingBlock,
-      comments: commentsBlock,
-      notifications: notificationsBlock,
-      organizations: organizationsBlock,
-      profiles: profilesBlock,
-      rank: rankBlock,
-      reminders: remindersBlock,
-      stateMachine: stateMachineBlock,
-      tags: tagsBlock,
-      teams: teamsBlock,
-      timeTracking: timeTrackingBlock,
-    },
-  );
+  return blockSet.create({ transport: rpcTransport(supabase) });
 }

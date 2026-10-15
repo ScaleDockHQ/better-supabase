@@ -95,7 +95,7 @@ union comes from the manifests you pass, never from `declare module`.
 ### App events
 
 `defineEvents` declares your own events with their data, for
-`defineBlocks(blocks, appEvents)` and `onBlockEvent`. `emitBlockEvent` sends
+`defineBlocks(blockConfig, blocks, appEvents)` and `onBlockEvent`. `emitBlockEvent` sends
 one, typed by the same map:
 
 ```ts

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
 import { renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const render = (modules: BlocksConfig, names = Object.keys(modules)) => {
+const render = (modules: AnyBlocksConfig, names = Object.keys(modules)) => {
   const files = renderModules(names, {
     modules,
     accessProvider: moduleProvider,
@@ -15,7 +15,7 @@ const render = (modules: BlocksConfig, names = Object.keys(modules)) => {
     files.find((file) => file.module === module)?.contents ?? "";
 };
 
-const ADOPTED: BlocksConfig = {
+const ADOPTED: AnyBlocksConfig = {
   tenant: {
     mode: "adopt",
     tables: { memberships: "public.organization_users" },
@@ -29,7 +29,7 @@ const ADOPTED: BlocksConfig = {
   },
 };
 
-const SUSPENDABLE: BlocksConfig = {
+const SUSPENDABLE: AnyBlocksConfig = {
   ...ADOPTED,
   tenant: {
     ...ADOPTED["tenant"],

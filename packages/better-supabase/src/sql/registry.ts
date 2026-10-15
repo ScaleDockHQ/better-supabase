@@ -1,11 +1,8 @@
+import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout } from "./module-types.ts";
 import type { ModuleDefinition, SqlModule } from "./module-types.ts";
 
-import {
-  BLOCK_SCOPES,
-  type BlockScope,
-  type BlocksConfig,
-} from "../config/blocks.ts";
+import { BLOCK_SCOPES, type BlockScope } from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
@@ -320,7 +317,7 @@ export function resolveModules(
 
 /** Throws on a `blocks` key that names no module, or a mode a module doesn't support. */
 export function checkModules(
-  config: BlocksConfig = {},
+  config: AnyBlocksConfig = {},
   registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,
 ): void {
   for (const [name, entry] of Object.entries(config)) {

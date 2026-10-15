@@ -1,7 +1,7 @@
 import type {
   AccessBlockConfig,
   BlockConfig,
-  BlocksConfig,
+  AnyBlocksConfig,
 } from "../config/blocks.ts";
 import type { BetterSupabaseConfig } from "../config/types/config.ts";
 import type { Preset } from "./fields.ts";
@@ -59,7 +59,7 @@ export function presetConfig(resolved: ResolvedPreset): Pick<
   BetterSupabaseConfig,
   "casing" | "sql" | "integrations"
 > & {
-  readonly blocks: BlocksConfig;
+  readonly blocks: AnyBlocksConfig;
 } {
   const { preset } = resolved;
   const sql = sqlOf(preset);
@@ -84,7 +84,7 @@ function isBlockList(
   return Array.isArray(blocks);
 }
 
-function blocksOf(blocks: BetterSupabaseConfig["blocks"]): BlocksConfig {
+function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
   if (blocks === undefined) return {};
   if (!isBlockList(blocks)) return blocks;
   return Object.fromEntries(blocks.map((name) => [name, {}]));

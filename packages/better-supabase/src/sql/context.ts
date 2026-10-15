@@ -1,11 +1,13 @@
+import type { BlockOptionsSchema } from "../blocks/options.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
+import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import {
   type BlockMode,
+  type AnyBlocksConfig,
   type BlockScope,
-  type BlocksConfig,
   type ResolvedModule,
   resolveModule,
 } from "../config/blocks.ts";
@@ -226,7 +228,7 @@ export interface ModuleContext {
   readonly schemaName: string;
   readonly idType: ModuleIdType;
   readonly claims: ClaimsMeta;
-  readonly modules: BlocksConfig;
+  readonly modules: AnyBlocksConfig;
   /** The app-wide subject registry (`config.subjects`). */
   readonly subjects: SubjectsConfig;
   /**
@@ -365,7 +367,7 @@ const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
 const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface ModuleContextSource {
-  readonly modules?: BlocksConfig;
+  readonly modules?: AnyBlocksConfig;
   /** `config.subjects`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
   readonly claims?: ClaimsMeta;
@@ -471,6 +473,16 @@ export function createModuleContext(
     if (!declared.has(key)) {
       throw new TypeError(
         `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`,
+      );
+    }
+  }
+  const optionsSchema = optionSchemaOf(module);
+  if (optionsSchema !== undefined) {
+    const outcome = optionsSchema["~standard"].validate(config.options);
+    if (!(outcome instanceof Promise) && outcome.issues !== undefined) {
+      const [issue] = outcome.issues;
+      throw new TypeError(
+        `${where}.options: ${issue?.message ?? "invalid options"}`,
       );
     }
   }
@@ -890,4 +902,12 @@ export function contractSignature(
   idType: string,
 ): string {
   return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");
+}
+
+/** The manifest's options schema of `module`, when it is a built-in module. */
+function optionSchemaOf(module: string): BlockOptionsSchema | undefined {
+  const entry = Object.entries(BLOCK_OPTION_SCHEMAS).find(
+    ([name]) => name === module,
+  );
+  return entry?.[1];
 }

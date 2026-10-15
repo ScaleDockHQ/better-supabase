@@ -1,6 +1,6 @@
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -19,29 +19,31 @@ import { searchBlock } from "better-supabase/blocks/search";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
+import { blockConfig } from "./crm.blocks.generated.ts";
+
+/** The installed blocks, with the settings `better-supabase gen` writes from the config. */
+export const blockSet = defineBlocks(blockConfig, {
+  apiKeys: apiKeysBlock,
+  audit: auditBlock,
+  billing: billingBlock,
+  comments: commentsBlock,
+  customFields: customFieldsBlock,
+  engagements: engagementsBlock,
+  notifications: notificationsBlock,
+  organizations: organizationsBlock,
+  parties: partiesBlock,
+  pipelines: pipelinesBlock,
+  profiles: profilesBlock,
+  savedViews: savedViewsBlock,
+  search: searchBlock,
+  tags: tagsBlock,
+  teams: teamsBlock,
+});
+
 /**
  * The blocks as typed clients, acting as the caller of `supabase`: its
  * token, so RLS and each function's checks apply.
  */
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    { transport: rpcTransport(supabase) },
-    {
-      apiKeys: apiKeysBlock,
-      audit: auditBlock,
-      billing: billingBlock,
-      comments: commentsBlock,
-      customFields: customFieldsBlock,
-      engagements: engagementsBlock,
-      notifications: notificationsBlock,
-      organizations: organizationsBlock,
-      parties: partiesBlock,
-      pipelines: pipelinesBlock,
-      profiles: profilesBlock,
-      savedViews: savedViewsBlock,
-      search: searchBlock,
-      tags: tagsBlock,
-      teams: teamsBlock,
-    },
-  );
+  return blockSet.create({ transport: rpcTransport(supabase) });
 }

@@ -6,7 +6,7 @@
  * before anything is written.
  */
 
-import type { BlockConfig, BlocksConfig } from "../../config/index.ts";
+import type { AnyBlocksConfig, BlockConfig } from "../../config/index.ts";
 import type { CatalogTable } from "../introspect/types.ts";
 
 import { toSnake } from "../../index.ts";
@@ -220,7 +220,7 @@ export interface ProposeOptions {
   /** Tables named with `--from`, as `table` or `schema.table`. */
   readonly from?: readonly string[];
   /** The config's blocks, so the proposal is checked next to them. */
-  readonly blocks?: BlocksConfig;
+  readonly blocks?: AnyBlocksConfig;
   /** Schemas searched for the module's default table names. Defaults to `public`. */
   readonly schemas?: readonly string[];
 }

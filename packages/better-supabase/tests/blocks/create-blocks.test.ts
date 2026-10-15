@@ -162,7 +162,7 @@ describe("createBlocks hooks", () => {
 describe("createBlocks", () => {
   it("builds each block with the shared options and types the result", () => {
     const blocks = createBlocks(
-      { transport, schema: "api" },
+      { transport },
       { organizations: organizationsBlock, audit: auditBlock },
     );
     expect(typeof blocks.organizations.create).toBe("function");
@@ -206,13 +206,46 @@ describe("createBlocks", () => {
     expect(seen[1]).not.toHaveProperty("files");
   });
 
-  it("passes `with` settings over the shared options", () => {
+  it("passes `with` settings over the generated config", () => {
     const seen: Record<string, unknown>[] = [];
     createBlocks(
-      { transport, schema: "api" },
+      {
+        transport,
+        config: { recorder: { schema: "better_supabase", options: {} } },
+      },
       { a: recorder(seen).with({ schema: "own", extra: 1 }) },
     );
     expect(seen[0]).toMatchObject({ schema: "own", extra: 1 });
+  });
+
+  it("passes each block its generated schema and shared options by block name", () => {
+    const seen: Record<string, unknown>[] = [];
+    createBlocks(
+      {
+        transport,
+        config: {
+          recorder: {
+            schema: "better_supabase",
+            api: "api",
+            options: { requireScan: false },
+          },
+        },
+      },
+      { mine: recorder(seen) },
+    );
+    expect(seen[0]).toMatchObject({ schema: "api", requireScan: false });
+  });
+
+  it("uses the module schema when the generated entry has no API schema", () => {
+    const seen: Record<string, unknown>[] = [];
+    createBlocks(
+      {
+        transport,
+        config: { recorder: { schema: "app_blocks", options: {} } },
+      },
+      { mine: recorder(seen) },
+    );
+    expect(seen[0]).toMatchObject({ schema: "app_blocks" });
   });
 
   it("hands ai-tasks the notifier port and its notification type", () => {
@@ -353,7 +386,11 @@ describe("defineBlocks", () => {
   const app = defineEvents({
     "invoice.sent": event<{ readonly invoiceId: string }>(),
   });
+  const config = {
+    organizations: { schema: "better_supabase", api: "api", options: {} },
+  } as const;
   const set = defineBlocks(
+    config,
     { organizations: organizationsBlock, audit: auditBlock },
     app,
   );
@@ -394,8 +431,34 @@ describe("defineBlocks", () => {
     expect(seen).toEqual(["i1", "organization.created"]);
   });
 
-  it("creates the blocks", () => {
+  it("calls the functions by the generated names", async () => {
+    const calls: string[] = [];
+    const named = defineBlocks(
+      {
+        organizations: {
+          schema: "better_supabase",
+          options: {},
+          naming: { tenant: "workspace" },
+        },
+      },
+      { organizations: organizationsBlock },
+    );
+    const blocks = named.create({
+      transport: {
+        async call(_schema, fn) {
+          calls.push(fn);
+          return [{ workspace_id: "w1", role: "owner" }];
+        },
+      },
+    });
+    await blocks.organizations.mine();
+    expect(calls).toEqual(["list_my_workspaces"]);
+    blocks.close();
+  });
+
+  it("creates the blocks with the generated config", () => {
     const blocks = set.create({ transport });
+    expect(set.config).toBe(config);
     expect(typeof blocks.organizations.create).toBe("function");
     blocks.close();
   });

@@ -281,7 +281,7 @@ export interface FlagsProviderOptions<
    * `service_role` only, as it lists every override.
    */
   readonly transport?: BlockTransport;
-  /** The module schema (`blocks.flags.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   /** How long the definitions are cached, in milliseconds. Default 30000. */
   readonly ttl?: number;

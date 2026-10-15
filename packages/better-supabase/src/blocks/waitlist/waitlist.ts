@@ -79,7 +79,7 @@ export interface Redemption {
 
 export interface WaitlistOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`blocks.waitlist.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -243,7 +243,7 @@ export interface WaitlistHookOptions {
   readonly transport: BlockTransport;
   /** The hook secret, `v1,whsec_...`, or several while rotating. */
   readonly secret: string | readonly string[];
-  /** The user metadata field the client puts the code in (`codeField`), default `invite_code`. */
+  /** The user metadata field the client puts the code in: `blockConfig.waitlist.options.codeField` from `blocks.generated.ts`, default `invite_code`. */
   readonly codeField?: string;
   /** What Supabase Auth tells a rejected sign-up. */
   readonly message?: string;

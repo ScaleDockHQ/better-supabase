@@ -27,7 +27,7 @@ export interface IdentitiesOptions extends BlockTemporalOptions {
    * `backfillVerifiedEmails`.
    */
   readonly transport: BlockTransport;
-  /** `blocks.identities.schema`. Defaults to `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

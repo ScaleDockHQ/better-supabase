@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { IncomingWebhooksEvents, WebhooksEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { incomingWebhooksEvents, webhooksEvents } from "./events.ts";
 import { createIncomingWebhooks } from "./incoming.ts";
+import { webhooksOutSqlOptions, webhooksInSqlOptions } from "./options.ts";
 import { createWebhooks } from "./outgoing.ts";
 
 /** The `webhooks` block's manifest (ADR 0029). */
@@ -15,14 +16,7 @@ export const webhooksBlock: BlockOf<
   name: "webhooks",
   sql: ["webhooks-out"],
   options: {
-    "webhooks-out": optionKeys([
-      "allowHttp",
-      "disableAfter",
-      "eventIdType",
-      "runIdType",
-      "secretStorage",
-      "statuses",
-    ]),
+    "webhooks-out": webhooksOutSqlOptions,
   },
   events: webhooksEvents,
   create: createWebhooks,
@@ -38,7 +32,7 @@ export const incomingWebhooksBlock: BlockOf<
   name: "incoming-webhooks",
   sql: ["webhooks-in"],
   options: {
-    "webhooks-in": optionKeys(["maxBodyBytes", "secretStorage", "subjects"]),
+    "webhooks-in": webhooksInSqlOptions,
   },
   events: incomingWebhooksEvents,
   create: createIncomingWebhooks,

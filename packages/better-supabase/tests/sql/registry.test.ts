@@ -2,7 +2,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
@@ -1010,7 +1010,7 @@ describe("modulePermissionKeys", () => {
   });
 
   it("defaults sibling actions to the key they follow", () => {
-    const key = (modules: BlocksConfig, module: string, action: string) =>
+    const key = (modules: AnyBlocksConfig, module: string, action: string) =>
       modulePermissionKeys(modules, [module]).find(
         (entry) => entry.module === module && entry.action === action,
       )?.key;

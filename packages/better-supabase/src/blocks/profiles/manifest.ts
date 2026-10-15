@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
+import { profilesSqlOptions } from "./options.ts";
 import { createProfiles } from "./profiles.ts";
 
 /** The `profiles` block's manifest (ADR 0029). */
@@ -9,22 +10,7 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
     name: "profiles",
     sql: ["profiles"],
     options: {
-      profiles: optionKeys([
-        "columnGrants",
-        "extraColumns",
-        "metadata",
-        "mirrorEmail",
-        "readPolicy",
-        "reservedUsernames",
-        "serviceColumns",
-        "splitName",
-        "syncTrigger",
-        "updatable",
-        "username",
-        "usernameFrom",
-        "usernameMaxLength",
-        "usernameMinLength",
-      ]),
+      profiles: profilesSqlOptions,
     },
     create: createProfiles,
     category: "foundation",

@@ -44,7 +44,7 @@ function useAiChatClient(schema: string | undefined): AiChat {
 
 export interface UseAiChatsOptions
   extends ClientOptions, Omit<AiChatQuery, "cursor"> {
-  /** The prefix of the list topic (`blocks["ai-chat"].options.listTopic`); `null` loads once. */
+  /** The prefix of the list topic (`blockConfig["ai-chat"].options.listTopic` from `blocks.generated.ts`); `null` loads once. */
   readonly topic?: string | null;
 }
 
@@ -95,7 +95,7 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
 }
 
 export interface UseAiChatTreeOptions extends ClientOptions {
-  /** The prefix of the chat topic (`blocks["ai-chat"].options.topic`); `null` loads once. */
+  /** The prefix of the chat topic (`blockConfig["ai-chat"].options.topic` from `blocks.generated.ts`); `null` loads once. */
   readonly topic?: string | null;
 }
 

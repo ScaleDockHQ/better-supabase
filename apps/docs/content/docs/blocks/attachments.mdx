@@ -50,7 +50,10 @@ The module creates the bucket as private with `maxSize` (default 50 MiB) as
 its file size limit and `allowedMimeTypes` as its allowed types; an existing
 bucket keeps its settings. The table checks the same limits. With
 `requireScan: false`, `confirm` marks a file clean right away, and files
-nobody scanned are served too (an `infected` one never is).
+nobody scanned are served too (an `infected` one never is). The client reads
+`requireScan` from `blocks.generated.ts`, which `better-supabase gen` writes
+from this config, so `defineBlocks` passes it to `createAttachments` and you
+never repeat it (see [the generated config](/docs/blocks/create-blocks#the-generated-config)).
 
 ### Subjects and buckets
 

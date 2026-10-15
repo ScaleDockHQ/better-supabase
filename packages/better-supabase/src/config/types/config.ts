@@ -1,7 +1,7 @@
 import type { PresetName } from "../../preset/presets.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
-import type { BlocksConfig } from "../blocks.ts";
+import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
 import type {
   ActorConfig,
@@ -243,7 +243,7 @@ export interface ResolvedConfig {
   /** The `preset` the config started from, as written; `blocks` already holds it expanded. */
   readonly preset?: string;
   /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
-  readonly blocks: BlocksConfig;
+  readonly blocks: AnyBlocksConfig;
   /** The installed blocks, in config order. */
   readonly blockNames: readonly string[];
   readonly sql: ResolvedSqlConfig;

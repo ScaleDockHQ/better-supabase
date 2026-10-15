@@ -83,6 +83,7 @@ export type {
   DisabledRow,
   BlockMode,
   BlockConfig,
+  AnyBlocksConfig,
   BlockScope,
   BlocksConfig,
   SqlNaming,

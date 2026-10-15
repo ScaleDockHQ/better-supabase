@@ -11,7 +11,7 @@ const TENANT_COLUMNS = ["organization_id", "active_organization_id"] as const;
 /**
  * How the SQL names the block functions: `sql.naming.tenant` and the
  * `blocks.<name>.functions` maps, merged. `better-supabase gen` writes it to
- * the generated module as `blockNaming`.
+ * each block's `naming` in `blocks.generated.ts`.
  */
 export interface BlockNaming {
   /** `sql.naming.tenant`, such as `workspace`. */
@@ -24,9 +24,8 @@ export interface BlockNaming {
  * Transport middleware that calls each block function by the name the SQL
  * wrote it under: `create_organization` becomes `create_workspace` with
  * `tenant: "workspace"`, then `functions` renames single functions. Wrap
- * the blocks' transport with it when the config sets `sql.naming` or
- * `blocks.<name>.functions`:
- * `wrapTransport(rpcTransport(supabase), blockNames(blockNaming))`.
+ * a block's transport with it when the config sets `sql.naming` or
+ * `blocks.<name>.functions`; `defineBlocks` does it from `blocks.generated.ts`.
  */
 export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
   const names = tenantNames(naming.tenant);

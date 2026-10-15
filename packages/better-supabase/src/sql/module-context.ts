@@ -1,4 +1,4 @@
-import type { AccessBlockConfig, BlocksConfig } from "../config/blocks.ts";
+import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
 import {
@@ -80,7 +80,7 @@ export function moduleContext(
  */
 export function withProviderDefaults(
   layout: ModuleLayout,
-): BlocksConfig | undefined {
+): AnyBlocksConfig | undefined {
   return withProviderRoles(layout, withProviderSuspension(layout));
 }
 
@@ -90,7 +90,7 @@ export function withProviderDefaults(
  */
 function withProviderSuspension(
   layout: ModuleLayout,
-): BlocksConfig | undefined {
+): AnyBlocksConfig | undefined {
   const modules = layout.modules;
   const suspension = layout.accessProvider?.suspension;
   const access = modules?.access;
@@ -115,8 +115,8 @@ function withProviderSuspension(
 
 function withProviderRoles(
   layout: ModuleLayout,
-  modules: BlocksConfig | undefined,
-): BlocksConfig | undefined {
+  modules: AnyBlocksConfig | undefined,
+): AnyBlocksConfig | undefined {
   const sources = layout.accessProvider?.roleSources;
   const tenant = modules?.["tenant"];
   if (!modules || !sources || tenant?.mode !== "adopt") return modules;

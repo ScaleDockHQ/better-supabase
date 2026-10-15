@@ -61,67 +61,46 @@ export function presetConfigSource(resolved: ResolvedPreset): string {
 
 /**
  * `lib/blocks.ts`: the blocks with a TypeScript client, wired with
- * `createBlocks` over the Data API as the caller.
+ * `defineBlocks` over the Data API as the caller. Each block's schema (the
+ * API schema when `sql.api` is set) and shared options come from
+ * `blockConfig`, which `better-supabase gen` writes to
+ * `blocks.generated.ts`; `blockConfigImport` is its import path.
  */
-export function presetBlocksSource(resolved: ResolvedPreset): string {
+export function presetBlocksSource(
+  resolved: ResolvedPreset,
+  blockConfigImport = "./supabase/blocks.generated",
+): string {
   const clients = resolved.manifests.flatMap((manifest) =>
     manifest.client === null
       ? []
       : [{ name: manifest.name, ...manifest.client }],
   );
-  const api = resolved.preset.api === "none" ? undefined : resolved.preset.api;
-  const tenant =
-    resolved.preset.tenantName === "organization"
-      ? undefined
-      : resolved.preset.tenantName;
-  const rpc =
-    api === undefined
-      ? "rpcTransport(supabase)"
-      : "rpcTransport(supabase, { schema: API_SCHEMA })";
-  const transport =
-    tenant === undefined
-      ? rpc
-      : `wrapTransport(\n        ${rpc},\n        blockNames({ tenant: ${JSON.stringify(tenant)} }),\n      )`;
-  const lines = [
+  return [
     "import {",
     "  type RpcClient,",
-    ...(tenant === undefined ? [] : ["  blockNames,"]),
-    "  createBlocks,",
+    "  defineBlocks,",
     "  rpcTransport,",
-    ...(tenant === undefined ? [] : ["  wrapTransport,"]),
     '} from "better-supabase/blocks";',
     ...clients.map(
       (client) => `import { ${client.export} } from "${client.subpath}";`,
     ),
     "",
-  ];
-  if (api !== undefined) {
-    lines.push(
-      "/** The schema the blocks expose through the Data API (`sql.api` in the config). */",
-      `export const API_SCHEMA = ${JSON.stringify(api)};`,
-      "",
-    );
-  }
-  lines.push(
+    `import { blockConfig } from ${JSON.stringify(blockConfigImport)};`,
+    "",
+    "/** The installed blocks, with the settings `better-supabase gen` writes from the config. */",
+    "export const blockSet = defineBlocks(blockConfig, {",
+    ...clients.map((client) => `  ${camel(client.name)}: ${client.export},`),
+    "});",
+    "",
     "/**",
     " * The blocks as typed clients, acting as the caller of `supabase`: its",
     " * token, so RLS and each function's checks apply.",
     " */",
     "export function blocks(supabase: RpcClient) {",
-    "  return createBlocks(",
-    api === undefined && tenant === undefined
-      ? `    { transport: ${transport} },`
-      : `    {\n      transport: ${transport},${api === undefined ? "" : "\n      schema: API_SCHEMA,"}\n    },`,
-    "    {",
-    ...clients.map(
-      (client) => `      ${camel(client.name)}: ${client.export},`,
-    ),
-    "    },",
-    "  );",
+    "  return blockSet.create({ transport: rpcTransport(supabase) });",
     "}",
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 /** Where `presetBlocksSource` goes, as a shadcn target. */

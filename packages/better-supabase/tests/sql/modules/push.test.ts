@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
-const body = (modules: BlocksConfig = {}) => moduleBody("push", { modules })!;
+const body = (modules: AnyBlocksConfig = {}) =>
+  moduleBody("push", { modules })!;
 
 const withOutbox = (): string =>
   renderModules(["outbox", "push"], { modules: {} })

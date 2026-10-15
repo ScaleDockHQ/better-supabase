@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (
   sameTenant: unknown,
-  tenant: NonNullable<BlocksConfig["tenant"]> = {},
+  tenant: NonNullable<AnyBlocksConfig["tenant"]> = {},
 ) =>
   moduleBody("tenant", {
     modules: { tenant: { ...tenant, options: { sameTenant } } },

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { tenantRefGuard } from "../../../src/sql/modules/credentials.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 
-const body = (modules: BlocksConfig = {}) =>
+const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("credentials", { modules })!;
 
 describe("credentials module", () => {

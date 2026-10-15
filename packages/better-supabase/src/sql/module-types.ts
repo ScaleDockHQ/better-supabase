@@ -5,10 +5,10 @@ import type {
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
 import type {
+  AnyBlocksConfig,
   BlockScope,
   DisabledRow,
   BlockMode,
-  BlocksConfig,
   SqlNaming,
 } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
@@ -232,7 +232,7 @@ export interface ModuleLayout {
   /** The authorization provider the `access` module's `provider` model calls. */
   readonly accessProvider?: ModuleAccessProvider;
   /** `config.blocks`: modes, names and permission keys per module. */
-  readonly modules?: BlocksConfig;
+  readonly modules?: AnyBlocksConfig;
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
   readonly scope?: BlockScope;
   /** `sql.naming`: the tenant concept's name in tables, functions and columns. */

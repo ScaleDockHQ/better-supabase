@@ -1,8 +1,9 @@
 import type { BlockOf } from "../define-block.ts";
 import type { ShareLinksEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { shareLinksEvents } from "./events.ts";
+import { shareLinksSqlOptions } from "./options.ts";
 import { createShareLinks } from "./share-links.ts";
 
 /** The `share-links` block's manifest (ADR 0029). */
@@ -14,7 +15,7 @@ export const shareLinksBlock: BlockOf<
   name: "share-links",
   sql: ["share-links"],
   options: {
-    "share-links": optionKeys(["subjects"]),
+    "share-links": shareLinksSqlOptions,
   },
   events: shareLinksEvents,
   create: createShareLinks,

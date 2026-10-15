@@ -1,20 +1,26 @@
 ---
 title: createBlocks
-description: Build several blocks from one set of options and wire them on the ports they provide and consume, from better-supabase/blocks.
+description: Build several blocks from one set of options and the generated block config, and wire them on the ports they provide and consume, from better-supabase/blocks.
 ---
 
-`createBlocks` builds the blocks you list with one transport, schema and set
-of error mappers, and wires them on their ports: each block that consumes a
-port, such as ai-tasks and reminders consuming `notifier`, gets it from the
-block that provides it, here `notifications`. Every block exports its
-manifest from its subpath (`organizationsBlock` from
+`defineBlocks` and `createBlocks` build the blocks you list with one
+transport and set of error mappers, and wire them on their ports: each block
+that consumes a port, such as ai-tasks and reminders consuming `notifier`,
+gets it from the block that provides it, here `notifications`. Every block
+exports its manifest from its subpath (`organizationsBlock` from
 `better-supabase/blocks/organizations`), so only the blocks you list end up
 in the bundle.
+
+Each block also reads the settings its SQL half has in the `blocks` config:
+its schema, its API schema and the options both halves share, such as
+`attachments.requireScan`. `better-supabase gen` writes them to
+`blocks.generated.ts`, and `defineBlocks` takes that file's `blockConfig`, so
+you set each of them once, in `better-supabase.config.ts`.
 
 ```ts title="src/lib/blocks.ts"
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -24,17 +30,18 @@ import {
 } from "better-supabase/blocks/notifications";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 
+import { blockConfig } from "./supabase/blocks.generated";
+
+export const blockSet = defineBlocks(blockConfig, {
+  organizations: organizationsBlock,
+  audit: auditBlock,
+  notifications: notificationsBlock.using((options) =>
+    createNotifications({ ...options, types, render }),
+  ),
+});
+
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    { transport: rpcTransport(supabase, { schema: "api" }), schema: "api" },
-    {
-      organizations: organizationsBlock,
-      audit: auditBlock,
-      notifications: notificationsBlock.using((options) =>
-        createNotifications({ ...options, types, render }),
-      ),
-    },
-  );
+  return blockSet.create({ transport: rpcTransport(supabase) });
 }
 
 const { organizations, audit, notifications } = blocks(supabase);
@@ -44,13 +51,69 @@ The result has one key per block with a client, typed from its creator,
 plus `sinks` and `close()`. A block with only SQL, such as `tenantBlock`, is
 skipped.
 
+## The generated config
+
+`gen` writes `blocks.generated.ts` next to `generated.ts` when the config
+installs blocks. It holds one entry per installed block, keyed by the
+block's name:
+
+```ts title="src/lib/supabase/blocks.generated.ts"
+export const blockConfig = {
+  attachments: {
+    schema: "better_supabase",
+    api: "api",
+    options: { requireScan: true },
+  },
+  notifications: {
+    schema: "better_supabase",
+    api: "api",
+    options: { topic: "notifications:{userId}" },
+  },
+} as const satisfies GeneratedBlocks;
+```
+
+`schema` and `api` resolve `blocks.<block>.schema` and `.api` over
+`sql.schema` and `sql.api`. `options` holds the options marked as shared in
+the block's manifest, with the module's default when the config leaves one
+out. Each block's creator gets the API schema when there is one (the
+wrappers there are what the caller may run), otherwise the module schema,
+plus the shared options. A creator you call yourself takes the same values
+from `generatedOptions`:
+
+```ts
+import { generatedOptions } from "better-supabase/blocks";
+
+const attachments = createAttachments({
+  ...generatedOptions(blockConfig.attachments),
+  transport,
+  storage: supabase.storage,
+});
+```
+
+The realtime controllers take their topic from the same file. The
+notifications topic is a template, which `fillTopic` fills in:
+`fillTopic(blockConfig.notifications.options.topic, { userId })`.
+
+| Option shared with TypeScript | Read by                                    |
+| ----------------------------- | ------------------------------------------ |
+| `attachments.requireScan`     | `createAttachments`                        |
+| `bulk.limit`                  | `createBulk`                               |
+| `notifications.topic`         | the notifications feed controller and hook |
+| `announcements.topic`         | the announcements controller and hook      |
+| `inbox.topic`                 | the inbox controllers and hooks            |
+| `reactions.topic`             | the reactions controller and hook          |
+| `ai-chat.topic`, `listTopic`  | the chat controllers and hooks             |
+| `time-tracking.timeZone`      | `toWeeklyGrid`                             |
+| `waitlist.codeField`          | `waitlistHook`                             |
+| `webhooks-out.allowHttp`      | `publicUrl`, the webhook URL check         |
+
 ## Options
 
 | Option        | What it does                                                                                         |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | `transport`   | Calls as the caller: `dbTransport(ctx.db)`, `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)` |
 | `service`     | Calls as the service role, for the blocks with service-only calls                                    |
-| `schema`      | The module schema, or the API schema the wrappers live in                                            |
+| `config`      | `blockConfig` from `blocks.generated.ts`; `defineBlocks` passes it, `createBlocks` takes it here     |
 | `mappers`     | Error mappers that run before each block's built-in ones                                             |
 | `temporal`    | The Temporal namespace for runtimes without a global one                                             |
 | `credentials` | A `CredentialProvider` for connectors, ai-providers and the workflow builder                         |
@@ -64,13 +127,10 @@ skipped.
 notification type ai-tasks sends:
 
 ```ts
-createBlocks(
-  { transport, service },
-  {
-    aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
-    notifications: notificationsBlock,
-  },
-);
+defineBlocks(blockConfig, {
+  aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
+  notifications: notificationsBlock,
+}).create({ transport, service });
 ```
 
 `using` builds a block with your own call to its creator, which keeps the
@@ -99,60 +159,61 @@ built on `dbTransport(ctx.db)` need no second code path for those requests:
 ```ts title="src/lib/blocks.ts"
 import {
   type DbTransportSource,
-  createBlocks,
+  defineBlocks,
   dbTransport,
 } from "better-supabase/blocks";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 
+import { blockConfig } from "./supabase/blocks.generated";
+
+const blockSet = defineBlocks(blockConfig, {
+  organizations: organizationsBlock,
+});
+
 export function blocksFor(db: DbTransportSource) {
-  return createBlocks(
-    { transport: dbTransport(db, { schema: "api" }), schema: "api" },
-    { organizations: organizationsBlock },
-  );
+  return blockSet.create({ transport: dbTransport(db) });
 }
 
 const { organizations } = blocksFor(ctx.db);
 ```
 
-`schema` sends every call to that schema instead of the module schema. Over
-the Data API it has to be an exposed schema, such as the API schema that
-`blocks.<block>.api` writes wrappers into; over Postgres the same wrappers
-work, so pass one schema for both. The executor needs `rpc()`: the built-in
-PostgREST and Postgres executors have it.
+Each block calls the schema from its generated entry: the API schema that
+`blocks.<block>.api` (or `sql.api`) writes wrappers into, or the module
+schema without one. Over the Data API that schema has to be exposed; over
+Postgres the same wrappers work. A transport's own `schema` option sends
+every call there instead. The executor needs `rpc()`: the built-in PostgREST
+and Postgres executors have it.
 
 ### Renamed functions
 
 When the config sets `sql.naming` or `blocks.<name>.functions`, the SQL writes
-the block functions under other names. `gen` writes those names to the
-generated module as `blockNaming`. Wrap the transport with `blockNames` so the
-block clients call the renamed functions. Rows that a function returns whole
-get their renamed tenant columns (`workspace_id`) back under the names the
-clients read (`organization_id`):
+the block functions under other names. `gen` writes those names into each
+block's `naming` entry in `blocks.generated.ts`, and `defineBlocks` wraps that
+block's transport with `blockNames(naming)`, so the clients call the renamed
+functions with no change to `lib/blocks.ts`. Rows that a function returns
+whole get their renamed tenant columns (`workspace_id`) back under the names
+the clients read (`organization_id`).
 
-```ts title="src/lib/blocks.ts"
+A creator you call yourself takes the same middleware:
+
+```ts
 import {
-  type RpcClient,
   blockNames,
-  createBlocks,
-  rpcTransport,
+  generatedOptions,
   wrapTransport,
 } from "better-supabase/blocks";
-import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { createOrganizations } from "better-supabase/blocks/organizations";
 
-import { blockNaming } from "./supabase/generated";
+import { blockConfig } from "./supabase/blocks.generated";
 
-export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    {
-      transport: wrapTransport(rpcTransport(supabase), blockNames(blockNaming)),
-    },
-    { organizations: organizationsBlock },
-  );
-}
+const entry = blockConfig.organizations;
+const organizations = createOrganizations({
+  ...generatedOptions(entry),
+  transport: entry.naming
+    ? wrapTransport(transport, blockNames(entry.naming))
+    : transport,
+});
 ```
-
-`init --preset` and `apply --preset` write this wiring when the preset sets a
-tenant name.
 
 ## Ports
 
@@ -178,21 +239,18 @@ keyed by `reminder:<id>:<occurrenceAt>`, with the data
 `{ reminderId, occurrenceAt }`; `reminders.job` then delivers through it.
 
 ```ts
-const { aiTasks, reminders } = createBlocks(
-  { transport, service },
-  {
-    aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
-    reminders: remindersBlock.with({ notification: "reminder.due" }),
-    notifications: notificationsBlock.using((options) =>
-      createNotifications({ ...options, types, render }),
-    ),
-  },
-);
+const { aiTasks, reminders } = defineBlocks(blockConfig, {
+  aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
+  reminders: remindersBlock.with({ notification: "reminder.due" }),
+  notifications: notificationsBlock.using((options) =>
+    createNotifications({ ...options, types, render }),
+  ),
+}).create({ transport, service });
 ```
 
 Some pairs wire in SQL instead, when both modules are installed: approvals
 move the state machine, the bulk block gets a `trash.trash` action, and the
-search block drops soft-deleted rows. `createBlocks` has nothing to do for
+search block drops soft-deleted rows. The blocks have nothing to wire for
 those.
 
 ## Outbox sinks
@@ -207,21 +265,19 @@ relay the sinks from your cron route:
 ```ts title="app/api/outbox/route.ts"
 import "server-only";
 
-import { createBlocks } from "better-supabase/blocks";
+import { defineBlocks } from "better-supabase/blocks";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { searchBlock } from "better-supabase/blocks/search";
 
 import { outbox } from "@/lib/outbox";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-const app = createBlocks(
-  { transport: service },
-  {
-    search: searchBlock,
-    metrics: metricsBlock.with({
-      sink: { on: { "order.placed": ["orders", "revenue"] } },
-    }),
-  },
-);
+const app = defineBlocks(blockConfig, {
+  search: searchBlock,
+  metrics: metricsBlock.with({
+    sink: { on: { "order.placed": ["orders", "revenue"] } },
+  }),
+}).create({ transport: service });
 
 export const GET = outbox.relayRoute({
   secret: process.env.CRON_SECRET,
@@ -238,34 +294,34 @@ from the hooked block, so a `send` hook also runs when ai-tasks notifies. See
 [Extending blocks](/docs/extending/blocks#hooks).
 
 ```ts
-export const app = createBlocks(
-  {
-    transport,
-    hooks: { notifications: { send: { before: refuseDuringQuietHours } } },
-  },
-  {
-    notifications: notificationsBlock.using((options) =>
-      createNotifications({ ...options, types }),
-    ),
-  },
-);
+export const app = defineBlocks(blockConfig, {
+  notifications: notificationsBlock.using((options) =>
+    createNotifications({ ...options, types }),
+  ),
+}).create({
+  transport,
+  hooks: { notifications: { send: { before: refuseDuringQuietHours } } },
+});
 ```
 
-## Typed events with defineBlocks
+## Typed events
 
-`defineBlocks` takes the same blocks and your own events
-([`defineEvents`](/docs/extending/events#app-events)), and types every event
-they can emit. `on` listens with that typing, and `create` builds the blocks
-like `createBlocks`:
+`defineBlocks` also takes your own events
+([`defineEvents`](/docs/extending/events#app-events)) after the blocks, and
+types every event they can emit. `on` listens with that typing, and `create`
+builds the blocks with the generated config:
 
 ```ts title="src/lib/blocks.ts"
 import { defineBlocks, defineEvents, event } from "better-supabase/blocks";
+
+import { blockConfig } from "./supabase/blocks.generated";
 
 const appEvents = defineEvents({
   "invoice.sent": event<{ readonly invoiceId: string }>(),
 });
 
 export const app = defineBlocks(
+  blockConfig,
   { organizations: organizationsBlock, comments: commentsBlock },
   appEvents,
 );
@@ -288,8 +344,11 @@ so build these blocks once, at module scope, rather than per request.
 ```ts
 const log = createAuditLog({ transport: service });
 
-export const app = createBlocks(
-  { transport: service, events: betterSupabase.events, audit: log.sink() },
-  { organizations: organizationsBlock },
-);
+export const app = defineBlocks(blockConfig, {
+  organizations: organizationsBlock,
+}).create({
+  transport: service,
+  events: betterSupabase.events,
+  audit: log.sink(),
+});
 ```

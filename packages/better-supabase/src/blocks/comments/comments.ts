@@ -34,7 +34,7 @@ import {
 
 export interface CommentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema (`blocks.comments.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**

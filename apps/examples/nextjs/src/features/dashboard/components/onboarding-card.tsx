@@ -19,9 +19,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** `blocks.onboarding.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the onboarding block. */
+const API_SCHEMA = blockConfig.onboarding.api;
 
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingCard() {

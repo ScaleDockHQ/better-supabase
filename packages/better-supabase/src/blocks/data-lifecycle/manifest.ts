@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { DataLifecycleEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createDataLifecycle } from "./data-lifecycle.ts";
 import { dataLifecycleEvents } from "./events.ts";
+import { dataLifecycleSqlOptions } from "./options.ts";
 
 /** The `data-lifecycle` block's manifest (ADR 0029). */
 export const dataLifecycleBlock: BlockOf<
@@ -14,15 +15,7 @@ export const dataLifecycleBlock: BlockOf<
   name: "data-lifecycle",
   sql: ["data-lifecycle"],
   options: {
-    "data-lifecycle": optionKeys([
-      "bucket",
-      "grace",
-      "exportTtl",
-      "tables",
-      "autoTables",
-      "tenantRow",
-      "anonymize",
-    ]),
+    "data-lifecycle": dataLifecycleSqlOptions,
   },
   events: dataLifecycleEvents,
   create: createDataLifecycle,
