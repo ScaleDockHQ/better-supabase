@@ -5,6 +5,22 @@ import type { SubjectEventType } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const SUBJECT_EVENTS = [
+  "quote.created",
+  "quote.updated",
+  "quote.sent",
+  "quote.viewed",
+  "quote.accepted",
+  "quote.rejected",
+  "quote.changes_requested",
+  "quote.expired",
+  "quote.revised",
+  "invoice.created",
+  "invoice.issued",
+  "invoice.payment_recorded",
+  "invoice.paid",
+  "invoice.credited",
+  "invoice.voided",
+  "invoice.uncollected",
   "work_item.created",
   "work_item.updated",
   "work_item.assigned",

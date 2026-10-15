@@ -2017,6 +2017,7 @@
       "IncomingWebhookEventData",
       "InvitationEventData",
       "InviteCodeEventData",
+      "InvoiceEventData",
       "NotificationDeliveryEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
@@ -2026,6 +2027,7 @@
       "PipelineEventData",
       "PipelineStageEventData",
       "PushDeviceEventData",
+      "QuoteEventData",
       "RowEventData",
       "SaasEventData",
       "SaasSubjectEventData",
@@ -4463,6 +4465,62 @@
       "WorkItems",
       "WorkItemsOptions",
       "WorkItemState"
+    ]
+  },
+  "./blocks/quotes": {
+    "values": [
+      "createQuotes",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Line",
+      "LineInput",
+      "PublicQuote",
+      "Quote",
+      "QuoteDecision",
+      "QuoteInput",
+      "Quotes",
+      "QuotesOptions",
+      "QuoteStatus",
+      "RecordRef",
+      "RpcClient",
+      "Totals"
+    ]
+  },
+  "./blocks/invoices": {
+    "values": [
+      "createInvoices",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Invoice",
+      "InvoiceAging",
+      "InvoiceInput",
+      "InvoicePayment",
+      "Invoices",
+      "InvoicesOptions",
+      "InvoiceStatus",
+      "Line",
+      "LineInput",
+      "RecordRef",
+      "RpcClient",
+      "Totals"
     ]
   },
   "./blocks/reactions/react": {
