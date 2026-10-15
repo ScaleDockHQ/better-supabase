@@ -1,12 +1,12 @@
 -- better-supabase module: workflow-sdk-world (0.8.0)
 -- @bs-module workflow-sdk-world@2 managed
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.2) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.0.2).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.0.4).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -28,11 +28,13 @@ end $$;
 
 create table if not exists workflow.workflow_event_slots (
   "run_id" character varying not null,
+  "seq_in_band" integer not null default 1,
   constraint "workflow_event_slots_pkey" PRIMARY KEY (run_id)
 );
 
 alter table workflow.workflow_event_slots
-  add column if not exists "run_id" character varying not null;
+  add column if not exists "run_id" character varying not null,
+  add column if not exists "seq_in_band" integer not null default 1;
 
 create table if not exists workflow.workflow_events (
   "id" character varying not null,
