@@ -107,7 +107,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const providerScope = layout.accessProvider?.scope ?? "tenant";
   const member = (tenant: string): string =>
     memberIds === undefined
-      ? `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`
+      ? `(${SERVICE_CALLER} or coalesce(${ctx.of("tenant").fn("has_organization_role")}(${tenant}), false))`
       : `(${SERVICE_CALLER} or ${tenant}::text in (select t.id::text from ${fillTemplate("authorization.functions.memberIds", memberIds, { scope: providerScope })} as t(id)))`;
   const canRecord = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission("record", permissions.record))})`;

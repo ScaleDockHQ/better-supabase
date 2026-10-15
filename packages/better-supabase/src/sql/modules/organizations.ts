@@ -21,6 +21,7 @@ import {
   moduleOperations,
   roleNames,
 } from "./access-model.ts";
+import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
   organizationAttributes,
@@ -263,7 +264,7 @@ create table if not exists ${n.organization} (
 ${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
     ctx.installed("entitlements")
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
-alter table ${n.organization} add column if not exists stripe_customer_id text unique;
+alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_COLUMN} text unique;
 `
       : ""
   }alter table ${n.organization} enable row level security;
@@ -272,7 +273,7 @@ grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
 drop policy if exists bs_organizations_read on ${n.organization};
 create policy bs_organizations_read on ${n.organization} for select to authenticated
-  using (${n.id} in (select better_supabase.member_organization_ids()));
+  using (${n.id} in (select ${ctx.of("tenant").fn("member_organization_ids")}()));
 `;
 }
 

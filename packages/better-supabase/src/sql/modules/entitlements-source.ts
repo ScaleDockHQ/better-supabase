@@ -1,12 +1,15 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
+import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 import type { ModuleEntitlementsProvider } from "../module-types.ts";
 import type { FeatureClaimOption } from "./entitlements-checks.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { moduleContext } from "../module-context.ts";
 import { splitTable } from "../shared.ts";
 import { memberships } from "./entitlements-checks.ts";
+
+/** The column the managed `organizations` module adds for the entitlements module. */
+export const ORGANIZATION_CUSTOMER_COLUMN = "stripe_customer_id";
 
 /** The table holding each tenant's Stripe customer id. */
 export interface EntitlementsSource {
@@ -47,12 +50,14 @@ function providerEntitlementMembers(
 }
 
 /**
- * `config.entitlements.customer`, or the `stripe_customer_id` column the
- * managed `organizations` module adds when both modules are installed.
+ * `config.entitlements.customer`, or the customer column of the managed
+ * `billing` module, or the `stripe_customer_id` column the managed
+ * `organizations` module adds when both modules are installed. The table,
+ * column and key come from the module's own (possibly renamed) names.
  */
 export function customerSource(
+  ctx: ModuleContext,
   layout: ModuleLayout,
-  installed: readonly string[],
 ): Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
 } {
@@ -65,33 +70,28 @@ export function customerSource(
       deferred: false,
     };
   }
-  if (
-    installed.includes("billing") &&
-    moduleContext("billing", layout, installed).manages
-  ) {
-    const customers = moduleContext("billing", layout, installed).tableName(
-      "customers",
-    );
+  if (ctx.installed("billing") && ctx.of("billing").manages) {
+    const billing = ctx.of("billing");
+    const customers = billing.tableName("customers");
     return {
       table: `${customers.schema}.${customers.name}`,
-      column: "stripe_customer_id",
-      key: "organization_id",
+      column: billing.colName("customers", "customer"),
+      key: billing.colName("customers", "tenant"),
       deferred: true,
     };
   }
-  if (
-    installed.includes("organizations") &&
-    moduleContext("organizations", layout, installed).manages
-  ) {
+  if (ctx.installed("organizations") && ctx.of("organizations").manages) {
+    const organizations = ctx.of("organizations");
+    const table = organizations.tableName("organizations");
     return {
-      table: "better_supabase.organizations",
-      column: "stripe_customer_id",
-      key: "id",
+      table: `${table.schema}.${table.name}`,
+      column: ORGANIZATION_CUSTOMER_COLUMN,
+      key: organizations.colName("organizations", "id"),
       deferred: true,
     };
   }
   throw new TypeError(
-    "The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed organizations module it defaults to better_supabase.organizations.stripe_customer_id.",
+    "The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
   );
 }
 

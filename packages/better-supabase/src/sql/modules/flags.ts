@@ -229,7 +229,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from better_supabase.member_organization_ids() as t(id)
+  select t.id from ${ctx.of("tenant").fn("member_organization_ids")}() as t(id)
   where ${fn("flag_enabled")}(tenant_ids_with_flag.key, t.id)
 $$;
 
