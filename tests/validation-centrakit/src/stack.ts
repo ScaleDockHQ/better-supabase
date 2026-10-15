@@ -75,8 +75,15 @@ const RECORD_PERMISSIONS = [
   "deals.write",
   "work_items.read",
   "work_items.write",
+  "people.read",
 ];
-const RECORD_MANAGE = ["pipelines.manage", "deals.manage", "work_items.manage"];
+const RECORD_MANAGE = [
+  "pipelines.manage",
+  "deals.manage",
+  "work_items.manage",
+  "people.manage",
+  "people.view-sensitive",
+];
 
 const GRANTS = {
   owner: [...ORGANIZATION_PERMISSIONS, ...RECORD_PERMISSIONS, ...RECORD_MANAGE],

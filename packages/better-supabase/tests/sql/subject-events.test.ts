@@ -5,6 +5,10 @@ import type { SubjectEventType } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const SUBJECT_EVENTS = [
+  "employee.created",
+  "employee.updated",
+  "employee.offboarded",
+  "employee.manager_changed",
   "application.created",
   "application.hired",
   "application.rejected",

@@ -120,6 +120,25 @@ export interface ApplicationEventData extends SubjectEventData {
   readonly startsAt?: string;
 }
 
+/** Events from the employees module. */
+export interface EmployeeEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly employeeId: string;
+  readonly name: string;
+  /** For `employee.created`. */
+  readonly userId?: string | null;
+  readonly managerId?: string | null;
+  readonly status?: string;
+  /** For `employee.updated`: the fields the batch changed, or `contract`. */
+  readonly fields?: readonly string[];
+  /** For `employee.offboarded`: the last day and why. */
+  readonly endDate?: string;
+  readonly reason?: string | null;
+  /** For `employee.manager_changed`. */
+  readonly fromManagerId?: string | null;
+  readonly toManagerId?: string | null;
+}
+
 /**
  * Events from the pipelines module. `pipeline.stage_changed` carries the
  * record that moved as `subjectType` and `subjectId`; the configuration

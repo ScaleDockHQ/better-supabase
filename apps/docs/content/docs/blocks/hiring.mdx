@@ -50,7 +50,7 @@ await hiring
 
 `apply(jobId, candidate, { source, ownerId })` adds a candidate to an open job (`HIRING_JOB_NOT_OPEN`); applying again returns the same application. The candidate must be in the organization and readable by the caller (`HIRING_CANDIDATE_FORBIDDEN`). Move it between stages with a stage update or [rank](/docs/blocks/rank) on a board, as any pipeline record.
 
-`hire(id)`, `reject(id, reason)` and `withdraw(id)` move the application to its job pipeline's first stage of that category. Hiring stamps `hiredAt` and records `application.hired` with the candidate: create the employee from that event, or from an `after_application_hire` hook in the same transaction, and link it with a `created_from` [relation](/docs/blocks/relations).
+`hire(id)`, `reject(id, reason)` and `withdraw(id)` move the application to its job pipeline's first stage of that category. Hiring stamps `hiredAt` and records `application.hired` with the candidate: call [`employees.fromApplication`](/docs/blocks/employees#from-a-hired-application) from that event, which makes the employee once and links it with a `created_from` [relation](/docs/blocks/relations), or create your own from an `after_application_hire` hook in the same transaction.
 
 ## Interviews and scorecards
 

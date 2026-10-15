@@ -1,6 +1,6 @@
 import type { ModuleContext } from "./context.ts";
 
-import { sqlString } from "../core/template.ts";
+import { sqlIdent, sqlString } from "../core/template.ts";
 import { registeredIdMatches, registeredSubjects } from "./subject-registry.ts";
 
 /**
@@ -50,6 +50,31 @@ ${subjects
   .map(
     (subject) =>
       `      when ${sqlString(subject.type)} then (select s.${subject.tenant ?? ""}::text from ${subject.qualified} s where ${registeredIdMatches(subject, id)})`,
+  )
+  .join("\n")}
+      else null::text
+    end)`;
+}
+
+/**
+ * SQL for the title (as text) of record `type`/`id` in `config.subjects`,
+ * from the entry's `title` column, or null for an unknown record or a type
+ * without one. Reads the table directly, so check the caller first.
+ */
+export function subjectTitle(
+  ctx: ModuleContext,
+  type: string,
+  id: string,
+): string {
+  const subjects = registeredSubjects(ctx.subjects).filter(
+    (subject) => subject.config.title !== undefined,
+  );
+  if (subjects.length === 0) return "null::text";
+  return `(case ${type}
+${subjects
+  .map(
+    (subject) =>
+      `      when ${sqlString(subject.type)} then (select s.${sqlIdent(subject.config.title ?? "")}::text from ${subject.qualified} s where ${registeredIdMatches(subject, id)})`,
   )
   .join("\n")}
       else null::text

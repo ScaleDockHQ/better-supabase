@@ -76,6 +76,7 @@ const PURE_BARRELS = [
   "blocks/sla",
   "blocks/targets",
   "blocks/hiring",
+  "blocks/employees",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",
