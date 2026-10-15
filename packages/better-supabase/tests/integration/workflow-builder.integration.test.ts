@@ -230,10 +230,13 @@ describe.skipIf(!live)("workflow-builder module", () => {
         starts.push(call);
         return `wrun_${String(starts.length)}`;
       };
+      // The block takes the workflows client it syncs schedules with
+      // (ADR 0029: no block builds a sibling's client).
       const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: STEPS,
         start,
+        workflows: createWorkflows({ transport: sqlTransport(s.sql) }),
       });
       await service.steps.sync().orThrow();
 

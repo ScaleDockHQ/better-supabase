@@ -1465,10 +1465,10 @@ importers:
         version: 0.13.11(arktype@2.2.3)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(zod@3.25.76)
       '@vercel/analytics':
         specifier: 'catalog:'
-        version: 2.0.1(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))
+        version: 2.0.1(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))
       '@vercel/speed-insights':
         specifier: 'catalog:'
-        version: 2.0.0(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))
+        version: 2.0.0(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))
       better-supabase:
         specifier: workspace:*
         version: link:../../packages/better-supabase
@@ -1483,7 +1483,7 @@ importers:
         version: 1.56.0(@types/react@19.3.0)(react@19.3.0)
       next:
         specifier: 16.4.0
-        version: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-themes:
         specifier: 'catalog:'
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1518,6 +1518,9 @@ importers:
       '@better-supabase/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.0
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.3
@@ -2117,6 +2120,39 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.87.0(oxlint-tsgolint@7.0.2004)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+
+  tests/validation-presets:
+    devDependencies:
+      '@better-supabase/ox-config':
+        specifier: workspace:*
+        version: link:../../packages/ox-config
+      '@better-supabase/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
+      better-supabase:
+        specifier: workspace:*
+        version: link:../../packages/better-supabase
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.87.0(oxlint-tsgolint@7.0.2004)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
+      temporal-polyfill:
+        specifier: 'catalog:'
+        version: 1.0.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -17356,6 +17392,13 @@ snapshots:
       svelte: 5.57.2(@typescript-eslint/types@8.71.0)
       vue: 3.5.43(typescript@7.0.2)
 
+  '@vercel/analytics@2.0.1(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))':
+    optionalDependencies:
+      next: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react: 19.3.0
+      svelte: 5.57.2(@typescript-eslint/types@8.71.0)
+      vue: 3.5.43(typescript@7.0.2)
+
   '@vercel/cli-auth@0.0.1':
     dependencies:
       async-listen: 3.0.0
@@ -17401,6 +17444,13 @@ snapshots:
   '@vercel/speed-insights@2.0.0(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))':
     optionalDependencies:
       next: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react: 19.3.0
+      svelte: 5.57.2(@typescript-eslint/types@8.71.0)
+      vue: 3.5.43(typescript@7.0.2)
+
+  '@vercel/speed-insights@2.0.0(next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue@3.5.43(typescript@7.0.2))':
+    optionalDependencies:
+      next: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react: 19.3.0
       svelte: 5.57.2(@typescript-eslint/types@8.71.0)
       vue: 3.5.43(typescript@7.0.2)
@@ -22067,6 +22117,34 @@ snapshots:
       '@next/swc-win32-x64-msvc': 16.4.0
       '@opentelemetry/api': 1.9.1
       '@playwright/test': 1.63.0
+      babel-plugin-react-compiler: 1.0.0
+      sharp: 0.35.5(@types/node@26.6.5)
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@types/node'
+      - babel-plugin-macros
+
+  next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+    dependencies:
+      '@next/env': 16.4.0
+      '@swc/helpers': 0.5.23
+      baseline-browser-mapping: 2.11.25
+      caniuse-lite: 1.0.30001810
+      postcss: 8.5.23
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+      styled-jsx: 5.1.6(@babel/core@7.29.7(supports-color@7.2.0))(react@19.3.0)
+    optionalDependencies:
+      '@next/swc-darwin-arm64': 16.4.0
+      '@next/swc-darwin-x64': 16.4.0
+      '@next/swc-linux-arm64-gnu': 16.4.0
+      '@next/swc-linux-arm64-musl': 16.4.0
+      '@next/swc-linux-x64-gnu': 16.4.0
+      '@next/swc-linux-x64-musl': 16.4.0
+      '@next/swc-win32-arm64-msvc': 16.4.0
+      '@next/swc-win32-x64-msvc': 16.4.0
+      '@opentelemetry/api': 1.9.1
+      '@playwright/test': 1.64.0
       babel-plugin-react-compiler: 1.0.0
       sharp: 0.35.5(@types/node@26.6.5)
     transitivePeerDependencies:

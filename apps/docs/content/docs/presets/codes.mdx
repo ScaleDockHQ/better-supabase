@@ -1,0 +1,89 @@
+---
+title: Codes and the resolver
+description: How better-supabase/preset encodes a preset as a short code, resolves its blocks and writes the config and wiring Create shows.
+---
+
+`better-supabase/preset` is the model behind `preset` in the config and
+behind [Create](https://bettersupabase.com/create). It runs on every
+runtime, including the browser: the resolver reads a generated catalog of
+the blocks and never imports the SQL renderers.
+
+```ts
+import {
+  decodePreset,
+  encodePreset,
+  namedPreset,
+  presetConfigSource,
+  resolvePreset,
+} from "better-supabase/preset";
+
+const preset = { ...namedPreset("saas"), api: "api", blocks: ["comments"] };
+const code = encodePreset(preset); // "1..."
+const { preset: decoded, derived } = decodePreset(code);
+const resolved = resolvePreset(decoded);
+// resolved.blocks: comments, plus tenant, access and updated-at, each with a reason
+console.log(presetConfigSource(resolved));
+```
+
+## Conventions
+
+Every field has a default, so a preset sets only what differs.
+
+| Field          | Values                                                                                         | Default        | What it sets                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------- |
+| `framework`    | `next`, `vite`, `tanstack-start`, `expo`, `sveltekit`, `nuxt`, `hono`, `astro`, `react-router` | `next`         | the glue Create shows                                          |
+| `platforms`    | `web`, `native`, `both`                                                                        | `web`          | the glue Create shows; `native` needs `expo`                   |
+| `casing`       | `snake`, `camel`                                                                               | `snake`        | `casing`                                                       |
+| `idType`       | `uuid`, `text`, `bigint`, `integer`                                                            | `uuid`         | `blocks.access.idType`                                         |
+| `scope`        | `tenant`, `user`, `none`                                                                       | `tenant`       | under `user` or `none`, blocks that need tenants can't install |
+| `tenantName`   | `organization`                                                                                 | `organization` | reserved for renaming the tenant concept                       |
+| `access`       | `roles`, `catalog`, `provider`, `custom`                                                       | `roles`        | `blocks.access.model`                                          |
+| `api`          | `none`, `api`                                                                                  | `none`         | `sql.api`                                                      |
+| `integrations` | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                 |
+
+## Codes
+
+A code is a version character followed by base62 of one BigInt. The low
+bits hold each field's value index in a fixed number of bits, in the order
+of `PRESET_FIELDS`; above them sits one bit per entry of `PRESET_BLOCKS`.
+Both lists are append-only. A new block takes the next bit, and a removed
+block keeps its bit as a `null` tombstone, so every code keeps decoding.
+
+A new field raises `PRESET_VERSION`. `decodePreset` reads a code from an
+older version with the newer fields at their defaults and lists them in
+`derived`. A code from a newer release throws and names the upgrade. Each
+released version has a frozen fixture of codes in the package tests that
+must decode to the same selection forever.
+
+`presetOf` takes a named preset, a code or a `/create?preset=` URL, which
+is what the `preset` config key accepts.
+
+## Resolving
+
+`resolvePreset(preset)` returns:
+
+| Key            | What it holds                                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `blocks`       | every block to install, in install order, with `selected`, `requiredBy` and a `reason` such as "required by comments" |
+| `integrations` | the soft integrations active between blocks in the set (`comments` works with `notifications`)                        |
+| `conflicts`    | what can't install and why: a block that needs tenants under scope `user`, or Expo on `web` only                      |
+| `manifests`    | the block manifests that cover the set, for `lib/blocks.ts`                                                           |
+
+What a block requires can depend on the access model: under `provider` and
+`custom`, `access` no longer requires `tenant`. `presetBlockConflict` says
+why one block can't install before it is selected, which is how Create
+disables a block.
+
+`defineConfig` throws when a preset has conflicts, listing each one.
+
+## Generated files
+
+| Function               | Writes                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason  |
+| `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `createBlocks`        |
+| `presetInstallCommand` | `npx better-supabase sql add` with the selected blocks, which brings what they require |
+
+`scripts/build-catalog.ts` writes the catalog (`src/preset/catalog.generated.ts`)
+from the SQL module registry and the block manifests, and
+`pnpm catalog:check` fails when it is stale.

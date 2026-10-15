@@ -2,10 +2,12 @@ import { defineMetric } from "better-supabase/blocks/metrics";
 import { orderMetrics } from "better-supabase/blocks/orders";
 import { defineConfig } from "better-supabase/config";
 
-// The configs on the Recipes docs pages, with the app tables in a schema of
-// their own instead of `public`. Each recipe also names the tables it creates,
-// so a test can install it on an empty schema. A state machine is keyed by its
-// subject type, so its status.changed events reach the subject's watchers.
+// The configs on the Presets docs pages: each starts from a named preset
+// (better-supabase/preset) and adds the blocks and options its app needs, with
+// the app tables in a schema of their own instead of `public`. Each recipe
+// also names the tables it creates, so a test can install it on an empty
+// schema. A state machine is keyed by its subject type, so its status.changed
+// events reach the subject's watchers.
 
 export interface Recipe {
   readonly name: string;
@@ -40,6 +42,7 @@ create table recipe_crm.deals (
 create index on recipe_crm.deals (organization_id, stage, rank);
 ${readable("recipe_crm.deals")}`,
   config: defineConfig({
+    preset: "crm",
     subjects: {
       deal: {
         table: "recipe_crm.deals",
@@ -50,12 +53,6 @@ ${readable("recipe_crm.deals")}`,
       },
     },
     blocks: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
-      comments: {},
-      tags: {},
-      "custom-fields": {},
       rank: {},
       reminders: {},
       "state-machine": {
@@ -95,6 +92,7 @@ create table recipe_pm.tasks (
 create index on recipe_pm.tasks (organization_id, status, rank);
 ${readable("recipe_pm.tasks")}`,
   config: defineConfig({
+    preset: "projects",
     subjects: {
       task: {
         table: "recipe_pm.tasks",
@@ -105,14 +103,6 @@ ${readable("recipe_pm.tasks")}`,
       },
     },
     blocks: {
-      organizations: {},
-      teams: {},
-      outbox: {},
-      notifications: {},
-      comments: {},
-      tags: {},
-      rank: {},
-      reminders: {},
       "number-sequences": {},
       "state-machine": {
         options: {
@@ -149,6 +139,7 @@ create table recipe_drive.documents (
 );
 ${readable("recipe_drive.documents")}`,
   config: defineConfig({
+    preset: "saas",
     subjects: {
       document: {
         table: "recipe_drive.documents",
@@ -159,9 +150,6 @@ ${readable("recipe_drive.documents")}`,
       },
     },
     blocks: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
       comments: {},
       tags: {},
       attachments: {},
@@ -185,6 +173,7 @@ create table recipe_scheduling.bookings (
 );
 ${readable("recipe_scheduling.bookings")}`,
   config: defineConfig({
+    preset: "scheduling",
     subjects: {
       booking: {
         table: "recipe_scheduling.bookings",
@@ -194,12 +183,8 @@ ${readable("recipe_scheduling.bookings")}`,
       },
     },
     blocks: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
       "custom-fields": {},
       "share-links": {},
-      reminders: {},
       "state-machine": {
         options: {
           machines: {
@@ -291,6 +276,7 @@ end;
 $$;
 revoke execute on function public.before_promotion_activate(uuid) from public, anon, authenticated;`,
   config: defineConfig({
+    preset: "commerce",
     subjects: {
       order: {
         table: "better_supabase.orders",
@@ -314,11 +300,6 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
       },
     },
     blocks: {
-      organizations: {},
-      outbox: {},
-      notifications: {},
-      catalog: {},
-      inventory: {},
       imports: {},
       "number-sequences": {
         options: {
@@ -328,8 +309,6 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
           },
         },
       },
-      orders: {},
-      promotions: {},
       search: {},
       "saved-views": {},
       metrics: { options: { metrics: commerceMetrics } },

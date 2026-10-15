@@ -575,6 +575,7 @@ const EnvironmentSchema = v.strictObject(ENTRIES);
 
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
+  preset: v.optional(v.pipe(v.string(), v.minLength(1))),
   ...ENTRIES,
   $env: v.optional(v.record(v.string(), EnvironmentSchema)),
   $development: v.optional(EnvironmentSchema),

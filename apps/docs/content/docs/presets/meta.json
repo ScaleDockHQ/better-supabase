@@ -1,9 +1,11 @@
 {
-  "title": "Recipes",
+  "title": "Presets",
   "pages": [
     "index",
+    "codes",
+    "---Apps---",
     "crm",
-    "project-management",
+    "projects",
     "drive",
     "scheduling",
     "commerce"

@@ -26,10 +26,14 @@ the relations block.
 
 ## Config
 
+Drive has no preset of its own: it starts from `saas` and adds the blocks a
+file list needs. Blocks you name next to a preset join it:
+
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
+  preset: "saas",
   subjects: {
     document: {
       table: "public.documents",
@@ -40,9 +44,6 @@ export default defineConfig({
     },
   },
   blocks: {
-    organizations: {},
-    outbox: {},
-    notifications: {},
     comments: {},
     tags: {},
     attachments: {},

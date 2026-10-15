@@ -6,6 +6,7 @@ import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { expandPreset } from "../preset/config.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
@@ -131,11 +132,14 @@ function isBlockList(
 export const CONFIG_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/config-v1.json";
 
-/** Identity helper that types `better-supabase.config.ts`. */
+/**
+ * Types `better-supabase.config.ts`. With `preset`, it expands the preset
+ * into `blocks` and its conventions first, and the keys you set win.
+ */
 export function defineConfig(
   config: BetterSupabaseConfig,
 ): BetterSupabaseConfig {
-  return config;
+  return expandPreset(config);
 }
 
 function pick<T extends object>(
@@ -171,9 +175,10 @@ function authorizationOf(
 
 /** Applies defaults. Paths stay relative to `root`. */
 export function resolveConfig(
-  config: BetterSupabaseConfig,
+  input: BetterSupabaseConfig,
   root: string,
 ): ResolvedConfig {
+  const config = expandPreset(input);
   const output = config.output ?? CONFIG_DEFAULTS.output;
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
   const legacyOpenApi = config.openapi;

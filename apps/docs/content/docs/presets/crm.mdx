@@ -27,10 +27,16 @@ tenant table.
 
 ## Config
 
+The `crm` preset brings the SaaS blocks (organizations, notifications, the
+outbox, ...) plus parties, pipelines, engagements, tags, comments, custom
+fields, saved views and search. The board adds `rank`, `reminders` and a
+state machine on top:
+
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
+  preset: "crm",
   subjects: {
     deal: {
       table: "public.deals",
@@ -41,12 +47,6 @@ export default defineConfig({
     },
   },
   blocks: {
-    organizations: {},
-    outbox: {},
-    notifications: {},
-    comments: {},
-    tags: {},
-    "custom-fields": {},
     rank: {},
     reminders: {},
     "state-machine": {

@@ -1,16 +1,30 @@
 /**
  * Writes the blocks catalog the marketing site renders (`/blocks`) from
  * `SQL_MODULES`, so the pages never drift from the registry. The marketing
- * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it.
+ * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
+ * writes the preset catalog (`src/preset/catalog.generated.ts`), which
+ * `better-supabase/preset` resolves against without importing the SQL
+ * renderers. That file is committed, and `pnpm catalog:check` (`--check`,
+ * part of `pnpm verify`) fails when it is stale.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { exit } from "node:process";
+import { argv, exit } from "node:process";
 import * as v from "valibot";
 
 // A relative import, not `better-supabase/sql`: Vercel installs only the
 // marketing app's dependencies, so the root has no link to the package.
-import type { BlockCategory } from "../packages/better-supabase/src/blocks/define-block.ts";
+import type {
+  AnyBlock,
+  BlockCategory,
+} from "../packages/better-supabase/src/blocks/define-block.ts";
+import type { PortName } from "../packages/better-supabase/src/blocks/ports.ts";
+import type {
+  PresetCatalog,
+  PresetCatalogBlock,
+  PresetCatalogManifest,
+} from "../packages/better-supabase/src/preset/catalog-types.ts";
+import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
@@ -22,7 +36,15 @@ import {
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
 const DOCS_BLOCKS = join(ROOT, "apps/docs/content/docs/blocks");
-export const CATALOG_FILE = join(ROOT, "apps/marketing/lib/catalog.json");
+export const CATALOG_FILE: string = join(
+  ROOT,
+  "apps/marketing/lib/catalog.json",
+);
+export const PRESET_CATALOG_FILE: string = join(
+  ROOT,
+  "packages/better-supabase/src/preset/catalog.generated.ts",
+);
+const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
 
 export const CATEGORIES = [
   "Foundation",
@@ -204,10 +226,158 @@ export function formatCatalog(catalog: Catalog): string {
   return `${JSON.stringify(catalog, null, 2)}\n`;
 }
 
+const ACCESS_MODELS: readonly PresetAccess[] = [
+  "roles",
+  "catalog",
+  "provider",
+  "custom",
+];
+
+/**
+ * Each manifest's export name and folder: the registry imports every
+ * manifest by name from `./<folder>/manifest.ts` and lists the names in
+ * `BLOCK_MANIFESTS` in the array's order.
+ */
+function manifestExports(): ReadonlyMap<
+  AnyBlock,
+  { name: string; folder: string }
+> {
+  const registry = readFileSync(join(BLOCKS_SRC, "registry.ts"), "utf8");
+  const folders = new Map(
+    [
+      ...registry.matchAll(
+        /import \{ (\w+) \} from "\.\/([a-z0-9-]+)\/manifest\.ts";/g,
+      ),
+    ].flatMap((match) => (match[1] && match[2] ? [[match[1], match[2]]] : [])),
+  );
+  const list = /BLOCK_MANIFESTS[^=]*= \[([^\]]*)\]/.exec(registry)?.[1] ?? "";
+  const names = [...list.matchAll(/(\w+),/g)].flatMap((match) =>
+    match[1] ? [match[1]] : [],
+  );
+  if (names.length !== BLOCK_MANIFESTS.length) {
+    throw new Error(
+      `build-catalog: read ${String(names.length)} names from BLOCK_MANIFESTS in registry.ts, but it holds ${String(BLOCK_MANIFESTS.length)} manifests.`,
+    );
+  }
+  return new Map(
+    BLOCK_MANIFESTS.flatMap((block, index) => {
+      const name = names[index] ?? "";
+      const folder = folders.get(name);
+      return folder === undefined ? [] : [[block, { name, folder }]];
+    }),
+  );
+}
+
+function presetManifest(
+  block: AnyBlock,
+  exported: { name: string; folder: string } | undefined,
+  exports: ReadonlyMap<string, string>,
+): PresetCatalogManifest {
+  const subpath = `./blocks/${exported?.folder ?? block.name}`;
+  const source = exports.get(subpath);
+  const index =
+    source === undefined || source === ""
+      ? ""
+      : readFileSync(join(ROOT, source), "utf8");
+  const reexported =
+    exported !== undefined && new RegExp(`\\b${exported.name}\\b`).test(index);
+  return {
+    name: block.name,
+    sql: block.sql,
+    category: block.category,
+    client:
+      block.create !== undefined && exported !== undefined && reexported
+        ? {
+            export: exported.name,
+            subpath: `better-supabase${subpath.slice(1)}`,
+          }
+        : null,
+    consumes: block.consumes,
+    provides: Object.keys(block.provides).filter(isPortName),
+  };
+}
+
+const PORT_NAMES: readonly PortName[] = [
+  "notifier",
+  "files",
+  "attachments",
+  "workflows",
+  "sink",
+];
+
+const isPortName = (name: string): name is PortName =>
+  PORT_NAMES.some((port) => port === name);
+
+function presetBlock(module: SqlModule): PresetCatalogBlock {
+  const manifest = BLOCK_MANIFESTS.find((each) =>
+    each.sql.includes(module.name),
+  );
+  if (manifest === undefined) {
+    throw new Error(
+      `build-catalog: no block manifest installs the "${module.name}" module; add it to one's \`sql\`.`,
+    );
+  }
+  const requires = module.dependencies?.({}) ?? module.requires;
+  const byAccess = Object.fromEntries(
+    ACCESS_MODELS.flatMap((model) => {
+      const needs = module.dependencies?.({
+        modules: { access: { model } },
+      });
+      return needs === undefined || needs.join() === requires.join()
+        ? []
+        : [[model, needs]];
+    }),
+  );
+  const block = {
+    name: module.name,
+    title: module.title,
+    category: manifest.category,
+    requires,
+    integrates: module.integrates ?? [],
+    manifest: manifest.name,
+  } satisfies PresetCatalogBlock;
+  return Object.keys(byAccess).length === 0
+    ? block
+    : { ...block, requiresByAccess: byAccess };
+}
+
+export function buildPresetCatalog(): PresetCatalog {
+  const exports = exportsOf();
+  const found = manifestExports();
+  return {
+    blocks: Object.values(SQL_MODULES).map(presetBlock),
+    manifests: BLOCK_MANIFESTS.map((block) =>
+      presetManifest(block, found.get(block), exports),
+    ),
+  };
+}
+
+export function formatPresetCatalog(catalog: PresetCatalog): string {
+  return [
+    "// Generated by scripts/build-catalog.ts from SQL_MODULES and the block",
+    "// manifests. Do not edit; run `pnpm catalog`.",
+    'import type { PresetCatalog } from "./catalog-types.ts";',
+    "",
+    `export const PRESET_CATALOG: PresetCatalog = ${JSON.stringify(catalog, null, 2)};`,
+    "",
+  ].join("\n");
+}
+
 if (import.meta.main) {
   try {
-    mkdirSync(dirname(CATALOG_FILE), { recursive: true });
-    writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
+    const preset = formatPresetCatalog(buildPresetCatalog());
+    if (argv.includes("--check")) {
+      if (readFileSync(PRESET_CATALOG_FILE, "utf8") !== preset) {
+        console.error(
+          "build-catalog: src/preset/catalog.generated.ts is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+    } else {
+      writeFileSync(PRESET_CATALOG_FILE, preset);
+      mkdirSync(dirname(CATALOG_FILE), { recursive: true });
+      writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     exit(1);

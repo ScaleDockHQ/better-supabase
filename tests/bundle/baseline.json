@@ -1,7 +1,8 @@
 {
   ".": 65770,
-  "./config": 20212,
-  "./cli": 479836,
+  "./config": 31181,
+  "./preset": 12642,
+  "./cli": 479858,
   "./client": 27132,
   "./client/native": 25023,
   "./react": 25618,
@@ -213,10 +214,10 @@
   "./plugins/actor": 6307,
   "./plugins/validation": 11120,
   "./sql": 714144,
-  "./testing": 172186,
+  "./testing": 183153,
   "./expo-sqlite": 29571,
   "./tanstack-db": 1437,
   "./tanstack-db/supabase": 1693,
   "./blocks/push": 36871,
-  "better-supabase CLI (startup)": 13818
+  "better-supabase CLI (startup)": 13822
 }

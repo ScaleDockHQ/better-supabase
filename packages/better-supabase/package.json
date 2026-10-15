@@ -51,6 +51,11 @@
       "types": "./dist/config/index.d.ts",
       "default": "./dist/config/index.js"
     },
+    "./preset": {
+      "@better-supabase/source": "./src/preset/index.ts",
+      "types": "./dist/preset/index.d.ts",
+      "default": "./dist/preset/index.js"
+    },
     "./cli": {
       "@better-supabase/source": "./src/cli/index.ts",
       "types": "./dist/cli/index.d.ts",
@@ -1166,6 +1171,10 @@
       "./config": {
         "types": "./dist/config/index.d.ts",
         "default": "./dist/config/index.js"
+      },
+      "./preset": {
+        "types": "./dist/preset/index.d.ts",
+        "default": "./dist/preset/index.js"
       },
       "./cli": {
         "types": "./dist/cli/index.d.ts",

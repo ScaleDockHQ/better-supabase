@@ -48,6 +48,13 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   Add new ones with the shadcn CLI, then adjust them in place; the registry's
   `base-vega` items import `cn` from a `cn` package, so point the import at
   `@/lib/utils` instead of installing it.
+- `components/create`: the `/create` builder. It resolves the selection in
+  the browser with `better-supabase/preset` (helpers in `lib/create.ts`),
+  fetches rendered migrations from `app/create/migrations/route.ts`, and
+  draws the dependency graph as inline SVG with token classes
+  (`fill-card`, `stroke-border`). Form controls are native `select`,
+  radio and checkbox elements styled with the input tokens and
+  `accent-primary`.
 - `components/blocks`: the `/blocks` overview's client filter. The pages read
   `lib/blocks.ts`, which parses `lib/catalog.json`; `scripts/build-catalog.ts`
   writes that file from the SQL module registry before every marketing task.
@@ -55,8 +62,7 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   The registry needs `REUI_LICENSE_KEY`.
 - `components/sections`: page sections. Every section renders through
   `Section`, which sets the width, padding, eyebrow, heading and description.
-- `components/site`: the navbar, footer, logo, theme toggle, `PlannedPage`
-  for a route whose feature is not built yet, `SiteLink`,
+- `components/site`: the navbar, footer, logo, theme toggle, `SiteLink`,
   which picks a typed Next.js `Link` for app routes and a plain anchor for
   `/docs` and external URLs, and `LinkButton`, a `SiteLink` with the button
   classes.
