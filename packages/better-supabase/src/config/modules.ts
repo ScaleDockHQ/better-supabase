@@ -16,7 +16,7 @@ export type ModuleMode = "managed" | "adopt" | "custom";
 /** Options every module takes. */
 export interface ModuleConfig {
   readonly mode?: ModuleMode;
-  /** Schema of the module's functions and managed tables. Defaults to `better_supabase`. */
+  /** Schema of the module's functions and managed tables. Defaults to `sql.schema`, then `better_supabase`. */
   readonly schema?: string;
   /**
    * Logical table to `table` or `schema.table`, e.g.
@@ -66,10 +66,12 @@ export interface ModuleConfig {
    * `security invoker` wrapper there for each of its functions that `anon`
    * or `authenticated` may execute (or only those in `functions`), so
    * `rpcTransport(supabase, { schema: "api" })` reaches them without
-   * exposing the module schema (doctor BS312).
+   * exposing the module schema (doctor BS312). Defaults to `sql.api`;
+   * `false` writes no wrappers even when `sql.api` is set.
    */
   readonly api?:
     | string
+    | false
     | { readonly schema: string; readonly functions?: readonly string[] };
 }
 
@@ -238,7 +240,7 @@ export function resolveModule(config: ModuleConfig = {}): ResolvedModule {
     },
     events: config.events ?? true,
     audit: config.audit ?? true,
-    ...(config.api === undefined
+    ...(config.api === undefined || config.api === false
       ? {}
       : {
           api:

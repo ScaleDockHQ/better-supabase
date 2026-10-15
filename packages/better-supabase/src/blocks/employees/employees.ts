@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
 import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -545,7 +546,7 @@ export function employeesSubjects(
 ): { readonly employee: SubjectConfig } {
   return {
     employee: {
-      table: `${options.schema ?? "better_supabase"}.employees`,
+      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.employees`,
       idType: "uuid",
       tenant: "tenant_id",
       title: "name",

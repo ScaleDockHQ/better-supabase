@@ -59,6 +59,7 @@ const moduleEntries = {
   api: v.optional(
     v.union([
       v.string(),
+      v.literal(false),
       v.strictObject({
         schema: v.string(),
         functions: v.optional(strings),
@@ -475,6 +476,8 @@ const ENTRIES = {
       dir: v.optional(v.string()),
       prefix: v.optional(v.string()),
       testsDir: v.optional(v.string()),
+      schema: v.optional(v.string()),
+      api: v.optional(v.string()),
       modules: v.optional(
         v.lazy((input) =>
           Array.isArray(input)

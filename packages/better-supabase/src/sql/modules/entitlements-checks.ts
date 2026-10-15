@@ -13,6 +13,9 @@ interface Memberships {
   readonly tenant: string;
   readonly user: string;
   readonly idType: ModuleIdType;
+  /** The tenant module's `member_organization_ids` and `has_organization_role`. */
+  readonly memberIds: string;
+  readonly hasRole: string;
 }
 
 export function memberships(layout: ModuleLayout): Memberships {
@@ -22,6 +25,8 @@ export function memberships(layout: ModuleLayout): Memberships {
     tenant: ctx.col("memberships", "tenant"),
     user: ctx.col("memberships", "user"),
     idType: ctx.idType,
+    memberIds: ctx.fn("member_organization_ids"),
+    hasRole: ctx.fn("has_organization_role"),
   };
 }
 
@@ -170,10 +175,10 @@ export const tenantEntitlementChecks = (
     {
       intro: "",
       idType: m.idType,
-      hasBody: `  select better_supabase.has_organization_role(tenant)
+      hasBody: `  select ${m.hasRole}(tenant)
     and key = any (better_supabase.tenant_entitlements(tenant))`,
-      memberCheck: "better_supabase.has_organization_role(tenant)",
-      idsBody: `  select t.id from better_supabase.member_organization_ids() as t(id)
+      memberCheck: `${m.hasRole}(tenant)`,
+      idsBody: `  select t.id from ${m.memberIds}() as t(id)
   where key = any (better_supabase.tenant_entitlements(t.id))`,
       claimsComment: `-- The \`${claims.features}\` claim: { [tenant id]: lookup keys }, read by
 -- hasEntitlement(). Tenants without entitlements are left out. Call it from

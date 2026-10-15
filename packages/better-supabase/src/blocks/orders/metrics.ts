@@ -1,3 +1,4 @@
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import {
   defineMetric,
   type MetricDefinition,
@@ -25,7 +26,7 @@ export type OrderMetrics = readonly [
  */
 export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   const shared = {
-    table: `${options.schema ?? "better_supabase"}.orders`,
+    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.orders`,
     tenant: "tenant_id",
     ...(options.tz === undefined ? {} : { tz: options.tz }),
   };

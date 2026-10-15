@@ -179,6 +179,7 @@ export const ENTITLEMENTS: SqlModule = {
   description:
     "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.",
   requires: ["tenant"],
+  integrates: ["billing", "organizations"],
   providerRequires: [],
   target: "schema",
   get sql() {
@@ -187,6 +188,6 @@ export const ENTITLEMENTS: SqlModule = {
   render: entitlementsSql,
   extras: (ctx, layout) =>
     (layout.entitlements?.source ?? "stripe-sync") === "stripe-sync"
-      ? entitlementsSource(customerSource(layout, ctx.installedModules), layout)
+      ? entitlementsSource(customerSource(ctx, layout), layout)
       : "",
 };

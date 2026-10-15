@@ -6,7 +6,11 @@ import type {
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
-import { type Budget, budget } from "../../core/block-helpers.ts";
+import {
+  type Budget,
+  budget,
+  DEFAULT_BLOCK_SCHEMA,
+} from "../../core/block-helpers.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { type DbError } from "../../core/errors.ts";
 import { type BlockProblemOptions } from "../../core/problem.ts";
@@ -335,7 +339,7 @@ export function createOutbox(
   options: OutboxOptions,
 ): Outbox {
   applyTemporal(options);
-  const name = options.schema ?? "better_supabase";
+  const name = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const schema = sqlIdent(name);
   const transport = isTransport(source) ? source : undefined;
   const call = async (fn: string, args: unknown[]): Promise<unknown> => {

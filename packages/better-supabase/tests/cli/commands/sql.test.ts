@@ -132,6 +132,45 @@ describe("runSql", () => {
     expect(billing).toContain("billing_customers_tenant_fkey");
   });
 
+  it("lists added modules in the config file, or prints them when it can't", async () => {
+    const run = (argv: string[], configFile?: string) =>
+      runSql(
+        resolveConfig({}, root),
+        parseCommandArgs(sqlCommand, argv),
+        undefined,
+        {
+          now: () => new Date("2026-10-15T00:00:00Z"),
+          ...(configFile === undefined ? {} : { configFile }),
+        },
+      );
+    expect((await run(["add", "updated-at"])).output).toContain(
+      'Add them to sql.modules in better-supabase.config.ts so `sql sync --check` keeps them current:\n  "updated-at": {},',
+    );
+
+    const file = join(root, "better-supabase.config.ts");
+    await writeFile(file, "export default defineConfig(base);\n");
+    const refused = await run(["add", "updated-at"], file);
+    expect(refused.output).toContain(
+      "better-supabase.config.ts wasn't changed: it doesn't pass an object literal to defineConfig().",
+    );
+
+    const literal =
+      "export default defineConfig({ sql: { modules: { audit: {} } } });\n";
+    await writeFile(file, literal);
+    const dry = await run(["add", "updated-at", "--dry-run"], file);
+    expect(dry.output).toContain(
+      "Would add updated-at to sql.modules in better-supabase.config.ts.",
+    );
+    expect(await readFile(file, "utf8")).toBe(literal);
+    const added = await run(["add", "updated-at"], file);
+    expect(added.output).toContain(
+      "Added updated-at to sql.modules in better-supabase.config.ts.",
+    );
+    expect(await readFile(file, "utf8")).toBe(
+      'export default defineConfig({ sql: { modules: { audit: {}, "updated-at": {} } } });\n',
+    );
+  });
+
   it("writes and checks the topic policies of realtime.policies", async () => {
     const realtime = resolve(
       import.meta.dirname,

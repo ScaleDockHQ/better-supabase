@@ -64,6 +64,43 @@ describe("entitlements sources", () => {
     expect(sql).toContain("better_supabase.tenant_stripe_customer");
   });
 
+  it("reads the customer from renamed billing columns", () => {
+    const sql = renderModules(["billing", "entitlements"], {
+      modules: {
+        billing: {
+          schema: "app",
+          tables: { customers: "team_billing" },
+          columns: { customers: { tenant: "team_id", customer: "cus_id" } },
+        },
+      },
+    }).find(
+      (file) => file.module === "entitlements" && file.kind === "schema",
+    )!.contents;
+    expect(sql).toContain("-- config.entitlements: app.team_billing.cus_id");
+    expect(sql).toContain(
+      'select t."cus_id" from "app"."team_billing" t where t."team_id" = tenant',
+    );
+    expect(sql).not.toContain("stripe_customer_id");
+  });
+
+  it("reads the customer from a renamed organizations table", () => {
+    const sql = renderModules(["organizations", "entitlements"], {
+      modules: {
+        organizations: {
+          schema: "app",
+          tables: { organizations: "teams" },
+          columns: { organizations: { id: "team_id" } },
+        },
+      },
+    }).find(
+      (file) => file.module === "entitlements" && file.kind === "schema",
+    )!.contents;
+    expect(sql).toContain(
+      'select t."stripe_customer_id" from "app"."teams" t where t."team_id" = tenant',
+    );
+    expect(sql).not.toContain("better_supabase.organizations");
+  });
+
   it("renders a plan catalog without status or included columns", () => {
     const sql = entitlements({
       plans: {

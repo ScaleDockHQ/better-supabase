@@ -1,5 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
+
 export interface RotateSecretOptions {
   /** How long older secrets keep signing, e.g. `'24 hours'` (the default). */
   readonly overlap?: string;
@@ -25,7 +27,7 @@ export function sqlSecretStore(
   transport: BlockTransport,
   options: { readonly schema?: string } = {},
 ): WebhookSecretStore {
-  const schema = options.schema ?? "better_supabase";
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   return {
     apiVersion: 1,
     async secrets(endpointId) {

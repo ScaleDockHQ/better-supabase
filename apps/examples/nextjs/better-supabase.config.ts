@@ -91,16 +91,23 @@ export default defineConfig({
   // The block files live in the repo's fixture, so the stack runs them.
   sql: {
     dir: "../../../supabase/schemas/_better_supabase",
+    // Every module writes its Data API wrappers to `api`, except those
+    // that set `api: false` (helpers with no client entry points).
+    api: "api",
     modules: {
-      "updated-at": {},
-      "read-sets": {},
-      "realtime-tables": {},
-      "rate-limit": {},
-      "vector-search": {},
+      "updated-at": { api: false },
+      "read-sets": { api: false },
+      "realtime-tables": { api: false },
+      "rate-limit": { api: false },
+      "vector-search": { api: false },
       // The fixture writes the memberships table and the access contract
       // itself (supabase/schemas/better_supabase/functions), so tokens that
       // carry only a tenant claim keep working for the integration suite.
-      tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
+      tenant: {
+        mode: "custom",
+        api: false,
+        tables: { memberships: "public.memberships" },
+      },
       // switch_organization writes app_metadata.tenant_id; the token hook
       // copies it into the access token. In custom mode only the role names
       // count: they are the roles invitations and member updates accept.
@@ -108,6 +115,7 @@ export default defineConfig({
       // supabase/schemas/better_supabase/functions/role_permissions.sql.
       access: {
         mode: "custom",
+        api: false,
         activeTenant: "claim",
         roles: { owner: [], admin: [], member: [] },
       },
@@ -115,70 +123,68 @@ export default defineConfig({
       // `audit.read` read their organization's log, and the app's actions
       // record events as the signed-in user.
       audit: {
-        api: "api",
         options: {
           exempt: ["public.*"],
           readPolicy: true,
           eventRoles: ["authenticated", "service_role"],
         },
       },
-      "api-keys": { api: "api" },
-      settings: { api: "api" },
-      comments: { api: "api" },
+      "api-keys": {},
+      settings: {},
+      comments: {},
       organizations: {
-        api: "api",
         mode: "adopt",
         tables: { organizations: "public.organizations" },
         columns: {
           organizations: { createdBy: null, deletedAt: null, disabledAt: null },
         },
       },
-      invitations: { api: "api" },
-      profiles: { api: "api" },
-      flags: { api: "api" },
-      announcements: { api: "api" },
-      onboarding: { api: "api", options: { checklists: [gettingStarted] } },
-      entitlements: { api: "api" },
-      usage: { api: "api" },
+      invitations: {},
+      profiles: {},
+      flags: {},
+      announcements: {},
+      onboarding: { options: { checklists: [gettingStarted] } },
+      entitlements: {},
+      usage: {},
       // Cmd+K over customers, and the customers card on the dashboard.
-      search: { api: "api" },
-      metrics: { api: "api", options: { metrics } },
+      search: {},
+      metrics: { options: { metrics } },
       // In-app notifications behind the unread badge and /notifications,
       // on the recipient's private topic `notifications:<user id>`.
-      notifications: { api: "api" },
+      notifications: {},
       // Durable workflow runs behind /workflows, run by the Workflow SDK on
       // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
-      workflows: { api: "api" },
-      "workflow-sdk-world": {},
+      workflows: {},
+      "workflow-sdk-world": { api: false },
       // Workflows tenants build on a canvas at /workflows/builder.
-      "workflow-builder": { api: "api" },
+      "workflow-builder": {},
       // Vault-backed secrets behind the builder's credential references.
-      credentials: { api: "api" },
+      credentials: {},
       // The support inbox behind /inbox and the Help sheet: jobs carry bot
       // turns and channel replies, streams hold the bot's resumable output.
-      jobs: {},
-      streams: { api: "api" },
-      inbox: { api: "api" },
-      "chat-sdk-state": {},
+      jobs: { api: false },
+      streams: {},
+      inbox: {},
+      "chat-sdk-state": { api: false },
       // The /assistant sample: chats in `ai-chat` on private Realtime topics,
       // resumable answers in `streams` and attachments in `ai-files`.
       // /knowledge ingests documents into `knowledge` for the assistant's
       // search tool, and `memory` keeps what it remembers. /agents builds and
       // installs assistants (`agents`), `connectors` holds the MCP servers they
       // call and `ai-tasks` their schedules.
-      "ai-chat": { api: "api" },
-      "ai-files": { api: "api" },
-      knowledge: { api: "api" },
-      memory: { api: "api" },
-      agents: { api: "api" },
-      connectors: { api: "api" },
-      "ai-tasks": { api: "api" },
+      "ai-chat": {},
+      "ai-files": {},
+      knowledge: {},
+      memory: {},
+      agents: {},
+      connectors: {},
+      "ai-tasks": {},
       // Device push tokens for the Expo example's push registration.
-      push: { api: "api" },
+      push: {},
       // The assistant answers with each organization's own provider keys
       // (`ai-providers`), and `ai-cache` keeps repeated model calls.
-      "ai-cache": { api: "api" },
-      "ai-providers": { api: "api" },
+      "ai-cache": {},
+      "ai-providers": {},
     },
   },
 });
