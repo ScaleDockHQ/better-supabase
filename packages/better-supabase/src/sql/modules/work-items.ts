@@ -7,13 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import {
-  addExtraColumns,
-  fail,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   workItemFunctions,
@@ -142,7 +136,7 @@ function tables(ctx: ModuleContext, n: WorkItemNames): string {
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${tenantIn(c(table, "tenant"), n.read)});`;
+using (${ctx.scope.check(c(table, "tenant"), n.read)});`;
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);
   const projects = ctx.hasTable("projects")

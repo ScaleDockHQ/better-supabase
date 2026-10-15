@@ -9,7 +9,6 @@ import { sqlString } from "../../core/template.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
-  tenantIn,
   revokeTable,
   fail,
   raise,
@@ -184,7 +183,7 @@ drop policy if exists "onboarding_progress_read" on ${p};
 create policy "onboarding_progress_read" on ${p} for select to authenticated
   using (
     ${c("user")} = (select auth.uid())
-    or ${tenantIn(c("tenant"), ctx.permission("read", permissions.read))}
+    or ${ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read))}
   );
 
 -- [{ step, completedAt, completedBy }] of one checklist for the caller, or

@@ -1,10 +1,13 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { canIn, fail, pageSize, userGrant } from "../shared.ts";
+import { fail, pageSize, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
 export interface CollectionNames {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -32,18 +35,18 @@ export function collectionFunctions(
   const en = (column: string): string => names.c("entries", column);
   // `subject_collections_read` for a row a security definer function has read.
   const maySee = (alias: string): string =>
-    `(${SERVICE} or (${canIn(`${alias}.${co("tenant")}`, names.read)} and (
+    `(${SERVICE} or (${ctx.scope.can(`${alias}.${co("tenant")}`, names.read)} and (
       (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid())
       or (${alias}.${co("scope")} = 'team' and ${names.inTeam(`${alias}.${co("team")}`)})
       or ${alias}.${co("scope")} = 'tenant')))`;
   // Renaming and archiving: the owner of a personal list, or collections.share.
   const mayManage = (alias: string): string =>
     `(${SERVICE}
-    or (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid() and ${canIn(`${alias}.${co("tenant")}`, names.write)})
-    or (${alias}.${co("scope")} <> 'user' and ${canIn(`${alias}.${co("tenant")}`, names.share)}))`;
+    or (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid() and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)})
+    or (${alias}.${co("scope")} <> 'user' and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.share)}))`;
   // Adding, removing and ordering entries: anyone who sees the list and holds collections.write.
   const mayFill = (alias: string): string =>
-    `(${SERVICE} or (${maySee(alias)} and ${canIn(`${alias}.${co("tenant")}`, names.write)}))`;
+    `(${SERVICE} or (${maySee(alias)} and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)}))`;
   const json = (alias: string): string =>
     `jsonb_build_object(
     'id', ${alias}.${co("id")},
@@ -106,13 +109,13 @@ begin
   if v_name is null then
     ${fail("COLLECTION_NAME_REQUIRED", "a name is required", "23502")}
   end if;
-  if not (v_service or ${canIn("create_collection.tenant", names.write)}) then
+  if not (v_service or ${ctx.scope.can("create_collection.tenant", names.write)}) then
     ${fail("COLLECTION_FORBIDDEN", "not allowed to create collections")}
   end if;
   if v_scope = 'user' and auth.uid() is null then
     ${fail("COLLECTION_INVALID", "a personal collection needs a signed-in user", "22023")}
   end if;
-  if v_scope <> 'user' and not (v_service or ${canIn("create_collection.tenant", names.share)}) then
+  if v_scope <> 'user' and not (v_service or ${ctx.scope.can("create_collection.tenant", names.share)}) then
     ${fail("COLLECTION_FORBIDDEN", "not allowed to share collections")}
   end if;
   if v_scope = 'team' then
@@ -431,7 +434,7 @@ begin
   if v_user is null then
     ${fail("FAVORITE_INVALID", "a star needs a signed-in user", "22023")}
   end if;
-  if not ${canIn("star_subject.tenant", names.read)} then
+  if not ${ctx.scope.can("star_subject.tenant", names.read)} then
     ${fail("FAVORITE_FORBIDDEN", "not allowed to star records")}
   end if;
   if not ${subjectInTenant(ctx, "star_subject.subject_type", "star_subject.subject_id", "star_subject.tenant")} then

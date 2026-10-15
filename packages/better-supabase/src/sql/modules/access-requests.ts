@@ -15,7 +15,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
@@ -235,7 +234,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_
 ${lockTable(requests, { read: true })}
 drop policy if exists "access_requests_read" on ${requests};
 create policy "access_requests_read" on ${requests} for select to authenticated
-  using (${tenantIn(c("tenant"), read)} or ${c("user")} = (select auth.uid()));
+  using (${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid()));
 `
     : "";
   return `${schemaPreamble(ctx)}

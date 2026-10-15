@@ -130,7 +130,7 @@ ${lockTable(t, { read: true })}
 ${tables}
 drop policy if exists service_principals_read on ${t};
 create policy service_principals_read on ${t} for select to authenticated
-using (${c("tenant")} in (select better_supabase.tenant_ids_with(${read})));
+using (${c("tenant")} in (select ${ctx.scope.ids(read)}));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry

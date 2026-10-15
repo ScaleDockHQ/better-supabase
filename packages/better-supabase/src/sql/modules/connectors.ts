@@ -3,12 +3,10 @@ import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
-  canIn,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
 } from "../shared.ts";
@@ -149,7 +147,7 @@ function build(ctx: ModuleContext): string {
   const serverJson = (row: string): string => rowJson(SERVERS, v, row);
   const grantJson = (row: string): string => rowJson(GRANTS, g, row);
   const isAdmin = (tenant: string): string =>
-    `(${SERVICE_CALLER} or ${canIn(tenant, manage)})`;
+    `(${SERVICE_CALLER} or ${ctx.scope.can(tenant, manage)})`;
   const notFound = (server: string): string =>
     raise("connector % not found", "P0002", "CONNECTOR_NOT_FOUND", server);
   const serverEvent = (type: string, row: string, extra = ""): string =>
@@ -206,7 +204,7 @@ grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
 drop policy if exists connector_servers_read on ${servers};
 create policy connector_servers_read on ${servers} for select to authenticated
-  using (${tenantIn(v.tenant, read)});
+  using (${ctx.scope.check(v.tenant, read)});
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
@@ -376,7 +374,7 @@ declare
   v_row ${servers}%rowtype;
 begin
   select * into v_row from ${servers} x where x.${v.id} = get_connector.id;
-  if not found or not (${SERVICE_CALLER} or ${canIn(`v_row.${v.tenant}`, read)}) then
+  if not found or not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${v.tenant}`, read)}) then
     return null;
   end if;
   return ${serverJson("v_row")} || jsonb_build_object('grant', (
@@ -512,7 +510,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from ${grants} y where y.${g.server} = save_connector_session.server_id and y.${g.user} = auth.uid() and y.${g.revokedAt} is null)
-    and not exists (select 1 from ${servers} x where x.${v.id} = save_connector_session.server_id and x.${v.authType} <> 'oauth' and ${canIn(`x.${v.tenant}`, use)}) then
+    and not exists (select 1 from ${servers} x where x.${v.id} = save_connector_session.server_id and x.${v.authType} <> 'oauth' and ${ctx.scope.can(`x.${v.tenant}`, use)}) then
     return false;
   end if;
   insert into ${sessions} (${n.server}, ${n.user}, ${n.chat}, ${n.session}, ${n.initializeResult}, ${n.expiresAt})
@@ -539,7 +537,7 @@ declare
   v_status text;
 begin
   select * into v_server from ${servers} x where x.${v.id} = check_connector_fingerprint.server_id;
-  if not found or not (${SERVICE_CALLER} or ${canIn(`v_server.${v.tenant}`, use)}) then
+  if not found or not (${SERVICE_CALLER} or ${ctx.scope.can(`v_server.${v.tenant}`, use)}) then
     ${notFound("check_connector_fingerprint.server_id")}
   end if;
   select p.${f.status} into v_status from ${fingerprints} p

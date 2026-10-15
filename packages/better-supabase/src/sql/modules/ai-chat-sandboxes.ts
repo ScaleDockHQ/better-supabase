@@ -2,13 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
-import {
-  raise,
-  serviceGrant,
-  tenantIn,
-  userGrant,
-  revokeTable,
-} from "../shared.ts";
+import { raise, serviceGrant, userGrant, revokeTable } from "../shared.ts";
 
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
@@ -88,7 +82,7 @@ grant select on ${sandboxes} to authenticated;
 grant all on ${sandboxes} to service_role;
 drop policy if exists ai_sandboxes_read on ${sandboxes};
 create policy ai_sandboxes_read on ${sandboxes} for select to authenticated
-  using (${s.user} = (select auth.uid()) or ${tenantIn(s.tenant, perm.admin)});`;
+  using (${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)});`;
 }
 
 /** The running sandbox id of a harness session, as a SQL expression. */

@@ -258,7 +258,7 @@ export function reveal(ctx: ModuleContext, restricted: boolean): string {
     .map(([logical, out]) => `, '${out}', d.${r(logical)}`)
     .join("");
   const allowed = (tenant: string) => `(${SERVICE_CALLER})
-    or coalesce(better_supabase.is_platform(${viewAll}), false)
+    or coalesce(${ctx.scope.platform(viewAll)}, false)
     or (${tenant} is not null and coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key}), false))`;
   return `-- The restricted details of one entry for a member with the reveal
 -- permission in its tenant, or platform staff, recorded as audit.revealed.

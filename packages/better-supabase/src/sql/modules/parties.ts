@@ -8,12 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { partyFunctions, type PartyNames } from "./parties-functions.ts";
 import { partiesInboxSql } from "./parties-inbox.ts";
@@ -152,7 +147,7 @@ function tables(ctx: ModuleContext, names: PartyNames): string {
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${tenantIn(c(table, "tenant"), names.read)});`;
+using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
   const co = (column: string): string => c("companies", column);
   const pe = (column: string): string => c("people", column);
   const li = (column: string): string => c("links", column);
@@ -226,6 +221,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const keys = moduleOperations("parties");
   const names: PartyNames = {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),

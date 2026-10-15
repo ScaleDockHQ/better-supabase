@@ -11,7 +11,6 @@ import {
   lockTable,
   schemaPreamble,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import {
@@ -474,7 +473,7 @@ create index if not exists search_documents_tenant_idx on ${docs} (${c("tenant")
 
 drop policy if exists "search_documents_read" on ${docs};
 create policy "search_documents_read" on ${docs} for select to authenticated
-  using (${tenantIn(c("tenant"), read)});
+  using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
   const cases =

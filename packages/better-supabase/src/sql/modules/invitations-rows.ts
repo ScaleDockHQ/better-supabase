@@ -257,7 +257,7 @@ export function updateInvitation(ctx: ModuleContext): string {
       if platform_current.${pc("expiresAt")} < now() then
         ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
       end if;
-      if not service and not better_supabase.is_platform(${invitePlatform(ctx)}) then
+      if not service and not ${ctx.scope.platform(invitePlatform(ctx))} then
         ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
       end if;
       if invitee_role is not null and ${role} is null then

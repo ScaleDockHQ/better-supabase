@@ -1,7 +1,7 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
@@ -60,7 +60,7 @@ export function employeeFunctions(
   const table = t("employees");
   const touched = has("updatedAt") ? `, ${e("updatedAt")} = now()` : "";
   const editable = (alias: string): string =>
-    `(${n.service} or ${canIn(`${alias}.${e("tenant")}`, n.write)})`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.write)})`;
   // True when the caller is the employee `target` or one of its managers.
   const inMyTree = (target: string): string => `exists (
     with recursive up (id, manager) as (
@@ -205,7 +205,7 @@ declare
   v_row ${table};
   v_status text;
 begin
-  if not (${n.service} or ${canIn("create_employee.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_employee.tenant", n.write)}) then
     ${fail("EMPLOYEE_FORBIDDEN", "not allowed to change employees")}
   end if;${existing}
   if nullif(trim(create_employee.attrs ->> 'name'), '') is null then
@@ -380,7 +380,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (${n.service} or ${canIn("org_chart.tenant", n.read)} or (org_chart.root is not null and ${inMyTree("org_chart.root")})) then
+  if not (${n.service} or ${ctx.scope.can("org_chart.tenant", n.read)} or (org_chart.root is not null and ${inMyTree("org_chart.root")})) then
     ${fail("EMPLOYEE_FORBIDDEN", "not allowed to read the org chart")}
   end if;
   return (
@@ -415,7 +415,7 @@ declare
   v_tenant ${ctx.idType};
 begin
   select x.${e("tenant")} into v_tenant from ${table} x where x.${e("id")} = reports_of.manager;
-  if v_tenant is null or not (${n.service} or ${canIn("v_tenant", n.read)} or ${inMyTree("reports_of.manager")}) then
+  if v_tenant is null or not (${n.service} or ${ctx.scope.can("v_tenant", n.read)} or ${inMyTree("reports_of.manager")}) then
     ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can read", "P0002")}
   end if;
   return (
@@ -471,7 +471,7 @@ declare
   v_existing ${n.t("employees")};
 begin
   select * into v_application from ${hiring.table("applications")} x where x.${a("id")} = employee_from_application.application;
-  if v_application.${a("id")} is null or not (${n.service} or ${canIn(`v_application.${a("tenant")}`, n.write)}) then
+  if v_application.${a("id")} is null or not (${n.service} or ${ctx.scope.can(`v_application.${a("tenant")}`, n.write)}) then
     ${fail("EMPLOYEE_ORIGIN_NOT_FOUND", "no such application you can turn into an employee", "P0002")}
   end if;
   select * into v_existing from ${n.t("employees")} x

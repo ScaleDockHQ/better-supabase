@@ -1,8 +1,11 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
-import { canIn, fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
 
 export interface InventoryNames {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -19,8 +22,12 @@ const ADJUST_REASONS = [
   "receipt",
 ] as const;
 
-export function guard(permission: string, tenant: string): string {
-  return `if not (auth.role() = 'service_role' or ${canIn(tenant, permission)}) then
+export function guard(
+  scope: ModuleScope,
+  permission: string,
+  tenant: string,
+): string {
+  return `if not (auth.role() = 'service_role' or ${scope.can(tenant, permission)}) then
     ${fail("INVENTORY_FORBIDDEN", "not allowed to change this inventory")}
   end if;`;
 }
@@ -126,7 +133,7 @@ declare
   v_id uuid := save_location.location;
   v_active boolean;
 begin
-  ${guard(names.manage, "save_location.tenant")}
+  ${guard(names.scope, names.manage, "save_location.tenant")}
   if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     ${fail("INVENTORY_LOCATION_CODE_INVALID", "the code must be 1 to 40 letters, digits, dots, dashes or underscores", "22023")}
   end if;
@@ -167,7 +174,7 @@ declare
   v_active boolean;
 begin
   ${loadLocation(ctx, "set_location_active.location")}
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   update ${locations} x set ${l("active")} = coalesce(set_location_active.active, true), ${l("updatedAt")} = now()
   where x.${l("id")} = set_location_active.location;
   return true;
@@ -190,7 +197,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   if exists (select 1 from ${ctx.table("movements")} x where x.${m("location")} = delete_location.location)
     or exists (select 1 from ${ctx.table("reservations")} x where x.${r("location")} = delete_location.location and x.${r("status")} = 'active') then
     ${fail("INVENTORY_LOCATION_IN_USE", "the location has stock history; deactivate it instead", "23503")}
@@ -230,7 +237,7 @@ declare
   v_available integer;
 begin
   ${loadLocation(ctx, "adjust_stock.location")}
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "adjust_stock.variant", "v_tenant")}
   if adjust_stock.quantity is null or adjust_stock.quantity = 0 then
     ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be a non-zero whole number", "22023")}
@@ -277,7 +284,7 @@ declare
   v_available integer;
 begin
   ${loadLocation(ctx, "count_stock.location")}
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "count_stock.variant", "v_tenant")}
   if count_stock.counted is null or count_stock.counted < 0 then
     ${fail("INVENTORY_QUANTITY_INVALID", "the counted quantity must be zero or more", "22023")}
@@ -316,7 +323,7 @@ declare
   v_active boolean;
 begin
   ${loadLocation(ctx, "set_reorder_point.location")}
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "set_reorder_point.variant", "v_tenant")}
   if set_reorder_point.reorder_point < 0 then
     ${fail("INVENTORY_QUANTITY_INVALID", "the reorder point must be zero or more", "22023")}
@@ -378,7 +385,7 @@ declare
   v_expires timestamptz := coalesce(reserve_stock.expires_at, now() + interval '15 minutes');
 begin
   ${loadLocation(ctx, "reserve_stock.location")}
-  ${guard(names.reserve, "v_tenant")}
+  ${guard(names.scope, names.reserve, "v_tenant")}
   if not v_active then
     ${fail("INVENTORY_LOCATION_INACTIVE", "the location is inactive", "55000")}
   end if;
@@ -455,7 +462,7 @@ begin
   if not found then
     ${fail("INVENTORY_RESERVATION_NOT_FOUND", "reservation not found", "P0002")}
   end if;
-  ${guard(names.reserve, "v_row.tenant")}
+  ${guard(names.scope, names.reserve, "v_row.tenant")}
   if v_row.status <> 'active' then
     ${fail("INVENTORY_RESERVATION_CLOSED", "the reservation is no longer active", "55000")}
   end if;
@@ -496,7 +503,7 @@ begin
   if not found then
     return false;
   end if;
-  ${guard(names.reserve, "v_row.tenant")}
+  ${guard(names.scope, names.reserve, "v_row.tenant")}
   if v_row.status <> 'active' then
     return false;
   end if;

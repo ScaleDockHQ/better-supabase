@@ -256,7 +256,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, ${create}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("create_share_link.tenant", create)}) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
   end if;
   ${versionCheck(ctx)}

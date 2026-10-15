@@ -16,7 +16,6 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   sha256Hex,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
@@ -305,7 +304,7 @@ function build(ctx: ModuleContext): string {
   }
   const fn = (name: string): string => ctx.fn(name);
   const readable = (prefix: string) =>
-    subjectReadable(subjects, {
+    subjectReadable(ctx, subjects, {
       type: `${prefix}subject_type`,
       id: `${prefix}subject_id`,
       tenant: `${prefix}tenant`,
@@ -339,7 +338,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_
 ${lockTable(versions, { read: true })}
 drop policy if exists "versions_read" on ${versions};
 create policy "versions_read" on ${versions} for select to authenticated
-  using (${tenantIn(c("tenant"), read)});
+  using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
   const capture = captureCase(
@@ -491,7 +490,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${c("tenant")}`, read)} and ${subjectReadable(subjects, { type: `v_row.${c("subjectType")}`, id: `v_row.${c("subjectId")}`, tenant: `v_row.${c("tenant")}` })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${c("tenant")}`, read)} and ${subjectReadable(ctx, subjects, { type: `v_row.${c("subjectType")}`, id: `v_row.${c("subjectId")}`, tenant: `v_row.${c("tenant")}` })})) then
     ${forbidden}
   end if;
   return ${summary("v_row")} || jsonb_build_object('content', v_row.${c("content")});
@@ -559,7 +558,7 @@ begin
   if v_subject_type is null then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", restore)} and ${subjectReadable(subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })} and ${subjectWritable(ctx, subjects, { type: "v_subject_type", tenant: "v_tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", restore)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })} and ${subjectWritable(ctx, subjects, { type: "v_subject_type", tenant: "v_tenant" })})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to restore this version")}
   end if;
   if v_content is null then
@@ -606,7 +605,7 @@ begin
   if v_subject_type is null then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", create)} and ${subjectReadable(subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", create)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to label this version")}
   end if;
   update ${versions} set ${c("label")} = nullif(trim(label_version.label), '')

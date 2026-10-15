@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { rankKeys } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import {
   byType,
@@ -296,7 +296,7 @@ export function manageFunctions(
   const s = (column: string): string => c("stages", column);
   const guard = (
     tenant: string,
-  ): string => `if not (auth.role() = 'service_role' or ${canIn(tenant, names.manage)}) then
+  ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.manage)}) then
     ${fail("PIPELINE_FORBIDDEN", "not allowed to manage pipelines")}
   end if;`;
   const categoryCheck = byType(

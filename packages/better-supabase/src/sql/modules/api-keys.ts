@@ -251,7 +251,7 @@ begin
     end if;
     if personal and tenant is null and exists (
       select 1 from ${ctx.of("tenant").fn("member_organization_ids")}() as m(id)
-      where m.id not in (select better_supabase.tenant_ids_with(${ctx.permission("own", permissions.own)}))
+      where m.id not in (select ${ctx.scope.ids(ctx.permission("own", permissions.own))})
     ) then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys for every tenant")}
     end if;

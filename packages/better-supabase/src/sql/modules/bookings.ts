@@ -13,7 +13,6 @@ import {
   schemaPreamble,
   serviceGrant,
   sha256Hex,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -158,7 +157,7 @@ create table if not exists ${p.resources} (
 ${lockTable(p.resources, { read: true })}
 drop policy if exists booking_resources_read on ${p.resources};
 create policy booking_resources_read on ${p.resources} for select to authenticated
-using (${tenantIn(r("tenant"), p.read)} or ${tenantIn(r("tenant"), p.create)});
+using (${ctx.scope.check(r("tenant"), p.read)} or ${ctx.scope.check(r("tenant"), p.create)});
 create table if not exists ${p.availability} (
   ${av("id")} uuid primary key default gen_random_uuid(),
   ${av("tenant")} ${ctx.idType} not null,
@@ -172,7 +171,7 @@ create index if not exists booking_availability_resource_idx on ${p.availability
 ${lockTable(p.availability, { read: true })}
 drop policy if exists booking_availability_read on ${p.availability};
 create policy booking_availability_read on ${p.availability} for select to authenticated
-using (${tenantIn(av("tenant"), p.read)} or ${tenantIn(av("tenant"), p.create)});
+using (${ctx.scope.check(av("tenant"), p.read)} or ${ctx.scope.check(av("tenant"), p.create)});
 create table if not exists ${p.exceptions} (
   ${x("id")} uuid primary key default gen_random_uuid(),
   ${x("tenant")} ${ctx.idType} not null,
@@ -185,7 +184,7 @@ create index if not exists booking_exceptions_resource_idx on ${p.exceptions} us
 ${lockTable(p.exceptions, { read: true })}
 drop policy if exists booking_exceptions_read on ${p.exceptions};
 create policy booking_exceptions_read on ${p.exceptions} for select to authenticated
-using (${tenantIn(x("tenant"), p.read)});
+using (${ctx.scope.check(x("tenant"), p.read)});
 create table if not exists ${p.services} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
@@ -204,7 +203,7 @@ create table if not exists ${p.services} (
 ${lockTable(p.services, { read: true })}
 drop policy if exists booking_services_read on ${p.services};
 create policy booking_services_read on ${p.services} for select to authenticated
-using (${tenantIn(s("tenant"), p.read)} or ${tenantIn(s("tenant"), p.create)});
+using (${ctx.scope.check(s("tenant"), p.read)} or ${ctx.scope.check(s("tenant"), p.create)});
 create table if not exists ${p.bookings} (
   ${b("id")} uuid primary key default gen_random_uuid(),
   ${b("tenant")} ${ctx.idType} not null,
@@ -241,7 +240,7 @@ create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresA
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};
 create policy bookings_read on ${p.bookings} for select to authenticated
-using (${tenantIn(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid()));
+using (${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid()));
 `;
 }
 
@@ -335,7 +334,7 @@ declare
   v_tenant ${ctx.idType} := save_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
-  if not ${allowed("v_tenant", p.manage)} then
+  if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
   if v_item ? 'tz' and not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = v_item ->> 'tz') then
@@ -364,7 +363,7 @@ begin
   if not found then
     ${fail("BOOKING_RESOURCE_NOT_FOUND", "resource not found", "P0002")}
   end if;
-  if not ${allowed("v_tenant", p.manage)} then
+  if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
   delete from ${p.availability} where ${av("resource")} = set_booking_availability.resource;
@@ -394,7 +393,7 @@ begin
   if not found then
     ${fail("BOOKING_RESOURCE_NOT_FOUND", "resource not found", "P0002")}
   end if;
-  if not ${allowed("v_tenant", p.manage)} then
+  if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
   if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
@@ -422,7 +421,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ${allowed("v_tenant", p.manage)} then
+  if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
   delete from ${p.exceptions} where ${x("id")} = delete_booking_exception.exception_id;
@@ -443,7 +442,7 @@ declare
   v_tenant ${ctx.idType} := save_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
-  if not ${allowed("v_tenant", p.manage)} then
+  if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
   ${upsert(p.services, s("id"), s("tenant"), serviceFields)}
@@ -554,7 +553,7 @@ begin
   if not found then
     ${fail("BOOKING_SERVICE_NOT_FOUND", "service not found", "P0002")}
   end if;
-  if not (${allowed("v_tenant", p.read)} or ${allowed("v_tenant", p.create)}) then
+  if not (${allowed(p.scope, "v_tenant", p.read)} or ${allowed(p.scope, "v_tenant", p.create)}) then
     ${fail("BOOKING_FORBIDDEN", "not allowed to read bookings")}
   end if;
   if available_slots.tz is not null and not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = available_slots.tz) then
@@ -722,9 +721,9 @@ begin
   if not found then
     ${fail("BOOKING_SERVICE_NOT_FOUND", "service not found", "P0002")}
   end if;
-  if ${allowed("v_tenant", p.manage)} then
+  if ${allowed(p.scope, "v_tenant", p.manage)} then
     v_user := coalesce(nullif(v_customer ->> 'userId', '')::uuid, v_user);
-  elsif not ${allowed("v_tenant", p.create)} then
+  elsif not ${allowed(p.scope, "v_tenant", p.create)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to book")}
   else
     v_customer := v_customer || jsonb_build_object('email', coalesce(v_customer ->> 'email', auth.email()));
@@ -753,9 +752,9 @@ begin
     ${fail("BOOKING_NOT_FOUND", "booking not found", "P0002")}
   end if;
   if not (
-    ${allowed(`v_booking.${b("tenant")}`, p.manage)}
+    ${allowed(p.scope, `v_booking.${b("tenant")}`, p.manage)}
     or (change_booking.access_token is not null and v_booking.${b("accessHash")} = ${sha256Hex("convert_to(change_booking.access_token, 'utf8')")})
-    or (change_booking.access_token is null and v_booking.${b("customerUser")} = auth.uid() and ${allowed(`v_booking.${b("tenant")}`, p.create)})
+    or (change_booking.access_token is null and v_booking.${b("customerUser")} = auth.uid() and ${allowed(p.scope, `v_booking.${b("tenant")}`, p.create)})
   ) then
     ${fail("BOOKING_FORBIDDEN", "not allowed to change this booking")}
   end if;
@@ -833,6 +832,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const perms = moduleOperations("bookings");
   const p: Parts = {
+    scope: ctx.scope,
     ctx,
     r: (column) => ctx.col("resources", column),
     av: (column) => ctx.col("availability", column),

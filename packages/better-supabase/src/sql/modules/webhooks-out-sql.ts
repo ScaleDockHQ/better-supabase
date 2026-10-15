@@ -174,7 +174,7 @@ export function hookNames(
         : "false",
     member: (tenant, action) =>
       access
-        ? `${tenant} in (select better_supabase.tenant_ids_with(${ctx.permission(action, permissions[action])}))`
+        ? `${tenant} in (select ${ctx.scope.ids(ctx.permission(action, permissions[action]))})`
         : "false",
     clientAccess:
       access && has("endpoints", "tenant") && has("deliveries", "tenant"),

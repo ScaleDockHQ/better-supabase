@@ -4,7 +4,6 @@ import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   SERVICE_CALLER,
   serviceGrant,
@@ -83,7 +82,8 @@ function approvals(
   const a = names.c.approvals;
   const po = names.c.policies;
   const i = names.c.inputs;
-  const can = canIn;
+  const can = (tenant: string, permission: string): string =>
+    ctx.scope.can(tenant, permission);
   const provider = toolApprover(ctx, names, layout);
   const linked =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
@@ -395,7 +395,8 @@ function sharing(ctx: ModuleContext, names: AiChatNames): string {
   const m = names.c.messages;
   const f = names.c.feedback;
   const sh = names.c.shares;
-  const can = canIn;
+  const can = (tenant: string, permission: string): string =>
+    ctx.scope.can(tenant, permission);
   const shared = ctx.record({
     type: "ai_chat.shared",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'shareId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'leafId', v_leaf)`,
@@ -576,7 +577,8 @@ function catalog(ctx: ModuleContext, names: AiChatNames): string {
   const ch = names.c.chats;
   const mo = names.c.models;
   const md = names.c.moderation;
-  const can = canIn;
+  const can = (tenant: string, permission: string): string =>
+    ctx.scope.can(tenant, permission);
   const entitled = ctx.entitlements("v_tenant");
   const planned = entitled
     ? `(v_tenant is not null and x.${mo.plans} && ${entitled})`

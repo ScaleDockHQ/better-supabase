@@ -2,13 +2,11 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
-  canIn,
   raise,
   replaceColumnCheck,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
 } from "../shared.ts";
@@ -109,7 +107,7 @@ function build(ctx: ModuleContext): string {
     ${ctx.enqueue(queue, `jsonb_build_object('run_id', ${run})`, `'ai-task:' || ${run}::text`)}`
       : "";
   const mayEdit = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${t.user} = auth.uid() or ${canIn(`${row}.${t.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or ${row}.${t.user} = auth.uid() or ${ctx.scope.can(`${row}.${t.tenant}`, manage)})`;
   const notFound = raise(
     "task % not found",
     "P0002",
@@ -146,7 +144,7 @@ grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
 drop policy if exists ai_scheduled_tasks_read on ${tasks};
 create policy ai_scheduled_tasks_read on ${tasks} for select to authenticated
-  using (${t.user} = (select auth.uid()) or ${tenantIn(t.tenant, manage)});
+  using (${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)});
 
 create table if not exists ${runs} (
   ${r.id} uuid primary key default gen_random_uuid(),
@@ -170,7 +168,7 @@ grant select on ${runs} to authenticated;
 grant all on ${runs} to service_role;
 drop policy if exists ai_task_runs_read on ${runs};
 create policy ai_task_runs_read on ${runs} for select to authenticated
-  using (${r.user} = (select auth.uid()) or ${tenantIn(r.tenant, manage)});
+  using (${r.user} = (select auth.uid()) or ${ctx.scope.check(r.tenant, manage)});
 
 -- Creates (id null) or changes a task. Only the service role sets
 -- next_run_at; for anyone else a new task, or a changed cron or timezone,
@@ -202,7 +200,7 @@ begin
     end;
   end if;
   if v_id is null then
-    if not (${SERVICE_CALLER} or ${canIn("save_ai_task.tenant", create)}) or auth.uid() is null then
+    if not (${SERVICE_CALLER} or ${ctx.scope.can("save_ai_task.tenant", create)}) or auth.uid() is null then
       ${raise("you may not schedule tasks here", "42501", "AI_TASK_FORBIDDEN")}
     end if;
     insert into ${tasks} (${t.tenant}, ${t.user}, ${t.title}, ${t.prompt}, ${t.cron})

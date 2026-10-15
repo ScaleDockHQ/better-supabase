@@ -12,7 +12,6 @@ import {
   lockTable,
   schemaPreamble,
   sha256Hex,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -283,7 +282,7 @@ function build(ctx: ModuleContext): string {
   const read = ctx.permission("read", perms.read);
   const fn = (name: string): string => ctx.fn(name);
   const allowed = (tenant: string, key: string) =>
-    `(auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', ${tenant}, ${key}), false))`;
+    `(auth.role() = 'service_role' or ${ctx.scope.can(tenant, key)})`;
   const fields = eventFields(ctx);
   const record = (type: string, id: string, calendar: string, tenant: string) =>
     ctx.record({
@@ -307,7 +306,7 @@ function build(ctx: ModuleContext): string {
 ${lockTable(calendars, { read: true })}
 drop policy if exists calendars_read on ${calendars};
 create policy calendars_read on ${calendars} for select to authenticated
-using (${tenantIn(k("tenant"), read)});
+using (${ctx.scope.check(k("tenant"), read)});
 create table if not exists ${events} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
@@ -340,7 +339,7 @@ create index if not exists calendar_events_range_idx on ${events} (${e("calendar
 ${lockTable(events, { read: true })}
 drop policy if exists calendar_events_read on ${events};
 create policy calendar_events_read on ${events} for select to authenticated
-using (${tenantIn(e("tenant"), read)});
+using (${ctx.scope.check(e("tenant"), read)});
 create table if not exists ${attendees} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.idType} not null,
@@ -355,7 +354,7 @@ create table if not exists ${attendees} (
 ${lockTable(attendees, { read: true })}
 drop policy if exists calendar_attendees_read on ${attendees};
 create policy calendar_attendees_read on ${attendees} for select to authenticated
-using (${tenantIn(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
+using (${ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
 `
     : "";
   const attendeeFunctions = ctx.hasTable("attendees")

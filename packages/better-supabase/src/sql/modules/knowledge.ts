@@ -3,12 +3,10 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
 } from "../shared.ts";
@@ -163,7 +161,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     where x.${files.col("files", "id")} = create_knowledge_document.file_id
       and x.${files.col("files", "tenant")} = create_knowledge_document.tenant
       and x.${files.col("files", "status")} = 'ready'
-      and (${SERVICE_CALLER} or x.${files.col("files", "owner")} = auth.uid() or ${canIn("create_knowledge_document.tenant", manage)})
+      and (${SERVICE_CALLER} or x.${files.col("files", "owner")} = auth.uid() or ${ctx.scope.can("create_knowledge_document.tenant", manage)})
   ) then
     ${raise("file % not found", "P0002", "AI_FILE_NOT_FOUND", "file_id")}
   end if;`
@@ -178,9 +176,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   // Organization and agent knowledge is shared with readers of the
   // organization, chat knowledge with readers of the chat, user and project
   // knowledge stays with its owner. Admins see everything in their tenant.
-  const readable = `(${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${tenantIn(d.tenant, read)}) or ${tenantIn(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))`;
+  const readable = `(${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))`;
   const ownDocument = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${canIn(`${row}.${d.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
   const notFound = raise(
     "document % not found",
     "P0002",
@@ -267,10 +265,10 @@ declare
   v_scope_id uuid := create_knowledge_document.scope_id;
   v_row ${documents}%rowtype;
 begin
-  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${canIn("create_knowledge_document.tenant", write)}) then
+  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${ctx.scope.can("create_knowledge_document.tenant", write)}) then
     ${raise("you may not add knowledge here", "42501", "KNOWLEDGE_FORBIDDEN")}
   end if;
-  if create_knowledge_document.scope in ('organization', 'agent') and not (${SERVICE_CALLER} or ${canIn("create_knowledge_document.tenant", manage)}) then
+  if create_knowledge_document.scope in ('organization', 'agent') and not (${SERVICE_CALLER} or ${ctx.scope.can("create_knowledge_document.tenant", manage)}) then
     ${raise("only admins add % knowledge", "42501", "KNOWLEDGE_FORBIDDEN", "create_knowledge_document.scope")}
   end if;
   if create_knowledge_document.scope = 'user' then

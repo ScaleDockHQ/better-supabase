@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { PartyNames } from "./parties-functions.ts";
 
-import { canIn, fail, lockTable, tenantIn, userGrant } from "../shared.ts";
+import { fail, lockTable, userGrant } from "../shared.ts";
 
 /**
  * With the inbox installed: which person an inbox contact is, so a
@@ -18,7 +18,7 @@ export function partiesInboxSql(ctx: ModuleContext, names: PartyNames): string {
   const contacts = inbox.table("contacts");
   const guard = (
     tenant: string,
-  ): string => `if not (auth.role() = 'service_role' or ${canIn(tenant, names.write)}) then
+  ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.write)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
   end if;`;
   const table = ctx.manages
@@ -33,7 +33,7 @@ create table if not exists ${t("personContacts")} (
 ${lockTable(t("personContacts"), { read: true })}
 drop policy if exists person_inbox_contacts_read on ${t("personContacts")};
 create policy person_inbox_contacts_read on ${t("personContacts")} for select to authenticated
-using (${tenantIn(pc("tenant"), names.read)});
+using (${ctx.scope.check(pc("tenant"), names.read)});
 `
     : "";
   return `${table}
@@ -100,7 +100,7 @@ begin
   if v_contact.${ic("id")} is null then
     ${fail("PARTY_NOT_FOUND", "contact not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${canIn(`v_contact.${ic("tenant")}`, names.read)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can(`v_contact.${ic("tenant")}`, names.read)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to read people")}
   end if;
   select x.${pc("person")} into v_person from ${t("personContacts")} x where x.${pc("contact")} = v_contact.${ic("id")};
@@ -109,7 +109,7 @@ begin
     where p.${pe("tenant")}::text = v_contact.${ic("tenant")}::text and p.${pe("email")} = lower(v_contact.${ic("email")}) and p.${pe("archivedAt")} is null;
   end if;
   if v_person is null and person_for_inbox_contact."create" and nullif(trim(v_contact.${ic("name")}), '') is not null then
-    if not (auth.role() = 'service_role' or ${canIn(`v_contact.${ic("tenant")}`, names.write)}) then
+    if not (auth.role() = 'service_role' or ${ctx.scope.can(`v_contact.${ic("tenant")}`, names.write)}) then
       ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
     end if;
     v_person := (${fn("save_person")}(v_contact.${ic("tenant")}, null, jsonb_strip_nulls(jsonb_build_object(

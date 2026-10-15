@@ -72,7 +72,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', start_import.tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("start_import.tenant", manage)}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to import")}
   end if;
   insert into ${runs} (${ctx.col("runs", "tenant")}, ${ctx.col("runs", "kind")}, ${ctx.col("runs", "mapping")}, ${ctx.col("runs", "createdBy")})

@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { canIn, fail, serviceGrant, sha256Hex, userGrant } from "../shared.ts";
+import { fail, serviceGrant, sha256Hex, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
 export interface QuoteNames {
@@ -51,7 +51,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
   const editable = (alias: string): string =>
-    `(${n.service} or ${canIn(`${alias}.${q("tenant")}`, n.write)})`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
   const open = (alias: string): string =>
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
   const lines = (alias: string): string =>
@@ -132,7 +132,7 @@ declare
   v_lines jsonb;
 begin
   select * into v_deal from ${deals.table("deals")} x where x.${d("id")} = quote_from_deal.deal;
-  if v_deal.${d("id")} is null or not (${n.service} or ${canIn(`v_deal.${d("tenant")}`, n.write)}) then
+  if v_deal.${d("id")} is null or not (${n.service} or ${ctx.scope.can(`v_deal.${d("tenant")}`, n.write)}) then
     ${fail("QUOTE_ORIGIN_NOT_FOUND", "no such deal you can quote", "P0002")}
   end if;
   select * into v_row from ${t("quotes")} x
@@ -180,7 +180,7 @@ declare
   v_contact_type text := coalesce(create_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
   v_contact_id text := create_quote.attrs -> 'contact' ->> 'id';
 begin
-  if not (${n.service} or ${canIn("create_quote.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_quote.tenant", n.write)}) then
     ${fail("QUOTE_FORBIDDEN", "not allowed to change quotes")}
   end if;
   if nullif(trim(create_quote.attrs ->> 'title'), '') is null then

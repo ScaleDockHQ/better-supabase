@@ -3,13 +3,11 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   replaceColumnCheck,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
   lockTable,
@@ -143,7 +141,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   v_chat := (${name}.ns ->> 'chat_id')::uuid;
   v_project := (${name}.ns ->> 'project_id')::uuid;
   v_owner := case when v_scope = 'organization' then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
-  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${canIn(`${name}.tenant`, read)}) then
+  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${ctx.scope.can(`${name}.tenant`, read)}) then
     ${raise("you may not use memory here", "42501", "MEMORY_FORBIDDEN")}
   end if;
   if v_scope not in (${SCOPES})
@@ -155,7 +153,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   end if;${
     writes
       ? `
-  if v_scope = 'organization' and not (${SERVICE_CALLER} or ${canIn(`${name}.tenant`, manage)}) then
+  if v_scope = 'organization' and not (${SERVICE_CALLER} or ${ctx.scope.can(`${name}.tenant`, manage)}) then
     ${raise("only admins change organization memory", "42501", "MEMORY_FORBIDDEN")}
   end if;`
       : ""
@@ -224,7 +222,7 @@ grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
 drop policy if exists memories_read on ${memories};
 create policy memories_read on ${memories} for select to authenticated
-  using (${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${tenantIn(m.tenant, read)}));
+  using (${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${ctx.scope.check(m.tenant, read)}));
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -555,7 +553,7 @@ declare
   v_row ${memories}%rowtype;
 begin
   select * into v_row from ${memories} x where x.${m.id} = memory_forget.memory_id;
-  if not found or not (${SERVICE_CALLER} or v_row.${m.owner} = auth.uid() or (v_row.${m.scope} = 'organization' and ${canIn(`v_row.${m.tenant}`, manage)})) then
+  if not found or not (${SERVICE_CALLER} or v_row.${m.owner} = auth.uid() or (v_row.${m.scope} = 'organization' and ${ctx.scope.can(`v_row.${m.tenant}`, manage)})) then
     return false;
   end if;
   if memory_forget.superseded_by is null then

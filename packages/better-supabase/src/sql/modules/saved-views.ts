@@ -8,13 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import {
-  canIn,
-  fail,
-  lockTable,
-  schemaPreamble,
-  userGrant,
-} from "../shared.ts";
+import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 /** The layouts a saved view can open in. */
@@ -138,7 +132,7 @@ ${lockTable(views, { read: true })}
     : "";
   const fn = (value: string): string => ctx.fn(value);
   // A user sees their own views, their teams' views and the tenant's views.
-  const visible = `${tenant} in (select better_supabase.tenant_ids_with(${read}))
+  const visible = `${tenant} in (select ${ctx.scope.ids(read)})
   and (
     (${scope} = 'user' and ${owner} = (select auth.uid()))
     or (${scope} = 'team' and ${inTeam(team)})
@@ -147,11 +141,11 @@ ${lockTable(views, { read: true })}
   const mayEdit = (alias: string): string =>
     `(auth.role() = 'service_role'
     or (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
-    or (${alias}.${scope} <> 'user' and ${canIn(`${alias}.${tenant}`, share)}))`;
+    or (${alias}.${scope} <> 'user' and ${ctx.scope.can(`${alias}.${tenant}`, share)}))`;
   // `visible` for a row a security definer function has read.
   const maySee = (alias: string): string =>
     `(auth.role() = 'service_role'
-    or (${canIn(`${alias}.${tenant}`, read)} and (
+    or (${ctx.scope.can(`${alias}.${tenant}`, read)} and (
       (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
       or (${alias}.${scope} = 'team' and ${inTeam(`${alias}.${team}`)})
       or ${alias}.${scope} = 'tenant')))`;
@@ -190,13 +184,13 @@ begin
   if save_view.state is null or jsonb_typeof(save_view.state) <> 'object' then
     ${fail("SAVED_VIEW_INVALID", "state must be an object", "22023")}
   end if;
-  if not (v_service or ${canIn("save_view.tenant", read)}) then
+  if not (v_service or ${ctx.scope.can("save_view.tenant", read)}) then
     ${fail("SAVED_VIEW_FORBIDDEN", "not allowed to save views")}
   end if;${collection}
   if save_view.scope = 'user' and auth.uid() is null then
     ${fail("SAVED_VIEW_INVALID", "a personal view needs a signed-in user", "22023")}
   end if;
-  if save_view.scope <> 'user' and not (v_service or ${canIn("save_view.tenant", share)}) then
+  if save_view.scope <> 'user' and not (v_service or ${ctx.scope.can("save_view.tenant", share)}) then
     ${fail("SAVED_VIEW_FORBIDDEN", "not allowed to share views")}
   end if;
   if save_view.scope = 'team' then

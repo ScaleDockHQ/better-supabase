@@ -1,8 +1,9 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -55,13 +56,15 @@ function machineGoverns(ctx: ModuleContext): boolean {
 }
 
 export interface Names {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
 }
 
 export function guard(names: Names, tenant: string): string {
-  return `if not (auth.role() = 'service_role' or ${canIn(tenant, names.manage)}) then
+  return `if not (auth.role() = 'service_role' or ${names.scope.can(tenant, names.manage)}) then
     ${fail("CATALOG_FORBIDDEN", "not allowed to manage the catalog")}
   end if;`;
 }

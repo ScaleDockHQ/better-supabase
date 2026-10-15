@@ -141,7 +141,7 @@ ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists 
   const visible = inline
     ? "true"
     : `not coalesce(d.${ctx.col("definitions", "sensitive")}, false)
-        or coalesce(better_supabase.can('tenant', v.${ctx.col("values", "tenant")}, coalesce(d.${ctx.col("definitions", "permission")}, ${sensitive})), false)`;
+        or ${ctx.scope.can(`v.${ctx.col("values", "tenant")}`, `coalesce(d.${ctx.col("definitions", "permission")}, ${sensitive})`)}`;
   return `${schemaPreamble(ctx)}
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
@@ -158,7 +158,7 @@ declare
   v_last text;
   v_rank text;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_field_definition.tenant", manage)}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   ${
@@ -202,7 +202,7 @@ as $$
   where v.${ctx.col("values", "tenant")} = read_field_values.tenant
     and v.${ctx.col("values", "subjectType")} = read_field_values.subject_type
     and v.${ctx.col("values", "subjectId")} = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, ${read}), false))
+    and (auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", read)})
     and (${visible})
 $$;
 ${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text)`)}
@@ -216,7 +216,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("set_field_value.tenant", manage)}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;
   insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")})
@@ -250,7 +250,7 @@ begin
   if not found then
     ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   delete from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;`
@@ -293,7 +293,7 @@ begin
   if not found then
     ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   update ${definitions} set ${rank} = rank_field_definition.rank where ${ctx.col("definitions", "id")} = rank_field_definition.definition;

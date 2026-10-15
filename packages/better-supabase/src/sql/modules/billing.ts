@@ -14,7 +14,6 @@ import {
   quotedTable,
   schemaPreamble,
   SERVICE_CALLER,
-  tenantIn,
   revokeTable,
   fail,
   raise,
@@ -192,7 +191,7 @@ function build(ctx: ModuleContext): string {
   const permissions = moduleOperations("billing");
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", scope, ctx.permission(action, permissions[action]))})`;
-  const viewAll = `coalesce(better_supabase.is_platform(${modulePermission(ctx, "viewAll", permissions.viewAll)}), false)`;
+  const viewAll = `coalesce(${ctx.scope.platform(modulePermission(ctx, "viewAll", permissions.viewAll))}, false)`;
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
   const tenantKey =
@@ -224,7 +223,7 @@ grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
 ${tenantKey}drop policy if exists "billing_customers_read" on ${t};
 create policy "billing_customers_read" on ${t} for select to authenticated
-  using (${tenantIn(c("tenant"), ctx.permission("read", permissions.read))});
+  using (${ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read))});
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

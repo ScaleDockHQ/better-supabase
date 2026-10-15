@@ -298,7 +298,7 @@ grant select on ${d} to authenticated;
 grant all on ${d} to service_role;
 drop policy if exists workflow_definitions_read on ${d};
 create policy workflow_definitions_read on ${d} for select to authenticated
-  using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select better_supabase.tenant_ids_with(${s.permission("read")}))));
+  using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))})));
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).

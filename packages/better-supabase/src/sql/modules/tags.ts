@@ -219,7 +219,7 @@ declare
   v_last text;
   v_rank text;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
 ${
@@ -254,7 +254,7 @@ as $$
 declare
   v_kind text;
 begin
-  if not (${subjectReadable(list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
+  if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   select ${kind} into v_kind from ${tags} where ${id} = tag.tag_id and ${tenant} = tag.tenant;
@@ -318,7 +318,7 @@ begin
   if not found then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
   update ${tags} set ${name} = coalesce(update_tag.name, ${name}), ${updatedAt} = now() where ${id} = update_tag.tag_id;
@@ -347,7 +347,7 @@ begin
   if not found then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
   delete from ${tags} where ${id} = delete_tag.tag_id;
@@ -370,7 +370,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (${subjectReadable(list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
+  if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   ${untagBody(ctx, bound, taggings)}
@@ -431,7 +431,7 @@ begin
   if not found then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
   update ${tags} set ${rank} = rank_tag.rank, ${updatedAt} = now() where ${id} = rank_tag.tag_id;

@@ -13,7 +13,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   pageSize,
   revokeTable,
   lockTable,
@@ -290,7 +289,7 @@ drop policy if exists workflow_runs_read on ${r};
 create policy workflow_runs_read on ${r} for select to authenticated
   using (
     ${cr("actor")} = (select auth.uid())
-    or ${tenantIn(cr("tenant"), ctx.permission("read", permissions.read))}
+    or ${ctx.scope.check(cr("tenant"), ctx.permission("read", permissions.read))}
   );
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
@@ -320,7 +319,7 @@ grant select on ${s} to authenticated;
 grant all on ${s} to service_role;
 drop policy if exists workflow_schedules_read on ${s};
 create policy workflow_schedules_read on ${s} for select to authenticated
-  using (${tenantIn(cs("tenant"), ctx.permission("read", permissions.read))});
+  using (${ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read))});
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -881,7 +880,7 @@ begin
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with(${ctx.permission("read", permissions.read)}) t
+              select t::text from ${ctx.scope.ids(ctx.permission("read", permissions.read))} t
             )
           )
         )

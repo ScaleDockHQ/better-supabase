@@ -260,7 +260,7 @@ function tables(ctx: ModuleContext, names: Names): string {
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${c(table, "tenant")} in (select better_supabase.tenant_ids_with(${names.read})));`;
+using (${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
   return `
 create table if not exists ${t("products")} (
   ${c("products", "id")} uuid primary key default gen_random_uuid(),
@@ -484,6 +484,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const keys = moduleOperations("catalog");
   const names: Names = {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", keys.manage),
     read: ctx.permission("read", keys.read),

@@ -9,7 +9,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, tenantIn, updatedAt, revokeTable } from "../shared.ts";
+import { schemaPreamble, updatedAt, revokeTable } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
@@ -422,7 +422,7 @@ grant all on ${n.table(table)} to service_role;${policy(
       `bs_notification_${table}_own`,
       `for all to authenticated using (${mine}) with check (${mine}${
         n.has(table, "tenant") && ctx.installed("access")
-          ? ` and (${c(table, "tenant")} is null or ${tenantIn(c(table, "tenant"), n.readPermission)})`
+          ? ` and (${c(table, "tenant")} is null or ${ctx.scope.check(c(table, "tenant"), n.readPermission)})`
           : ""
       })`,
     )}`);

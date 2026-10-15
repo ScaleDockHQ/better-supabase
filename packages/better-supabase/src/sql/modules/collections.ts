@@ -8,7 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lockTable, schemaPreamble, tenantIn } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { type Subject, subjectCascades } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -170,20 +170,20 @@ function policies(names: CollectionNames): string {
 -- can't open it. Stars are the caller's own.
 drop policy if exists subject_collections_read on ${t("collections")};
 create policy subject_collections_read on ${t("collections")} for select to authenticated
-using (${tenantIn(co("tenant"), names.read)} and (
+using (${names.scope.check(co("tenant"), names.read)} and (
   (${co("scope")} = 'user' and ${co("owner")} = (select auth.uid()))
   or (${co("scope")} = 'team' and ${names.inTeam(co("team"))})
   or ${co("scope")} = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on ${t("entries")};
 create policy subject_collection_entries_read on ${t("entries")} for select to authenticated
-using (${tenantIn(en("tenant"), names.read)}
+using (${names.scope.check(en("tenant"), names.read)}
   and exists (select 1 from ${t("collections")} c where c.${co("id")} = ${en("collection")})
   and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read'));
 drop policy if exists favorites_read on ${t("favorites")};
 create policy favorites_read on ${t("favorites")} for select to authenticated
 using (${fa("user")} = (select auth.uid())
-  and ${tenantIn(fa("tenant"), names.read)}
+  and ${names.scope.check(fa("tenant"), names.read)}
   and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read'));
 `;
 }
@@ -216,6 +216,7 @@ function build(ctx: ModuleContext): string {
     .map((subject) => subject.type);
   const read = ctx.permission("read", keys.read);
   const names: CollectionNames = {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),

@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -13,7 +14,6 @@ import {
   type JsonSchemaCheck,
   jsonSchemaChecks,
   schemaPreamble,
-  tenantIn,
   revokeTable,
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
@@ -147,9 +147,13 @@ function platformKeys(ctx: ModuleContext): {
   return { fallback, keys };
 }
 
-const readRule = (read: PlatformRead, permission: string): string =>
+const readRule = (
+  scope: ModuleScope,
+  read: PlatformRead,
+  permission: string,
+): string =>
   read === "staff"
-    ? `coalesce(better_supabase.is_platform(${sqlString(permission)}), false)`
+    ? `coalesce(${scope.platform(sqlString(permission))}, false)`
     : "true";
 
 const unquote = (ident: string): string =>
@@ -241,7 +245,7 @@ function build(ctx: ModuleContext): string {
   const can = (tenant: string, action: "read" | "update"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const member = (tenant: string, action: "read" | "update"): string =>
-    tenantIn(tenant, ctx.permission(action, permissions[action]));
+    ctx.scope.check(tenant, ctx.permission(action, permissions[action]));
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
   const p = ctx.table("platform");
   const pc = (logical: string): string => ctx.col("platform", logical);
@@ -279,13 +283,15 @@ function build(ctx: ModuleContext): string {
     platform.keys.length === 0
       ? ""
       : `${pc("key")} in (${platform.keys.map((entry) => sqlString(entry.key)).join(", ")}) and `;
-  const writeCheck = `${listedKeys}coalesce(better_supabase.is_platform(${byKey(
-    (entry) => sqlString(entry.permission),
-    sqlString(platform.fallback.permission),
-  )}), false)`;
+  const writeCheck = `${listedKeys}coalesce(${ctx.scope.platform(
+    byKey(
+      (entry) => sqlString(entry.permission),
+      sqlString(platform.fallback.permission),
+    ),
+  )}, false)`;
   const authenticatedRead = byKey(
-    (entry) => readRule(entry.read, entry.permission),
-    readRule(platform.fallback.read, platform.fallback.permission),
+    (entry) => readRule(ctx.scope, entry.read, entry.permission),
+    readRule(ctx.scope, platform.fallback.read, platform.fallback.permission),
   );
   const publicKeys = platform.keys
     .filter((entry) => entry.read === "public")

@@ -61,7 +61,7 @@ export function transferFunctions(
   if not found then
     ${fail("INVENTORY_TRANSFER_NOT_FOUND", "transfer not found", "P0002")}
   end if;
-  ${guard(names.manage, "v_row.tenant")}`;
+  ${guard(names.scope, names.manage, "v_row.tenant")}`;
   const move = (
     name: string,
     location: string,
@@ -96,7 +96,7 @@ as $$
 declare
   v_id uuid;
 begin
-  ${guard(names.manage, "create_transfer.tenant")}
+  ${guard(names.scope, names.manage, "create_transfer.tenant")}
   if create_transfer.from_location is not distinct from create_transfer.to_location then
     ${fail("INVENTORY_TRANSFER_SAME_LOCATION", "a transfer needs two different locations", "22023")}
   end if;
@@ -213,7 +213,7 @@ export function purchaseOrderFunctions(
   if not found then
     ${fail("INVENTORY_PURCHASE_ORDER_NOT_FOUND", "purchase order not found", "P0002")}
   end if;
-  ${guard(names.purchase, "v_row.tenant")}`;
+  ${guard(names.scope, names.purchase, "v_row.tenant")}`;
   const event = (type: string, name: string, status: string): string =>
     ctx.record({
       type,
@@ -240,7 +240,7 @@ as $$
 declare
   v_id uuid := save_purchase_order.purchase_order;
 begin
-  ${guard(names.purchase, "save_purchase_order.tenant")}
+  ${guard(names.scope, names.purchase, "save_purchase_order.tenant")}
   if not exists (select 1 from ${locations} x where x.${l("id")} = save_purchase_order.location and x.${l("tenant")} = save_purchase_order.tenant) then
     ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found in this organization", "P0002")}
   end if;

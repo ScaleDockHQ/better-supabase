@@ -14,7 +14,6 @@ import {
   quotedTable,
   SERVICE_CALLER,
   schemaPreamble,
-  tenantIn,
   pageSize,
   revokeTable,
   fail,
@@ -375,7 +374,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     permission,
     provider: layout.accessProvider,
   });
-  const readable = subjectReadable(subjects, {
+  const readable = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
@@ -875,7 +874,7 @@ grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
 ${reads.readable}drop policy if exists "activity_entries_read" on ${activity};
 create policy "activity_entries_read" on ${activity} for select to authenticated
-  using (${tenantIn(a("tenant"), permission("activity"))}${reads.rowCheck});${reads.dropReadable}
+  using (${ctx.scope.check(a("tenant"), permission("activity"))}${reads.rowCheck});${reads.dropReadable}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen

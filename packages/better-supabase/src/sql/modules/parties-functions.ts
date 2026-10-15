@@ -1,10 +1,13 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { canIn, fail, pageSize, userGrant } from "../shared.ts";
+import { fail, pageSize, userGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface PartyNames {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -71,8 +74,13 @@ const SPEC = {
   },
 } as const;
 
-const guard = (tenant: string, permission: string, code: string): string =>
-  `if not (auth.role() = 'service_role' or ${canIn(tenant, permission)}) then
+const guard = (
+  scope: ModuleScope,
+  tenant: string,
+  permission: string,
+  code: string,
+): string =>
+  `if not (auth.role() = 'service_role' or ${scope.can(tenant, permission)}) then
     ${fail(code, "not allowed to change companies and people")}
   end if;`;
 
@@ -152,7 +160,7 @@ declare
   v_owner uuid;
   v_previous_owner uuid;
 begin
-  ${guard(`${fnName}.tenant`, names.write, "PARTY_FORBIDDEN")}
+  ${guard(names.scope, `${fnName}.tenant`, names.write, "PARTY_FORBIDDEN")}
   if jsonb_typeof(coalesce(${fnName}.attrs, '{}')) <> 'object' then
     ${fail("PARTY_ATTRS_INVALID", "attrs must be an object", "22023")}
   end if;
@@ -234,7 +242,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(`v_tenant`, names.write, "PARTY_FORBIDDEN")}
+  ${guard(names.scope, `v_tenant`, names.write, "PARTY_FORBIDDEN")}
   begin
     update ${t(spec.table)} x set ${col("archivedAt")} = case when ${name}.archived then coalesce(x.${col("archivedAt")}, now()) end, ${col("updatedAt")} = now()
     where x.${col("id")} = ${name}.id;
@@ -291,7 +299,7 @@ begin
   if v_keep.${col("tenant")} <> v_drop.${col("tenant")} or v_keep.${col("id")} = v_drop.${col("id")} or v_drop.${col("mergedInto")} is not null then
     ${fail("PARTY_MERGE_INVALID", "merge two different, unmerged records of one organization", "22023")}
   end if;
-  ${guard(`v_keep.${col("tenant")}`, names.manage, "PARTY_FORBIDDEN")}
+  ${guard(names.scope, `v_keep.${col("tenant")}`, names.manage, "PARTY_FORBIDDEN")}
   update ${t(spec.table)} x set ${unique} = null, ${col("mergedInto")} = ${name}.keep,
     ${col("archivedAt")} = coalesce(x.${col("archivedAt")}, now()), ${col("updatedAt")} = now()
   where x.${col("id")} = ${name}.drop;
@@ -407,7 +415,7 @@ begin
   if v_tenant is null then
     ${fail("PARTY_NOT_FOUND", "company or person not found in one organization", "P0002")}
   end if;
-  ${guard("v_tenant", names.write, "PARTY_FORBIDDEN")}
+  ${guard(names.scope, "v_tenant", names.write, "PARTY_FORBIDDEN")}
   if coalesce(set_company_person.is_primary, false) then
     update ${t("links")} l set ${li("isPrimary")} = false
     where l.${li("company")} = set_company_person.company and l.${li("person")} <> set_company_person.person and l.${li("isPrimary")};
@@ -443,7 +451,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard("v_tenant", names.write, "PARTY_FORBIDDEN")}
+  ${guard(names.scope, "v_tenant", names.write, "PARTY_FORBIDDEN")}
   delete from ${t("links")} l where l.${li("company")} = remove_company_person.company and l.${li("person")} = remove_company_person.person;
   ${ctx.record({
     type: "company.person_unlinked",

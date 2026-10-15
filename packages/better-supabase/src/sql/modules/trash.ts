@@ -15,7 +15,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
@@ -319,7 +318,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_batch_idx`
 ${lockTable(items, { read: true })}
 drop policy if exists "trash_items_read" on ${items};
 create policy "trash_items_read" on ${items} for select to authenticated
-  using (${tenantIn(c("tenant"), read)});
+  using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
   const children = childrenCase(list, cascade);
@@ -363,7 +362,7 @@ declare
   v_count integer;
   v_id uuid;
 begin
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "trash.tenant", create)} and ${subjectReadable(subjects, { type: "trash.subject_type", id: "trash.subject_id", tenant: "trash.tenant" })} and ${subjectWritable(ctx, subjects, { type: "trash.subject_type", tenant: "trash.tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "trash.tenant", create)} and ${subjectReadable(ctx, subjects, { type: "trash.subject_type", id: "trash.subject_id", tenant: "trash.tenant" })} and ${subjectWritable(ctx, subjects, { type: "trash.subject_type", tenant: "trash.tenant" })})) then
     ${fail("TRASH_FORBIDDEN", "not allowed to trash this record")}
   end if;
   ${ctx.hook("before_trash", [
@@ -461,7 +460,7 @@ begin
       and x.${c("depth")} = 0
       and (list_trash.subject_type is null or x.${c("subjectType")} = list_trash.subject_type)
       and (list_trash.before is null or x.${c("trashedAt")} < list_trash.before)
-      and (${SERVICE_CALLER} or ${subjectReadable(subjects, { type: `x.${c("subjectType")}`, id: `x.${c("subjectId")}`, tenant: `x.${c("tenant")}` })})
+      and (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type: `x.${c("subjectType")}`, id: `x.${c("subjectId")}`, tenant: `x.${c("tenant")}` })})
     order by x.${c("trashedAt")} desc, x.${c("id")}
     limit ${pageSize("list_trash.page_size", 50, 200)}
   ) t;

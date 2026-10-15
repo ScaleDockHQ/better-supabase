@@ -8,7 +8,6 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
-  canIn,
   fail,
   lockTable,
   SERVICE_CALLER,
@@ -135,9 +134,9 @@ function build(ctx: ModuleContext): string {
   // A system template only the service role changes; a tenant's needs
   // templates.manage there.
   const mayManage = (tenant: string): string =>
-    `(${SERVICE_CALLER} or (${tenant} is not null and ${canIn(tenant, manage)}))`;
-  const readable = `${ct("tenant")} in (select better_supabase.tenant_ids_with(${read}))
-    or (${ct("scope")} = 'system' and exists (select better_supabase.tenant_ids_with(${read})))`;
+    `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.scope.can(tenant, manage)}))`;
+  const readable = `${ct("tenant")} in (select ${ctx.scope.ids(read)})
+    or (${ct("scope")} = 'system' and exists (select ${ctx.scope.ids(read)}))`;
   // The template's newest published version.
   const published = (template: string): string =>
     `(select y.${cv("version")} from ${ver} y where y.${cv("template")} = ${template} and y.${cv("publishedAt")} is not null order by y.${cv("version")} desc limit 1)`;
@@ -268,7 +267,7 @@ create index if not exists template_applications_applied_by_idx on ${app} (${ca(
 ${lockTable(app, { read: true })}
 drop policy if exists template_applications_read on ${app};
 create policy template_applications_read on ${app} for select to authenticated
-  using (${ca("tenant")} in (select better_supabase.tenant_ids_with(${read})));
+  using (${ca("tenant")} in (select ${ctx.scope.ids(read)}));
 ${workflows?.ddl ?? ""}
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
@@ -654,7 +653,7 @@ begin
   if template_apply_target.tenant is null then
     ${fail("TEMPLATE_INVALID", "Applying a template needs a tenant", "22023")}
   end if;
-  if not (${SERVICE_CALLER} or ${canIn("template_apply_target.tenant", apply)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("template_apply_target.tenant", apply)}) then
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = template_apply_target.template_id;
@@ -693,7 +692,7 @@ begin
   if record_template_application.tenant is null then
     ${fail("TEMPLATE_INVALID", "Applying a template needs a tenant", "22023")}
   end if;
-  if not (${SERVICE_CALLER} or ${canIn("record_template_application.tenant", apply)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("record_template_application.tenant", apply)}) then
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = record_template_application.template_id;

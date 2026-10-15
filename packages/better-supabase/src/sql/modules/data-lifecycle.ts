@@ -9,7 +9,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   SERVICE_CALLER,
   schemaPreamble,
-  tenantIn,
   revokeTable,
   lockTable,
   fail,
@@ -191,7 +190,7 @@ function build(ctx: ModuleContext): string {
   const platform =
     platformKey === ""
       ? ""
-      : `\n    and not coalesce(better_supabase.is_platform(${sqlString(platformKey)}), false)`;
+      : `\n    and not coalesce(${ctx.scope.platform(sqlString(platformKey))}, false)`;
   // An access module in custom mode may lack member_can_while_deleting; the
   // tenant module then resolves the owner's role name instead.
   const cancelKey = ctx.permission("cancelDelete", permissions.cancelDelete);
@@ -229,7 +228,7 @@ grant select on ${e} to authenticated;
 grant all on ${e} to service_role;
 drop policy if exists "data_exports_read" on ${e};
 create policy "data_exports_read" on ${e} for select to authenticated
-  using (${ce("requestedBy")} = (select auth.uid()) or ${tenantIn(ce("tenant"), ctx.permission("export", permissions.export))});
+  using (${ce("requestedBy")} = (select auth.uid()) or ${ctx.scope.check(ce("tenant"), ctx.permission("export", permissions.export))});
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was

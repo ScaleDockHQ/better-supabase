@@ -10,11 +10,9 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  canIn,
   fail,
   lockTable,
   schemaPreamble,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -183,7 +181,7 @@ function build(ctx: ModuleContext): string {
   end if;
   update ${t("applications")} x set ${a("stage")} = v_stage where x.${a("id")} = v_row.${a("id")};`;
   const editable = (tenant: string): string =>
-    `(${service} or ${canIn(tenant, write)})`;
+    `(${service} or ${ctx.scope.can(tenant, write)})`;
   const tables = ctx.manages
     ? `
 create table if not exists ${t("jobs")} (
@@ -205,7 +203,7 @@ create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")
 ${lockTable(t("jobs"), { read: true })}
 drop policy if exists jobs_read on ${t("jobs")};
 create policy jobs_read on ${t("jobs")} for select to authenticated
-using (${tenantIn(j("tenant"), read)});
+using (${ctx.scope.check(j("tenant"), read)});
 
 create table if not exists ${t("applications")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -231,7 +229,7 @@ create index if not exists applications_candidate_idx on ${t("applications")} ($
 ${lockTable(t("applications"), { read: true })}
 drop policy if exists applications_read on ${t("applications")};
 create policy applications_read on ${t("applications")} for select to authenticated
-using (${tenantIn(a("tenant"), read)});
+using (${ctx.scope.check(a("tenant"), read)});
 
 create table if not exists ${t("scorecards")} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -249,7 +247,7 @@ create index if not exists application_scorecards_reviewer_idx on ${t("scorecard
 ${lockTable(t("scorecards"), { read: true })}
 drop policy if exists application_scorecards_read on ${t("scorecards")};
 create policy application_scorecards_read on ${t("scorecards")} for select to authenticated
-using (${tenantIn(s("tenant"), read)});
+using (${ctx.scope.check(s("tenant"), read)});
 
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -268,7 +266,7 @@ create index if not exists interviews_application_idx on ${t("interviews")} (${v
 ${lockTable(t("interviews"), { read: true })}
 drop policy if exists interviews_read on ${t("interviews")};
 create policy interviews_read on ${t("interviews")} for select to authenticated
-using (${tenantIn(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
+using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
 `
     : "";
   return `${schemaPreamble(ctx)}
@@ -318,7 +316,7 @@ declare
   v_job ${t("jobs")};
   v_was text;
 begin
-  if not (${service} or ${canIn("save_job.tenant", manage)}) then
+  if not (${service} or ${ctx.scope.can("save_job.tenant", manage)}) then
     ${fail("HIRING_FORBIDDEN", "not allowed to manage jobs")}
   end if;
   if save_job.job is not null then

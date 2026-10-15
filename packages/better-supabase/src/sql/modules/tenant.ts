@@ -399,7 +399,7 @@ grant all on ${m} to service_role;
 drop policy if exists bs_memberships_read on ${m};
 create policy bs_memberships_read on ${m}
   for select to authenticated
-  using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_organization_ids()));
+  using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
 `
     : "";
   // The access module defines tenant_disabled and user_disabled when it is

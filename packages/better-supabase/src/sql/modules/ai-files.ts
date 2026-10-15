@@ -7,12 +7,10 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
   lockTable,
@@ -205,11 +203,11 @@ function build(ctx: ModuleContext): string {
     tenant: string,
     chat: string,
   ): string =>
-    `(${prefix}${owner} = (select auth.uid()) or ${prefix === "" ? tenantIn(tenant, manage) : canIn(`${prefix}${tenant}`, manage)} or ${chatReadable(`${prefix}${chat}`)})`;
+    `(${prefix}${owner} = (select auth.uid()) or ${prefix === "" ? ctx.scope.check(tenant, manage) : ctx.scope.can(`${prefix}${tenant}`, manage)} or ${chatReadable(`${prefix}${chat}`)})`;
   const ownFile = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${f.owner} = auth.uid() or ${canIn(`${row}.${f.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or ${row}.${f.owner} = auth.uid() or ${ctx.scope.can(`${row}.${f.tenant}`, manage)})`;
   const ownDocument = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${canIn(`${row}.${d.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
   const docNotFound = raise(
     "document % not found",
     "P0002",
@@ -349,8 +347,8 @@ as $$
     where a.${f.bucket} = ai_file_object_allowed.bucket and a.${f.path} = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a.${f.status} = 'pending' and a.${f.owner} = auth.uid()
-        when 'select' then a.${f.owner} = auth.uid() or ${canIn(`a.${f.tenant}`, manage)} or ${chatReadable(`a.${f.chat}`)}
-        when 'delete' then a.${f.owner} = auth.uid() or ${canIn(`a.${f.tenant}`, manage)}
+        when 'select' then a.${f.owner} = auth.uid() or ${ctx.scope.can(`a.${f.tenant}`, manage)} or ${chatReadable(`a.${f.chat}`)}
+        when 'delete' then a.${f.owner} = auth.uid() or ${ctx.scope.can(`a.${f.tenant}`, manage)}
         else false
       end
   )
@@ -386,7 +384,7 @@ as $$
 declare
   v_row ${files}%rowtype;
 begin
-  if auth.uid() is null or not ${canIn("reserve_ai_file.tenant", upload)} then
+  if auth.uid() is null or not ${ctx.scope.can("reserve_ai_file.tenant", upload)} then
     ${raise("you may not upload files here", "42501", "AI_FILE_FORBIDDEN")}
   end if;
   if byte_size < 0 or byte_size > ${String(maxSize)} then
@@ -617,7 +615,7 @@ declare
   v_owner uuid := case when ${SERVICE_CALLER} then create_ai_document.owner else auth.uid() end;
   v_row ${documents}%rowtype;
 begin
-  if v_owner is null or not (${SERVICE_CALLER} or ${canIn("create_ai_document.tenant", upload)}) then
+  if v_owner is null or not (${SERVICE_CALLER} or ${ctx.scope.can("create_ai_document.tenant", upload)}) then
     ${raise("you may not create documents here", "42501", "AI_DOCUMENT_FORBIDDEN")}
   end if;
   insert into ${documents} (${d.tenant}, ${d.owner}, ${d.chat}, ${d.kind}, ${d.title})

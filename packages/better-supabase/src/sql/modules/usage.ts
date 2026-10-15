@@ -10,7 +10,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
-  tenantIn,
   pageSize,
   revokeTable,
   lockTable,
@@ -99,7 +98,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const canRead = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission("read", permissions.read))})`;
   const readPolicy = (tenant: string): string =>
-    tenantIn(tenant, ctx.permission("read", permissions.read));
+    ctx.scope.check(tenant, ctx.permission("read", permissions.read));
   const memberIds =
     accessModel(ctx) === "provider"
       ? layout.accessProvider?.functions.memberIds

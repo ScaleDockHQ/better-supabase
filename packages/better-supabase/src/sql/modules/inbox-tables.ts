@@ -403,7 +403,7 @@ export function inboxRealtime(q: InboxSql): string {
   const broadcast = q.ctx.trigger("inbox_broadcast");
   const allowed = `(
           ((select realtime.topic()) like ${sqlString(`${q.topic}:org:%`)}
-            and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from better_supabase.tenant_ids_with(${q.key("read")}) x))
+            and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x))
           or ((select realtime.topic()) like ${sqlString(`${q.topic}:%`)}
             and (select realtime.topic()) not like ${sqlString(`${q.topic}:org:%`)}
             and ${q.fn("inbox_conversation_allowed")}(substr((select realtime.topic()), ${String(q.topic.length + 2)})))

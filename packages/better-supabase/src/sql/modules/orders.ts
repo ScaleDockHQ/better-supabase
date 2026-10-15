@@ -291,7 +291,7 @@ function tables(ctx: ModuleContext, names: OrdersNames): string {
   const variant = columns(catalog, "variants");
   const t = (name: string): string => ctx.table(name);
   const tenantRead = (table: string): string =>
-    `${ctx.col(table, "tenant")} in (select better_supabase.tenant_ids_with(${names.read}))`;
+    `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`;
   const policy = (
     table: string,
     using: string,
@@ -545,6 +545,7 @@ ${policy("refunds", ofOrder("refunds"))}
 
 function namesOf(ctx: ModuleContext): OrdersNames {
   return {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", OPERATIONS["orders.manage"]),
     read: ctx.permission("read", OPERATIONS["orders.read"]),

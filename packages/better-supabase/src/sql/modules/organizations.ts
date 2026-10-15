@@ -400,7 +400,7 @@ function create(ctx: ModuleContext, n: OrganizationNames): string {
     permission === ""
       ? ""
       : `
-  if not service and not better_supabase.is_platform(${sqlString(permission)}) then
+  if not service and not ${ctx.scope.platform(sqlString(permission))} then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to create an organization")}
   end if;`;
   const slug = ctx.has("organizations", "slug")
@@ -495,7 +495,7 @@ function platformOverride(
   const key = ctx.permissionKey(action, "");
   return key === ""
     ? ""
-    : `\n    and not coalesce(better_supabase.is_platform(${sqlString(key)}), false)`;
+    : `\n    and not coalesce(${ctx.scope.platform(sqlString(key))}, false)`;
 }
 
 type DeleteMode = "hard" | "soft" | "lifecycle" | "none";

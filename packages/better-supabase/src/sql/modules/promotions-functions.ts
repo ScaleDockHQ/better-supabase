@@ -1,9 +1,12 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 import { amountOf, columns } from "./orders-shared.ts";
 
 export interface PromotionsNames {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -19,7 +22,7 @@ const MAX_GENERATED = 10000;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function guard(names: PromotionsNames, tenant: string): string {
-  return `if not (auth.role() = 'service_role' or ${canIn(tenant, names.manage)}) then
+  return `if not (auth.role() = 'service_role' or ${names.scope.can(tenant, names.manage)}) then
     ${fail("PROMOTIONS_FORBIDDEN", "not allowed to manage these promotions")}
   end if;`;
 }

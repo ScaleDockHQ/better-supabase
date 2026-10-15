@@ -12,12 +12,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
-import {
-  addExtraColumns,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { quoteFunctions, type QuoteNames } from "./quotes-functions.ts";
 
@@ -138,7 +133,7 @@ create index if not exists quotes_supersedes_idx on ${t("quotes")} (${q("superse
 ${lockTable(t("quotes"), { read: true })}
 drop policy if exists quotes_read on ${t("quotes")};
 create policy quotes_read on ${t("quotes")} for select to authenticated
-using (${tenantIn(q("tenant"), n.read)});
+using (${ctx.scope.check(q("tenant"), n.read)});
 `;
 }
 

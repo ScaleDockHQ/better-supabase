@@ -183,7 +183,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with(${modulePermission(ctx, "view", OPERATIONS["invitations.view"])});
+  return query select ${ctx.scope.ids(modulePermission(ctx, "view", OPERATIONS["invitations.view"]))};
 end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
@@ -228,7 +228,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return better_supabase.is_platform(${invitePlatform(ctx)});
+  return ${ctx.scope.platform(invitePlatform(ctx))};
 end;
 $$;
 revoke execute on function ${ctx.fn("platform_invitations_readable")}() from public, anon;
@@ -272,7 +272,7 @@ function platformInvite(
   ];
   const present = columns.filter(([logical]) => p.has(logical));
   const open = openFilter(p, "i");
-  return `if not service and not better_supabase.is_platform(${invitePlatform(ctx)}) then
+  return `if not service and not ${ctx.scope.platform(invitePlatform(ctx))} then
       ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
     end if;
     if ${role} is null then
@@ -331,7 +331,7 @@ function invite(ctx: ModuleContext): string {
     set ${pc("tokenHash")} = ${tokenHash(ctx, "token")},
       ${pc("expiresAt")} = now() + valid_for
     where i.${pc("id")} = invitation_id${pOpen ? ` and ${pOpen}` : ""}${p.only("i")}
-      and (${SERVICE_CALLER} or better_supabase.is_platform(${invitePlatform(ctx)}))
+      and (${SERVICE_CALLER} or ${ctx.scope.platform(invitePlatform(ctx))})
     returning * into platform_updated;
     if platform_updated.${pc("id")} is not null then
       ${ctx.record({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text`, audit: { category: "membership", targetType: "invitation", recordId: `platform_updated.${pc("id")}::text` } })}
@@ -465,7 +465,7 @@ function close(ctx: ModuleContext): string {
     `i.${table.col("tokenHash")} = ${tokenHash(ctx, "token")}`;
   const platformRevoke = p
     ? `
-  ${end(p, "revokedAt", `i.${p.col("id")} = invitation_id and (${SERVICE_CALLER} or better_supabase.is_platform(${invitePlatform(ctx)}))`)};
+  ${end(p, "revokedAt", `i.${p.col("id")} = invitation_id and (${SERVICE_CALLER} or ${ctx.scope.platform(invitePlatform(ctx))})`)};
   if found then
     ${ctx.record({ type: "invitation.revoked", payload: "jsonb_build_object('invitationId', invitation_id, 'organizationId', null)", subject: "'invitations/' || invitation_id::text", audit: { category: "membership", targetType: "invitation", recordId: `invitation_id::text` } })}
     return true;

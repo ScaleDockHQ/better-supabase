@@ -496,7 +496,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return better_supabase.is_platform(${sqlString(platform)});
+  return ${ctx.scope.platform(sqlString(platform))};
 end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;

@@ -303,7 +303,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           "bs_attachments_mime_type",
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
-  const subjectReadableSql = subjectReadable(subjects, {
+  const subjectReadableSql = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
