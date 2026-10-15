@@ -327,7 +327,8 @@
       "presetInstallCommand",
       "presetOf",
       "PRESETS",
-      "resolvePreset"
+      "resolvePreset",
+      "withPresetField"
     ],
     "types": [
       "DecodedPreset",
