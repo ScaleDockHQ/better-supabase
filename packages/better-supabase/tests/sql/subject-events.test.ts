@@ -5,6 +5,13 @@ import type { SubjectEventType } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const SUBJECT_EVENTS = [
+  "work_item.created",
+  "work_item.updated",
+  "work_item.assigned",
+  "work_item.closed",
+  "work_item.reopened",
+  "work_item.archived",
+  "work_item.deleted",
   "deal.created",
   "deal.updated",
   "deal.closed",

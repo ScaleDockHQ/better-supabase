@@ -152,6 +152,7 @@ expose the module schema itself.
 | [Parties](/docs/blocks/parties)                             | `better-supabase/blocks/parties`                                                                                                   | `parties`                              |
 | [Engagements](/docs/blocks/engagements)                     | `better-supabase/blocks/engagements`                                                                                               | `engagements`                          |
 | [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                                                                     | `deals`                                |
+| [Work items](/docs/blocks/work-items)                       | `better-supabase/blocks/work-items`                                                                                                | `work-items`                           |
 | [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                                                                                | `identities`                           |
 | [Service principals](/docs/blocks/service-principals)       | `better-supabase/blocks/service-principals`                                                                                        | `service-principals`                   |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
@@ -270,10 +271,11 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `identities`         | none                                        | `inbox`                                                                                                                                 |
 | `service-principals` | `tenant`, `access`                          | `audit`                                                                                                                                 |
 | `templates`          | `tenant`, `access`                          | `outbox`, `audit`, `workflow-builder`, `jsonb-schemas`                                                                                  |
-| `pipelines`          | `tenant`, `access`, `subjects`              | `outbox`, `audit`, `state-machine`, `notifications`, `deals`                                                                            |
+| `pipelines`          | `tenant`, `access`, `subjects`              | `outbox`, `audit`, `state-machine`, `notifications`, `deals`, `work-items`                                                              |
 | `parties`            | `tenant`, `access`                          | `outbox`, `audit`, `notifications`                                                                                                      |
 | `engagements`        | `tenant`, `access`, `subjects`              | `outbox`, `notifications`                                                                                                               |
 | `deals`              | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`, `engagements`                                                                            |
+| `work-items`         | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`                                                                                           |
 | `ensure-rls`         | none                                        | none                                                                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

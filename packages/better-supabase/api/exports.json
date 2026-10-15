@@ -2045,7 +2045,8 @@
       "WaitlistEventData",
       "WebhookEventData",
       "WorkflowEventData",
-      "WorkflowRunEventData"
+      "WorkflowRunEventData",
+      "WorkItemEventData"
     ]
   },
   "./blocks/webhooks": {
@@ -4431,6 +4432,37 @@
       "DealTotals",
       "ForecastCategory",
       "RpcClient"
+    ]
+  },
+  "./blocks/work-items": {
+    "values": [
+      "createWorkItems",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "workItemsSubjects",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CloseReason",
+      "Iteration",
+      "Project",
+      "RpcClient",
+      "WorkItem",
+      "WorkItemChange",
+      "WorkItemChangeResult",
+      "WorkItemField",
+      "WorkItemInput",
+      "WorkItemListOptions",
+      "WorkItemNode",
+      "WorkItems",
+      "WorkItemsOptions",
+      "WorkItemState"
     ]
   },
   "./blocks/reactions/react": {

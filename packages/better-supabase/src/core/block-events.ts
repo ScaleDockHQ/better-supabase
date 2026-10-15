@@ -358,6 +358,13 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "work_item.created"
+  | "work_item.updated"
+  | "work_item.assigned"
+  | "work_item.closed"
+  | "work_item.reopened"
+  | "work_item.archived"
+  | "work_item.deleted"
   | "deal.created"
   | "deal.updated"
   | "deal.closed"
@@ -624,6 +631,20 @@ export interface DealEventData extends SubjectEventData {
   readonly reason?: string | null;
   /** For `deal.updated`: the fields the batch changed. */
   readonly fields?: readonly string[];
+}
+
+/** Events from the work-items module. */
+export interface WorkItemEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly workItemId: string;
+  readonly title: string;
+  /** For `work_item.updated`: the fields the batch changed. */
+  readonly fields?: readonly string[];
+  /** For `work_item.assigned`: everyone assigned now. */
+  readonly assigneeIds?: readonly string[];
+  /** For `work_item.closed`: `completed` or `canceled`, and why. */
+  readonly state?: string;
+  readonly closeReason?: string;
 }
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
@@ -924,6 +945,13 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "work_item.created": WorkItemEventData;
+  "work_item.updated": WorkItemEventData;
+  "work_item.assigned": WorkItemEventData;
+  "work_item.closed": WorkItemEventData;
+  "work_item.reopened": WorkItemEventData;
+  "work_item.archived": WorkItemEventData;
+  "work_item.deleted": WorkItemEventData;
   "deal.created": DealEventData;
   "deal.updated": DealEventData;
   "deal.closed": DealEventData;

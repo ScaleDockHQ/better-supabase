@@ -133,6 +133,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_deal_update",
     "after_deal_update",
   ],
+  "work-items": [
+    "before_work_item_create",
+    "after_work_item_create",
+    "before_work_item_update",
+    "after_work_item_update",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

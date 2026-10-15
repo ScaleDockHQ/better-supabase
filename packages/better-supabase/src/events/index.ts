@@ -275,6 +275,7 @@ export type {
   CommentEventData,
   CommerceEventData,
   DealEventData,
+  WorkItemEventData,
   EngagementEventData,
   PartyEventData,
   PipelineEventData,

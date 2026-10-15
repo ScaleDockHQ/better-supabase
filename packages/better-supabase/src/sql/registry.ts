@@ -97,6 +97,7 @@ import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { WORK_ITEMS } from "./modules/work-items.ts";
 import { WORKFLOW_BUILDER } from "./modules/workflow-builder.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk-world.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
@@ -222,6 +223,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(PARTIES),
       built(ENGAGEMENTS),
       built(DEALS),
+      built(WORK_ITEMS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

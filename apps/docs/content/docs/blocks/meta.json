@@ -78,6 +78,7 @@
     "parties",
     "engagements",
     "deals",
+    "work-items",
     "identities",
     "service-principals"
   ]

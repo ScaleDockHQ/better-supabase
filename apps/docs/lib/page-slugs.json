@@ -48,6 +48,7 @@
   "blocks/create-blocks",
   "blocks/custom-fields",
   "blocks/data-lifecycle",
+  "blocks/deals",
   "blocks/documents",
   "blocks/drive",
   "blocks/engagements",

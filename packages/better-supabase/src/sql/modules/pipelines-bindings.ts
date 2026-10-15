@@ -233,6 +233,43 @@ const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
       ],
     },
   },
+  {
+    module: "work-items",
+    table: "items",
+    type: "work_item",
+    entry: {
+      enteredAt: "stage_entered_at",
+      scope: "team_id",
+      categories: {
+        triage: "open",
+        backlog: "open",
+        unstarted: "open",
+        started: "open",
+        completed: "success",
+        canceled: "failure",
+      },
+      status: {
+        column: "state",
+        values: {
+          triage: "triage",
+          backlog: "backlog",
+          unstarted: "unstarted",
+          started: "started",
+          completed: "completed",
+          canceled: "canceled",
+        },
+      },
+      stages: [
+        { key: "triage", name: "Triage", category: "triage" },
+        { key: "backlog", name: "Backlog", category: "backlog" },
+        { key: "todo", name: "Todo", category: "unstarted" },
+        { key: "in_progress", name: "In progress", category: "started" },
+        { key: "in_review", name: "In review", category: "started" },
+        { key: "done", name: "Done", category: "completed" },
+        { key: "canceled", name: "Canceled", category: "canceled" },
+      ],
+    },
+  },
 ];
 
 export function pipelineBindings(

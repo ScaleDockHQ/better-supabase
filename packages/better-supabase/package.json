@@ -777,6 +777,11 @@
       "types": "./dist/blocks/deals/index.d.ts",
       "default": "./dist/blocks/deals/index.js"
     },
+    "./blocks/work-items": {
+      "@better-supabase/source": "./src/blocks/work-items/index.ts",
+      "types": "./dist/blocks/work-items/index.d.ts",
+      "default": "./dist/blocks/work-items/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1500,6 +1505,10 @@
       "./blocks/deals": {
         "types": "./dist/blocks/deals/index.d.ts",
         "default": "./dist/blocks/deals/index.js"
+      },
+      "./blocks/work-items": {
+        "types": "./dist/blocks/work-items/index.d.ts",
+        "default": "./dist/blocks/work-items/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",
