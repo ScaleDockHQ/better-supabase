@@ -254,6 +254,103 @@ of them. A user who already has a row for the subject keeps it, so someone
 who chose `ignore` stays unsubscribed. An edit adds only the newly mentioned
 users. `options.follow: false` turns this off.
 
+## In the browser
+
+`useComments` from `better-supabase/blocks/comments/react` loads one
+subject's thread through the provider's client and keeps it current after
+`add`, `edit` and `remove`. The same hook runs in React DOM and React Native.
+The module broadcasts nothing, so the thread loads again after the caller's
+own writes; pass `topic` (a private topic that hears of new comments, such as
+a `realtime-tables` topic on the comments table) to load it again for
+everyone's.
+
+```tsx title="components/comment-thread.tsx"
+import { useComments } from "better-supabase/blocks/comments/react";
+
+const { comments, error, add, remove } = useComments({
+  organizationId,
+  subjectType: "project",
+  subjectId: projectId,
+  schema: "api",
+});
+
+await add("Ready for review");
+```
+
+`add`, `edit` and `remove` return a `Result` and keep a failure in `error`.
+`schema` names the schema the calls go to: the module schema by default, or
+the API schema from `blocks.comments.api`. The thread waits while
+`organizationId` is `null`. `createCommentsController` from
+`better-supabase/blocks/comments` is the same logic without React, and
+`better-supabase/blocks/comments/vue`, `/svelte` and `/solid` export
+`useComments` over it, taking the controller's options with `auth` and
+`ports` from the provider. The [comment thread recipe](/docs/registry/ui-recipes)
+shows it in the Next.js and Expo examples.
+
+```vue title="CommentCount.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useComments } from "better-supabase/blocks/comments/vue";
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+
+const { organizationId, projectId } = defineProps<{
+  organizationId: string;
+  projectId: string;
+}>();
+const supabase = useSupabase();
+const { state, actions } = useComments({
+  client: createComments({ transport: rpcTransport(supabase) }),
+  organizationId,
+  subjectType: "project",
+  subjectId: projectId,
+});
+</script>
+
+<template>
+  <p>{{ state.comments?.length ?? 0 }} comments</p>
+  <button @click="actions.add('Looks good')">Approve</button>
+</template>
+```
+
+```svelte title="CommentCount.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useComments } from "better-supabase/blocks/comments/svelte";
+  import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+
+  let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const thread = useComments({
+    client: createComments({ transport: rpcTransport(supabase) }),
+    organizationId,
+    subjectType: "project",
+    subjectId: projectId,
+  });
+</script>
+
+<p>{$thread.comments?.length ?? 0} comments</p>
+```
+
+```tsx title="CommentCount.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useComments } from "better-supabase/blocks/comments/solid";
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+
+export function CommentCount(props: {
+  organizationId: string;
+  projectId: string;
+}) {
+  const supabase = useSupabase();
+  const { state } = useComments({
+    client: createComments({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+    subjectType: "project",
+    subjectId: props.projectId,
+  });
+  return <p>{state().comments?.length ?? 0} comments</p>;
+}
+```
+
 ## Reactions
 
 With the [reactions](/docs/blocks/reactions) module installed, a comment is

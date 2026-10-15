@@ -145,20 +145,57 @@ const RECIPES: readonly RecipeSource[] = [
       glue: ["onboarding-checklist"],
     },
   },
+  {
+    slug: "comment-thread",
+    title: "Comment thread",
+    block: "comments",
+    description:
+      "A record's comments with their authors and a form to add one, kept current after each write.",
+    hook: {
+      name: "useComments",
+      entry: "better-supabase/blocks/comments/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/customers/components/comment-thread.tsx`,
+      components: ["button", "field", "skeleton", "textarea"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/comment-thread.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Button",
+        "FlatList",
+        "Text",
+        "TextInput",
+        "View",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "org-switcher",
+    title: "Organization switcher",
+    block: "organizations",
+    description:
+      "A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim.",
+    hook: {
+      name: "useOrganizations",
+      entry: "better-supabase/blocks/organizations/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/organization/components/organization-switcher-menu.tsx`,
+      components: ["dropdown-menu", "sidebar"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/organization-switcher.tsx`,
+      components: ["ActivityIndicator", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
   ...(
     [
-      [
-        "comment-thread",
-        "Comment thread",
-        "comments",
-        "Comments on a record with replies, edits and live updates.",
-      ],
-      [
-        "org-switcher",
-        "Organization switcher",
-        "organizations",
-        "A menu of the user's organizations that switches the active one.",
-      ],
       [
         "members-table",
         "Members table",

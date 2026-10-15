@@ -34,3 +34,11 @@ export {
 export { organizationsBlock } from "./manifest.ts";
 export { organizationsEvents } from "./events.ts";
 export type { OrganizationsEvents } from "./events.ts";
+export {
+  createOrganizationsController,
+  type OrganizationSource,
+  type OrganizationsActions,
+  type OrganizationsController,
+  type OrganizationsControllerOptions,
+  type OrganizationsSnapshot,
+} from "./client.ts";

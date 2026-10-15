@@ -32,17 +32,18 @@ export interface PendingInvitation {
 const roleOrMember = (value: string | null): Role =>
   v.is(Role, value) ? value : "member";
 
-/**
- * The caller's organizations, most recently used first, from
- * `public.my_organizations()` (supabase/schemas/public/functions/my_organizations.sql).
- */
-export async function getMyOrganizations(): Promise<
-  readonly OrganizationSummary[]
-> {
-  "use cache: private";
-  const { db, session } = await bs.cached();
-  if (session.kind !== "user") return [];
-  const rows = await db.$rpc("my_organizations").orThrow();
+interface MyOrganizationRow {
+  readonly id: string | null;
+  readonly name: string | null;
+  readonly slug: string | null;
+  readonly role: string | null;
+  readonly plan: string | null;
+}
+
+/** Rows of `public.my_organizations()` as summaries, skipping incomplete ones. */
+export function toOrganizationSummaries(
+  rows: readonly MyOrganizationRow[],
+): readonly OrganizationSummary[] {
   return rows.flatMap((row) =>
     row.id && row.name
       ? [
@@ -58,7 +59,19 @@ export async function getMyOrganizations(): Promise<
   );
 }
 
-/** Takes the organization as an argument: the private cache keys on it. */
+/**
+ * The caller's organizations, most recently used first, from
+ * `public.my_organizations()` (supabase/schemas/public/functions/my_organizations.sql).
+ */
+export async function getMyOrganizations(): Promise<
+  readonly OrganizationSummary[]
+> {
+  "use cache: private";
+  const { db, session } = await bs.cached();
+  if (session.kind !== "user") return [];
+  return toOrganizationSummaries(await db.$rpc("my_organizations").orThrow());
+}
+
 export async function getMembers(
   organizationId: string,
 ): Promise<readonly Member[]> {

@@ -27,3 +27,11 @@ export type { BlockTransport } from "../../core/block-transport.ts";
 export { commentsBlock } from "./manifest.ts";
 export { commentsEvents } from "./events.ts";
 export type { CommentsEvents } from "./events.ts";
+export {
+  type CommentDraft,
+  type CommentsActions,
+  type CommentsController,
+  type CommentsControllerOptions,
+  type CommentsSnapshot,
+  createCommentsController,
+} from "./client.ts";

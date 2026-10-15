@@ -1,5 +1,8 @@
+// #region recipe:org-switcher
 "use client";
 
+import { DbException } from "better-supabase";
+import { useOrganizations } from "better-supabase/blocks/organizations/react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
@@ -15,11 +18,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { API_SCHEMA } from "@/lib/blocks";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
 
-import { switchOrganization } from "../organization-actions";
+import { loadMyOrganizations } from "../organization-actions";
 import { useRefreshSession } from "../use-refresh-session";
 import { useRoleLabel } from "../use-role-label";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
@@ -32,11 +36,22 @@ function Mark({ name }: { name: string }) {
   );
 }
 
+async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
+  const result = await loadMyOrganizations({});
+  if (!result.ok) throw new DbException(result.error);
+  return result.data;
+}
+
+/**
+ * The organization menu. The server renders it with its rows; switching
+ * goes through `switch_organization`, refreshes the session for the new
+ * tenant claim, then re-renders the server tree.
+ */
 export function OrganizationSwitcherMenu({
-  organizations,
-  activeId,
+  initial,
+  activeId: serverActiveId,
 }: {
-  organizations: readonly OrganizationSummary[];
+  initial: readonly OrganizationSummary[];
   activeId: string | null;
 }) {
   const t = useExtracted("organization");
@@ -45,20 +60,21 @@ export function OrganizationSwitcherMenu({
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
-  const active = organizations.find(
-    (organization) => organization.id === activeId,
-  );
+  const { organizations, active, activeId, switchTo } = useOrganizations({
+    load: loadOrganizations,
+    initial,
+    activeId: serverActiveId,
+    schema: API_SCHEMA,
+    onSwitched: () => refreshSession("/"),
+  });
 
-  const switchTo = (organization: OrganizationSummary) => {
+  const choose = (organization: OrganizationSummary) => {
     startTransition(async () => {
-      const result = await switchOrganization({
-        organizationId: organization.id,
-      });
+      const result = await switchTo(organization.id);
       if (!result.ok) {
         toast.error(errorMessage(result.error));
         return;
       }
-      await refreshSession("/");
       toast.success(t("Switched to {name}", { name: organization.name }));
     });
   };
@@ -93,12 +109,12 @@ export function OrganizationSwitcherMenu({
         <DropdownMenuContent className="w-64" align="start" side="bottom">
           <DropdownMenuGroup>
             <DropdownMenuLabel>{t("Organizations")}</DropdownMenuLabel>
-            {organizations.map((organization) => (
+            {(organizations ?? initial).map((organization) => (
               <DropdownMenuItem
                 key={organization.id}
                 className="gap-2"
                 onClick={() => {
-                  if (organization.id !== activeId) switchTo(organization);
+                  if (organization.id !== activeId) choose(organization);
                 }}
               >
                 <Mark name={organization.name} />
@@ -127,3 +143,4 @@ export function OrganizationSwitcherMenu({
     </>
   );
 }
+// #endregion recipe:org-switcher

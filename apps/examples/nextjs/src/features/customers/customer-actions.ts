@@ -1,8 +1,7 @@
 "use server";
 
-import { fromBetterResult, ok } from "better-supabase";
+import { fromBetterResult } from "better-supabase";
 import { withBetterResult } from "better-supabase/better-result";
-import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
@@ -88,28 +87,5 @@ export const uploadCustomerLogo = bs.action(
           commit: (path) => db.customers.update(customerId, { logoPath: path }),
         },
       );
-  },
-);
-
-/** A comment on a customer (the comments SQL module checks `comments.create`). */
-export const addCustomerComment = bs.action(
-  {
-    input: v.object({
-      customerId: Id,
-      body: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000)),
-    }),
-    requireTenant: true,
-    authorize: (session) => can(session, "comments.create"),
-  },
-  async ({ customerId, body }, { tenant: organizationId, supabase }) => {
-    const created = await blocks(supabase).comments.create({
-      organizationId,
-      subjectType: "customer",
-      subjectId: customerId,
-      body,
-    });
-    if (!created.ok) return created;
-    refresh();
-    return ok(created.data.id);
   },
 );

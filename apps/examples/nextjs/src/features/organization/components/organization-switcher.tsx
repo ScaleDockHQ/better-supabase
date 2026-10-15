@@ -19,8 +19,10 @@ export async function OrganizationSwitcher() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
+        {/* New rows from the server, after creating or joining one, start the menu over. */}
         <OrganizationSwitcherMenu
-          organizations={organizations}
+          key={`${tenantOf(session) ?? ""}:${organizations.map((organization) => organization.id).join()}`}
+          initial={organizations}
           activeId={tenantOf(session) ?? null}
         />
       </SidebarMenuItem>

@@ -17,8 +17,8 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { initials } from "@/lib/initials";
 
-import { getCustomer, getCustomerComments } from "../customer-queries";
-import { CommentForm } from "./comment-form";
+import { getCustomer } from "../customer-queries";
+import { CommentThread } from "./comment-thread";
 import { CustomerLogoForm } from "./customer-logo-form";
 import { CustomerStatus } from "./customer-status";
 
@@ -31,16 +31,18 @@ export async function CustomerDetail({
   const [{ id }, session] = await Promise.all([params, getSession()]);
   const organizationId = tenantOf(session);
   if (!organizationId) notFound();
-  const [customer, comments, members, t, format] = await Promise.all([
+  const [customer, members, t, format] = await Promise.all([
     getCustomer(id),
-    getCustomerComments(organizationId, id),
     getMembers(organizationId),
     getExtracted("customers"),
     getFormatter(),
   ]);
   if (!customer) notFound();
-  const names = new Map(
-    members.map((member) => [member.userId, member.name ?? member.email]),
+  const authors = Object.fromEntries(
+    members.flatMap((member) => {
+      const name = member.name ?? member.email;
+      return name ? [[member.userId, name]] : [];
+    }),
   );
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -81,37 +83,13 @@ export async function CustomerDetail({
               {t("Visible to everyone in the organization.")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {comments.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                {t("No comments yet.")}
-              </p>
-            ) : (
-              <ol className="space-y-4" data-testid="comments">
-                {comments.map((comment) => (
-                  <li key={comment.id} className="space-y-1">
-                    <p className="text-sm">
-                      <span className="font-medium">
-                        {(comment.authorId && names.get(comment.authorId)) ??
-                          t("Someone")}
-                      </span>{" "}
-                      <span className="text-muted-foreground text-xs">
-                        {format.dateTime(new Date(comment.createdAt), {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </span>
-                    </p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {comment.body}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {can(session, "comments.create") ? (
-              <CommentForm customerId={customer.id} />
-            ) : null}
+          <CardContent>
+            <CommentThread
+              organizationId={organizationId}
+              customerId={customer.id}
+              authors={authors}
+              canComment={can(session, "comments.create")}
+            />
           </CardContent>
         </Card>
       </div>

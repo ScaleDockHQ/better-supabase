@@ -261,6 +261,109 @@ When `refresh` is `true`, refresh the session so the next access token
 carries the new claim. If your access token hook builds the claim from
 somewhere else, use the `profileColumn` or `resolver` source instead.
 
+### In the browser
+
+`useOrganizations` from `better-supabase/blocks/organizations/react` lists
+the caller's organizations and the active one, read from the tenant claim
+(`claims.tenant`) of the provider's session. `switchTo(id)` calls
+`switch_organization`, refreshes the session when the result asks for it,
+and loads the list again; it returns a `Result` and keeps a failure in
+`error`. The same hook runs in React DOM and React Native.
+
+```tsx title="components/organization-switcher.tsx"
+import { useOrganizations } from "better-supabase/blocks/organizations/react";
+
+const { organizations, active, switching, switchTo } = useOrganizations({
+  schema: "api",
+});
+```
+
+`load` replaces `organizations.mine()`, such as with a server action that
+adds the plan to each row, and `initial` and `activeId` take what a server
+already rendered so the first load is skipped. `onSwitched` replaces the
+session refresh, such as with a router refresh after it in a Next.js app.
+`createOrganizationsController` from `better-supabase/blocks/organizations`
+is the same logic without React, and `better-supabase/blocks/organizations/vue`,
+`/svelte` and `/solid` export `useOrganizations` over it, taking the
+controller's options with `auth` from the provider. The
+[organization switcher recipe](/docs/registry/ui-recipes) shows it in the
+Next.js and Expo examples.
+
+```vue title="ActiveOrganization.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useOrganizations } from "better-supabase/blocks/organizations/vue";
+import {
+  createOrganizations,
+  rpcTransport,
+} from "better-supabase/blocks/organizations";
+
+const supabase = useSupabase();
+const organizations = createOrganizations({
+  transport: rpcTransport(supabase),
+});
+const { state, actions } = useOrganizations({
+  client: organizations,
+  load: () => organizations.mine().orThrow(),
+  onSwitched: async () => {
+    await supabase.auth.refreshSession();
+  },
+});
+</script>
+
+<template>
+  <button
+    v-for="organization in state.organizations"
+    :key="organization.id"
+    @click="actions.switchTo(organization.id)"
+  >
+    {{ organization.name }}
+  </button>
+</template>
+```
+
+```svelte title="ActiveOrganization.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useOrganizations } from "better-supabase/blocks/organizations/svelte";
+  import { createOrganizations, rpcTransport } from "better-supabase/blocks/organizations";
+
+  const { supabase } = getBetterSupabase();
+  const client = createOrganizations({ transport: rpcTransport(supabase) });
+  const organizations = useOrganizations({
+    client,
+    load: () => client.mine().orThrow(),
+    onSwitched: async () => {
+      await supabase.auth.refreshSession();
+    },
+  });
+</script>
+
+<p>{$organizations.activeId}</p>
+```
+
+```tsx title="ActiveOrganization.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useOrganizations } from "better-supabase/blocks/organizations/solid";
+import {
+  createOrganizations,
+  rpcTransport,
+} from "better-supabase/blocks/organizations";
+
+export function ActiveOrganization() {
+  const supabase = useSupabase();
+  const client = createOrganizations({ transport: rpcTransport(supabase) });
+  const { state } = useOrganizations({
+    client,
+    load: () => client.mine().orThrow(),
+    onSwitched: async () => {
+      await supabase.auth.refreshSession();
+    },
+  });
+  return <p>{state().activeId}</p>;
+}
+```
+
 ## Options
 
 `blocks.organizations.options`:

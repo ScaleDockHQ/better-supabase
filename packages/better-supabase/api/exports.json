@@ -1756,6 +1756,7 @@
   "./blocks/organizations": {
     "values": [
       "createOrganizations",
+      "createOrganizationsController",
       "dbTransport",
       "extendBlock",
       "organizationsBlock",
@@ -1782,8 +1783,13 @@
       "OrganizationMember",
       "OrganizationMembership",
       "Organizations",
+      "OrganizationsActions",
+      "OrganizationsController",
+      "OrganizationsControllerOptions",
       "OrganizationsEvents",
       "OrganizationsOptions",
+      "OrganizationSource",
+      "OrganizationsSnapshot",
       "RpcClient",
       "SlugProblem",
       "SwitchResult"
@@ -2541,6 +2547,7 @@
       "commentsBlock",
       "commentsEvents",
       "createComments",
+      "createCommentsController",
       "dbTransport",
       "mentionsIn",
       "rpcTransport",
@@ -2556,10 +2563,15 @@
       "ActivitySource",
       "BlockTransport",
       "Comment",
+      "CommentDraft",
       "CommentEdit",
       "Comments",
+      "CommentsActions",
+      "CommentsController",
+      "CommentsControllerOptions",
       "CommentsEvents",
       "CommentsOptions",
+      "CommentsSnapshot",
       "CommentSubject",
       "ListCommentsOptions",
       "NewComment"
@@ -5695,6 +5707,101 @@
       "ReactionsActions",
       "ReactionsControllerOptions",
       "ReactionsSnapshot",
+      "SolidController"
+    ]
+  },
+  "./blocks/comments/react": {
+    "values": [
+      "useComments"
+    ],
+    "types": [
+      "CommentDraft",
+      "CommentsState",
+      "UseCommentsOptions"
+    ]
+  },
+  "./blocks/comments/vue": {
+    "values": [
+      "useComments"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommentsActions",
+      "CommentsControllerOptions",
+      "CommentsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/comments/svelte": {
+    "values": [
+      "useComments"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommentsActions",
+      "CommentsControllerOptions",
+      "CommentsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/comments/solid": {
+    "values": [
+      "useComments"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommentsActions",
+      "CommentsControllerOptions",
+      "CommentsSnapshot",
+      "SolidController"
+    ]
+  },
+  "./blocks/organizations/react": {
+    "values": [
+      "useOrganizations"
+    ],
+    "types": [
+      "OrganizationSource",
+      "OrganizationsState",
+      "UseOrganizationsOptions"
+    ]
+  },
+  "./blocks/organizations/vue": {
+    "values": [
+      "useOrganizations"
+    ],
+    "types": [
+      "BlockOptions",
+      "OrganizationMembership",
+      "OrganizationsActions",
+      "OrganizationsControllerOptions",
+      "OrganizationsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/organizations/svelte": {
+    "values": [
+      "useOrganizations"
+    ],
+    "types": [
+      "BlockOptions",
+      "OrganizationMembership",
+      "OrganizationsActions",
+      "OrganizationsControllerOptions",
+      "OrganizationsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/organizations/solid": {
+    "values": [
+      "useOrganizations"
+    ],
+    "types": [
+      "BlockOptions",
+      "OrganizationMembership",
+      "OrganizationsActions",
+      "OrganizationsControllerOptions",
+      "OrganizationsSnapshot",
       "SolidController"
     ]
   },

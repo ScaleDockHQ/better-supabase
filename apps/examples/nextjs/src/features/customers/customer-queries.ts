@@ -1,5 +1,4 @@
 import "server-only";
-import { blocks } from "@/lib/blocks";
 import { logos } from "@/lib/buckets";
 import { customerList } from "@/lib/lists";
 import { bs } from "@/lib/supabase/server";
@@ -63,33 +62,4 @@ export async function getCustomer(id: string) {
       ? logos.connect(supabase).publicUrl(customer.logoPath).data
       : null,
   };
-}
-
-export interface CustomerComment {
-  readonly id: string;
-  readonly authorId: string | null;
-  readonly body: string;
-  /** ISO 8601. */
-  readonly createdAt: string;
-}
-
-/** Newest first, from the comments SQL module. */
-export async function getCustomerComments(
-  organizationId: string,
-  customerId: string,
-): Promise<readonly CustomerComment[]> {
-  "use cache: private";
-  const { supabase } = await bs.cached();
-  const comments = await blocks(supabase)
-    .comments.list(organizationId, "customer", customerId)
-    .orThrow();
-  return comments
-    .filter((comment) => comment.deletedAt === undefined)
-    .map((comment) => ({
-      id: comment.id,
-      authorId: comment.authorId ?? null,
-      body: comment.body,
-      createdAt: comment.createdAt.toString(),
-    }))
-    .toReversed();
 }

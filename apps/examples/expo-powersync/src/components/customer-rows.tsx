@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
 
+import { router } from "expo-router";
 import { memo } from "react";
-import { FlatList, type ListRenderItem, Text, View } from "react-native";
+import { FlatList, type ListRenderItem, Pressable, Text } from "react-native";
 
 interface Row {
   readonly id: string;
@@ -11,10 +12,18 @@ interface Row {
 
 const CustomerRow = memo(function CustomerRow({ row }: { readonly row: Row }) {
   return (
-    <View>
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => {
+        router.push({
+          pathname: "/customers/[id]",
+          params: { id: row.id, name: row.name },
+        });
+      }}
+    >
       <Text>{row.name}</Text>
       <Text>{row.status}</Text>
-    </View>
+    </Pressable>
   );
 });
 
