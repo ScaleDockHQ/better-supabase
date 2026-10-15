@@ -1,6 +1,6 @@
 ---
-title: apply, preset and blocks
-description: Apply a preset to an existing project, read a preset code, and find the blocks to add.
+title: apply, adopt, preset and blocks
+description: Apply a preset to an existing project, map blocks onto tables it already has, read a preset code, and find the blocks to add.
 ---
 
 These commands work with [presets](/docs/presets) and the block catalog. To
@@ -29,10 +29,66 @@ nothing.
 | `blocks`      | `blocks`: the preset's blocks and what they require, listed by name; `preset` stays as it is |
 | `conventions` | `preset`: a code with the preset's conventions and no blocks                                 |
 
+### Adopting existing tables
+
+```bash
+pnpm better-supabase apply --preset crm --only blocks --adopt --dry-run
+```
+
+With `--adopt`, `apply` reads the tables in the database and looks for each
+block's tables under their default names (`teams` and `team_members` for
+`teams`). For every block it finds there, it writes `blocks.<block>` in
+[adopt mode](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) instead of letting the managed block skip the
+table: `tables` names the existing tables, `columns` the columns that differ
+from the defaults, and an optional column the table lacks maps to `null`.
+The proposed mapping of each block is printed before the diff, so
+`--dry-run` shows both. Blocks with no existing table stay managed, and a
+block whose config already sets a mode keeps it.
+
+When a block has a table under a default name that can't be adopted as it
+is, for example because a column the block needs is missing, `apply`
+writes nothing and prints what is missing. Add the column, map the block
+with `better-supabase adopt`, or leave the block out of the preset.
+`--adopt` reads the tables where `introspect` does: the config's `source`,
+`$DATABASE_URL`, `$SUPABASE_DB_URL` or the local stack, or `--snapshot`,
+`--db-url-stdin` and `--project-ref`.
+
 A preset that can't install stops `apply` with the reason. When the config
 isn't an object literal `apply` can follow, it changes nothing and prints the
 `preset` entry to set yourself. Without a config file, `apply` points to
 `init --preset`.
+
+## adopt
+
+```bash
+pnpm better-supabase adopt teams --from public.squads --dry-run
+pnpm better-supabase adopt audit --from public.audit_logs
+pnpm better-supabase adopt tags --from app.labels,app.label_links --json
+```
+
+`adopt` maps one block onto tables the app already has and writes the
+proposed `blocks.<block>` entry in adopt mode. Each table in `--from`
+(`table` or `schema.table`, comma-separated or repeated) goes to the block's
+logical table whose columns it matches best; the block's other tables are
+looked up by their default names. Each logical column then takes the column
+of the same name, or a likely rename: `organization_id` for `tenant`,
+`position` for `rank`, `recipient_user_id` for `user`. Those guesses are
+marked in the output, so check them before you keep the entry. When the
+tenant column is a `bigint`, `text` or `integer`, the entry sets `idType`
+too.
+
+The output lists every logical table and column with what it maps to, then
+a report like doctor's: errors for what can't map (a missing table, a
+required column the table lacks, a value the module refuses) and warnings
+for the migration-only options the entry keeps. With an error `adopt` exits
+1 and writes nothing. Otherwise it prints the diff of the config and writes
+it; `--dry-run` writes nothing. Run `better-supabase sql sync` afterwards to
+write the block's module over the adopted tables. `--json` prints the entry,
+the mapping and the report as data. The tables are read like `introspect`
+reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.
+
+Only blocks with an adopt mode can be adopted; `blocks view <name>` lists a
+block's modes.
 
 ## preset
 
