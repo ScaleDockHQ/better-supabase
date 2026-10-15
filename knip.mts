@@ -54,9 +54,11 @@ const config: KnipConfig = {
       // Peers of @supabase/config, which src/cli/supabase-toml.ts loads lazily,
       // and @next/playwright, @supabase/lite and @supabase/mcp-server-supabase,
       // which src/testing/instant.ts, src/lite/runtime.ts, src/cli/lite.ts and
-      // src/core/supabase-mcp.ts load by a variable specifier.
+      // src/core/supabase-mcp.ts load by a variable specifier. supports-color
+      // only pins debug's optional peer, so next resolves to the examples' copy.
       ignoreDependencies: [
         "@next/playwright",
+        "supports-color",
         "@supabase/lite",
         "@supabase/mcp-server-supabase",
         "@supabase/config",
@@ -85,14 +87,12 @@ const config: KnipConfig = {
     "apps/examples/nextjs": {
       ...browserExample,
       ignore: [...exampleIgnore, "src/components/ui/**"],
-      // Knip's Playwright plugin finds the specs; the setup project is a
-      // `testMatch` regex and `e2e/serve.ts` a `webServer` command, which it
-      // can't read.
+      // Knip's Playwright plugin finds the specs and the `webServer`
+      // command; the setup project is a `testMatch` regex, which it can't read.
       entry: [
         "better-supabase.config.ts",
         "src/image-loader.ts",
         "e2e/auth.setup.ts",
-        "e2e/serve.ts",
       ],
     },
     "apps/examples/vite-react": browserExample,

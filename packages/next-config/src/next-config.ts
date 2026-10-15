@@ -63,7 +63,6 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       prefetchInlining: true,
       useOffline: true,
       globalNotFound: true,
-      appNewScrollHandler: true,
       requestInsights: true,
       authInterrupts: true,
       typedEnv: true,

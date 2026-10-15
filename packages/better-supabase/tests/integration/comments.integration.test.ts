@@ -531,9 +531,9 @@ describe.skipIf(!live)("comments", () => {
                 deal: {
                   table: "bs_test_deals",
                   permissions: {
-                    read: "deals.read",
-                    create: "deals.comment",
-                    moderate: "deals.manage",
+                    read: "test_deals.read",
+                    create: "test_deals.comment",
+                    moderate: "test_deals.manage",
                   },
                 },
               },

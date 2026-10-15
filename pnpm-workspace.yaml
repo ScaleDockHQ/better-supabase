@@ -149,6 +149,9 @@ catalog:
   solid-js: 1.9.17
   sonner: 2.0.8
   stripe: 23.0.0
+  # debug's optional peer. Pinned to the copy the examples resolve, so
+  # better-supabase and the Next.js examples share one next instance.
+  supports-color: 8.1.1
   # Keep on the SUPABASE_CLI_VERSION that CI installs.
   supabase: 2.120.0
   svelte: 5.57.2
