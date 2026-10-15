@@ -132,6 +132,17 @@ export interface Parties {
   ): AsyncResult<PartyPage<Person>>;
   /** A company's people with their role, primary contact first. */
   peopleOf(companyId: string): AsyncResult<CompanyPerson[]>;
+  /** Links an inbox contact to a person. Needs the inbox module. */
+  linkInboxContact(personId: string, contactId: string): AsyncResult<boolean>;
+  unlinkInboxContact(contactId: string): AsyncResult<boolean>;
+  /**
+   * The person an inbox contact is: its link, else the person with its
+   * email (then linked), else with `create` a new lead from the contact.
+   */
+  personForInboxContact(
+    contactId: string,
+    options?: { readonly create?: boolean },
+  ): AsyncResult<Person | undefined>;
 }
 
 export interface PartiesOptions {
@@ -330,6 +341,24 @@ export function createParties(options: PartiesOptions): Parties {
       list("list_companies", organizationId, listOptions, companyOf),
     listPeople: (organizationId, listOptions = {}) =>
       list("list_people", organizationId, listOptions, personOf),
+    linkInboxContact: (personId, contactId) =>
+      call(
+        "link_inbox_contact",
+        { person: personId, contact: contactId },
+        (value) => value === true,
+      ),
+    unlinkInboxContact: (contactId) =>
+      call(
+        "unlink_inbox_contact",
+        { contact: contactId },
+        (value) => value === true,
+      ),
+    personForInboxContact: (contactId, find = {}) =>
+      call(
+        "person_for_inbox_contact",
+        { contact: contactId, create: find.create ?? false },
+        (value) => (value === null ? undefined : personOf(value)),
+      ),
     peopleOf: (companyId) =>
       call("company_people_of", { company: companyId }, (value) =>
         recordsOf(value, "company_people_of").map(companyPersonOf),

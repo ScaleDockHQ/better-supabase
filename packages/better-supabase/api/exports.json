@@ -1984,6 +1984,7 @@
       "AiToolEventData",
       "AnnouncementEventData",
       "ApiKeyEventData",
+      "ApplicationEventData",
       "AttachmentEventData",
       "AuditRevealEventData",
       "BillingEventData",
@@ -2004,6 +2005,7 @@
       "DataExportEventData",
       "DataschemaContext",
       "DealEventData",
+      "EmployeeEventData",
       "EngagementEventData",
       "EventSink",
       "FlagEventData",
@@ -2018,6 +2020,7 @@
       "InvitationEventData",
       "InviteCodeEventData",
       "InvoiceEventData",
+      "JobEventData",
       "NotificationDeliveryEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
@@ -2035,6 +2038,7 @@
       "ScimEventData",
       "SettingEventData",
       "SignatureEventData",
+      "SlaEventData",
       "SsoProviderEventData",
       "StorageObjectEventData",
       "SubjectEventData",
@@ -4521,6 +4525,116 @@
       "RecordRef",
       "RpcClient",
       "Totals"
+    ]
+  },
+  "./blocks/sla": {
+    "values": [
+      "createSla",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Sla",
+      "SlaClock",
+      "SlaEvent",
+      "SlaMetric",
+      "SlaOptions",
+      "SlaPolicy",
+      "SlaPolicyInput",
+      "SlaState"
+    ]
+  },
+  "./blocks/targets": {
+    "values": [
+      "createTargets",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Target",
+      "TargetInput",
+      "TargetMetric",
+      "TargetProgress",
+      "Targets",
+      "TargetsOptions"
+    ]
+  },
+  "./blocks/hiring": {
+    "values": [
+      "createHiring",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Application",
+      "ApplicationDetail",
+      "ApplicationState",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Candidate",
+      "Hiring",
+      "HiringOptions",
+      "Interview",
+      "Job",
+      "JobInput",
+      "JobStatus",
+      "Recommendation",
+      "RpcClient",
+      "Scorecard"
+    ]
+  },
+  "./blocks/employees": {
+    "values": [
+      "createEmployees",
+      "dbTransport",
+      "employeesSubjects",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Contract",
+      "ContractInput",
+      "EmergencyContact",
+      "Employee",
+      "EmployeeChange",
+      "EmployeeChangeResult",
+      "EmployeeField",
+      "EmployeeInput",
+      "Employees",
+      "EmployeesOptions",
+      "EmployeeStatus",
+      "OrgChartEntry",
+      "PrivateDetails",
+      "PrivateDetailsInput",
+      "RpcClient",
+      "SalaryPeriod"
     ]
   },
   "./blocks/reactions/react": {

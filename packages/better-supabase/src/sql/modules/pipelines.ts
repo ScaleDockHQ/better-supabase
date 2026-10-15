@@ -319,6 +319,7 @@ export const PIPELINES: ModuleDefinition = {
     "notifications",
     "deals",
     "work-items",
+    "hiring",
   ],
   target: "schema",
   modes: ["managed", "custom"],

@@ -228,3 +228,28 @@ describe("parties block, optional fields", () => {
     expect(t.calls[1]?.[1]).toEqual({ id: "c1", archived: false });
   });
 });
+
+describe("parties block with the inbox", () => {
+  it("links, unlinks and finds the person behind a contact", async () => {
+    const t = transport({
+      link_inbox_contact: () => true,
+      unlink_inbox_contact: () => false,
+      person_for_inbox_contact: (args) =>
+        args["create"] === true ? PERSON : null,
+    });
+    const parties = createParties({ transport: t });
+    expect(await parties.linkInboxContact("p1", "k1").orThrow()).toBe(true);
+    expect(await parties.unlinkInboxContact("k1").orThrow()).toBe(false);
+    expect(await parties.personForInboxContact("k1").orThrow()).toBeUndefined();
+    expect(
+      (await parties.personForInboxContact("k1", { create: true }).orThrow())
+        ?.id,
+    ).toBe("p1");
+    expect(t.calls.map(([, args]) => args)).toEqual([
+      { person: "p1", contact: "k1" },
+      { contact: "k1" },
+      { contact: "k1", create: false },
+      { contact: "k1", create: true },
+    ]);
+  });
+});

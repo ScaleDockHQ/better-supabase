@@ -33,12 +33,14 @@ import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
+import { HIRING } from "./modules/hiring.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -80,12 +82,14 @@ import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
+import { SLA } from "./modules/sla.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
 import { STREAMS } from "./modules/streams.ts";
 import { SUBJECTS } from "./modules/subjects.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
+import { TARGETS } from "./modules/targets.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
 import { TENANT } from "./modules/tenant.ts";
@@ -228,6 +232,10 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(WORK_ITEMS),
       built(QUOTES),
       built(INVOICES),
+      built(SLA),
+      built(TARGETS),
+      built(HIRING),
+      built(EMPLOYEES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

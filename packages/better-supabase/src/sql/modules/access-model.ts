@@ -63,6 +63,10 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "work_items.*",
     "quotes.*",
     "invoices.*",
+    "sla.*",
+    "targets.*",
+    "hiring.*",
+    "employees.*",
   ],
   member: [
     "organization.read",
@@ -132,6 +136,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "quotes.read",
     "quotes.write",
     "invoices.read",
+    "sla.read",
+    "targets.read",
+    "employees.read",
   ],
   viewer: ["organization.read"],
 };
@@ -328,6 +335,16 @@ export const OPERATIONS = {
   "invoices.read": "invoices.read",
   "invoices.write": "invoices.write",
   "invoices.manage": "invoices.manage",
+  "sla.read": "sla.read",
+  "sla.manage": "sla.manage",
+  "targets.read": "targets.read",
+  "targets.manage": "targets.manage",
+  "hiring.read": "hiring.read",
+  "hiring.write": "hiring.write",
+  "hiring.manage": "hiring.manage",
+  "employees.read": "employees.read",
+  "employees.write": "employees.write",
+  "employees.viewSensitive": "employees.view_sensitive",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -520,6 +537,10 @@ export const MODULE_PERMISSION_SCOPES: {
   "work-items": { read: "tenant", write: "tenant", manage: "tenant" },
   quotes: { read: "tenant", write: "tenant", manage: "tenant" },
   invoices: { read: "tenant", write: "tenant", manage: "tenant" },
+  sla: { read: "tenant", manage: "tenant" },
+  targets: { read: "tenant", manage: "tenant" },
+  hiring: { read: "tenant", write: "tenant", manage: "tenant" },
+  employees: { read: "tenant", write: "tenant", viewSensitive: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

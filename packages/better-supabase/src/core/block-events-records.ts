@@ -1,0 +1,163 @@
+import type { SubjectEventData } from "./block-events.ts";
+
+/** Events from the parties module: a company, a person, or a link between them. */
+export interface PartyEventData {
+  readonly organizationId: string;
+  readonly companyId?: string;
+  readonly personId?: string;
+  readonly name?: string;
+  /** For `*.merged`: the record merged into this one, now archived. */
+  readonly mergedId?: string;
+  /** For `company.person_*`: the person's role at the company. */
+  readonly role?: string | null;
+}
+
+/**
+ * Events from the engagements module. `subjectType` and `subjectId` name
+ * the engagement's main record; `subjects` lists every record it is on.
+ */
+export interface EngagementEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly engagementId: string;
+  /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
+  readonly type: string;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/** Events from the deals module. Amounts are minor units as text. */
+export interface DealEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly dealId: string;
+  readonly name: string;
+  readonly amount?: string;
+  readonly currency?: string;
+  /** For `deal.closed`: `won` or `lost`. */
+  readonly outcome?: string;
+  /** For `deal.closed` as lost: why. */
+  readonly reason?: string | null;
+  /** For `deal.updated`: the fields the batch changed. */
+  readonly fields?: readonly string[];
+}
+
+/** Events from the work-items module. */
+export interface WorkItemEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly workItemId: string;
+  readonly title: string;
+  /** For `work_item.updated`: the fields the batch changed. */
+  readonly fields?: readonly string[];
+  /** For `work_item.assigned`: everyone assigned now. */
+  readonly assigneeIds?: readonly string[];
+  /** For `work_item.closed`: `completed` or `canceled`, and why. */
+  readonly state?: string;
+  readonly closeReason?: string;
+}
+
+/** Events from the quotes module. Amounts are minor units as text. */
+export interface QuoteEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly quoteId: string;
+  readonly identifier: string;
+  readonly total?: string;
+  readonly currency?: string;
+  /** For `quote.accepted`: who accepted, by name. */
+  readonly byName?: string;
+  /** For `quote.rejected` and `quote.changes_requested`. */
+  readonly note?: string | null;
+  /** For `quote.revised`: the new revision. */
+  readonly revisionId?: string;
+}
+
+/** Events from the invoices module. Amounts are minor units as text. */
+export interface InvoiceEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly invoiceId: string;
+  /** Null while the invoice is a draft. */
+  readonly identifier: string | null;
+  readonly total?: string;
+  readonly currency?: string;
+  readonly dueOn?: string;
+  readonly paymentId?: string;
+  readonly amount?: string;
+  readonly balance?: string;
+  readonly creditNoteId?: string;
+  readonly reason?: string | null;
+}
+
+/** Events from the sla module: a clock on a record warned, breached or was met. */
+export interface SlaEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly clockId: string;
+  /** `first_response`, `next_response` or `resolution`. */
+  readonly metric: string;
+  readonly dueAt: string;
+  /** For `sla.completed`: whether it was met after its due time. */
+  readonly late?: boolean;
+}
+
+/** Events from the hiring module about a job. */
+export interface JobEventData {
+  readonly organizationId: string;
+  readonly jobId: string;
+  readonly title: string;
+}
+
+/** Events from the hiring module about an application. */
+export interface ApplicationEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly applicationId: string;
+  readonly jobId: string;
+  /** The candidate's record in config.subjects, a person by default. */
+  readonly candidateType: string;
+  readonly candidateId: string;
+  /** For `application.rejected`. */
+  readonly reason?: string | null;
+  /** For `scorecard.submitted`. */
+  readonly reviewerId?: string;
+  readonly recommendation?: string;
+  /** For `interview.scheduled`. */
+  readonly interviewId?: string;
+  readonly startsAt?: string;
+}
+
+/** Events from the employees module. */
+export interface EmployeeEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly employeeId: string;
+  readonly name: string;
+  /** For `employee.created`. */
+  readonly userId?: string | null;
+  readonly managerId?: string | null;
+  readonly status?: string;
+  /** For `employee.updated`: the fields the batch changed, or `contract`. */
+  readonly fields?: readonly string[];
+  /** For `employee.offboarded`: the last day and why. */
+  readonly endDate?: string;
+  readonly reason?: string | null;
+  /** For `employee.manager_changed`. */
+  readonly fromManagerId?: string | null;
+  readonly toManagerId?: string | null;
+}
+
+/**
+ * Events from the pipelines module. `pipeline.stage_changed` carries the
+ * record that moved as `subjectType` and `subjectId`; the configuration
+ * events (`pipeline.created`, `pipeline_stage.saved`) carry none.
+ */
+export interface PipelineEventData {
+  readonly organizationId: string;
+  readonly pipelineId: string;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly key?: string;
+  readonly stageId?: string;
+  readonly fromStageId?: string | null;
+  readonly toStageId?: string;
+  /** The stage category, such as `won` or `started`. */
+  readonly category?: string;
+  /** `open`, `success` or `failure`. */
+  readonly outcome?: string;
+}
+
+/** `pipeline.stage_changed`: the record that moved and its stages. */
+export type PipelineStageEventData = PipelineEventData & SubjectEventData;

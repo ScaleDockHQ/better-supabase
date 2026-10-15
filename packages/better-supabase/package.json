@@ -792,6 +792,26 @@
       "types": "./dist/blocks/invoices/index.d.ts",
       "default": "./dist/blocks/invoices/index.js"
     },
+    "./blocks/sla": {
+      "@better-supabase/source": "./src/blocks/sla/index.ts",
+      "types": "./dist/blocks/sla/index.d.ts",
+      "default": "./dist/blocks/sla/index.js"
+    },
+    "./blocks/targets": {
+      "@better-supabase/source": "./src/blocks/targets/index.ts",
+      "types": "./dist/blocks/targets/index.d.ts",
+      "default": "./dist/blocks/targets/index.js"
+    },
+    "./blocks/hiring": {
+      "@better-supabase/source": "./src/blocks/hiring/index.ts",
+      "types": "./dist/blocks/hiring/index.d.ts",
+      "default": "./dist/blocks/hiring/index.js"
+    },
+    "./blocks/employees": {
+      "@better-supabase/source": "./src/blocks/employees/index.ts",
+      "types": "./dist/blocks/employees/index.d.ts",
+      "default": "./dist/blocks/employees/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1527,6 +1547,22 @@
       "./blocks/invoices": {
         "types": "./dist/blocks/invoices/index.d.ts",
         "default": "./dist/blocks/invoices/index.js"
+      },
+      "./blocks/sla": {
+        "types": "./dist/blocks/sla/index.d.ts",
+        "default": "./dist/blocks/sla/index.js"
+      },
+      "./blocks/targets": {
+        "types": "./dist/blocks/targets/index.d.ts",
+        "default": "./dist/blocks/targets/index.js"
+      },
+      "./blocks/hiring": {
+        "types": "./dist/blocks/hiring/index.d.ts",
+        "default": "./dist/blocks/hiring/index.js"
+      },
+      "./blocks/employees": {
+        "types": "./dist/blocks/employees/index.d.ts",
+        "default": "./dist/blocks/employees/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",
