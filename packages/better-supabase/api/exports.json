@@ -2003,6 +2003,7 @@
       "CredentialEventData",
       "DataExportEventData",
       "DataschemaContext",
+      "EngagementEventData",
       "EventSink",
       "FlagEventData",
       "FormEventData",
@@ -2020,6 +2021,9 @@
       "OrganizationDeletionEventData",
       "OrganizationDomainEventData",
       "OrganizationEventData",
+      "PartyEventData",
+      "PipelineEventData",
+      "PipelineStageEventData",
       "PushDeviceEventData",
       "RowEventData",
       "SaasEventData",
@@ -4314,6 +4318,85 @@
       "TemplateVersion",
       "TemplateWorkflow",
       "TemplateWorkflowInput"
+    ]
+  },
+  "./blocks/pipelines": {
+    "values": [
+      "createPipelines",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Pipeline",
+      "PipelineColumn",
+      "PipelineHealth",
+      "PipelineInput",
+      "PipelineOutcome",
+      "Pipelines",
+      "PipelinesOptions",
+      "PipelineStage",
+      "PipelineStageInput",
+      "PipelineStats",
+      "PipelineTotal",
+      "PipelineTransition",
+      "RpcClient"
+    ]
+  },
+  "./blocks/parties": {
+    "values": [
+      "createParties",
+      "dbTransport",
+      "extendBlock",
+      "partiesSubjects",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Company",
+      "CompanyInput",
+      "CompanyPerson",
+      "Parties",
+      "PartiesOptions",
+      "PartyCursor",
+      "PartyListOptions",
+      "PartyPage",
+      "Person",
+      "PersonInput",
+      "RpcClient"
+    ]
+  },
+  "./blocks/engagements": {
+    "values": [
+      "createEngagements",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Engagement",
+      "EngagementInput",
+      "Engagements",
+      "EngagementsOptions",
+      "EngagementSubject",
+      "RpcClient"
     ]
   },
   "./blocks/reactions/react": {

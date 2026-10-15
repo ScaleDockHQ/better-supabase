@@ -757,6 +757,21 @@
       "types": "./dist/blocks/templates/index.d.ts",
       "default": "./dist/blocks/templates/index.js"
     },
+    "./blocks/pipelines": {
+      "@better-supabase/source": "./src/blocks/pipelines/index.ts",
+      "types": "./dist/blocks/pipelines/index.d.ts",
+      "default": "./dist/blocks/pipelines/index.js"
+    },
+    "./blocks/parties": {
+      "@better-supabase/source": "./src/blocks/parties/index.ts",
+      "types": "./dist/blocks/parties/index.d.ts",
+      "default": "./dist/blocks/parties/index.js"
+    },
+    "./blocks/engagements": {
+      "@better-supabase/source": "./src/blocks/engagements/index.ts",
+      "types": "./dist/blocks/engagements/index.d.ts",
+      "default": "./dist/blocks/engagements/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1464,6 +1479,18 @@
       "./blocks/templates": {
         "types": "./dist/blocks/templates/index.d.ts",
         "default": "./dist/blocks/templates/index.js"
+      },
+      "./blocks/pipelines": {
+        "types": "./dist/blocks/pipelines/index.d.ts",
+        "default": "./dist/blocks/pipelines/index.js"
+      },
+      "./blocks/parties": {
+        "types": "./dist/blocks/parties/index.d.ts",
+        "default": "./dist/blocks/parties/index.js"
+      },
+      "./blocks/engagements": {
+        "types": "./dist/blocks/engagements/index.d.ts",
+        "default": "./dist/blocks/engagements/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

@@ -324,6 +324,7 @@ standard or sets how the repo works.
 - 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
 - 0026: delegated tokens are narrowed inside the access functions (`cap_allows`), and every checked action is a row in one operations table (`OPERATIONS`).
 - 0027: the fixture's migrations are squashed into one pg-delta baseline, and `supabase/schemas` uses the per-schema layout with the module files in `_better_supabase/`.
+- 0028: record stages run on tenant-editable pipelines whose categories map to open, success or failure, separate from the status column.
 
 ## Pre-release pins
 

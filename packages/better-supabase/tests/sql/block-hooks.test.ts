@@ -112,6 +112,21 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_timesheet_submit",
     "after_timesheet_submit",
   ],
+  pipelines: [
+    "before_pipeline_save",
+    "after_pipeline_save",
+    "before_pipeline_stage_save",
+    "after_pipeline_stage_save",
+    "before_pipeline_stage_change",
+    "after_pipeline_stage_change",
+  ],
+  parties: [
+    "before_company_save",
+    "after_company_save",
+    "before_person_save",
+    "after_person_save",
+  ],
+  engagements: ["before_engagement_log", "after_engagement_log"],
 };
 
 /** Modules that call their hooks only for configured items. */
@@ -121,7 +136,13 @@ const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
       { key: "orders", table: "orders", measure: "count", timeColumn: "at" },
     ],
   },
+  pipelines: {
+    subjects: { deal: { categories: { open: "open", won: "success" } } },
+  },
 };
+
+/** The `config.subjects` entries a module's options above name. */
+const SUBJECTS = { deal: { table: "public.deals" } };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;
 
@@ -134,6 +155,7 @@ describe.each(Object.entries(REQUIRED))(
         OPTIONS[module] === undefined
           ? {}
           : { [module]: { options: OPTIONS[module] } },
+      subjects: SUBJECTS,
       accessProvider: moduleProvider,
     });
 

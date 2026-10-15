@@ -221,6 +221,37 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     expect(up.map((node) => node.id)).toEqual([task(1)]);
   });
 
+  it("tracks conversions through created_from and reads the lineage", async () => {
+    await db.as(owner);
+    await db.value(link("created_from", 8, 7));
+    await db.value(link("created_from", 9, 8));
+    expect(
+      await db.value<string | null>(
+        `rel_it.converted_into('${org}', 'task', '${task(7)}', 'task')`,
+      ),
+    ).toBe(task(8));
+    expect(
+      await db.value<string | null>(
+        `rel_it.converted_into('${org}', 'task', '${task(9)}', 'task')`,
+      ),
+    ).toBeNull();
+    expect(await db.hint(link("created_from", 7, 9))).toBe("RELATION_CYCLE");
+    const relations = createRelations({
+      transport: sqlTransport(db.sql),
+      schema: "rel_it",
+    });
+    const lineage = await relations
+      .lineage(org, { type: "task", id: task(8) })
+      .orThrow();
+    expect(lineage.origins.map((node) => node.id)).toEqual([task(7)]);
+    expect(lineage.conversions.map((node) => node.id)).toEqual([task(9)]);
+    expect(
+      await relations
+        .convertedInto(org, { type: "task", id: task(8) }, "task")
+        .orThrow(),
+    ).toBe(task(9));
+  });
+
   it("records events and deletes links with their subject", async () => {
     await db.service();
     const events = await db.rows<{ type: string }>(

@@ -358,6 +358,11 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "engagement.logged"
+  | "engagement.updated"
+  | "engagement.completed"
+  | "engagement.deleted"
+  | "pipeline.stage_changed"
   | "comment.created"
   | "comment.mentioned"
   | "comment.deleted"
@@ -555,6 +560,53 @@ export interface CommerceEventData {
 
 /** `CommerceEventData` for an event about one subject, such as a variant. */
 export type CommerceSubjectEventData = CommerceEventData & SubjectEventData;
+
+/**
+ * Events from the pipelines module. `pipeline.stage_changed` carries the
+ * record that moved as `subjectType` and `subjectId`; the configuration
+ * events (`pipeline.created`, `pipeline_stage.saved`) carry none.
+ */
+export interface PipelineEventData {
+  readonly organizationId: string;
+  readonly pipelineId: string;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly key?: string;
+  readonly stageId?: string;
+  readonly fromStageId?: string | null;
+  readonly toStageId?: string;
+  /** The stage category, such as `won` or `started`. */
+  readonly category?: string;
+  /** `open`, `success` or `failure`. */
+  readonly outcome?: string;
+}
+
+/** Events from the parties module: a company, a person, or a link between them. */
+export interface PartyEventData {
+  readonly organizationId: string;
+  readonly companyId?: string;
+  readonly personId?: string;
+  readonly name?: string;
+  /** For `*.merged`: the record merged into this one, now archived. */
+  readonly mergedId?: string;
+  /** For `company.person_*`: the person's role at the company. */
+  readonly role?: string | null;
+}
+
+/**
+ * Events from the engagements module. `subjectType` and `subjectId` name
+ * the engagement's main record; `subjects` lists every record it is on.
+ */
+export interface EngagementEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly engagementId: string;
+  /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
+  readonly type: string;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/** `pipeline.stage_changed`: the record that moved and its stages. */
+export type PipelineStageEventData = PipelineEventData & SubjectEventData;
 
 /** Events from the drive module. `subjectId` is the node. */
 export interface DriveEventData extends SubjectEventData {
@@ -851,6 +903,26 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "engagement.logged": EngagementEventData;
+  "engagement.updated": EngagementEventData;
+  "engagement.completed": EngagementEventData;
+  "engagement.deleted": EngagementEventData;
+  "company.created": PartyEventData;
+  "company.updated": PartyEventData;
+  "company.archived": PartyEventData;
+  "company.merged": PartyEventData;
+  "company.person_linked": PartyEventData;
+  "company.person_unlinked": PartyEventData;
+  "person.created": PartyEventData;
+  "person.updated": PartyEventData;
+  "person.archived": PartyEventData;
+  "person.merged": PartyEventData;
+  "pipeline.created": PipelineEventData;
+  "pipeline.updated": PipelineEventData;
+  "pipeline.archived": PipelineEventData;
+  "pipeline_stage.saved": PipelineEventData;
+  "pipeline_stage.archived": PipelineEventData;
+  "pipeline.stage_changed": PipelineStageEventData;
   "product.created": CommerceEventData;
   "product.updated": CommerceEventData;
   "product.status_changed": CommerceEventData;

@@ -23,7 +23,7 @@ import {
 
 ## Kinds
 
-Without `kinds`, the module declares three:
+Without `kinds`, the module declares four:
 
 ```ts title="better-supabase.config.ts"
 sql: {
@@ -34,6 +34,7 @@ sql: {
           blocks: { inverse: "blocked_by", acyclic: true },
           parent: { inverse: "children", cardinality: "one", acyclic: true },
           relates: { symmetric: true },
+          created_from: { inverse: "converted_to", cardinality: "one", acyclic: true },
         },
       },
     },
@@ -125,7 +126,42 @@ const points = await relations
 ```
 
 The SQL functions are `link`, `unlink`, `relations_of`, `relations_by_kind`,
-`ancestors`, `descendants` and `relation_rollup`. Walks stop at 100 levels.
+`ancestors`, `descendants`, `converted_into` and `relation_rollup`. Walks
+stop at 100 levels.
+
+## Conversions
+
+When one record turns into another (a deal into a quote, a quote into an
+order and an invoice, an application into an employee), link the new record
+to its origin with `created_from`. A record has one origin, and the link
+can't close a cycle. Check `convertedInto` before you create the new record,
+so converting the same deal twice returns the first quote:
+
+```ts
+const existing = await relations
+  .convertedInto(organizationId, { type: "deal", id: dealId }, "quote")
+  .orThrow();
+const quoteId = existing ?? (await createQuoteFrom(dealId));
+if (existing === undefined) {
+  await relations
+    .link({
+      organizationId,
+      kind: "created_from",
+      source: { type: "quote", id: quoteId },
+      target: { type: "deal", id: dealId },
+    })
+    .orThrow();
+}
+
+const { origins, conversions } = await relations
+  .lineage(organizationId, { type: "quote", id: quoteId })
+  .orThrow();
+// origins: the deal; conversions: the orders and invoices made from the quote
+```
+
+`lineage` reads `ancestors` and `descendants` of `created_from`, nearest
+first, for a breadcrumb such as deal, quote, order, invoice. An app that sets
+its own `kinds` adds `created_from` to use them.
 
 ## Events
 

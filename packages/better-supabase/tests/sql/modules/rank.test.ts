@@ -40,7 +40,7 @@ describe("rank module", () => {
       `if not "better_supabase"."can_subject"(move.subject_type, move.subject_id, 'write') then`,
     );
     expect(sql).toContain(
-      `update "public"."deals" s set "rank" = v_key, "stage" = v_group`,
+      `update "public"."deals" s set "rank" = v_key, "stage" = (jsonb_populate_record(null::"public"."deals", jsonb_build_object('stage', v_group)))."stage"`,
     );
     expect(sql).toContain(`update "public"."notes" s set "sort_key" = v_key\n`);
     expect(sql).toContain("hint = 'RANK_NO_GROUP'");

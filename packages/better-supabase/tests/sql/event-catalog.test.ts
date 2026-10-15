@@ -35,7 +35,7 @@ const RECORDED = (() => {
 })();
 
 /** Events only a module option turns on. */
-const OPTIONAL = new Set(["object.uploaded"]);
+const OPTIONAL = new Set(["object.uploaded", "pipeline.stage_changed"]);
 
 const declared = (module: string): string[] =>
   Object.keys(SQL_MODULES[module]?.names?.events ?? {});

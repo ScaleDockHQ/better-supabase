@@ -32,6 +32,7 @@ import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -55,7 +56,9 @@ import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
+import { PARTIES } from "./modules/parties.ts";
 import { PGTAP } from "./modules/pgtap.ts";
+import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
@@ -214,6 +217,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
       built(TEMPLATES),
+      built(PIPELINES),
+      built(PARTIES),
+      built(ENGAGEMENTS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
