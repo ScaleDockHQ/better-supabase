@@ -71,6 +71,8 @@ const PURE_BARRELS = [
   "blocks/engagements",
   "blocks/deals",
   "blocks/work-items",
+  "blocks/quotes",
+  "blocks/invoices",
   "blocks/waitlist",
   "blocks/onboarding",
   "blocks/profiles",

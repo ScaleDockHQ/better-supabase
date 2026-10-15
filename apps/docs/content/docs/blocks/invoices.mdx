@@ -1,0 +1,112 @@
+---
+title: Invoices
+description: Invoices an organization sends its own customers, with drafts and lines, a gapless number on issue, payments and refunds, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
+---
+
+`invoices` is accounts receivable: the invoices an organization sends its own customers for work, licences or goods. It is not [billing](/docs/blocks/billing), which charges your organizations for your app through Stripe. An invoice starts as a draft with lines, gets its number when you issue it, collects payments until its balance is zero, and can be credited, voided or written off. With the [quotes](/docs/blocks/quotes) module installed, an accepted quote becomes a deposit invoice and a final invoice.
+
+Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`. Admins get every permission, and members get `invoices.read`.
+
+```bash
+better-supabase sql add invoices
+```
+
+The module needs `tenant`, `access` and `subjects`.
+
+```ts
+import { createInvoices } from "better-supabase/blocks/invoices";
+
+const invoices = createInvoices({ transport });
+const draft = await invoices
+  .create(
+    organizationId,
+    { title: "October support", company: { type: "company", id: acmeId } },
+    [
+      {
+        description: "Support hours",
+        quantity: 12,
+        unitAmount: 9_500n,
+        taxRateBps: 2100,
+      },
+    ],
+  )
+  .orThrow();
+const invoice = await invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
+await invoices
+  .recordPayment(invoice.id, {
+    amount: 137_940n,
+    reference: "bank-2026-10-21-1",
+  })
+  .orThrow();
+```
+
+## Issue and number
+
+A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [number-sequences](/docs/blocks/number-sequences)), sets the issue date and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
+
+## Payments, credits and balance
+
+The balance is the total minus credits minus payments. `recordPayment` adds a payment (a negative amount is a refund) and moves the invoice to `partially_paid` or `paid`. A `reference`, such as a bank transaction or a payment provider id, is unique per organization, so a webhook that delivers the same payment twice records it once.
+
+`credit(invoiceId, { lines? })` makes a draft credit note for the whole invoice, or for the given lines; issuing it reduces the original's balance and can settle it. A credit note can't exceed what is still owed (`INVOICE_CREDIT_TOO_LARGE`).
+
+`void(invoiceId, reason)` voids a draft, or an issued invoice without payments or credits. `writeOff(invoiceId)` marks an open invoice uncollectible. Both are written to the audit log.
+
+| Status           | Meaning                            |
+| ---------------- | ---------------------------------- |
+| `draft`          | lines can change; no number yet    |
+| `issued`         | numbered and sent; nothing paid    |
+| `partially_paid` | paid or credited in part           |
+| `paid`           | balance zero                       |
+| `void`           | cancelled before anything was paid |
+| `uncollectible`  | written off                        |
+
+Every invoice a read returns has `balance` and `overdue` (open and past its due date).
+
+## From a quote
+
+```ts
+const deposit = await invoices
+  .fromQuote(quoteId, { depositBps: 3000 })
+  .orThrow(); // 30%
+const final = await invoices.fromQuote(quoteId).orThrow();
+```
+
+The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's tax rate. The final invoice copies the quote's lines and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft.
+
+## Aging
+
+`aging(organizationId, currency, asOf?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices.
+
+## Events
+
+| Event                                                                                        | Data                                                                                                                             |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `invoice.created`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance` |
+| `invoice.payment_recorded`                                                                   | the same, with `paymentId`, `amount` and `balance`                                                                               |
+| `invoice.credited`                                                                           | the same, with `creditNoteId` and `amount`                                                                                       |
+
+Send dunning reminders from `invoice.issued` with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
+
+## Hooks
+
+The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invoice uuid)`, `before_invoice_payment(invoice uuid, amount bigint)` and `after_invoice_payment(invoice uuid, payment uuid)`, so an app can export an issued invoice to its accounting system or release an order once it is paid.
+
+## Errors
+
+| Hint                         | Cause                                                   |
+| ---------------------------- | ------------------------------------------------------- |
+| `INVOICE_FORBIDDEN`          | the caller lacks `invoices.write`                       |
+| `INVOICE_ATTRS_INVALID`      | a missing title or a field with a bad value             |
+| `INVOICE_NOT_FOUND`          | no invoice the caller can edit (or manage, for void)    |
+| `INVOICE_NOT_DRAFT`          | the invoice was already issued                          |
+| `INVOICE_EMPTY`              | an invoice without lines can't be issued                |
+| `INVOICE_NOT_PAYABLE`        | only an issued invoice takes payments                   |
+| `INVOICE_PAYMENT_INVALID`    | a payment needs an amount                               |
+| `INVOICE_NOT_CREDITABLE`     | only an issued invoice is credited                      |
+| `INVOICE_CREDIT_TOO_LARGE`   | the credit is more than is owed                         |
+| `INVOICE_NOT_VOIDABLE`       | an invoice with payments or credits is credited instead |
+| `INVOICE_NOT_OPEN`           | only an open invoice is written off                     |
+| `INVOICE_QUOTE_NOT_ACCEPTED` | the quote isn't accepted                                |
+| `INVOICE_DEPOSIT_INVALID`    | a deposit is between 0 and 100 percent                  |
+| `INVOICE_ORIGIN_NOT_FOUND`   | no quote the caller can invoice                         |

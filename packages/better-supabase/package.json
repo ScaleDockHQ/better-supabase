@@ -782,6 +782,16 @@
       "types": "./dist/blocks/work-items/index.d.ts",
       "default": "./dist/blocks/work-items/index.js"
     },
+    "./blocks/quotes": {
+      "@better-supabase/source": "./src/blocks/quotes/index.ts",
+      "types": "./dist/blocks/quotes/index.d.ts",
+      "default": "./dist/blocks/quotes/index.js"
+    },
+    "./blocks/invoices": {
+      "@better-supabase/source": "./src/blocks/invoices/index.ts",
+      "types": "./dist/blocks/invoices/index.d.ts",
+      "default": "./dist/blocks/invoices/index.js"
+    },
     "./blocks/reactions/react": {
       "@better-supabase/source": "./src/blocks/reactions/react/index.ts",
       "types": "./dist/blocks/reactions/react/index.d.ts",
@@ -1509,6 +1519,14 @@
       "./blocks/work-items": {
         "types": "./dist/blocks/work-items/index.d.ts",
         "default": "./dist/blocks/work-items/index.js"
+      },
+      "./blocks/quotes": {
+        "types": "./dist/blocks/quotes/index.d.ts",
+        "default": "./dist/blocks/quotes/index.js"
+      },
+      "./blocks/invoices": {
+        "types": "./dist/blocks/invoices/index.d.ts",
+        "default": "./dist/blocks/invoices/index.js"
       },
       "./blocks/reactions/react": {
         "types": "./dist/blocks/reactions/react/index.d.ts",

@@ -99,6 +99,7 @@
   "blocks/waitlist",
   "blocks/webhooks-in",
   "blocks/webhooks-out",
+  "blocks/work-items",
   "blocks/workflow-builder",
   "blocks/workflow-sdk",
   "blocks/workflows",

@@ -139,6 +139,18 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_work_item_update",
     "after_work_item_update",
   ],
+  quotes: [
+    "before_quote_send",
+    "after_quote_send",
+    "before_quote_accept",
+    "after_quote_accept",
+  ],
+  invoices: [
+    "before_invoice_issue",
+    "after_invoice_issue",
+    "before_invoice_payment",
+    "after_invoice_payment",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

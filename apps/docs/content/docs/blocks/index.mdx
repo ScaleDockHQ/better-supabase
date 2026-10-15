@@ -153,6 +153,8 @@ expose the module schema itself.
 | [Engagements](/docs/blocks/engagements)                     | `better-supabase/blocks/engagements`                                                                                               | `engagements`                          |
 | [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                                                                     | `deals`                                |
 | [Work items](/docs/blocks/work-items)                       | `better-supabase/blocks/work-items`                                                                                                | `work-items`                           |
+| [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                                                                    | `quotes`                               |
+| [Invoices](/docs/blocks/invoices)                           | `better-supabase/blocks/invoices`                                                                                                  | `invoices`                             |
 | [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                                                                                | `identities`                           |
 | [Service principals](/docs/blocks/service-principals)       | `better-supabase/blocks/service-principals`                                                                                        | `service-principals`                   |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
@@ -276,6 +278,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `engagements`        | `tenant`, `access`, `subjects`              | `outbox`, `notifications`                                                                                                               |
 | `deals`              | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`, `engagements`                                                                            |
 | `work-items`         | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`                                                                                           |
+| `quotes`             | `tenant`, `access`, `subjects`              | `outbox`, `notifications`, `number-sequences`, `deals`, `relations`                                                                     |
+| `invoices`           | `tenant`, `access`, `subjects`              | `outbox`, `audit`, `notifications`, `number-sequences`, `quotes`, `relations`                                                           |
 | `ensure-rls`         | none                                        | none                                                                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

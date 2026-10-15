@@ -45,6 +45,7 @@ import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
+import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
@@ -63,6 +64,7 @@ import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
+import { QUOTES } from "./modules/quotes.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
@@ -224,6 +226,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ENGAGEMENTS),
       built(DEALS),
       built(WORK_ITEMS),
+      built(QUOTES),
+      built(INVOICES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

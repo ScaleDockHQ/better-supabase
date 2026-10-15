@@ -358,6 +358,22 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "quote.created"
+  | "quote.updated"
+  | "quote.sent"
+  | "quote.viewed"
+  | "quote.accepted"
+  | "quote.rejected"
+  | "quote.changes_requested"
+  | "quote.expired"
+  | "quote.revised"
+  | "invoice.created"
+  | "invoice.issued"
+  | "invoice.payment_recorded"
+  | "invoice.paid"
+  | "invoice.credited"
+  | "invoice.voided"
+  | "invoice.uncollected"
   | "work_item.created"
   | "work_item.updated"
   | "work_item.assigned"
@@ -645,6 +661,37 @@ export interface WorkItemEventData extends SubjectEventData {
   /** For `work_item.closed`: `completed` or `canceled`, and why. */
   readonly state?: string;
   readonly closeReason?: string;
+}
+
+/** Events from the quotes module. Amounts are minor units as text. */
+export interface QuoteEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly quoteId: string;
+  readonly identifier: string;
+  readonly total?: string;
+  readonly currency?: string;
+  /** For `quote.accepted`: who accepted, by name. */
+  readonly byName?: string;
+  /** For `quote.rejected` and `quote.changes_requested`. */
+  readonly note?: string | null;
+  /** For `quote.revised`: the new revision. */
+  readonly revisionId?: string;
+}
+
+/** Events from the invoices module. Amounts are minor units as text. */
+export interface InvoiceEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly invoiceId: string;
+  /** Null while the invoice is a draft. */
+  readonly identifier: string | null;
+  readonly total?: string;
+  readonly currency?: string;
+  readonly dueOn?: string;
+  readonly paymentId?: string;
+  readonly amount?: string;
+  readonly balance?: string;
+  readonly creditNoteId?: string;
+  readonly reason?: string | null;
 }
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
@@ -945,6 +992,22 @@ export interface BlockEventMap {
   "access.request_approved": AccessRequestEventData;
   "access.ended": AccessRequestEventData;
   "document.created": DocumentEventData;
+  "quote.created": QuoteEventData;
+  "quote.updated": QuoteEventData;
+  "quote.sent": QuoteEventData;
+  "quote.viewed": QuoteEventData;
+  "quote.accepted": QuoteEventData;
+  "quote.rejected": QuoteEventData;
+  "quote.changes_requested": QuoteEventData;
+  "quote.expired": QuoteEventData;
+  "quote.revised": QuoteEventData;
+  "invoice.created": InvoiceEventData;
+  "invoice.issued": InvoiceEventData;
+  "invoice.payment_recorded": InvoiceEventData;
+  "invoice.paid": InvoiceEventData;
+  "invoice.credited": InvoiceEventData;
+  "invoice.voided": InvoiceEventData;
+  "invoice.uncollected": InvoiceEventData;
   "work_item.created": WorkItemEventData;
   "work_item.updated": WorkItemEventData;
   "work_item.assigned": WorkItemEventData;
