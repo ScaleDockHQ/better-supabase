@@ -1,13 +1,17 @@
+import type { SupportSession } from "../auth/support.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type {
   StorageApi,
   StorageBucketApi,
+  StorageDestinationOptions,
   StorageFailure,
+  StorageFileOptions,
   StorageListEntry,
   StorageListV2Folder,
   StorageListV2Object,
   StorageListV2Result,
   StorageObjectInfo,
+  StorageRemoveEntry,
   StorageResponse,
   StorageSearchOptions,
   StorageSearchV2Options,
@@ -22,8 +26,12 @@ import { fromPgError } from "../postgres/executor.ts";
 export interface SupportStorageOptions {
   /** The service-role `supabase.storage` that serves what the target may read. */
   readonly admin: StorageApi;
-  /** Runs as the target, such as `postgres.asUser(support.claims)`, so RLS on `storage.objects` decides. */
+  /** Runs as the target, such as `postgres.asUser(support.claims)`, so RLS on `storage.objects` decides. Writes need its `transaction`. */
   readonly sql: SqlClient;
+  /** Runs as the connection-string role, such as `postgres.admin`. Writes need it to make the target the owner of what they store. */
+  readonly adminSql?: SqlClient;
+  /** The session the writes are recorded under. Writes need it. */
+  readonly session?: Pick<SupportSession, "id" | "adminId" | "targetUserId">;
   /** Whether the session is read-only. Defaults to true. */
   readonly readOnly?: boolean;
 }
@@ -44,6 +52,45 @@ from storage.search($1::text, $2::text, $3::int, $4::int, $5::int, $6::text, $7:
 
 const SEARCH_V2 = `select s.key, s.name, s.id::text as id, s.updated_at, s.created_at, s.last_accessed_at, s.metadata
 from storage.search_v2($1::text, $2::text, $3::int, $4::int, $5::text, $6::text, $7::text, $8::text) s`;
+
+const SAVEPOINT = "better_supabase_support_write";
+
+const INSERT_OBJECT = `insert into storage.objects (bucket_id, name, owner, owner_id, user_metadata)
+values ($1, $2, $3::uuid, $4, $5::jsonb)`;
+
+const CURRENT_VERSION_INDEX = `select exists (select 1 from pg_indexes
+where schemaname = 'storage' and tablename = 'objects' and indexname = 'idx_objects_current_version') as versioned`;
+
+const upsertObject = (versioned: boolean): string => `${INSERT_OBJECT}
+on conflict ${versioned ? '(bucket_id, name collate "C") where archived_at is null' : "(bucket_id, name)"} do update
+set owner = excluded.owner, owner_id = excluded.owner_id, user_metadata = excluded.user_metadata`;
+
+const SOURCE_OBJECT =
+  "select name, owner_id from storage.objects where bucket_id = $1 and name = $2";
+
+const MOVE_OBJECT = `update storage.objects
+set bucket_id = $3, name = $4, owner = $5::uuid, owner_id = $6
+where bucket_id = $1 and name = $2
+returning name`;
+
+const ALLOW_DELETE =
+  "select set_config('storage.allow_delete_query', 'true', true)";
+
+const DELETE_OBJECTS =
+  "delete from storage.objects where bucket_id = $1 and name = any($2::text[]) returning name";
+
+const OWN_UPLOAD = `update storage.objects set owner = $3::uuid, owner_id = $4
+where bucket_id = $1 and name = $2 and user_metadata ->> 'supportSessionId' = $5`;
+
+const OWN_COPY = `update storage.objects
+set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
+where bucket_id = $1 and name = $2 and owner_id is null`;
+
+const OWN_MOVE = `update storage.objects
+set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
+where bucket_id = $1 and name = $2 and owner_id is not distinct from $6`;
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
 const HIDDEN_URL =
   "Either the object does not exist or you do not have access to it";
@@ -133,6 +180,16 @@ const apiError = (
   code,
 });
 
+const ownerOf = (userId: string): string | null =>
+  UUID.test(userId) ? userId : null;
+
+const stampOf = (
+  session: Pick<SupportSession, "id" | "adminId">,
+): Readonly<Record<string, string>> => ({
+  supportSessionId: session.id,
+  supportAdminId: session.adminId,
+});
+
 const failed = <T>(error: StorageFailure): StorageResponse<T> => ({
   data: null,
   error,
@@ -155,6 +212,22 @@ function sqlFailure(cause: unknown): StorageFailure {
   const raw = fromPgError(cause);
   const error: DbError = raw ? mapDbError(raw) : toDbError(cause);
   return { name: "DbError", ...error };
+}
+
+/** An RLS or duplicate failure of a dry run, as Storage reports it for the target's own request. */
+function refusedWrite(cause: unknown): StorageFailure | undefined {
+  const raw = fromPgError(cause);
+  if (raw?.code === "42501")
+    return apiError(
+      403,
+      raw.message === undefined || raw.message.includes("row-level security")
+        ? "new row violates row-level security policy"
+        : raw.message,
+      "AccessDenied",
+    );
+  if (raw?.code === "23505")
+    return apiError(409, "The resource already exists", "Duplicate");
+  return undefined;
 }
 
 async function settled<T>(
@@ -340,25 +413,70 @@ function infoOf(row: Row): StorageObjectInfo {
  * like a missing one. `getPublicUrl` is built without a check, as it is
  * built without a request.
  *
- * Writes resolve to a `403` error: `SUPPORT_READ_ONLY` in a read-only
- * session and `SUPPORT_STORAGE_WRITES` in a writable one. The service client
- * would store the object with no owner, and Storage never sees the session's
- * `act` claim, so the write could be neither attributed to the target nor
- * audited as the admin's.
+ * In a writable session, `upload`, `update`, `remove`, `copy` and `move`
+ * first run the row change Storage would make as the target, inside a
+ * savepoint that is rolled back, so the policies on `storage.objects`
+ * decide as for the target's own request. Then the service client writes,
+ * the admin connection makes the target the owner of the stored object,
+ * and its `user_metadata` records the session id and the admin's id. A
+ * refused dry run resolves to Storage's `403`. Signed uploads resolve to a
+ * `403` `SUPPORT_STORAGE_WRITES` error, and every write in a read-only
+ * session to a `403` `SUPPORT_READ_ONLY` error.
  */
 export function supportStorage(options: SupportStorageOptions): StorageApi {
   const readOnly = options.readOnly ?? true;
+  const { adminSql, session, sql } = options;
+  const writer =
+    !readOnly && adminSql && session && sql.transaction
+      ? { adminSql, session }
+      : undefined;
   const refusal = readOnly
     ? apiError(403, "The support session is read-only", "SUPPORT_READ_ONLY")
     : apiError(
         403,
-        "Storage writes are not available in a support session",
+        "Storage writes in a support session need adminSql, session and a sql client with transaction",
+        "SUPPORT_STORAGE_WRITES",
+      );
+  const signedRefusal = readOnly
+    ? refusal
+    : apiError(
+        403,
+        "Signed uploads are not available in a support session",
         "SUPPORT_STORAGE_WRITES",
       );
   const refuse = <T>(): Promise<StorageResponse<T>> =>
     Promise.resolve(failed(refusal));
+  const refuseSigned = <T>(): Promise<StorageResponse<T>> =>
+    Promise.resolve(failed(signedRefusal));
   const rows = (query: string, values: unknown[]): Promise<Row[]> =>
-    options.sql.queryRaw<Row>(query, values);
+    sql.queryRaw<Row>(query, values);
+  let versioned: Promise<boolean> | undefined;
+  const upsertStatement = (): Promise<string> =>
+    (versioned ??= rows(CURRENT_VERSION_INDEX, [])
+      .then(([row]) => row?.["versioned"] === true)
+      .catch((cause: unknown) => {
+        versioned = undefined;
+        throw cause;
+      })).then(upsertObject);
+  const rehearse = async (
+    run: (client: SqlClient) => Promise<StorageFailure | null>,
+  ): Promise<StorageFailure | null> => {
+    if (!sql.transaction) return refusal;
+    try {
+      return await sql.transaction(async (client) => {
+        await client.queryRaw(`savepoint ${SAVEPOINT}`);
+        try {
+          return await run(client);
+        } finally {
+          await client.queryRaw(`rollback to savepoint ${SAVEPOINT}`);
+        }
+      });
+    } catch (cause) {
+      const refused = refusedWrite(cause);
+      if (refused) return refused;
+      throw cause;
+    }
+  };
 
   return {
     from(bucket): StorageBucketApi {
@@ -478,6 +596,164 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           return { data, error: null };
         });
 
+      const store =
+        (method: "upload" | "update") =>
+        (
+          path: string,
+          body: Parameters<StorageBucketApi["upload"]>[1],
+          fileOptions: StorageFileOptions = {},
+        ): Promise<StorageResponse<{ readonly path: string }>> => {
+          if (!writer) return refuse();
+          const { adminSql: ownerSql, session: active } = writer;
+          return settled(async () => {
+            const name = normalizePath(path);
+            const owner = ownerOf(active.targetUserId);
+            const metadata = { ...fileOptions.metadata, ...stampOf(active) };
+            const upsert = method === "update" || fileOptions.upsert === true;
+            const statement = upsert ? await upsertStatement() : INSERT_OBJECT;
+            const refused = await rehearse(async (client) => {
+              await client.queryRaw(statement, [
+                bucket,
+                name,
+                owner,
+                active.targetUserId,
+                JSON.stringify(metadata),
+              ]);
+              return null;
+            });
+            if (refused) return failed(refused);
+            const reply = await admin()[method](name, body, {
+              ...fileOptions,
+              metadata,
+            });
+            if (reply.error) return reply;
+            try {
+              await ownerSql.queryRaw(OWN_UPLOAD, [
+                bucket,
+                name,
+                owner,
+                active.targetUserId,
+                active.id,
+              ]);
+            } catch (cause) {
+              await admin().remove([name]);
+              return failed(sqlFailure(cause));
+            }
+            return reply;
+          });
+        };
+
+      const relocate =
+        <T>(method: "copy" | "move") =>
+        (
+          from: string,
+          to: string,
+          destination: StorageDestinationOptions = {},
+        ): Promise<StorageResponse<T>> => {
+          if (!writer) return refuse();
+          const { adminSql: ownerSql, session: active } = writer;
+          return settled(async () => {
+            const source = normalizePath(from);
+            const name = normalizePath(to);
+            const target = destination.destinationBucket ?? bucket;
+            const owner = ownerOf(active.targetUserId);
+            const stamp = JSON.stringify(stampOf(active));
+            let previousOwner: string | null = null;
+            const refused = await rehearse(async (client) => {
+              const [found] = await client.queryRaw<Row>(SOURCE_OBJECT, [
+                bucket,
+                source,
+              ]);
+              if (!found) return NOT_FOUND;
+              previousOwner = text(found["owner_id"]) ?? null;
+              if (method === "copy") {
+                await client.queryRaw(INSERT_OBJECT, [
+                  target,
+                  name,
+                  owner,
+                  active.targetUserId,
+                  stamp,
+                ]);
+                return null;
+              }
+              const [moved] = await client.queryRaw(MOVE_OBJECT, [
+                bucket,
+                source,
+                target,
+                name,
+                owner,
+                active.targetUserId,
+              ]);
+              return moved ? null : NOT_FOUND;
+            });
+            if (refused) return failed(refused);
+            // SAFETY: copy and move resolve to the reply shape their caller names as T.
+            const reply = (await admin()[method](
+              source,
+              name,
+              destination,
+            )) as StorageResponse<T>;
+            if (reply.error) return reply;
+            try {
+              await (method === "copy"
+                ? ownerSql.queryRaw(OWN_COPY, [
+                    target,
+                    name,
+                    owner,
+                    active.targetUserId,
+                    stamp,
+                  ])
+                : ownerSql.queryRaw(OWN_MOVE, [
+                    target,
+                    name,
+                    owner,
+                    active.targetUserId,
+                    stamp,
+                    previousOwner,
+                  ]));
+            } catch (cause) {
+              const written = options.admin.from(target);
+              await (method === "copy"
+                ? written.remove([name])
+                : written.move(name, source, { destinationBucket: bucket }));
+              return failed(sqlFailure(cause));
+            }
+            return reply;
+          });
+        };
+
+      const remove = (
+        paths: StorageRemoveEntry[],
+      ): Promise<StorageResponse<readonly StorageListEntry[]>> => {
+        if (!writer) return refuse();
+        return settled(async () => {
+          const entries = paths.map((entry) =>
+            typeof entry === "string"
+              ? normalizePath(entry)
+              : { ...entry, path: normalizePath(entry.path) },
+          );
+          const names = entries.map((entry) =>
+            typeof entry === "string" ? entry : entry.path,
+          );
+          const removable = new Set<string>();
+          const refused = await rehearse(async (client) => {
+            await client.queryRaw(ALLOW_DELETE);
+            const deleted = await client.queryRaw(DELETE_OBJECTS, [
+              bucket,
+              [...new Set(names)],
+            ]);
+            for (const row of deleted) removable.add(String(row["name"]));
+            return null;
+          });
+          if (refused) return failed(refused);
+          const permitted = entries.filter((_, index) =>
+            removable.has(names[index] ?? ""),
+          );
+          if (permitted.length === 0) return { data: [], error: null };
+          return admin().remove(permitted);
+        });
+      };
+
       return {
         exists: (path) =>
           settled<boolean>(async () => ({
@@ -545,14 +821,19 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           admin().getPublicUrl(path, urlOptions),
         list,
         listV2,
-        upload: refuse,
-        update: refuse,
-        createSignedUploadUrl: refuse,
-        uploadToSignedUrl: refuse,
-        remove: refuse,
-        copy: refuse,
-        move: refuse,
-        purgeCache: refuse,
+        upload: store("upload"),
+        update: store("update"),
+        createSignedUploadUrl: refuseSigned,
+        uploadToSignedUrl: refuseSigned,
+        remove,
+        copy: relocate<{ readonly path: string }>("copy"),
+        move: relocate<{ readonly message: string }>("move"),
+        purgeCache: (path, cacheOptions, parameters) =>
+          writer
+            ? checked(path, (name) =>
+                admin().purgeCache(name, cacheOptions, parameters),
+              )
+            : refuse(),
       };
     },
   };

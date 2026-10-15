@@ -165,6 +165,14 @@ alone decides. To start sessions without a second admin, set both
 `policy.approval: "none"` and the module's
 `sql.modules.support-sessions.options.approval: "none"`. See [Support sessions](/docs/auth/impersonation).
 
+In a writable support session, `ctx.storage` now writes: `upload`, `update`,
+`remove`, `copy`, `move` and `purgeCache` run as the target after a dry run
+against the policies on `storage.objects`, where 0.8 refused them with
+`SUPPORT_STORAGE_WRITES`. Signed uploads are still refused with that code.
+`attachments.put` no longer creates a signed upload URL before it uploads. A
+direct `supportStorage` call needs `adminSql` and `session` for writes. See
+[Storage in a support session](/docs/auth/impersonation#storage-in-a-support-session).
+
 ## Webhooks and problems
 
 Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) in

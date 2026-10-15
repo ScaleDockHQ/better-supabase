@@ -170,10 +170,11 @@ and `remove(id)` deletes the object and then the row.
 
 Files the server makes or fetches (an export, a generated PDF, an import
 from a URL) go through `put(attachment, file)`, which creates the record,
-uploads the bytes with the storage client and confirms it in one call.
+uploads the bytes with the storage client and confirms it in one call,
+without a signed upload URL, so it also works in a writable
+[support session](/docs/auth/impersonation#storage-in-a-support-session).
 When Storage refuses the signed upload URL or the upload (a bucket policy,
-or the read-only Storage of a
-[support session](/docs/auth/impersonation#storage-in-a-support-session)),
+a read-only support session, or `upload` in any support session),
 `upload` and `put` delete the record again and return the refusal, so no
 pending record is left behind. `read(id)` returns the bytes as a `Blob` for server-side processing, behind
 the same scan gate as `download` (`ATTACHMENT_NOT_SCANNED` until the scan

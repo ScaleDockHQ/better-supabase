@@ -329,15 +329,21 @@ export function createServer<
         );
       }
       let asTarget: SqlClient | undefined;
+      const target = (): SqlClient =>
+        (asTarget ??= postgres.asUser(sqlClaims, sessionOptions));
       storage ??= supportStorage({
         admin: { from: (bucket) => serviceClient().storage.from(bucket) },
         sql: {
           queryRaw: <T>(text: string, params?: unknown[]) =>
-            (asTarget ??= postgres.asUser(
-              sqlClaims,
-              sessionOptions,
-            )).queryRaw<T>(text, params),
+            target().queryRaw<T>(text, params),
+          transaction: <T>(fn: (client: SqlClient) => Promise<T>) =>
+            target().transaction?.(fn) ??
+            Promise.reject(
+              new TypeError("The target's SQL client has no transaction"),
+            ),
         },
+        adminSql: postgres.admin,
+        session,
         readOnly: session.readOnly,
       });
       return storage;
