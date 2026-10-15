@@ -484,3 +484,33 @@ describe("subject types", () => {
     expect(source).not.toContain("SubjectType");
   });
 });
+
+describe("block naming", () => {
+  it("emits blockNaming from sql.naming and blocks.<name>.functions", async () => {
+    const input = await model(() => ({}), {
+      sql: { naming: { tenant: "workspace" } },
+      blocks: {
+        tags: { functions: { create_tag: "make_tag" } },
+        access: {
+          functions: { can: "public.can({scope}, {id}, {permission})" },
+        },
+      },
+    });
+    const source = emitModule(input, { importPathFor: (from) => from });
+    expect(source).toContain(
+      `export const blockNaming = {
+  "tenant": "workspace",
+  "functions": {
+    "create_tag": "make_tag"
+  }
+} as const;`,
+    );
+  });
+
+  it("emits none without renames", async () => {
+    const source = emitModule(await model(() => ({})), {
+      importPathFor: (from) => from,
+    });
+    expect(source).not.toContain("blockNaming");
+  });
+});

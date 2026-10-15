@@ -70,11 +70,25 @@ export function presetBlocksSource(resolved: ResolvedPreset): string {
       : [{ name: manifest.name, ...manifest.client }],
   );
   const api = resolved.preset.api === "none" ? undefined : resolved.preset.api;
+  const tenant =
+    resolved.preset.tenantName === "organization"
+      ? undefined
+      : resolved.preset.tenantName;
+  const rpc =
+    api === undefined
+      ? "rpcTransport(supabase)"
+      : "rpcTransport(supabase, { schema: API_SCHEMA })";
+  const transport =
+    tenant === undefined
+      ? rpc
+      : `wrapTransport(\n        ${rpc},\n        blockNames({ tenant: ${JSON.stringify(tenant)} }),\n      )`;
   const lines = [
     "import {",
     "  type RpcClient,",
+    ...(tenant === undefined ? [] : ["  blockNames,"]),
     "  createBlocks,",
     "  rpcTransport,",
+    ...(tenant === undefined ? [] : ["  wrapTransport,"]),
     '} from "better-supabase/blocks";',
     ...clients.map(
       (client) => `import { ${client.export} } from "${client.subpath}";`,
@@ -95,9 +109,9 @@ export function presetBlocksSource(resolved: ResolvedPreset): string {
     " */",
     "export function blocks(supabase: RpcClient) {",
     "  return createBlocks(",
-    api === undefined
-      ? "    { transport: rpcTransport(supabase) },"
-      : "    {\n      transport: rpcTransport(supabase, { schema: API_SCHEMA }),\n      schema: API_SCHEMA,\n    },",
+    api === undefined && tenant === undefined
+      ? `    { transport: ${transport} },`
+      : `    {\n      transport: ${transport},${api === undefined ? "" : "\n      schema: API_SCHEMA,"}\n    },`,
     "    {",
     ...clients.map(
       (client) => `      ${camel(client.name)}: ${client.export},`,

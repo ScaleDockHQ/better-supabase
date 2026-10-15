@@ -239,7 +239,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "tenant"
       ],
-      "manifest": "profiles"
+      "manifest": "profiles",
+      "tenantNameClashes": [
+        "team"
+      ]
     },
     {
       "name": "outbox",
@@ -583,6 +586,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "inbox",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -767,6 +773,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "teams",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -920,6 +929,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "saved-views",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1205,6 +1217,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "drive",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1471,6 +1486,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "work-items",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1550,6 +1568,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "targets",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1568,6 +1589,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "hiring",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1586,6 +1610,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "employees",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -1604,6 +1631,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "collections",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {

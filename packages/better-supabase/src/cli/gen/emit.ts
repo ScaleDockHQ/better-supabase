@@ -1,3 +1,5 @@
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { BlockNaming } from "../../core/block-names.ts";
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
 
 import { byCodePoint } from "../compare.ts";
@@ -154,6 +156,25 @@ function functionsType(model: Model): string[] {
     },
   );
   return ["export type Functions = {", ...indent(entries, 1), "};"];
+}
+
+/**
+ * The function names `sql.naming` and `blocks.<name>.functions` give the
+ * block functions, or undefined when the config renames none.
+ * `blocks.access.functions` is the custom model's templates, not renames.
+ */
+function blockNamingOf(config: ResolvedConfig): BlockNaming | undefined {
+  const functions = Object.fromEntries(
+    Object.entries(config.blocks).flatMap(([name, block]) =>
+      name === "access" ? [] : Object.entries(block?.functions ?? {}),
+    ),
+  );
+  const tenant = config.sql.naming?.tenant;
+  if (tenant === undefined && Object.keys(functions).length === 0) return;
+  return {
+    ...(tenant === undefined ? {} : { tenant }),
+    ...(Object.keys(functions).length === 0 ? {} : { functions }),
+  };
 }
 
 export interface EmitOptions {
@@ -383,6 +404,14 @@ export function emitModule(model: Model, options: EmitOptions): string {
     lines.push(
       "/** Topic templates for `defineTopic` from `better-supabase/realtime`. */",
       `export const topics = ${JSON.stringify(model.meta.topics, null, 2)} as const;`,
+      "",
+    );
+  }
+  const naming = blockNamingOf(model.config);
+  if (naming !== undefined) {
+    lines.push(
+      "/** `sql.naming` and `blocks.<name>.functions`: `blockNames(blockNaming)` calls the block functions by these names. */",
+      `export const blockNaming = ${JSON.stringify(naming, null, 2)} as const;`,
       "",
     );
   }

@@ -203,6 +203,19 @@ describe("sql.naming.tenant", () => {
   });
 });
 
+describe("tenant name clashes", () => {
+  it("refuses a tenant name that renames onto a name a module already uses", () => {
+    expect(() =>
+      renderModules(["teams"], { naming: { tenant: "team" } }),
+    ).toThrow(
+      'sql.naming.tenant: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
+    );
+    expect(() =>
+      renderModules(["teams"], { naming: { tenant: "workspace" } }),
+    ).not.toThrow();
+  });
+});
+
 describe("blocks.<name>.functions", () => {
   it("renames a function and its parameter qualifiers", () => {
     const sql =

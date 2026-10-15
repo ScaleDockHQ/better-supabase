@@ -28,11 +28,13 @@ import type {
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
+import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
 import {
   renderModules,
   SQL_MODULES,
   type SqlModule,
 } from "../packages/better-supabase/src/sql/index.ts";
+import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-clashes.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
@@ -329,6 +331,9 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
         : [[model, needs]];
     }),
   );
+  const clashes = PRESET_TENANT_NAMES.filter(
+    (tenant) => tenantNameClashes(module, tenant, SQL_MODULES).length > 0,
+  );
   const block = {
     name: module.name,
     title: module.title,
@@ -337,6 +342,7 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     integrates: module.integrates ?? [],
     manifest: manifest.name,
     ...(module.scopes === undefined ? {} : { scopes: module.scopes }),
+    ...(clashes.length === 0 ? {} : { tenantNameClashes: clashes }),
   } satisfies PresetCatalogBlock;
   return Object.keys(byAccess).length === 0
     ? block

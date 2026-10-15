@@ -127,12 +127,17 @@ describe("resolvePreset", () => {
         block: "teams",
         field: "tenantName",
         reason:
-          'tenant name "team" renames organizations to teams, the table the teams block already writes',
+          'tenant name "team" renames the tenant tables and columns to names the teams block already uses',
       },
     ]);
     expect(
       resolvePreset(preset(["teams"], { tenantName: "workspace" })).conflicts,
     ).toEqual([]);
+    expect(
+      resolvePreset(preset(["profiles"], { tenantName: "team" })).conflicts.map(
+        (conflict) => conflict.block,
+      ),
+    ).toEqual(["profiles"]);
   });
 
   it("reports unknown blocks", () => {

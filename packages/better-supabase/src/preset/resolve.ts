@@ -109,11 +109,6 @@ export function presetBlockConflict(
     : `it needs ${listNames(tenantOnly)}, which need tenants, and scope "${preset.scope}" has none`;
 }
 
-/** Blocks whose default table names the tenant name would take over. */
-const TENANT_NAME_CLASHES: Readonly<Record<string, readonly string[]>> = {
-  team: ["teams"],
-};
-
 function fieldConflicts(preset: Preset): PresetConflict[] {
   const conflicts: PresetConflict[] = [];
   if (preset.framework === "expo" && preset.platforms === "web") {
@@ -154,12 +149,13 @@ export function resolvePreset(
     }
     for (const each of closureOf(name, preset, byName)) installed.add(each);
   }
-  for (const block of TENANT_NAME_CLASHES[preset.tenantName] ?? []) {
-    if (!installed.has(block)) continue;
+  for (const block of catalog.blocks) {
+    if (!installed.has(block.name)) continue;
+    if (!block.tenantNameClashes?.includes(preset.tenantName)) continue;
     conflicts.push({
-      block,
+      block: block.name,
       field: "tenantName",
-      reason: `tenant name "${preset.tenantName}" renames organizations to ${preset.tenantName}s, the table the ${block} block already writes`,
+      reason: `tenant name "${preset.tenantName}" renames the tenant tables and columns to names the ${block.name} block already uses`,
     });
   }
   const members = catalog.blocks.filter((block) => installed.has(block.name));

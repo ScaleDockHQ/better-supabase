@@ -17,7 +17,8 @@ import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { checkModules, resolveModules } from "./registry.ts";
+import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
+import { tenantNameClashes } from "./tenant-clashes.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
 /**
@@ -113,6 +114,7 @@ export function renderModules(
 ): ModuleFile[] {
   checkModules(layout.modules);
   const modules = resolveModules(names, layout);
+  checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
@@ -202,6 +204,22 @@ export function renderModules(
       })),
     ];
   });
+}
+
+/** Throws when `sql.naming.tenant` gives a renamed table or column a name a module already uses. */
+function checkTenantName(
+  modules: readonly SqlModule[],
+  layout: ModuleLayout,
+): void {
+  const tenant = layout.naming?.tenant;
+  if (tenant === undefined) return;
+  for (const module of modules) {
+    const clashes = tenantNameClashes(module, tenant, SQL_MODULES);
+    if (clashes.length === 0) continue;
+    throw new TypeError(
+      `sql.naming.tenant: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
+    );
+  }
 }
 
 /** Throws on a `blocks.<name>.functions` key the module writes no function for. */
