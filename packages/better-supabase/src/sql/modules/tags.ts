@@ -324,7 +324,7 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  update ${tags} set ${name} = coalesce(update_tag.name, ${name}), ${updatedAt} = now() where ${id} = update_tag.tag_id;
+  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;
   ${ctx.record({
     type: "tag.updated",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name)`,

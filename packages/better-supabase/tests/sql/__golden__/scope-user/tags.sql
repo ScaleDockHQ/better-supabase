@@ -185,7 +185,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(v_tenant = (select auth.uid()), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  update "better_supabase"."tags" set "name" = coalesce(update_tag.name, "name"), "updated_at" = now() where "id" = update_tag.tag_id;
+  update "better_supabase"."tags" t set "name" = coalesce(update_tag.name, t."name"), "updated_at" = now() where t."id" = update_tag.tag_id;
   null;
   return true;
 end;
