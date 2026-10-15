@@ -1,7 +1,8 @@
 import type { Block, BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createIdempotency } from "./idempotency.ts";
+import { jobsSqlOptions, rateLimitSqlOptions } from "./options.ts";
 import { createRateLimit } from "./rate-limit.ts";
 
 /** The `jobs` block's manifest (ADR 0029). */
@@ -9,7 +10,7 @@ export const jobsBlock: Block<"jobs"> = defineBlock({
   name: "jobs",
   sql: ["jobs"],
   options: {
-    jobs: optionKeys(["backend", "scheduler"]),
+    jobs: jobsSqlOptions,
   },
   category: "platform",
 });
@@ -31,7 +32,7 @@ export const rateLimitBlock: BlockOf<"rate-limit", typeof createRateLimit> =
     name: "rate-limit",
     sql: ["rate-limit"],
     options: {
-      "rate-limit": optionKeys(["preRequest"]),
+      "rate-limit": rateLimitSqlOptions,
     },
     create: createRateLimit,
     category: "platform",

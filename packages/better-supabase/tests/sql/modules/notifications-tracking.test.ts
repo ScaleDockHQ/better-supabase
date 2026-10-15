@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -8,7 +8,7 @@ import {
   renderModules,
 } from "../../../src/sql/render.ts";
 
-const body = (modules: BlocksConfig = {}) =>
+const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
 const rendered = (names: Parameters<typeof renderModules>[0]) =>
@@ -20,7 +20,7 @@ const rendered = (names: Parameters<typeof renderModules>[0]) =>
 const DELIVERIES = '"better_supabase"."notification_deliveries"';
 const EVENTS = '"better_supabase"."notification_delivery_events"';
 
-const ADOPTED: BlocksConfig = {
+const ADOPTED: AnyBlocksConfig = {
   notifications: {
     mode: "adopt",
     schema: "public",
@@ -137,7 +137,7 @@ describe("notification delivery tracking", () => {
       { notifications: { tables: { deliveries: null } } },
       { notifications: { tables: { deliveryEvents: null } } },
       ADOPTED,
-    ] satisfies BlocksConfig[]) {
+    ] satisfies AnyBlocksConfig[]) {
       const sql = body(modules);
       expect(sql).not.toContain("notification_delivery_events");
       expect(sql).not.toContain("record_delivery_event");
@@ -146,9 +146,9 @@ describe("notification delivery tracking", () => {
   });
 
   it("adds the functions to a custom contract only when the table is mapped", () => {
-    const contract = (modules: BlocksConfig) =>
+    const contract = (modules: AnyBlocksConfig) =>
       customContracts(["notifications"], { modules })[0]!.functions;
-    const names = (modules: BlocksConfig) =>
+    const names = (modules: AnyBlocksConfig) =>
       contract(modules).map((fn) => fn.name);
     expect(names({ notifications: { mode: "custom" } })).not.toContain(
       "record_delivery_event",

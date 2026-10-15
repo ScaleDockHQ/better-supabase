@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
@@ -9,10 +9,10 @@ import {
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
-const body = (modules: BlocksConfig = {}) =>
+const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("webhooks-out", { modules })!;
 
-const CENTRAKIT: BlocksConfig = {
+const CENTRAKIT: AnyBlocksConfig = {
   "webhooks-out": {
     mode: "adopt",
     schema: "public",
@@ -138,7 +138,7 @@ describe("webhooks-out module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: BlocksConfig = { "webhooks-out": { mode: "custom" } };
+    const custom: AnyBlocksConfig = { "webhooks-out": { mode: "custom" } };
     expect(moduleBody("webhooks-out", { modules: custom })).toBe(undefined);
     const [contract] = customContracts(["webhooks-out"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([

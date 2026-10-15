@@ -26,10 +26,7 @@ const notificationTypes = {
  */
 export function blocks(supabase: RpcClient) {
   return createBlocks(
-    {
-      transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-      schema: API_SCHEMA,
-    },
+    { transport: rpcTransport(supabase, { schema: API_SCHEMA }) },
     {
       notifications: notificationsBlock.using((options) =>
         createNotifications({ ...options, types: notificationTypes }),

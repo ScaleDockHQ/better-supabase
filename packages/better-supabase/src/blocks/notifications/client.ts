@@ -9,9 +9,10 @@ export type NotificationSource<T> = () => Promise<readonly T[]>;
 
 export interface NotificationFeedOptions<T> {
   /**
-   * The private topic the `notifications` module broadcasts to, e.g.
-   * `notifications:${userId}` (`blocks.notifications.options.topic`). `null`
-   * loads once without realtime.
+   * The private topic the `notifications` module broadcasts to:
+   * `fillTopic(blockConfig.notifications.options.topic, { userId })` with
+   * the template from `blocks.generated.ts`. `null` loads once without
+   * realtime.
    */
   readonly topic: string | null;
   /** The notifications, newest first. */

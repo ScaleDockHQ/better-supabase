@@ -14,6 +14,7 @@ import {
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
 import { importPath } from "../io.ts";
+import { emitBlockConfig } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { buildModel, generatorModel } from "./model.ts";
 
@@ -33,6 +34,7 @@ export interface Rendered {
 /**
  * Renders every generated file for a snapshot, without touching disk:
  * `database.types.ts` (what `supabase gen types` prints), the main module,
+ * `blocks.generated.ts` when the config installs blocks,
  * then each configured generator's files.
  */
 export async function renderFiles(
@@ -83,6 +85,8 @@ export async function render(
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
   ];
+  const blockConfig = emitBlockConfig(config, runtime);
+  if (blockConfig) files.push(blockConfig);
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),
   );

@@ -1,6 +1,6 @@
 import {
   type RpcClient,
-  createBlocks,
+  defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -15,25 +15,27 @@ import { profilesBlock } from "better-supabase/blocks/profiles";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
+import { blockConfig } from "./commerce.blocks.generated.ts";
+
+/** The installed blocks, with the settings `better-supabase gen` writes from the config. */
+export const blockSet = defineBlocks(blockConfig, {
+  apiKeys: apiKeysBlock,
+  audit: auditBlock,
+  billing: billingBlock,
+  catalog: catalogBlock,
+  inventory: inventoryBlock,
+  notifications: notificationsBlock,
+  orders: ordersBlock,
+  organizations: organizationsBlock,
+  profiles: profilesBlock,
+  promotions: promotionsBlock,
+  teams: teamsBlock,
+});
+
 /**
  * The blocks as typed clients, acting as the caller of `supabase`: its
  * token, so RLS and each function's checks apply.
  */
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    { transport: rpcTransport(supabase) },
-    {
-      apiKeys: apiKeysBlock,
-      audit: auditBlock,
-      billing: billingBlock,
-      catalog: catalogBlock,
-      inventory: inventoryBlock,
-      notifications: notificationsBlock,
-      orders: ordersBlock,
-      organizations: organizationsBlock,
-      profiles: profilesBlock,
-      promotions: promotionsBlock,
-      teams: teamsBlock,
-    },
-  );
+  return blockSet.create({ transport: rpcTransport(supabase) });
 }

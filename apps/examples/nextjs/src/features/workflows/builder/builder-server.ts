@@ -10,13 +10,15 @@ import {
 } from "better-supabase/workflow-sdk/builder";
 import "server-only";
 
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
 import { graphSteps } from "./graph-steps";
 import { graphExecutor } from "./graph-workflow";
 import { stepLibrary } from "./step-library";
 
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the workflow-builder block. */
+const API_SCHEMA = blockConfig["workflow-builder"].api;
 
 const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
 

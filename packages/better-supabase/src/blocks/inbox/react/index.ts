@@ -24,7 +24,7 @@ export interface UseInboxOptions<T> {
   /** The organization; the hook joins `inbox:org:<id>`. `null` waits. */
   readonly organizationId: string | null;
   readonly load: InboxSource<T>;
-  /** `blocks.inbox.options.topic`. Defaults to `inbox`. */
+  /** `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to `inbox`. */
   readonly topic?: string;
   /** Runs for each broadcast, e.g. to show a toast for `message`. */
   readonly onMessage?: (event: string, payload: unknown) => void;

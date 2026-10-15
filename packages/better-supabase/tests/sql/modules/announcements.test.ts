@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderModules } from "../../../src/sql/render.ts";
 
-const sqlOf = (names: readonly string[], modules: BlocksConfig = {}): string =>
+const sqlOf = (
+  names: readonly string[],
+  modules: AnyBlocksConfig = {},
+): string =>
   renderModules(names, { modules })
     .filter((file) => file.contents.includes("announcement_dismissals"))
     .map((file) => file.contents)

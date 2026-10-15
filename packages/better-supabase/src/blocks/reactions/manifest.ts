@@ -1,8 +1,9 @@
 import type { BlockOf } from "../define-block.ts";
 import type { ReactionsEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { reactionsEvents } from "./events.ts";
+import { reactionsSqlOptions } from "./options.ts";
 import { createReactions } from "./reactions.ts";
 
 /** The `reactions` block's manifest (ADR 0029). */
@@ -14,7 +15,7 @@ export const reactionsBlock: BlockOf<
   name: "reactions",
   sql: ["reactions"],
   options: {
-    reactions: optionKeys(["subjects", "topic"]),
+    reactions: reactionsSqlOptions,
   },
   events: reactionsEvents,
   create: createReactions,

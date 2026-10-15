@@ -1,12 +1,11 @@
 import type { DbError } from "better-supabase";
 
-import { rpcTransport } from "better-supabase/blocks";
+import { generatedOptions, rpcTransport } from "better-supabase/blocks";
 import { createOrganizations } from "better-supabase/blocks/organizations";
 import { tenantOf, useAuth, useSupabase } from "better-supabase/react";
 import { useCallback, useMemo, useState } from "react";
 
-/** The schema the blocks expose through the Data API (`sql.api` in the config). */
-const API_SCHEMA = "api";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 export interface CurrentOrganization {
   /** The active organization from the session's tenant claim. */
@@ -28,8 +27,8 @@ export function useCurrentOrganization(): CurrentOrganization {
   const organizations = useMemo(
     () =>
       createOrganizations({
-        transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-        schema: API_SCHEMA,
+        ...generatedOptions(blockConfig.organizations),
+        transport: rpcTransport(supabase),
       }),
     [supabase],
   );

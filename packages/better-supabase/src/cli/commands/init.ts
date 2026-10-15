@@ -52,7 +52,7 @@ import {
   TEMPLATES,
 } from "../templates.ts";
 import { detectWorkspace, suggestedPackage } from "../workspace.ts";
-import { blocksWiringPath } from "./add.ts";
+import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
 export type InitArgs = CliArgs<typeof INIT_ARGS>;
 
@@ -316,7 +316,10 @@ export async function runInit(
       : [
           {
             path: blocksWiringPath(templateContext),
-            contents: presetBlocksSource(chosen.resolved),
+            contents: presetBlocksSource(
+              chosen.resolved,
+              blockConfigImport(templateContext),
+            ),
           },
         ]),
   ];

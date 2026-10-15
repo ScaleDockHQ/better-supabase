@@ -1,9 +1,10 @@
 import type { BlockOf } from "../define-block.ts";
 import type { BillingEvents } from "./events.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
 import { createBilling } from "./billing.ts";
 import { billingEvents } from "./events.ts";
+import { billingSqlOptions } from "./options.ts";
 
 /** The `billing` block's manifest (ADR 0029). */
 export const billingBlock: BlockOf<
@@ -14,7 +15,7 @@ export const billingBlock: BlockOf<
   name: "billing",
   sql: ["billing"],
   options: {
-    billing: optionKeys(["seatRoles", "plans", "tenantKey"]),
+    billing: billingSqlOptions,
   },
   events: billingEvents,
   create: createBilling,

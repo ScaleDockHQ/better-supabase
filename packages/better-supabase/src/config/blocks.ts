@@ -1,3 +1,5 @@
+import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
+
 /**
  * `blocks` in `better-supabase.config.ts`: how each SQL module maps onto
  * the app's database. A module's contract (the functions other modules and
@@ -13,8 +15,10 @@
  */
 export type BlockMode = "managed" | "adopt" | "custom";
 
-/** Options every module takes. */
-export interface BlockConfig {
+/** Options every module takes; `Options` types `options` (`blocks.<module>.options`). */
+export interface BlockConfig<
+  Options extends object = Readonly<Record<string, unknown>>,
+> {
   readonly mode?: BlockMode;
   /** Schema of the module's functions and managed tables. Defaults to `sql.schema`, then `better_supabase`. */
   readonly schema?: string;
@@ -39,8 +43,11 @@ export interface BlockConfig {
    * `{ invite: 'organization.members.invite' }`.
    */
   readonly permissions?: Readonly<Record<string, string>>;
-  /** Module-specific options; each module's docs page lists them. */
-  readonly options?: Readonly<Record<string, unknown>>;
+  /**
+   * Module-specific options, typed from the block manifest's options
+   * schema; each module's docs page lists them.
+   */
+  readonly options?: Options;
   /**
    * The app's optional `before_*` and `after_*` functions the module calls
    * when they exist, e.g. `after_organization_create(organization, user)`. They are
@@ -115,7 +122,9 @@ export interface DisabledRow {
   readonly active?: readonly string[];
 }
 
-export interface AccessBlockConfig extends BlockConfig {
+export interface AccessBlockConfig<
+  Options extends object = Readonly<Record<string, unknown>>,
+> extends BlockConfig<Options> {
   /**
    * `roles`: a fixed role list from `roles` (the default without
    * `authorization`; with it, `provider` is the default). `catalog`: role,
@@ -193,10 +202,21 @@ export interface AccessBlockConfig extends BlockConfig {
   readonly activeTenant?: ActiveTenantSource;
 }
 
-/** `blocks` in the config, keyed by module name. */
-export interface BlocksConfig {
+/**
+ * `blocks` in the config, keyed by module name. Each block's `options` is
+ * typed from its manifest's options schema, and a name that is no SQL
+ * module is a type error.
+ */
+export type BlocksConfig = {
+  readonly [M in keyof BlockOptionsRegistry]?: M extends "access"
+    ? AccessBlockConfig<BlockOptionsRegistry[M]>
+    : BlockConfig<BlockOptionsRegistry[M]>;
+};
+
+/** `blocks` keyed by any module name, as the resolved config and the SQL renderer read it. */
+export interface AnyBlocksConfig {
   readonly access?: AccessBlockConfig;
-  /** `AccessBlockConfig` is listed so an `access` literal passes the excess-property check. */
+  /** `AccessBlockConfig` is listed so an `access` entry fits the index signature. */
   readonly [module: string]: BlockConfig | AccessBlockConfig | undefined;
 }
 

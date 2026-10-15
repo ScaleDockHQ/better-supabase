@@ -195,7 +195,10 @@ TOML that `supabase init` writes.
 }
 ```
 
-The JSON Schema gives editor completion and validation. Generators and
+The JSON Schema gives editor completion and validation. It types each
+block's `options` from the block's manifest, the same source that types
+`blocks.<name>.options` in a TypeScript config, so an unknown block, an
+unknown option or a value of the wrong kind is an error in both. Generators and
 Standard Schema values in `json[...].schema` need a TypeScript or JavaScript
 config; a JSON config can use plain JSON Schema objects.
 

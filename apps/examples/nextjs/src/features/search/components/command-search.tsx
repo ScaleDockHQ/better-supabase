@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** `blocks.search.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the search block. */
+const API_SCHEMA = blockConfig.search.api;
 
 /** Cmd+K over the search index: customers by name, plus recents and favorites. */
 export function CommandSearch() {

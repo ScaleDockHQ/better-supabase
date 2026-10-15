@@ -4,7 +4,11 @@ import type {
   AuthorizationOperation,
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
-import type { DisabledRow, BlockMode, BlocksConfig } from "../config/blocks.ts";
+import type {
+  DisabledRow,
+  BlockMode,
+  AnyBlocksConfig,
+} from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
@@ -219,7 +223,7 @@ export interface ModuleLayout {
   /** The authorization provider the `access` module's `provider` model calls. */
   readonly accessProvider?: ModuleAccessProvider;
   /** `config.blocks`: modes, names and permission keys per module. */
-  readonly modules?: BlocksConfig;
+  readonly modules?: AnyBlocksConfig;
   /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */

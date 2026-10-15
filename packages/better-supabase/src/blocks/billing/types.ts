@@ -13,7 +13,7 @@ export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** The module schema (`blocks.billing.schema`), default `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `betterSupabase.events`, for `billing.*` block events. */

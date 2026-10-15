@@ -7,10 +7,11 @@ import {
   assistant,
   assistantContext,
 } from "@/features/assistant/assistant-server";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
-/** `blocks.inbox.api` in better-supabase.config.ts. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the inbox block. */
+const API_SCHEMA = blockConfig.inbox.api;
 const BOT = "assistant";
 
 type Client = Parameters<typeof assistantContext>[0];

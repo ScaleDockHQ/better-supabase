@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlock } from "../../src/blocks/define-block.ts";
 
+import { BLOCK_OPTION_SCHEMAS } from "../../src/blocks/options-registry.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
@@ -276,17 +277,32 @@ describe("block manifests", () => {
         if (keys.length === 0)
           return schema === undefined ? [] : [`${module}: has no options`];
         if (schema === undefined) return [`${module}: no options schema`];
-        const known = Object.fromEntries(keys.map((key) => [key, 1]));
-        const accepted = schema["~standard"].validate(known);
         const unknown = schema["~standard"].validate({ notAnOption: 1 });
-        return "issues" in accepted && accepted.issues !== undefined
-          ? [`${module}: refuses its own options`]
-          : !("issues" in unknown) || unknown.issues === undefined
-            ? [`${module}: accepts unknown options`]
-            : [];
+        const declared = Object.keys(schema.specs).sort();
+        if (JSON.stringify(declared) !== JSON.stringify(keys))
+          return [`${module}: declares ${declared.join(", ")}`];
+        return "issues" in unknown && unknown.issues !== undefined
+          ? []
+          : [`${module}: accepts unknown options`];
       }),
     );
     expect(mismatched).toEqual([]);
+  });
+
+  it("lists every SQL module's options schema in the registry", () => {
+    expect(Object.keys(BLOCK_OPTION_SCHEMAS).sort()).toEqual(
+      Object.keys(SQL_MODULES).sort(),
+    );
+    const differing = BLOCK_MANIFESTS.flatMap((block) =>
+      Object.entries(block.options).flatMap(([module, schema]) =>
+        Object.entries(BLOCK_OPTION_SCHEMAS).some(
+          ([name, listed]) => name === module && listed === schema,
+        )
+          ? []
+          : [module],
+      ),
+    );
+    expect(differing).toEqual([]);
   });
 
   it("lists the recipes that name the block", () => {

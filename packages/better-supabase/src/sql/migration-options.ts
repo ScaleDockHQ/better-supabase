@@ -1,4 +1,4 @@
-import type { BlockConfig, BlocksConfig } from "../config/blocks.ts";
+import type { BlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
 
 /** A module option that only fits a schema being adopted. */
 interface MigrationOption {
@@ -88,7 +88,7 @@ export interface MigrationOptionUse {
  * default. They are accepted in `adopt` mode only; doctor warns about each.
  */
 export function migrationOptionUses(
-  modules: BlocksConfig = {},
+  modules: AnyBlocksConfig = {},
 ): MigrationOptionUse[] {
   return MIGRATION_OPTIONS.flatMap((entry) => {
     const config: BlockConfig | undefined = modules[entry.module];

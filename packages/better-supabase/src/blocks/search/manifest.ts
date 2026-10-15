@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 
-import { defineBlock, optionKeys } from "../define-block.ts";
+import { defineBlock } from "../define-block.ts";
+import { searchSqlOptions } from "./options.ts";
 import { createSearch } from "./search.ts";
 import { searchSink } from "./sink.ts";
 
@@ -15,7 +16,7 @@ export const searchBlock: BlockOf<
   name: "search",
   sql: ["search"],
   options: {
-    search: optionKeys(["config", "dimensions"]),
+    search: searchSqlOptions,
   },
   provides: {
     sink: (client) => searchSink(client),

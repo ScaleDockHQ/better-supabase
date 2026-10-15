@@ -56,7 +56,7 @@ export interface InboxOptions extends BlockTemporalOptions {
    * member or a contact; over the service role for webhooks and workers.
    */
   readonly transport: BlockTransport;
-  /** `blocks.inbox.schema`. Defaults to `better_supabase`. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }

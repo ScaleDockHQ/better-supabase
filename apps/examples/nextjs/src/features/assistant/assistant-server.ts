@@ -8,6 +8,7 @@ import {
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
 import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
+import { generatedOptions } from "better-supabase/blocks";
 import {
   type AiChat,
   type AiRuns,
@@ -31,12 +32,13 @@ import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
 import { demoModel } from "./demo-model";
 
-/** `blocks["ai-chat"].api`, `["ai-files"].api` and `streams.api`. */
-const API_SCHEMA = "api";
+/** The API schema `gen` wrote for the chat, its files and its streams. */
+const API_SCHEMA = blockConfig["ai-chat"].api;
 
 const DEFAULT_MODEL = "openai/gpt-5-mini";
 
@@ -58,9 +60,9 @@ export function serviceTransport() {
 /** The chat block acting as the caller, with service writes on the side. */
 export function aiChat(supabase: RpcClient): AiChat {
   return createAiChat({
+    ...generatedOptions(blockConfig["ai-chat"]),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     service: serviceTransport(),
-    schema: API_SCHEMA,
   });
 }
 
@@ -79,7 +81,7 @@ function aiProviders(): AiProviders {
     transport: service,
     service,
     credentials: vaultCredentials({ transport: service, schema: API_SCHEMA }),
-    schema: API_SCHEMA,
+    ...generatedOptions(blockConfig["ai-providers"]),
   });
   return providersInstance;
 }
@@ -104,11 +106,11 @@ type UserClient = RpcClient & { readonly storage: AiFileStorage };
 /** The files block acting as the caller; the service role stores generated files. */
 export function aiFiles(supabase: UserClient): AiFiles {
   return createAiFiles({
+    ...generatedOptions(blockConfig["ai-files"]),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     storage: supabase.storage,
     service: serviceTransport(),
     serviceStorage: bs.admin().$client.storage,
-    schema: API_SCHEMA,
   });
 }
 

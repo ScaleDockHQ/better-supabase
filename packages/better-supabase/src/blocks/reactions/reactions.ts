@@ -18,7 +18,7 @@ import {
 
 export interface ReactionsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** `blocks.reactions.schema`, or the API schema of its wrappers. */
+  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Reactions>;

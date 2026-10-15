@@ -63,9 +63,14 @@ the same generator behind `supabase gen types typescript`, and writes:
    imports the main module. Each table and function is one line of JSON, which
    keeps the module small to load and a schema change visible per entry in a
    diff. Commit both files with the main module;
-4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
+4. with `blocks` configured, `blocks.generated.ts` next to the main module:
+   each installed block's schema, API schema and the options its SQL and
+   TypeScript halves share, with the module defaults filled in, for
+   [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config).
+   It needs no database, only the config;
+5. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
    `standardSchema()`);
-5. with `readSets` configured, the `read-sets` SQL module file: one function per
+6. with `readSets` configured, the `read-sets` SQL module file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
    writing the main module, since they import it.
 

@@ -258,18 +258,18 @@ export const invoicingBlock = defineBlock({
 });
 ```
 
-| Field      | What it is                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `name`     | The block's name, kebab-case                                                                                |
-| `sql`      | The SQL modules it installs, the keys of `blocks` in the config                                             |
-| `options`  | A Standard Schema per SQL module for `blocks.<module>.options`; `optionKeys([...])` accepts only those keys |
-| `events`   | Its own events, from `defineEvents`                                                                         |
-| `consumes` | The ports it needs, each `optional` or `required`                                                           |
-| `provides` | The ports it builds from its client, such as `notifier: (client) => client`                                 |
-| `create`   | Its creator, `create<Name>(options)`                                                                        |
-| `client`   | The name of its headless controller, when it has one                                                        |
-| `category` | Where it sits in the catalog: `foundation`, `collaboration`, `crm`, `work`, `commerce` and so on            |
-| `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                     |
+| Field      | What it is                                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| `name`     | The block's name, kebab-case                                                                               |
+| `sql`      | The SQL modules it installs, the keys of `blocks` in the config                                            |
+| `options`  | A `blockOptions` schema per SQL module, which types `blocks.<module>.options` and `schemas/config-v1.json` |
+| `events`   | Its own events, from `defineEvents`                                                                        |
+| `consumes` | The ports it needs, each `optional` or `required`                                                          |
+| `provides` | The ports it builds from its client, such as `notifier: (client) => client`                                |
+| `create`   | Its creator, `create<Name>(options)`                                                                       |
+| `client`   | The name of its headless controller, when it has one                                                       |
+| `category` | Where it sits in the catalog: `foundation`, `collaboration`, `crm`, `work`, `commerce` and so on           |
+| `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                    |
 
 The ports are `notifier`, `files`, `attachments`, `workflows` and `sink`
 ([the table](/docs/blocks/create-blocks#ports) says who provides each).

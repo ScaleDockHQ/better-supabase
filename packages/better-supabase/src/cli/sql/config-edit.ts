@@ -410,7 +410,8 @@ export interface WiredBlock {
 
 /**
  * `lib/blocks.ts` with `blocks` imported and added to the blocks object
- * passed to `createBlocks(options, { ... })`. A block whose export the file
+ * passed to `defineBlocks(blockConfig, { ... })` or `createBlocks(options,
+ * { ... })`. A block whose export the file
  * already names is left out.
  */
 export function addBlocksToWiring(
@@ -422,8 +423,14 @@ export function addBlocksToWiring(
     (block) => !new RegExp(`\\b${block.export}\\b`).test(code),
   );
   if (missing.length === 0) return { ok: true, text: source };
-  const call = /\bcreateBlocks\s*(?:<[^>]*>)?\s*\(/.exec(code);
-  if (!call) return { ok: false, reason: "it doesn't call createBlocks()" };
+  const call = /\b(createBlocks|defineBlocks)\s*(?:<[^>]*>)?\s*\(/.exec(code);
+  if (!call) {
+    return {
+      ok: false,
+      reason: "it doesn't call defineBlocks() or createBlocks()",
+    };
+  }
+  const callee = call[1] ?? "defineBlocks";
   const first = skipSpace(code, call.index + call[0].length);
   const firstEnd = valueEnd(code, first);
   const comma = skipSpace(code, firstEnd);
@@ -431,7 +438,7 @@ export function addBlocksToWiring(
   if (second === -1 || code[second] !== "{") {
     return {
       ok: false,
-      reason: "createBlocks() isn't passed an object literal of blocks",
+      reason: `${callee}() isn't passed an object literal of blocks`,
     };
   }
   const listed = properties(source, code, second);

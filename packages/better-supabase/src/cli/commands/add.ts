@@ -32,6 +32,7 @@ import { detectProject, installCommand } from "../project.ts";
 import { addModules } from "../sql/add.ts";
 import { addBlocksToWiring } from "../sql/config-edit.ts";
 import {
+  importFrom,
   INTEGRATIONS,
   libEntry,
   needsLib,
@@ -152,6 +153,15 @@ async function addBlocks(
 /** `lib/blocks.ts` next to `lib/supabase/`. */
 export function blocksWiringPath(context: TemplateContext): string {
   return join(dirname(dirname(libEntry(context))), "blocks.ts");
+}
+
+/** How `lib/blocks.ts` imports the `blocks.generated.ts` that `gen` writes next to `generated.ts`. */
+export function blockConfigImport(context: TemplateContext): string {
+  return importFrom(
+    context,
+    blocksWiringPath(context),
+    join(dirname(context.generated), "blocks.generated.ts"),
+  );
 }
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };

@@ -1,9 +1,7 @@
 import type { EventMap, Events } from "../core/block-events.ts";
-import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BlockContext } from "./create-blocks.ts";
+import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
-
-import { isRecord } from "../core/block-helpers.ts";
 
 /** Where a block sits in the catalog and in presets. */
 export type BlockCategory =
@@ -47,10 +45,8 @@ export type ProvidedPorts<P extends PortName> = {
   ) => BlockPorts[K] | undefined;
 };
 
-/** An options schema per SQL module, keyed by module name. */
-export type BlockOptionSchemas = Readonly<
-  Record<string, StandardSchemaV1<unknown, Readonly<Record<string, unknown>>>>
->;
+/** An options schema per SQL module, keyed by module name (`blockOptions`). */
+export type BlockOptionSchemas = Readonly<Record<string, BlockOptionsSchema>>;
 
 type Nothing = Record<never, never>;
 
@@ -228,38 +224,5 @@ function blockOf<
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),
-  };
-}
-
-/**
- * A Standard Schema for a SQL module's options that accepts an object with
- * only `keys`, for a manifest's `options`.
- */
-export function optionKeys<const K extends string>(
-  keys: readonly K[],
-): StandardSchemaV1<unknown, Readonly<Partial<Record<K, unknown>>>> {
-  const known = new Set<string>(keys);
-  return {
-    "~standard": {
-      version: 1,
-      vendor: "better-supabase",
-      validate: (value) => {
-        if (!isRecord(value)) {
-          return { issues: [{ message: "Expected an object" }] };
-        }
-        const unknown = Object.keys(value).filter((key) => !known.has(key));
-        if (unknown.length > 0) {
-          return {
-            issues: unknown.map((key) => ({
-              message: `Unknown option "${key}"`,
-              path: [key],
-            })),
-          };
-        }
-        // SAFETY: every key of `value` is one of `keys`, and the values are
-        // typed `unknown`.
-        return { value: value as Readonly<Partial<Record<K, unknown>>> };
-      },
-    },
   };
 }
