@@ -19,6 +19,8 @@ export type { SqlArgs, SqlFlags } from "../sql/args.ts";
 /** What `runSql` reads from outside: the clock behind the migration stamps. */
 export interface SqlDeps {
   readonly now: Now;
+  /** The config file `sql add` lists new modules in, when there is one. */
+  readonly configFile?: string;
 }
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
@@ -34,7 +36,7 @@ export async function runSql(
     case "list":
       return listModules(config, args);
     case "add":
-      return addModules(config, args, names, deps.now);
+      return addModules(config, args, names, deps);
     case "sync":
       return syncModules(config, args, paint, deps.now);
     case "upgrade":
@@ -60,5 +62,9 @@ export const sqlCommand: AnyCommand = defineCliCommand({
       "Lists, adds, syncs, upgrades and prints SQL modules, and writes their data migration",
   },
   args: SQL_ARGS,
-  run: (args, { config, io }) => runSql(config, args, painter(io.color)),
+  run: (args, { config, configFile, io }) =>
+    runSql(config, args, painter(io.color), {
+      ...SYSTEM_DEPS,
+      ...(configFile === undefined ? {} : { configFile }),
+    }),
 });

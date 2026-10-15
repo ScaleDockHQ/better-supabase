@@ -12,6 +12,13 @@ already lists, so a module sees what is installed (billing's foreign key to
 the organizations table, for example), and writes only the named modules and
 the ones they need.
 
+`sql add` also lists the new modules in `sql.modules` of your config file, in
+the form it already uses: `tags: {}` in an object, `"tags"` in a list. It
+edits the object literal you pass to `defineConfig()` and leaves the rest of
+the file as it is. When `sql.modules` is not a literal it can follow, such as
+a variable or a spread, it changes nothing and prints the entries to add
+instead. `--dry-run` says what it would add.
+
 ```bash
 better-supabase sql list
 better-supabase sql add audit jobs pgtap
@@ -316,19 +323,19 @@ export default defineConfig({
 });
 ```
 
-| Key           | What it sets                                                                                                                                          |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`        | `managed`, `adopt` or `custom`                                                                                                                        |
-| `schema`      | the schema of the module's functions and managed tables (`better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
-| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                               |
-| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                         |
-| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                   |
-| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                            |
-| `options`     | module options, listed on each module's page                                                                                                          |
-| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                    |
-| `events`      | `false` stops the module writing its events to the outbox                                                                                             |
-| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                    |
-| `api`         | a schema for the Data API that gets entry points for the module's functions (see below)                                                               |
+| Key           | What it sets                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`        | `managed`, `adopt` or `custom`                                                                                                                                           |
+| `schema`      | the schema of the module's functions and managed tables (`sql.schema`, then `better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
+| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                  |
+| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                                            |
+| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                      |
+| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                                               |
+| `options`     | module options, listed on each module's page                                                                                                                             |
+| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                       |
+| `events`      | `false` stops the module writing its events to the outbox                                                                                                                |
+| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                       |
+| `api`         | a schema for the Data API that gets entry points for the module's functions (`sql.api` by default; see below), or `false` for none                                       |
 
 `organizations` and `profiles` also take `options.extraColumns`: your own
 columns, keyed by name with their SQL type, which the module adds to its
@@ -350,6 +357,21 @@ sql: {
     notifications: {
       api: { schema: "api", functions: ["list_notifications", "notification_counts"] },
     },
+  },
+},
+```
+
+To give every module the same API schema, set `sql.api` once. A module that
+sets its own `api` keeps it, and `api: false` leaves a module without entry
+points. `sql.schema` works the same way for the module schema.
+
+```ts title="better-supabase.config.ts"
+sql: {
+  api: "api",
+  modules: {
+    settings: {},
+    notifications: {},
+    jobs: { api: false },
   },
 },
 ```
@@ -1172,6 +1194,8 @@ export default defineConfig({
 | `sql.dir`      | `supabase/schemas`                                             |
 | `sql.prefix`   | `900_better_supabase`                                          |
 | `sql.testsDir` | `supabase/tests`                                               |
+| `sql.schema`   | `better_supabase`, for every module that sets no `schema`      |
+| `sql.api`      | unset; the Data API schema for every module that sets no `api` |
 | `sql.modules`  | `[]`                                                           |
 
 ## Upgrading modules

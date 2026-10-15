@@ -828,7 +828,7 @@ describe("sql", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("adds modules with their dependencies and suggests tracking them", async () => {
+  it("adds modules with their dependencies and lists them in the config", async () => {
     const added = await run(["sql", "add", "jobs", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
@@ -837,10 +837,17 @@ describe("sql", () => {
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
     );
-    expect(added.stdout).toContain("modules: ['invitations', 'jobs', 'pgtap']");
+    expect(added.stdout).toContain(
+      "Added jobs, pgtap to sql.modules in better-supabase.config.json.",
+    );
+    expect(
+      JSON.parse(
+        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+      ),
+    ).toEqual({ sql: { modules: ["invitations", "jobs", "pgtap"] } });
 
     const list = await run(["sql", "list", "--cwd", dir]);
-    expect(list.stdout).toMatch(/○ jobs/);
+    expect(list.stdout).not.toMatch(/○ jobs/);
     expect(list.stdout).toMatch(/^ {2}audit/m);
   });
 
