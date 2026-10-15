@@ -126,7 +126,7 @@ function userMay(
       )} as t(id))`;
   if (ctx.installed("access"))
     return (user, tenant, permission) =>
-      `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${permission}), false)`;
+      `${ctx.scope.canUser(user, tenant, permission)}`;
   return () => "false";
 }
 

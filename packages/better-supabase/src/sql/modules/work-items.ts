@@ -379,6 +379,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const WORK_ITEMS: ModuleDefinition = {
   name: "work-items",
+  scopes: ["tenant"],
   title: "Work items",
   description:
     "Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.",

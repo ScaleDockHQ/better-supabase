@@ -624,6 +624,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SIGNATURES: ModuleDefinition = {
   name: "signatures",
+  scopes: ["tenant"],
   title: "Signatures",
   description:
     "Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.",

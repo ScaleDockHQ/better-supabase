@@ -852,6 +852,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const FORMS: ModuleDefinition = {
   name: "forms",
+  scopes: ["tenant"],
   title: "Forms",
   description:
     "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.",

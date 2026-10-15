@@ -337,7 +337,7 @@ function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
     where v_table is not null
       and ${l("table")} = v_table
       and ${l("record")} = list_activity.subject_id
-      and ${l("tenant")} = list_activity.tenant
+      and ${ctx.scope.eq(l("tenant"), ctx.scope.value("list_activity.tenant"))}
       and (list_activity.before is null or ${l("occurredAt")} < list_activity.before)
     order by ${l("occurredAt")} desc, ${l("id")} desc
     limit v_limit)`;
@@ -468,7 +468,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       const checks: string[] = [];
       if (subject.permission !== undefined) {
         checks.push(
-          `coalesce(better_supabase.can_user(${user}, 'tenant', new.${c("tenant")}, ${sqlString(subject.permission)}), false)`,
+          `${ctx.scope.canUser(user, `new.${c("tenant")}`, sqlString(subject.permission))}`,
         );
       }
       const readableBy = expression(type, subject, "readableBy");
@@ -481,7 +481,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         ? []
         : [`when ${sqlString(type)} then ${checks.join(" and ")}`];
     });
-    return `coalesce(better_supabase.can_user(${user}, 'tenant', new.${c("tenant")}, ${key}), false)${
+    return `${ctx.scope.canUser(user, `new.${c("tenant")}`, key)}${
       subjectCases.length === 0
         ? ""
         : `
@@ -566,7 +566,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 -- subject; without it any subject type is accepted.
 create table if not exists ${comments} (
   ${c("id")} uuid primary key default gen_random_uuid(),
-  ${c("tenant")} ${id} not null,
+  ${c("tenant")} ${ctx.scope.column()},
   ${c("subjectType")} text not null check (${c("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${c("subjectId")} text not null check (length(${c("subjectId")}) between 1 and 200),
   ${c("author")} uuid references auth.users (id) on delete set null default auth.uid(),
@@ -642,7 +642,7 @@ begin
   );
   if tg_op = 'INSERT' and new.${c("parent")} is not null and not exists (
     select 1 from ${comments} p
-    where p.${c("id")} = new.${c("parent")} and p.${c("tenant")} = new.${c("tenant")}
+    where p.${c("id")} = new.${c("parent")} and ${ctx.scope.eq(`p.${c("tenant")}`, `new.${c("tenant")}`)}
       and p.${c("subjectType")} = new.${c("subjectType")} and p.${c("subjectId")} = new.${c("subjectId")}
   ) then
     ${fail("COMMENT_PARENT_MISMATCH", "A reply must be on its parent's subject", "23514")}
@@ -722,7 +722,7 @@ security invoker
 set search_path = ''
 as $$
   insert into ${comments} as x (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent")].join(", ")})
-  values (create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body, create_comment.document, coalesce(create_comment.mentions, '{}'), create_comment.parent)
+  values (${ctx.scope.value("create_comment.tenant")}, create_comment.subject_type, create_comment.subject_id, create_comment.body, create_comment.document, coalesce(create_comment.mentions, '{}'), create_comment.parent)
   returning to_jsonb(x.*)
 $$;
 
@@ -769,7 +769,7 @@ begin
   with copies as materialized (
     select y.${c("id")} as old_id, gen_random_uuid() as new_id
     from ${comments} y
-    where y.${c("tenant")} = copy_comments.tenant
+    where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("copy_comments.tenant"))}
       and y.${c("subjectType")} = copy_comments.from_type
       and y.${c("subjectId")} = copy_comments.from_id
   ), inserted as (
@@ -821,7 +821,7 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${c("createdAt")}, x.${c("id")}), '[]'::jsonb)
   from (
     select * from ${comments} y
-    where y.${c("tenant")} = list_comments.tenant
+    where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("list_comments.tenant"))}
       and y.${c("subjectType")} = list_comments.subject_type
       and y.${c("subjectId")} = list_comments.subject_id
       and (list_comments.after is null or y.${c("createdAt")} > list_comments.after)
@@ -844,7 +844,7 @@ as $$
   from (
     select y.${c("subjectId")} as subject_id, count(*) as n
     from ${comments} y
-    where y.${c("tenant")} = comment_counts.tenant
+    where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("comment_counts.tenant"))}
       and y.${c("subjectType")} = comment_counts.subject_type
       and y.${c("subjectId")} = any (comment_counts.subject_ids)
       and y.${c("deletedAt")} is null
@@ -855,7 +855,7 @@ $$;
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists ${activity} (
   ${a("id")} uuid primary key default gen_random_uuid(),
-  ${a("tenant")} ${id} not null,
+  ${a("tenant")} ${ctx.scope.column()},
   ${a("event")} text not null unique,
   ${a("type")} text not null,
   ${a("actor")} uuid references auth.users (id) on delete set null,
@@ -931,7 +931,7 @@ begin${reads.gate}${reads.auditSetup}
     (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
       y.${a("occurredAt")} as at, y.${a("id")}::text as id
     from ${activity} y
-    where y.${a("tenant")} = list_activity.tenant
+    where ${ctx.scope.eq(`y.${a("tenant")}`, ctx.scope.value("list_activity.tenant"))}
       and (list_activity.subject_type is null or y.${a("subjectType")} = list_activity.subject_type)
       and (list_activity.subject_id is null or y.${a("subjectId")} = list_activity.subject_id)
       and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)
@@ -1017,6 +1017,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const COMMENTS: ModuleDefinition = {
   internal: ["comment_subject_readable", "activity_subject_readable"],
   name: "comments",
+  scopes: ["tenant", "user", "none"],
   title: "Comments and activity",
   description:
     "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.",

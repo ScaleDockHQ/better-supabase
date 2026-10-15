@@ -196,7 +196,7 @@ function build(ctx: ModuleContext): string {
   const cancelKey = ctx.permission("cancelDelete", permissions.cancelDelete);
   const allowed =
     ctx.of("access").mode === "custom"
-      ? `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
+      ? `coalesce(${ctx.of("tenant").fn("organization_member_role")}(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
       : `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, ${cancelKey}), false)`;
 
   return `${schemaPreamble(ctx)}
@@ -242,8 +242,8 @@ create table if not exists ${d} (
   ${cd("purgedAt")} timestamptz,
   ${cd("previouslyDisabled")} boolean not null default false
 );
-create index if not exists organization_deletions_due_idx on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
-create index if not exists organization_deletions_requested_by_idx on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
+create index if not exists ${ctx.naming.rename("organization_deletions_due_idx")} on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
+create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
 ${lockTable(d)}
 
 -- What an export reads and the purge clears: subject, display name,
@@ -743,6 +743,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const DATA_LIFECYCLE: ModuleDefinition = {
   internal: ["data_export_object_allowed"],
   name: "data-lifecycle",
+  scopes: ["tenant"],
   title: "Data lifecycle",
   description:
     "Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.",

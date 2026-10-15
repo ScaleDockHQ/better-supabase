@@ -656,6 +656,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const RELATIONS: ModuleDefinition = {
   name: "relations",
+  scopes: ["tenant"],
   title: "Relations",
   description:
     "Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.",

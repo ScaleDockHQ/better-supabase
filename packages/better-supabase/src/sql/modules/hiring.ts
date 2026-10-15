@@ -548,6 +548,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const HIRING: ModuleDefinition = {
   name: "hiring",
+  scopes: ["tenant"],
   title: "Hiring",
   description:
     "Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",

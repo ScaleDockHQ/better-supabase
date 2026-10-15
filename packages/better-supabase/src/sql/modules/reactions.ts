@@ -493,6 +493,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const REACTIONS: ModuleDefinition = {
   internal: ["reaction_subject_visible"],
   name: "reactions",
+  scopes: ["tenant"],
   title: "Reactions",
   description:
     "Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",

@@ -389,6 +389,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const EMPLOYEES: ModuleDefinition = {
   name: "employees",
+  scopes: ["tenant"],
   title: "Employees",
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.",

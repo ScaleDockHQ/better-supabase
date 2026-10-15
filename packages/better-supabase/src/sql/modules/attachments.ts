@@ -846,6 +846,7 @@ export const ATTACHMENTS: ModuleDefinition = {
     "object_clean",
   ],
   name: "attachments",
+  scopes: ["tenant"],
   title: "Attachments",
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",

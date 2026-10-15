@@ -567,6 +567,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const TRASH: ModuleDefinition = {
   name: "trash",
+  scopes: ["tenant"],
   title: "Trash",
   description:
     "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.",

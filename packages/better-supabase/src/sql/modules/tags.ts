@@ -120,7 +120,7 @@ function untagBody(
     taggings === ""
       ? fail("TAG_SUBJECT_UNKNOWN", "this subject has no link table", "22023")
       : `delete from ${taggings}
-      where ${ctx.col("taggings", "tenant")} = untag.tenant
+      where ${ctx.scope.eq(ctx.col("taggings", "tenant"), "untag.tenant")}
         and ${ctx.col("taggings", "tag")} = untag.tag_id
         and ${ctx.col("taggings", "subjectType")} = untag.subject_type
         and ${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
@@ -158,10 +158,13 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", OPERATIONS["tags.manage"]);
   const bound = links(ctx);
   const list = subjects(ctx);
+  // Outside tenant scope the scope column can be null, and a null tenant
+  // still names one set of tags.
+  const shared = ctx.scope.kind !== "tenant";
   const tables = ctx.manages
     ? `create table if not exists ${tags} (
   ${id} uuid primary key default gen_random_uuid(),
-  ${tenant} ${ctx.idType} not null,
+  ${tenant} ${ctx.scope.column()},
   ${kind} text not null,
   ${name} text not null check (length(${name}) between 1 and 80),
   ${slug} text not null,
@@ -169,11 +172,11 @@ function build(ctx: ModuleContext): string {
   ${description} text,
 ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
-  unique (${tenant}, ${kind}, ${slug})
+  unique${shared ? " nulls not distinct" : ""} (${tenant}, ${kind}, ${slug})
 );
 ${lockTable(tags, { read: true })}
 create table if not exists ${taggings} (
-  ${ctx.col("taggings", "tenant")} ${ctx.idType} not null,
+  ${ctx.col("taggings", "tenant")} ${ctx.scope.column()},
   ${ctx.col("taggings", "tag")} uuid not null references ${tags} (${id}) on delete cascade,
   ${ctx.col("taggings", "subjectType")} text not null,
   ${ctx.col("taggings", "subjectId")} text not null,
@@ -219,13 +222,13 @@ declare
   v_last text;
   v_rank text;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", manage)}) then
+  ${ctx.scope.bind("create_tag.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
 ${
   ranked
     ? `  select max(t.${rank} collate "C") into v_last from ${tags} t
-    where t.${tenant} = create_tag.tenant and t.${kind} = create_tag.kind;
+    where ${ctx.scope.eq(`t.${tenant}`, "create_tag.tenant")} and t.${kind} = create_tag.kind;
   v_rank := ${rankAfter("v_last")};
   insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${rank}, ${createdAt})
   values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())`
@@ -254,10 +257,10 @@ as $$
 declare
   v_kind text;
 begin
-  if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
+  ${ctx.scope.bind("tag.tenant")}if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
-  select ${kind} into v_kind from ${tags} where ${id} = tag.tag_id and ${tenant} = tag.tenant;
+  select ${kind} into v_kind from ${tags} where ${id} = tag.tag_id and ${ctx.scope.eq(tenant, "tag.tenant")};
   if v_kind is null then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
@@ -370,7 +373,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
+  ${ctx.scope.bind("untag.tenant")}if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   ${untagBody(ctx, bound, taggings)}
@@ -444,6 +447,7 @@ ${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
 
 export const TAGS: ModuleDefinition = {
   name: "tags",
+  scopes: ["tenant", "user", "none"],
   title: "Tags",
   description:
     "Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.",

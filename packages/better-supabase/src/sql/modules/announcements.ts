@@ -169,7 +169,7 @@ declare
   v_role text;
 begin
   if v_tenant is not null then
-    v_role := better_supabase.organization_member_role(v_tenant, v_user);
+    v_role := ${ctx.of("tenant").fn("organization_member_role")}(v_tenant, v_user);
     if v_role is null and not ${SERVICE_CALLER} then
       v_tenant := null;
     end if;
@@ -364,6 +364,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ANNOUNCEMENTS: ModuleDefinition = {
   name: "announcements",
+  scopes: ["tenant"],
   title: "Announcements",
   description:
     "In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.",

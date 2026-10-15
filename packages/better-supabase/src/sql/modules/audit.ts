@@ -303,7 +303,7 @@ ${
   ctx.has("log", "table") && ctx.has("log", "record")
     ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
     : ""
-}create index if not exists audit_events_organization_idx on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
+}create index if not exists ${ctx.naming.rename("audit_events_organization_idx")} on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
 create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
     ctx.has("log", "correlationId")
       ? `

@@ -64,6 +64,7 @@ const INTEGRATES = [
  */
 export const DRIVE: ModuleDefinition = {
   name: "drive",
+  scopes: ["tenant"],
   title: "Drive",
   description:
     "Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.",
@@ -91,6 +92,7 @@ export const DRIVE: ModuleDefinition = {
 /** Installed with `drive`: its files, revisions, bin, stars and links. */
 export const DRIVE_FILES: ModuleDefinition = {
   name: "drive-files",
+  scopes: ["tenant"],
   title: "Drive files",
   description:
     "The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.",

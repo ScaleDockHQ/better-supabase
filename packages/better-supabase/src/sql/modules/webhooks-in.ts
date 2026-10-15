@@ -800,6 +800,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     "incoming_webhook_subject_readable",
   ],
   name: "webhooks-in",
+  scopes: ["tenant"],
   title: "Incoming webhook endpoints",
   description:
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",

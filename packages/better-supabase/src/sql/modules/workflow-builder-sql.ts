@@ -175,7 +175,7 @@ export function builderSql(
   const holds = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
   const userHolds = (user: string, tenant: string, key: string): string =>
-    `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${key}), false)`;
+    `${ctx.scope.canUser(user, tenant, key)}`;
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>

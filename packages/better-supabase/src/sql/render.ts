@@ -20,6 +20,23 @@ import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveModules } from "./registry.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
+/**
+ * `sql` with the parameter qualifiers of renamed functions renamed too:
+ * PL/pgSQL and SQL functions name a parameter `fn.param`, so
+ * `create_organization.name` follows `create_organization` to
+ * `create_workspace.name`.
+ */
+export function renameQualifiers(sql: string, ctx: ModuleContext): string {
+  let out = sql;
+  for (const [from, to] of ctx.functionRenames()) {
+    out = out.replaceAll(
+      new RegExp(`(?<![\\w."$])${from}\\.(?=[a-z_])`, "g"),
+      `${to}.`,
+    );
+  }
+  return out;
+}
+
 function moduleSql(
   module: SqlModule,
   ctx: ModuleContext,
@@ -30,6 +47,7 @@ function moduleSql(
   if (
     module.render &&
     (layout.claims ||
+      layout.naming?.tenant !== undefined ||
       layout.entitlementsProvider ||
       layout.tenantColumn ||
       (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
@@ -54,7 +72,9 @@ export function moduleBody(
     layout,
     modules.map((entry) => entry.name),
   );
-  return ctx.mode === "custom" ? undefined : moduleSql(module, ctx, layout);
+  return ctx.mode === "custom"
+    ? undefined
+    : renameQualifiers(moduleSql(module, ctx, layout), ctx);
 }
 
 /** The table `moduleRow` writes to, created by every schema module's file. */
@@ -108,9 +128,9 @@ export function renderModules(
       `-- ${module.description}`,
       ...managed,
     ].join("\n");
-    const extra = module.extras?.(ctx, layout) ?? "";
+    const extra = renameQualifiers(module.extras?.(ctx, layout) ?? "", ctx);
     const wrappers = deprecationWrappers(module, ctx);
-    const body = moduleSql(module, ctx, layout).trim();
+    const body = renameQualifiers(moduleSql(module, ctx, layout).trim(), ctx);
     module.contract?.(ctx);
     const api = ctx.config.api
       ? apiWrappers(
@@ -137,7 +157,7 @@ export function renderModules(
       eventTriggersOf(body)
         .map((trigger) => trigger.statement)
         .join("\n"),
-      module.data?.(ctx, layout).trim() ?? "",
+      renameQualifiers(module.data?.(ctx, layout).trim() ?? "", ctx),
       moduleRow(module, ctx.mode),
     ]
       .filter((part) => part !== "")
@@ -178,7 +198,7 @@ export function renderModules(
         module: module.name,
         kind: "test",
         path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
-        contents: `${testHeader}\n\n${test.sql.trim()}\n`,
+        contents: `${testHeader}\n\n${renameQualifiers(test.sql.trim(), ctx)}\n`,
       })),
     ];
   });

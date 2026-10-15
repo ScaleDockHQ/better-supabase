@@ -240,6 +240,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SUBJECTS: ModuleDefinition = {
   name: "subjects",
+  scopes: ["tenant"],
   title: "Subjects",
   description:
     "The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.",

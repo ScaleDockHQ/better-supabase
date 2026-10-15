@@ -309,6 +309,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const PIPELINES: ModuleDefinition = {
   name: "pipelines",
+  scopes: ["tenant"],
   title: "Pipelines",
   description:
     "Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.",

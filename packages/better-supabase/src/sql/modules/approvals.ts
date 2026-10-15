@@ -970,6 +970,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const APPROVALS: ModuleDefinition = {
   name: "approvals",
+  scopes: ["tenant"],
   title: "Approvals",
   description:
     "Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.",

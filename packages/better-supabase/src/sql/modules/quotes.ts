@@ -196,6 +196,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const QUOTES: ModuleDefinition = {
   name: "quotes",
+  scopes: ["tenant"],
   title: "Quotes",
   description:
     "Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals.",

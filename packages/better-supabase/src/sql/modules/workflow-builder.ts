@@ -960,6 +960,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const WORKFLOW_BUILDER: ModuleDefinition = {
   name: "workflow-builder",
+  scopes: ["tenant"],
   title: "Workflow builder",
   description:
     "Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.",

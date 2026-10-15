@@ -337,6 +337,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const CUSTOM_FIELDS: ModuleDefinition = {
   name: "custom-fields",
+  scopes: ["tenant"],
   title: "Custom fields",
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",

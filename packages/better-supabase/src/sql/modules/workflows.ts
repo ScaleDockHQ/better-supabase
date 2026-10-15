@@ -998,6 +998,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const WORKFLOWS: ModuleDefinition = {
   name: "workflows",
+  scopes: ["tenant"],
   title: "Workflows",
   description:
     "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",

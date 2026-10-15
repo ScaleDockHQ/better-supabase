@@ -429,6 +429,7 @@ ${replaceColumnCheck({
 
 export const AI_TASKS: ModuleDefinition = {
   name: "ai-tasks",
+  scopes: ["tenant"],
   title: "AI scheduled tasks",
   description:
     "Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.",

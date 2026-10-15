@@ -734,6 +734,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const VERSIONS: ModuleDefinition = {
   name: "versions",
+  scopes: ["tenant"],
   title: "Versions",
   description:
     "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",

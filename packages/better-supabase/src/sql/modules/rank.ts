@@ -282,6 +282,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const RANK: ModuleDefinition = {
   name: "rank",
+  scopes: ["tenant"],
   title: "Rank",
   description:
     "Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",

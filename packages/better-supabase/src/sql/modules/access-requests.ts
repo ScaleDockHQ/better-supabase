@@ -454,6 +454,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ACCESS_REQUESTS: ModuleDefinition = {
   name: "access-requests",
+  scopes: ["tenant"],
   title: "Access requests",
   description:
     "Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.",

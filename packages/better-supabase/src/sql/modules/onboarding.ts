@@ -365,6 +365,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ONBOARDING: ModuleDefinition = {
   name: "onboarding",
+  scopes: ["tenant"],
   title: "Onboarding",
   description:
     "Onboarding checklists per user or organization: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",

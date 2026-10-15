@@ -254,14 +254,14 @@ function table(ctx: ModuleContext, n: OrganizationNames): string {
     ctx.has("organizations", logical) ? `,\n  ${c(logical)} ${type}` : "";
   const slugType = ctx.flag("slugCitext", false) ? "extensions.citext" : "text";
   const slugIndex = ctx.has("organizations", "slug")
-    ? `create unique index if not exists organizations_slug_idx on ${n.organization} (lower(${c("slug")}::text))${ctx.has("organizations", "deletedAt") ? ` where ${c("deletedAt")} is null` : ""};\n`
+    ? `create unique index if not exists ${ctx.naming.rename("organizations_slug_idx")} on ${n.organization} (lower(${c("slug")}::text))${ctx.has("organizations", "deletedAt") ? ` where ${c("deletedAt")} is null` : ""};\n`
     : "";
   return `${slugType === "text" ? "" : "\ncreate extension if not exists citext with schema extensions;"}
 create table if not exists ${n.organization} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );${addExtraColumns(n.organization, organizationExtraColumns(ctx))}
-${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
+${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists ${ctx.naming.rename("organizations_created_by_idx")} on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
     ctx.installed("entitlements")
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
 alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_COLUMN} text unique;
@@ -271,8 +271,8 @@ alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_C
 ${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
-drop policy if exists bs_organizations_read on ${n.organization};
-create policy bs_organizations_read on ${n.organization} for select to authenticated
+drop policy if exists ${ctx.naming.rename("bs_organizations_read")} on ${n.organization};
+create policy ${ctx.naming.rename("bs_organizations_read")} on ${n.organization} for select to authenticated
   using (${n.id} in (select ${ctx.of("tenant").fn("member_organization_ids")}()));
 `;
 }
@@ -625,17 +625,22 @@ function tenantKeys(ctx: ModuleContext, n: OrganizationNames): string {
       }),
     );
   };
-  add("tenant", "memberships", "memberships_organization_fkey", true);
+  add(
+    "tenant",
+    "memberships",
+    ctx.naming.rename("memberships_organization_fkey"),
+    true,
+  );
   add(
     "access",
     "overrides",
-    "permission_overrides_organization_fkey",
+    ctx.naming.rename("permission_overrides_organization_fkey"),
     accessModel(ctx) === "catalog",
   );
   add(
     "invitations",
     "invitations",
-    "invitations_organization_fkey",
+    ctx.naming.rename("invitations_organization_fkey"),
     ctx.installed("invitations"),
   );
   return keys.length === 0
@@ -1050,6 +1055,7 @@ ${grants}`;
 export const ORGANIZATIONS: ModuleDefinition = {
   internal: ["guard_membership_role"],
   name: "organizations",
+  scopes: ["tenant"],
   title: "Organizations",
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",

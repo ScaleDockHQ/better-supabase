@@ -471,6 +471,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ENGAGEMENTS: ModuleDefinition = {
   name: "engagements",
+  scopes: ["tenant"],
   title: "Engagements",
   description:
     "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",

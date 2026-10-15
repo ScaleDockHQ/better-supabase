@@ -857,6 +857,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const TIME_TRACKING: ModuleDefinition = {
   name: "time-tracking",
+  scopes: ["tenant"],
   title: "Time tracking",
   description:
     "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",

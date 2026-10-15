@@ -247,6 +247,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const REMINDERS: ModuleDefinition = {
   name: "reminders",
+  scopes: ["tenant"],
   title: "Reminders",
   description:
     "Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.",

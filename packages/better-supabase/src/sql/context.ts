@@ -186,6 +186,8 @@ export interface ModuleAction extends ModuleEmit {
   readonly audit: ModuleAudit | false;
 }
 
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+
 // These modules write their functions into better_supabase whatever
 // blocks.<name>.schema says; the schema only places their tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
@@ -243,6 +245,8 @@ export interface ModuleContext {
   fnName(name: string): string;
   /** `blocks.<name>.functions` keys no `fn` call has asked for yet. */
   unusedFunctions(): readonly string[];
+  /** Default name to written name, for every function `fn` renamed so far. */
+  functionRenames(): ReadonlyMap<string, string>;
   /** `schema.table` of a logical table, quoted. */
   table(logical: string): string;
   /** The unquoted schema and name of a logical table. */
@@ -479,7 +483,11 @@ export function createModuleContext(
     return config.options[name];
   };
 
-  const scopeKind = config.scope ?? source.scope ?? "tenant";
+  // The tenant module and the access contract are what tenant scope runs
+  // on, so they render for tenants whatever scope the blocks around them use.
+  const scopeKind = TENANT_PROVIDERS.has(module)
+    ? "tenant"
+    : (config.scope ?? source.scope ?? "tenant");
   const rawId =
     scopeKind === "user"
       ? (config.idType ?? "uuid")
@@ -507,11 +515,14 @@ export function createModuleContext(
     checkIdent(`${where}.functions.${name}`, target);
   }
   const requested = new Set<string>();
+  const applied = new Map<string, string>();
   const fnName = (name: string): string => {
     const renamed = naming.rename(name);
     requested.add(name);
     requested.add(renamed);
-    return renames[name] ?? renames[renamed] ?? renamed;
+    const written = renames[name] ?? renames[renamed] ?? renamed;
+    if (written !== name) applied.set(name, written);
+    return written;
   };
 
   const tableName = (logical: string) => {
@@ -725,6 +736,7 @@ export function createModuleContext(
         ? `better_supabase.${fnName(name)}`
         : `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(fnName(name))}`,
     fnName,
+    functionRenames: () => applied,
     unusedFunctions: () =>
       Object.keys(renames).filter((name) => !requested.has(name)),
     tableName,

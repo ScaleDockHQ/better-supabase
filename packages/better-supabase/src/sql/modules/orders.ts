@@ -663,6 +663,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ORDERS: ModuleDefinition = {
   name: "orders",
+  scopes: ["tenant"],
   title: "Orders",
   description:
     "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.",

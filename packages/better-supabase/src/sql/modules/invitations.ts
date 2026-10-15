@@ -822,6 +822,7 @@ ${grant("my_invitations", "", "authenticated")}`;
 export const INVITATIONS: ModuleDefinition = {
   internal: ["invitation_tenant_ids", "platform_invitations_readable"],
   name: "invitations",
+  scopes: ["tenant"],
   title: "Invitations",
   description:
     "invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.",

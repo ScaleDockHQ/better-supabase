@@ -885,6 +885,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const USAGE: ModuleDefinition = {
   name: "usage",
+  scopes: ["tenant"],
   title: "Usage metering and quotas",
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",

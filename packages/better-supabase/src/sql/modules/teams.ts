@@ -476,6 +476,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const TEAMS: ModuleDefinition = {
   name: "teams",
+  scopes: ["tenant"],
   title: "Teams",
   description:
     "Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.",

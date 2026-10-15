@@ -559,6 +559,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const INVENTORY: ModuleDefinition = {
   name: "inventory",
+  scopes: ["tenant"],
   title: "Inventory",
   description:
     "Stock per catalog variant and location: an append-only movement ledger, reservations with expiry, transfers and purchase orders with partial receiving.",

@@ -822,6 +822,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const CALENDAR: ModuleDefinition = {
   name: "calendar",
+  scopes: ["tenant"],
   title: "Calendar",
   description:
     "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees. Series expand in TypeScript with the reminders block's expandRule; a share link serves an iCal feed.",

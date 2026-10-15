@@ -205,6 +205,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const TARGETS: ModuleDefinition = {
   name: "targets",
+  scopes: ["tenant"],
   title: "Targets",
   description:
     "Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.",

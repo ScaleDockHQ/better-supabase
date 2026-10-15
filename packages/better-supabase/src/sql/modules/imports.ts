@@ -139,6 +139,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const IMPORTS: ModuleDefinition = {
   name: "imports",
+  scopes: ["tenant"],
   title: "Imports",
   description:
     "Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.",

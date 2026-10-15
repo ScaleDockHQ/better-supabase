@@ -257,6 +257,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const INVOICES: ModuleDefinition = {
   name: "invoices",
+  scopes: ["tenant"],
   title: "Invoices",
   description:
     "Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.",

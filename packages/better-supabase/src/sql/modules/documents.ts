@@ -586,6 +586,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const DOCUMENTS: ModuleDefinition = {
   internal: ["document_updates_after"],
   name: "documents",
+  scopes: ["tenant"],
   title: "Collaborative documents",
   description:
     "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, and saved states through the versions module.",

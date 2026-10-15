@@ -96,7 +96,7 @@ function membershipAudience(
       select m.${user}
       from ${members.table("memberships")} m
       where m.${tenant} = v_tenant
-        and coalesce(better_supabase.can_user(m.${user}, 'tenant', v_tenant, notification ->> 'permission'), false)
+        and ${ctx.scope.canUser(`m.${user}`, "v_tenant", "notification ->> 'permission'")}
       ${platform}
     ), '{}');
   end if;`;

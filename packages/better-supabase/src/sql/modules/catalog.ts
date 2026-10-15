@@ -629,6 +629,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const CATALOG: ModuleDefinition = {
   name: "catalog",
+  scopes: ["tenant"],
   title: "Catalog",
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.",

@@ -599,6 +599,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const WAITLIST: ModuleDefinition = {
   name: "waitlist",
+  scopes: ["tenant"],
   title: "Waitlist and invite codes",
   description:
     "A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.",

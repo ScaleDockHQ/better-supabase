@@ -506,6 +506,7 @@ $$;`;
 
 export const AI_PROVIDERS: ModuleDefinition = {
   name: "ai-providers",
+  scopes: ["tenant"],
   title: "AI providers",
   description:
     "A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.",

@@ -983,6 +983,7 @@ ${replaceColumnCheck({
 
 export const AI_CHAT: ModuleDefinition = {
   name: "ai-chat",
+  scopes: ["tenant"],
   title: "AI chat",
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",

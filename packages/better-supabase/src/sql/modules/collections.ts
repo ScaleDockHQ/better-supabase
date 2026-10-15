@@ -300,6 +300,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const COLLECTIONS: ModuleDefinition = {
   name: "collections",
+  scopes: ["tenant"],
   title: "Collections",
   description:
     "Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.",

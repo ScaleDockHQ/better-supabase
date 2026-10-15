@@ -210,7 +210,7 @@ begin
     delete from ${T("members")} m where m.${mb("inbox")} = set_inbox_member.inbox and m.${mb("user")} = member;
     return found;
   end if;
-  if not coalesce(better_supabase.can_user(member, 'tenant', v_tenant, ${q.key("read")}), false) then
+  if not ${ctx.scope.canUser("member", "v_tenant", q.key("read"))} then
     ${fail("INBOX_MEMBER_INVALID", "user cannot read this inbox", "22023")}
   end if;
   insert into ${T("members")} (${mb("inbox")}, ${mb("user")}, ${mb("role")}) values (set_inbox_member.inbox, member, role)
@@ -381,7 +381,7 @@ begin
   select coalesce(array_agg(distinct x), '{}') into v_mentions
   from jsonb_array_elements_text(coalesce(input -> 'mentions', '[]'::jsonb)) e(raw)
   cross join lateral (select e.raw::uuid as x) u
-  where coalesce(better_supabase.can_user(u.x, 'tenant', v_conv.${cv("tenant")}, ${q.key("read")}), false);
+  where ${ctx.scope.canUser("u.x", `v_conv.${cv("tenant")}`, q.key("read"))};
   insert into ${T("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("direction")}, ${ms("kind")}, ${ms("authorType")}, ${ms("author")}, ${ms("body")}, ${ms("format")}, ${ms("attachments")}, ${ms("mentions")}, ${ms("externalId")}, ${ms("replyTo")}, ${ms("metadata")})
   values (
     v_conv.${cv("tenant")}, v_conv.${cv("id")}, inbox_add_message.direction, v_kind, inbox_add_message.author_type, inbox_add_message.author,
@@ -650,7 +650,7 @@ begin
   if not (${service} or ${command("assign", "assign")} or (assignee = (select auth.uid()) and ${staffCan("reply")})) then
     ${forbidden("not allowed to assign this conversation")}
   end if;
-  if assignee is not null and not coalesce(better_supabase.can_user(assignee, 'tenant', v_conv.${cv("tenant")}, ${q.key("read")}), false) then
+  if assignee is not null and not ${ctx.scope.canUser("assignee", `v_conv.${cv("tenant")}`, q.key("read"))} then
     ${fail("INBOX_ASSIGNEE_INVALID", "the assignee cannot read this inbox", "22023")}
   end if;
   v_before := v_conv.${cv("assignee")};

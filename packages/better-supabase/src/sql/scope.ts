@@ -19,6 +19,19 @@ export interface ModuleScope {
   column(): string;
   /** True when the caller holds `permission` (a SQL expression) in scope `id`. */
   can(id: string, permission: string): string;
+  /** True when `user` (a uuid expression) holds `permission` in scope `id`. */
+  canUser(user: string, id: string, permission: string): string;
+  /**
+   * PL/pgSQL that sets the scope id parameter `param` for the scope: the
+   * caller's id per user (the service role keeps what it passes), null in
+   * the shared space. Empty per tenant.
+   */
+  bind(param: string): string;
+  /**
+   * A scope id argument as an expression: as passed per tenant, the
+   * caller's id when it is null per user, null in the shared space.
+   */
+  value(param: string): string;
   /**
    * A set-returning call of the scope ids the caller holds `permission` in,
    * usable as `select ...`, `x in (select ...)` and `from ... x`.
@@ -63,6 +76,10 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         column: () => `${idType} not null`,
         can: (id, permission) =>
           `coalesce(better_supabase.can('tenant', ${id}, ${permission}), false)`,
+        canUser: (user, id, permission) =>
+          `coalesce(better_supabase.can_user(${user}, 'tenant', ${id}, ${permission}), false)`,
+        bind: () => "",
+        value: (param) => param,
         ids: (permission) => `better_supabase.tenant_ids_with(${permission})`,
         check: (column, permission) =>
           `${column} in (select better_supabase.tenant_ids_with(${permission}))`,
@@ -77,6 +94,10 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         idType,
         column: () => "uuid default auth.uid()",
         can: (id) => `coalesce(${id} = ${CALLER}, false)`,
+        canUser: (user, id) => `coalesce(${id} = ${user}, false)`,
+        bind: (param) =>
+          `if auth.role() is distinct from 'service_role' then\n    ${param} := ${CALLER};\n  end if;\n  `,
+        value: (param) => `coalesce(${param}, ${CALLER})`,
         ids: () => `unnest(array[${CALLER}])`,
         check: (column) => `${column} = ${CALLER}`,
         eq: (a, b) => `${a} = ${b}`,
@@ -91,6 +112,9 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         idType,
         column: () => idType,
         can: () => SIGNED_IN,
+        canUser: (user) => `(${user} is not null)`,
+        bind: (param) => `${param} := null;\n  `,
+        value: () => `null::${idType}`,
         ids: () => none,
         check: () => SIGNED_IN,
         eq: (a, b) => `${a} is not distinct from ${b}`,

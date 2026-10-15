@@ -414,6 +414,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const DEALS: ModuleDefinition = {
   name: "deals",
+  scopes: ["tenant"],
   title: "Deals",
   description:
     "Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.",

@@ -311,6 +311,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SERVICE_PRINCIPALS: ModuleDefinition = {
   name: "service-principals",
+  scopes: ["tenant"],
   title: "Service principals",
   description:
     "Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.",

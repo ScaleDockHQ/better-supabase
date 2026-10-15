@@ -293,6 +293,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const PARTIES: ModuleDefinition = {
   name: "parties",
+  scopes: ["tenant"],
   title: "Parties",
   description:
     "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.",

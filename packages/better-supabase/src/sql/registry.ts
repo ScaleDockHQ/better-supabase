@@ -126,14 +126,16 @@ function built(definition: ModuleDefinition): SqlModule {
   };
 }
 
+// Outside tenant scope a module checks the caller itself, so the tenant
+// module and the access contract drop from what it needs. They are what
+// tenant scope runs on, so they always run in it.
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+
 /** The scope `name` runs in for `layout`: its own, then `sql.scope`, then `tenant`. */
 export function blockScope(name: string, layout: ModuleLayout): BlockScope {
+  if (TENANT_PROVIDERS.has(name)) return "tenant";
   return layout.modules?.[name]?.scope ?? layout.scope ?? "tenant";
 }
-
-// Outside tenant scope a module checks the caller itself, so the tenant
-// module and the access contract drop from what it needs.
-const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
 
 const requiresOf = (
   module: SqlModule,

@@ -266,6 +266,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const PROMOTIONS: ModuleDefinition = {
   name: "promotions",
+  scopes: ["tenant"],
   title: "Promotions",
   description:
     "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",

@@ -542,6 +542,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const SAVED_VIEWS: ModuleDefinition = {
   name: "saved-views",
+  scopes: ["tenant"],
   title: "Saved views",
   description:
     "Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.",

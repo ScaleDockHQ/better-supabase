@@ -517,6 +517,7 @@ ${userGrant(`${fn("set_agent_skills")}(uuid, jsonb)`)}`;
 
 export const AGENTS_MODULE: ModuleDefinition = {
   name: "agents",
+  scopes: ["tenant"],
   title: "Agents",
   description:
     "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",

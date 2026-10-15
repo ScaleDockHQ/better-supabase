@@ -588,6 +588,7 @@ ${serviceGrant(`${fn("reembed_knowledge")}(${id}, text)`)}`;
 
 export const KNOWLEDGE: ModuleDefinition = {
   name: "knowledge",
+  scopes: ["tenant"],
   title: "Knowledge",
   description:
     "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.",

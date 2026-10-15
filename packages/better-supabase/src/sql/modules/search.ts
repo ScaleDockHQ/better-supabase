@@ -667,6 +667,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 export const SEARCH: ModuleDefinition = {
   internal: ["search_user_state", "search_normalize"],
   name: "search",
+  scopes: ["tenant"],
   title: "Search",
   description:
     "A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
