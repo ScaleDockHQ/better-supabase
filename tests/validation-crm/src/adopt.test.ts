@@ -1,5 +1,5 @@
 import { run } from "better-supabase/cli";
-import { encodePreset } from "better-supabase/preset";
+import { decodePreset, encodePreset } from "better-supabase/preset";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -77,6 +77,49 @@ describe("apply --adopt on the CRM schema", () => {
     expect(blocks["teams"]?.columns).toEqual({
       teams: { tenant: "organization_id" },
       members: { tenant: "organization_id" },
+    });
+  });
+
+  it("keeps the CRM's own table names under a workspace tenant name", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        source: { snapshot: join(ROOT, "snapshot.json") },
+        casing: "camel",
+        blocks: ["read-sets"],
+      }),
+    );
+    const result = await run([
+      "apply",
+      "--preset",
+      encodePreset({
+        scope: "tenant",
+        tenantName: "workspace",
+        blocks: ["organizations", "profiles", "teams"],
+      }),
+      "--adopt",
+      "--dry-run",
+      "--json",
+      "--cwd",
+      dir,
+    ]);
+    expect(result.code).toBe(0);
+    const data = JSON.parse(result.stdout) as {
+      adopted: Record<string, unknown>;
+      contents: string;
+    };
+    const proposed = JSON.parse(data.contents) as { preset: string };
+    expect(decodePreset(proposed.preset).preset.tenantName).toBe("workspace");
+    // The CRM's tables keep their names: adopted tables are named in the
+    // config, and only the managed blocks' default names follow sql.naming.
+    const { blocks } = (await committed()) as {
+      blocks: Record<string, unknown>;
+    };
+    expect(data.adopted).toEqual({
+      access: blocks["access"],
+      organizations: blocks["organizations"],
+      profiles: blocks["profiles"],
+      teams: blocks["teams"],
     });
   });
 
