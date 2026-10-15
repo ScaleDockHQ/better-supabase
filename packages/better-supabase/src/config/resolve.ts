@@ -259,6 +259,7 @@ export function resolveConfig(
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
     },
+    ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,

@@ -192,7 +192,8 @@
         "scripts/build-catalog.ts",
         "packages/better-supabase/package.json",
         "packages/better-supabase/src/**",
-        "apps/docs/content/docs/blocks/**"
+        "apps/docs/content/docs/blocks/**",
+        "packages/registry/registry.json"
       ],
       "outputs": ["apps/marketing/lib/catalog.json"]
     },
@@ -201,7 +202,8 @@
         "scripts/build-catalog.ts",
         "packages/better-supabase/package.json",
         "packages/better-supabase/src/**",
-        "apps/docs/content/docs/blocks/**"
+        "apps/docs/content/docs/blocks/**",
+        "packages/registry/registry.json"
       ]
     },
     "//#recipes": {

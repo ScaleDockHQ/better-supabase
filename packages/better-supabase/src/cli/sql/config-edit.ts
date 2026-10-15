@@ -344,3 +344,115 @@ export function addBlocksToJson(
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** `source` with `preset` set to `value`, replacing the one it has. */
+export function setPresetInConfig(source: string, value: string): ConfigEdit {
+  const code = mask(source);
+  const root = configObject(code);
+  if (root === undefined) {
+    return {
+      ok: false,
+      reason: "it doesn't pass an object literal to defineConfig()",
+    };
+  }
+  const rootProps = properties(source, code, root);
+  if (!rootProps)
+    return { ok: false, reason: "its config object can't be read" };
+  const current = rootProps.find((prop) => prop.key === "preset");
+  // Keep the file's quotes: a value of the preset alphabet needs no escaping.
+  const quote =
+    source[current?.valueStart ?? -1] === "'" ||
+    (current === undefined && source.includes("'better-supabase/config'"))
+      ? "'"
+      : '"';
+  const literal = `${quote}${value}${quote}`;
+  if (current) {
+    return {
+      ok: true,
+      text:
+        source.slice(0, current.valueStart) +
+        literal +
+        source.slice(current.valueEnd),
+    };
+  }
+  const change = append(source, code, root, lastOf(rootProps), [
+    `preset: ${literal}`,
+  ]);
+  return {
+    ok: true,
+    text:
+      source.slice(0, change.start) + change.text + source.slice(change.end),
+  };
+}
+
+/** `setPresetInConfig` for `better-supabase.config.json`. */
+export function setPresetInJson(source: string, value: string): ConfigEdit {
+  let config: unknown;
+  try {
+    config = JSON.parse(source);
+  } catch {
+    return { ok: false, reason: "it isn't valid JSON" };
+  }
+  if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
+  const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
+  return {
+    ok: true,
+    text: `${JSON.stringify({ ...config, preset: value }, null, indent)}\n`,
+  };
+}
+
+/** A block client to wire: `key: exportName`, imported from `subpath`. */
+export interface WiredBlock {
+  readonly key: string;
+  readonly export: string;
+  readonly subpath: string;
+}
+
+/**
+ * `lib/blocks.ts` with `blocks` imported and added to the blocks object
+ * passed to `createBlocks(options, { ... })`. A block whose export the file
+ * already names is left out.
+ */
+export function addBlocksToWiring(
+  source: string,
+  blocks: readonly WiredBlock[],
+): ConfigEdit {
+  const code = mask(source);
+  const missing = blocks.filter(
+    (block) => !new RegExp(`\\b${block.export}\\b`).test(code),
+  );
+  if (missing.length === 0) return { ok: true, text: source };
+  const call = /\bcreateBlocks\s*(?:<[^>]*>)?\s*\(/.exec(code);
+  if (!call) return { ok: false, reason: "it doesn't call createBlocks()" };
+  const first = skipSpace(code, call.index + call[0].length);
+  const firstEnd = valueEnd(code, first);
+  const comma = skipSpace(code, firstEnd);
+  const second = code[comma] === "," ? skipSpace(code, comma + 1) : -1;
+  if (second === -1 || code[second] !== "{") {
+    return {
+      ok: false,
+      reason: "createBlocks() isn't passed an object literal of blocks",
+    };
+  }
+  const listed = properties(source, code, second);
+  if (!listed) return { ok: false, reason: "its blocks object can't be read" };
+  const change = append(
+    source,
+    code,
+    second,
+    lastOf(listed),
+    missing.map((block) => `${keyText(block.key)}: ${block.export}`),
+  );
+  let text =
+    source.slice(0, change.start) + change.text + source.slice(change.end);
+  const imports = [...mask(text).matchAll(/^import\b[^;]*;/gm)].at(-1);
+  const at = imports === undefined ? 0 : imports.index + imports[0].length;
+  const lines = missing
+    .map((block) => `import { ${block.export} } from "${block.subpath}";`)
+    .join("\n");
+  text =
+    imports === undefined
+      ? `${lines}\n\n${text}`
+      : `${text.slice(0, at)}\n${lines}${text.slice(at)}`;
+  return { ok: true, text };
+}

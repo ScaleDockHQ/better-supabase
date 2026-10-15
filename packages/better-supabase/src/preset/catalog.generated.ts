@@ -2661,5 +2661,273 @@ export const PRESET_CATALOG: PresetCatalog = {
         "workflows"
       ]
     }
+  ],
+  "glue": [
+    {
+      "name": "blocks",
+      "title": "Block clients",
+      "blocks": [
+        "organizations",
+        "notifications",
+        "search",
+        "audit"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@lib/blocks.ts",
+        "@lib/notification-types.ts"
+      ]
+    },
+    {
+      "name": "postgres",
+      "title": "Server Postgres pool",
+      "blocks": [
+        "jobs",
+        "outbox",
+        "billing"
+      ],
+      "frameworks": [
+        "next",
+        "hono",
+        "tanstack-start",
+        "react-router"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/postgres.ts"
+      ]
+    },
+    {
+      "name": "notifications-actions-next",
+      "title": "Notification server actions (Next.js)",
+      "blocks": [
+        "notifications"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/notifications-actions.ts"
+      ]
+    },
+    {
+      "name": "onboarding-checklist",
+      "title": "Onboarding checklist",
+      "blocks": [
+        "onboarding"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@lib/onboarding.ts"
+      ]
+    },
+    {
+      "name": "outbox",
+      "title": "Outbox client",
+      "blocks": [
+        "outbox"
+      ],
+      "frameworks": [
+        "next",
+        "hono",
+        "tanstack-start",
+        "react-router"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/outbox.ts"
+      ]
+    },
+    {
+      "name": "outbox-relay-next",
+      "title": "Outbox relay route (Next.js)",
+      "blocks": [
+        "outbox"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "~/app/api/outbox/route.ts"
+      ]
+    },
+    {
+      "name": "outbox-relay-hono",
+      "title": "Outbox relay route (Hono)",
+      "blocks": [
+        "outbox"
+      ],
+      "frameworks": [
+        "hono"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "~/src/routes/outbox.ts"
+      ]
+    },
+    {
+      "name": "stripe-webhook-next",
+      "title": "Stripe webhook routes (Next.js)",
+      "blocks": [
+        "billing",
+        "webhook-inbox"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/stripe.ts",
+        "~/app/api/stripe/route.ts",
+        "~/app/api/stripe/process/route.ts"
+      ]
+    },
+    {
+      "name": "jobs-drain-next",
+      "title": "Jobs drain cron route (Next.js)",
+      "blocks": [
+        "jobs"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/jobs.ts",
+        "~/app/api/jobs/drain/route.ts"
+      ]
+    },
+    {
+      "name": "use-current-organization",
+      "title": "useCurrentOrganization",
+      "blocks": [
+        "organizations"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-current-organization.ts"
+      ]
+    },
+    {
+      "name": "push-native",
+      "title": "usePushRegistration (Expo)",
+      "blocks": [
+        "push"
+      ],
+      "frameworks": [
+        "expo"
+      ],
+      "platforms": [
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-push-registration.ts"
+      ]
+    },
+    {
+      "name": "expo-config-native",
+      "title": "Expo config",
+      "blocks": [
+        "push"
+      ],
+      "frameworks": [
+        "expo"
+      ],
+      "platforms": [
+        "native"
+      ],
+      "targets": [
+        "~/app.config.ts"
+      ]
+    },
+    {
+      "name": "saas-next",
+      "title": "SaaS glue (Next.js)",
+      "blocks": [
+        "organizations",
+        "notifications",
+        "search",
+        "audit",
+        "onboarding",
+        "outbox",
+        "jobs",
+        "billing",
+        "webhook-inbox"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [],
+      "preset": "saas"
+    },
+    {
+      "name": "saas-expo",
+      "title": "SaaS glue (Expo)",
+      "blocks": [
+        "organizations",
+        "notifications",
+        "search",
+        "audit",
+        "onboarding",
+        "push"
+      ],
+      "frameworks": [
+        "expo"
+      ],
+      "platforms": [
+        "native"
+      ],
+      "targets": [],
+      "preset": "saas"
+    }
   ]
 };

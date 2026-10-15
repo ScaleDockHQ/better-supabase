@@ -23,6 +23,7 @@ import type {
   PresetCatalog,
   PresetCatalogBlock,
   PresetCatalogManifest,
+  PresetGlueItem,
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
 
@@ -341,6 +342,58 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     : { ...block, requiresByAccess: byAccess };
 }
 
+const REGISTRY_FILE = join(ROOT, "packages/registry/registry.json");
+
+const names = v.union([
+  v.pipe(
+    v.string(),
+    v.transform((name) => [name]),
+  ),
+  v.array(v.string()),
+]);
+
+const registrySchema = v.object({
+  items: v.array(
+    v.looseObject({
+      name: v.string(),
+      title: v.string(),
+      files: v.optional(
+        v.array(
+          v.looseObject({ path: v.string(), target: v.optional(v.string()) }),
+        ),
+        [],
+      ),
+      meta: v.object({
+        block: names,
+        frameworks: v.array(v.string()),
+        platforms: v.array(v.picklist(["web", "native"])),
+        preset: v.optional(v.string()),
+      }),
+    }),
+  ),
+});
+
+/** The shadcn registry's glue items, by the blocks they serve. */
+function glueItems(): PresetGlueItem[] {
+  const { items } = v.parse(
+    registrySchema,
+    JSON.parse(readFileSync(REGISTRY_FILE, "utf8")),
+  );
+  return items.map((item) => {
+    const glue = {
+      name: item.name,
+      title: item.title,
+      blocks: item.meta.block,
+      frameworks: item.meta.frameworks,
+      platforms: item.meta.platforms,
+      targets: item.files.map((file) => file.target ?? file.path),
+    } satisfies PresetGlueItem;
+    return item.meta.preset === undefined
+      ? glue
+      : { ...glue, preset: item.meta.preset };
+  });
+}
+
 export function buildPresetCatalog(): PresetCatalog {
   const exports = exportsOf();
   const found = manifestExports();
@@ -349,6 +402,7 @@ export function buildPresetCatalog(): PresetCatalog {
     manifests: BLOCK_MANIFESTS.map((block) =>
       presetManifest(block, found.get(block), exports),
     ),
+    glue: glueItems(),
   };
 }
 

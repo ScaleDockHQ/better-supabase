@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   addBlocksToConfig,
   addBlocksToJson,
+  addBlocksToWiring,
+  setPresetInConfig,
+  setPresetInJson,
 } from "../../../src/cli/sql/config-edit.ts";
 
 const edited = (source: string, names: readonly string[]): string => {
@@ -241,5 +244,91 @@ describe("addBlocksToJson", () => {
       ok: true,
       text: `{\n  "sql": {\n    "dir": "x"\n  },\n  "blocks": {\n    "tags": {}\n  }\n}\n`,
     });
+  });
+});
+
+describe("setPresetInConfig", () => {
+  it("adds preset, or replaces the one there, in the file's quotes", () => {
+    const single =
+      "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n";
+    expect(setPresetInConfig(single, "saas")).toEqual({
+      ok: true,
+      text: single.replace(
+        "  casing: 'snake',\n",
+        "  casing: 'snake',\n  preset: 'saas',\n",
+      ),
+    });
+    const double = 'export default defineConfig({ preset: "crm" });\n';
+    expect(setPresetInConfig(double, "1abc")).toEqual({
+      ok: true,
+      text: 'export default defineConfig({ preset: "1abc" });\n',
+    });
+  });
+
+  it("refuses a config it can't follow", () => {
+    expect(setPresetInConfig("export default config;\n", "saas")).toEqual({
+      ok: false,
+      reason: "it doesn't pass an object literal to defineConfig()",
+    });
+    expect(
+      setPresetInConfig("export default defineConfig({ a: ", "saas").ok,
+    ).toBe(false);
+  });
+});
+
+describe("setPresetInJson", () => {
+  it("sets preset and keeps the indent", () => {
+    expect(setPresetInJson('{\n    "casing": "camel"\n}\n', "saas")).toEqual({
+      ok: true,
+      text: '{\n    "casing": "camel",\n    "preset": "saas"\n}\n',
+    });
+    expect(setPresetInJson("[]", "saas").ok).toBe(false);
+    expect(setPresetInJson("{", "saas").ok).toBe(false);
+  });
+});
+
+describe("addBlocksToWiring", () => {
+  const block = {
+    key: "comments",
+    export: "commentsBlock",
+    subpath: "better-supabase/blocks/comments",
+  };
+
+  it("adds the import and the entry once", () => {
+    const source =
+      'import { createBlocks } from "better-supabase/blocks";\n\nexport const blocks = createBlocks({ transport }, { tags: tagsBlock });\n';
+    const edit = addBlocksToWiring(source, [block]);
+    expect(edit).toEqual({
+      ok: true,
+      text: 'import { createBlocks } from "better-supabase/blocks";\nimport { commentsBlock } from "better-supabase/blocks/comments";\n\nexport const blocks = createBlocks({ transport }, { tags: tagsBlock, comments: commentsBlock });\n',
+    });
+    expect(edit.ok && addBlocksToWiring(edit.text, [block])).toEqual({
+      ok: true,
+      text: edit.ok ? edit.text : "",
+    });
+  });
+
+  it("puts the import first in a file without imports", () => {
+    const edit = addBlocksToWiring("createBlocks(options, {});\n", [block]);
+    expect(edit).toEqual({
+      ok: true,
+      text: 'import { commentsBlock } from "better-supabase/blocks/comments";\n\ncreateBlocks(options, { comments: commentsBlock });\n',
+    });
+  });
+
+  it("refuses wiring it can't follow", () => {
+    expect(addBlocksToWiring("export {};\n", [block])).toEqual({
+      ok: false,
+      reason: "it doesn't call createBlocks()",
+    });
+    expect(
+      addBlocksToWiring("createBlocks(options, blocks);\n", [block]),
+    ).toEqual({
+      ok: false,
+      reason: "createBlocks() isn't passed an object literal of blocks",
+    });
+    expect(addBlocksToWiring("createBlocks(options, { a: ", [block]).ok).toBe(
+      false,
+    );
   });
 });

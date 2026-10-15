@@ -135,12 +135,17 @@ export function baseFiles(
   lib: boolean = true,
   integrations: readonly Integration[] = [],
   workflow: SqlWorkflow = "pg-delta",
+  preset?: string,
 ): TemplateFile[] {
   const config: TemplateFile = {
     path: "better-supabase.config.ts",
     contents: `import { defineConfig } from 'better-supabase/config';
 
-export default defineConfig({
+export default defineConfig({${
+      preset === undefined
+        ? ""
+        : `\n  // Expands into blocks and conventions; \`better-supabase preset info\` shows what it holds.\n  preset: '${preset}',`
+    }
   casing: '${casing}',
   output: '${context.generated}',${
     integrations.length > 0

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { encodePreset } from "../../src/preset/code.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import {
+  presetApplyCommand,
   presetBlocksSource,
   presetConfigSource,
   presetInstallCommand,
@@ -82,12 +83,15 @@ describe("presetBlocksSource", () => {
   });
 });
 
-describe("presetInstallCommand", () => {
-  it("adds the selected blocks, which bring what they require", () => {
-    expect(
-      presetInstallCommand(
-        resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["tags", "comments"] }),
-      ),
-    ).toBe("npx better-supabase sql add comments tags");
+describe("presetInstallCommand and presetApplyCommand", () => {
+  it("start or apply the preset by its code", () => {
+    const preset = { ...DEFAULT_CONVENTIONS, blocks: ["tags", "comments"] };
+    const resolved = resolvePreset(preset);
+    expect(presetInstallCommand(resolved)).toBe(
+      `npx better-supabase init --preset ${encodePreset(preset)}`,
+    );
+    expect(presetApplyCommand(resolved)).toBe(
+      `npx better-supabase apply --preset ${encodePreset(preset)}`,
+    );
   });
 });

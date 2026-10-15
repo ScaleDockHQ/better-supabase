@@ -78,11 +78,13 @@ disables a block.
 
 ## Generated files
 
-| Function               | Writes                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason  |
-| `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `createBlocks`        |
-| `presetInstallCommand` | `npx better-supabase sql add` with the selected blocks, which brings what they require |
+| Function               | Writes                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason         |
+| `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `createBlocks`               |
+| `presetInstallCommand` | `npx better-supabase init --preset <code>`, which starts a project from the preset            |
+| `presetApplyCommand`   | `npx better-supabase apply --preset <code>`, which applies it to an existing project          |
+| `presetGlue`           | the registry glue items for the preset's framework and platforms; `glueCommand` installs them |
 
 `scripts/build-catalog.ts` writes the catalog (`src/preset/catalog.generated.ts`)
 from the SQL module registry and the block manifests, and
