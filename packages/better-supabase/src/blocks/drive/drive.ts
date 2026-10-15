@@ -4,6 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -681,7 +682,7 @@ export function driveSubject(
   options: { readonly schema?: string } = {},
 ): SubjectConfig {
   return {
-    table: `${options.schema ?? "better_supabase"}.drive_nodes`,
+    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.drive_nodes`,
     idType: "uuid",
     tenant: "tenant_id",
     title: "name",

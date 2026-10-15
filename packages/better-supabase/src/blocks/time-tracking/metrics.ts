@@ -1,5 +1,6 @@
 import type { CloudEvent } from "../../events/cloud-event.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { isRecord } from "../../core/guards.ts";
 import {
   defineMetric,
@@ -29,7 +30,7 @@ export function timeTrackingMetrics(
     defineMetric({
       key: "time_tracked",
       label: "Time tracked",
-      table: `${options.schema ?? "better_supabase"}.time_entries`,
+      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.time_entries`,
       tenant: "tenant_id",
       measure: { sum: "seconds" },
       timeColumn: "started_at",

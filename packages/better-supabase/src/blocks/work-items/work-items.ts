@@ -5,6 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -497,7 +498,7 @@ export function workItemsSubjects(
 ): { readonly work_item: SubjectConfig } {
   return {
     work_item: {
-      table: `${options.schema ?? "better_supabase"}.work_items`,
+      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.work_items`,
       idType: "uuid",
       tenant: "tenant_id",
       title: "title",
