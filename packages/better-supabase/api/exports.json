@@ -2005,6 +2005,7 @@
       "DataExportEventData",
       "DataschemaContext",
       "DealEventData",
+      "EmployeeEventData",
       "EngagementEventData",
       "EventSink",
       "FlagEventData",
@@ -4601,6 +4602,39 @@
       "Recommendation",
       "RpcClient",
       "Scorecard"
+    ]
+  },
+  "./blocks/employees": {
+    "values": [
+      "createEmployees",
+      "dbTransport",
+      "employeesSubjects",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Contract",
+      "ContractInput",
+      "EmergencyContact",
+      "Employee",
+      "EmployeeChange",
+      "EmployeeChangeResult",
+      "EmployeeField",
+      "EmployeeInput",
+      "Employees",
+      "EmployeesOptions",
+      "EmployeeStatus",
+      "OrgChartEntry",
+      "PrivateDetails",
+      "PrivateDetailsInput",
+      "RpcClient",
+      "SalaryPeriod"
     ]
   },
   "./blocks/reactions/react": {

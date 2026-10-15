@@ -146,6 +146,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_quote_accept",
   ],
   hiring: ["before_application_hire", "after_application_hire"],
+  employees: [
+    "before_employee_create",
+    "after_employee_create",
+    "before_employee_update",
+    "after_employee_update",
+    "before_employee_offboard",
+    "after_employee_offboard",
+  ],
   invoices: [
     "before_invoice_issue",
     "after_invoice_issue",

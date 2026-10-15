@@ -33,6 +33,7 @@ import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
@@ -234,6 +235,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SLA),
       built(TARGETS),
       built(HIRING),
+      built(EMPLOYEES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

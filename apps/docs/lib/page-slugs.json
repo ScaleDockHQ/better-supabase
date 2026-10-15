@@ -51,6 +51,7 @@
   "blocks/deals",
   "blocks/documents",
   "blocks/drive",
+  "blocks/employees",
   "blocks/engagements",
   "blocks/entitlements",
   "blocks/flags",

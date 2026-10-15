@@ -1,5 +1,6 @@
 import type {
   ApplicationEventData,
+  EmployeeEventData,
   DealEventData,
   EngagementEventData,
   InvoiceEventData,
@@ -371,6 +372,10 @@ export interface SubjectEventData {
 
 /** The event types whose data is a `SubjectEventData`. */
 export type SubjectEventType =
+  | "employee.created"
+  | "employee.updated"
+  | "employee.offboarded"
+  | "employee.manager_changed"
   | "application.created"
   | "application.hired"
   | "application.rejected"
@@ -931,6 +936,10 @@ export interface BlockEventMap {
   "application.retracted": ApplicationEventData;
   "scorecard.submitted": ApplicationEventData;
   "interview.scheduled": ApplicationEventData;
+  "employee.created": EmployeeEventData;
+  "employee.updated": EmployeeEventData;
+  "employee.offboarded": EmployeeEventData;
+  "employee.manager_changed": EmployeeEventData;
   "sla.warned": SlaEventData;
   "sla.breached": SlaEventData;
   "sla.completed": SlaEventData;
@@ -1193,6 +1202,7 @@ export function onBlockEvent<P extends BlockEventPattern>(
 
 export type {
   ApplicationEventData,
+  EmployeeEventData,
   DealEventData,
   EngagementEventData,
   InvoiceEventData,
