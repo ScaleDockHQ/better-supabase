@@ -167,6 +167,97 @@ const search = useCommandSearch({ organizationId });
 | `loading`, `error`       | A query is running, and the last error                     |
 | `select(item)`, `star()` | Records an open and closes; stars or unstars an item       |
 
+## Vue
+
+`better-supabase/blocks/search/vue` exports `useCommandSearch`. It takes the
+options of `createCommandSearchController`; the controller needs no
+provider. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useCommandSearch } from "better-supabase/blocks/search/vue";
+import { createSearch, rpcTransport } from "better-supabase/blocks/search";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useCommandSearch({
+  client: createSearch({ transport: rpcTransport(supabase) }),
+  organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="hit in state.results ?? []" :key="hit.subjectId">
+      {{ hit.title }}
+    </li>
+  </ul>
+</template>
+```
+
+Pass `keyboard: webKeyboard()` from `better-supabase/client` to toggle the
+dialog on Cmd+K.
+
+## Svelte
+
+`better-supabase/blocks/search/svelte` exports `useCommandSearch`. It takes
+the options of `createCommandSearchController`; the controller needs no
+provider. The hook returns a readable store of the snapshot, read with `$`,
+with the actions on `.actions`. The work starts on mount, and the controller
+is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useCommandSearch } from "better-supabase/blocks/search/svelte";
+  import { createSearch, rpcTransport } from "better-supabase/blocks/search";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const search = useCommandSearch({
+    client: createSearch({ transport: rpcTransport(supabase) }),
+    organizationId,
+  });
+</script>
+
+<ul>
+  {#each $search.results ?? [] as hit (hit.subjectId)}
+    <li>{hit.title}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/search/solid` exports `useCommandSearch`. It takes
+the options of `createCommandSearchController`; the controller needs no
+provider. `state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useCommandSearch } from "better-supabase/blocks/search/solid";
+import { createSearch, rpcTransport } from "better-supabase/blocks/search";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useCommandSearch({
+    client: createSearch({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+  });
+  return (
+    <ul>
+      <For each={state().results ?? []}>{(hit) => <li>{hit.title}</li>}</For>
+    </ul>
+  );
+}
+```
+
 ## With ReUI
 
 The hook has no markup, so it drives any command component. With the ReUI

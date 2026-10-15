@@ -51,6 +51,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
+import { CLIENT } from "./context.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 
@@ -450,7 +451,6 @@ export function createBetterSvelte<B extends ClientLike>(
   };
 }
 
-const CLIENT = Symbol("better-supabase");
 const SESSION = Symbol("better-supabase-session");
 
 /**

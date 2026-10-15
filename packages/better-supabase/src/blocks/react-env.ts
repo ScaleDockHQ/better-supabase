@@ -1,20 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 import { useContext, useMemo } from "react";
 
-import type { ClientPorts } from "../client/ports.ts";
-import type { TopicPort } from "../realtime/watch-topic.ts";
-import type { AuthPort } from "./controller.ts";
-
 import { ClientContext } from "../react/context.ts";
-import { topicPort } from "../realtime/watch-topic.ts";
+import { blockEnv, type BlockEnv } from "./block-env.ts";
 
-/** What the block hooks hand their controllers: the provider's client, session and ports. */
-export interface BlockEnv {
-  readonly supabase: SupabaseClient;
-  readonly auth: AuthPort;
-  readonly ports: ClientPorts & { readonly topic: TopicPort };
-}
+export type { BlockEnv } from "./block-env.ts";
 
 /** The provider's client, session and ports; the topic port defaults to its supabase-js client. */
 export function useBlockEnv(): BlockEnv {
@@ -25,15 +14,5 @@ export function useBlockEnv(): BlockEnv {
     );
   }
   const { client } = value;
-  return useMemo(
-    () => ({
-      supabase: client.supabase,
-      auth: client.auth,
-      ports: {
-        ...client.ports,
-        topic: client.ports?.topic ?? topicPort(client.supabase),
-      },
-    }),
-    [client],
-  );
+  return useMemo(() => blockEnv(client), [client]);
 }

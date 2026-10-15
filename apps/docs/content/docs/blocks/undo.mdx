@@ -83,6 +83,75 @@ threw. Bulk actions return no token, because a row's inverse depends on the
 action; revert their [audit entries](/docs/blocks/audit#reverting-changes)
 instead.
 
+## Vue
+
+`better-supabase/blocks/undo/vue` exports `useUndoStack`. It takes the
+options of `createUndoController`; the controller needs no provider. `state`
+is a shallow ref of the snapshot and `actions` are the controller's actions.
+The work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useUndoStack } from "better-supabase/blocks/undo/vue";
+
+const { state, actions } = useUndoStack({
+  apply: undoAction,
+});
+</script>
+
+<template>
+  <p>{{ state.entries.length }}</p>
+  <button @click="actions.undo()">Undo</button>
+</template>
+```
+
+`undoAction` stands for your server call that applies a token.
+
+## Svelte
+
+`better-supabase/blocks/undo/svelte` exports `useUndoStack`. It takes the
+options of `createUndoController`; the controller needs no provider. The
+hook returns a readable store of the snapshot, read with `$`, with the
+actions on `.actions`. The work starts on mount, and the controller is
+disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useUndoStack } from "better-supabase/blocks/undo/svelte";
+
+  const stack = useUndoStack({
+    apply: undoAction,
+  });
+</script>
+
+<p>{$stack.entries.length}</p>
+<button onclick={() => stack.actions.undo()}>Undo</button>
+```
+
+## Solid
+
+`better-supabase/blocks/undo/solid` exports `useUndoStack`. It takes the
+options of `createUndoController`; the controller needs no provider.
+`state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useUndoStack } from "better-supabase/blocks/undo/solid";
+
+export function Component() {
+  const { state, actions } = useUndoStack({
+    apply: undoAction,
+  });
+  return (
+    <>
+      <p>{state().entries.length}</p>
+      <button onClick={() => actions.undo()}>Undo</button>
+    </>
+  );
+}
+```
+
 ## With ReUI
 
 - Toast (Sonner): show the entry's `label` with an Undo action that calls

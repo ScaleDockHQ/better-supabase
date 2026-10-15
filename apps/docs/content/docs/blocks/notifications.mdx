@@ -281,6 +281,84 @@ count with it. Outside React, `createNotificationsController` from
 The module adds a `realtime.messages` policy so each user can join only
 topics that match the template with their own id.
 
+## Vue
+
+`better-supabase/blocks/notifications/vue` exports `useNotifications`. It
+takes the options of `createNotificationsController`; `auth` and `ports`
+come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a
+shallow ref of the snapshot and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useNotifications } from "better-supabase/blocks/notifications/vue";
+
+const { userId } = defineProps<{ userId: string }>();
+const { state, actions } = useNotifications({
+  topic: `notifications:${userId}`,
+  load: () => listNotifications(),
+});
+</script>
+
+<template>
+  <p>{{ state.count }}</p>
+  <button @click="actions.refresh()">Refresh</button>
+</template>
+```
+
+`listNotifications` stands for your server call that runs
+`notifications.list()`.
+
+## Svelte
+
+`better-supabase/blocks/notifications/svelte` exports `useNotifications`. It
+takes the options of `createNotificationsController`; `auth` and `ports`
+come from `setBetterSupabase(bs)` unless you pass them. The hook returns a
+readable store of the snapshot, read with `$`, with the actions on
+`.actions`. The work starts on mount, and the controller is disposed with
+the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useNotifications } from "better-supabase/blocks/notifications/svelte";
+
+  let { userId }: { userId: string } = $props();
+  const notifications = useNotifications({
+    topic: `notifications:${userId}`,
+    load: () => listNotifications(),
+  });
+</script>
+
+<p>{$notifications.count}</p>
+<button onclick={() => notifications.actions.refresh()}>Refresh</button>
+```
+
+## Solid
+
+`better-supabase/blocks/notifications/solid` exports `useNotifications`. It
+takes the options of `createNotificationsController`; `auth` and `ports`
+come from `<BetterSupabaseProvider client={bs}>` unless you pass them.
+`state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useNotifications } from "better-supabase/blocks/notifications/solid";
+
+export function Component(props: { userId: string }) {
+  const { state, actions } = useNotifications({
+    topic: `notifications:${props.userId}`,
+    load: () => listNotifications(),
+  });
+  return (
+    <>
+      <p>{state().count}</p>
+      <button onClick={() => actions.refresh()}>Refresh</button>
+    </>
+  );
+}
+```
+
 ## Subscriptions and preferences
 
 Users watch a subject with `subscribe({ subject, level })`. Level `all` gets

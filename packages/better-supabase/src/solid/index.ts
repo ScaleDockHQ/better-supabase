@@ -3,9 +3,7 @@ import type { QueryClient } from "@tanstack/query-core";
 
 import {
   type Accessor,
-  type Context as SolidContext,
   createComponent,
-  createContext,
   createEffect,
   createMemo,
   createSignal,
@@ -64,6 +62,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
+import { ClientContext, type Context, useContext } from "./context.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 
@@ -93,17 +92,6 @@ function read<T>(value: MaybeAccessor<T>): T {
   // presence state) are never functions, so a function is an accessor.
   return typeof value === "function" ? (value as Accessor<T>)() : value;
 }
-
-interface Context {
-  readonly client: ClientLike;
-  readonly queryClient: QueryClient | undefined;
-  readonly auth: Accessor<AuthSnapshot>;
-  readonly session: Accessor<AuthSession | undefined> | undefined;
-}
-
-const ClientContext: SolidContext<Context | undefined> = createContext<
-  Context | undefined
->();
 
 export interface BetterSupabaseProviderProps {
   readonly client: ClientLike;
@@ -141,16 +129,6 @@ export function BetterSupabaseProvider(
       return props.children;
     },
   });
-}
-
-function useContext(): Context {
-  const context = useSolidContext(ClientContext);
-  if (!context) {
-    throw new Error(
-      "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
-    );
-  }
-  return context;
 }
 
 /** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */

@@ -122,6 +122,102 @@ export function GettingStarted({ organizationId }: { organizationId: string }) {
 In Server Components, call `progress()` instead; the `react-server` build of
 the hook throws.
 
+## Vue
+
+`better-supabase/blocks/onboarding/vue` exports `useOnboarding`. It takes
+the options of `createOnboardingController`; `auth` and `ports` come from
+`app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
+of the snapshot and `actions` are the controller's actions. The work starts
+on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useOnboarding } from "better-supabase/blocks/onboarding/vue";
+import { rpcTransport } from "better-supabase/blocks/onboarding";
+import { gettingStarted } from "@/onboarding";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useOnboarding({
+  client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
+  scope: gettingStarted.scope,
+  organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="step in state.progress?.steps ?? []" :key="step.id">
+      {{ step.title }}
+    </li>
+  </ul>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/onboarding/svelte` exports `useOnboarding`. It takes
+the options of `createOnboardingController`; `auth` and `ports` come from
+`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+store of the snapshot, read with `$`, with the actions on `.actions`. The
+work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useOnboarding } from "better-supabase/blocks/onboarding/svelte";
+  import { rpcTransport } from "better-supabase/blocks/onboarding";
+  import { gettingStarted } from "@/onboarding";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const onboarding = useOnboarding({
+    client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
+    scope: gettingStarted.scope,
+    organizationId,
+  });
+</script>
+
+<ul>
+  {#each $onboarding.progress?.steps ?? [] as step (step.id)}
+    <li>{step.title}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/onboarding/solid` exports `useOnboarding`. It takes
+the options of `createOnboardingController`; `auth` and `ports` come from
+`<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads
+the snapshot through `from`, and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useOnboarding } from "better-supabase/blocks/onboarding/solid";
+import { rpcTransport } from "better-supabase/blocks/onboarding";
+import { gettingStarted } from "@/onboarding";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useOnboarding({
+    client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
+    scope: gettingStarted.scope,
+    organizationId: props.organizationId,
+  });
+  return (
+    <ul>
+      <For each={state().progress?.steps ?? []}>
+        {(step) => <li>{step.title}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
 ## Functions
 
 | Function                                            | Granted to                      | Does                                           |

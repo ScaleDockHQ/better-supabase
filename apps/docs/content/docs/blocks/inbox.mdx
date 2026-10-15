@@ -196,6 +196,88 @@ Each hook wraps a controller from `better-supabase/blocks/inbox`
 `createInboxWidgetController`) that a Vue, Svelte or plain TypeScript UI
 can use directly.
 
+## Vue
+
+`better-supabase/blocks/inbox/vue` exports `useInbox`, `useConversation` and
+`useInboxWidget`. Each takes the options of the controller it wraps
+(`useInbox` those of `createInboxController`); `auth` and `ports` come from
+`app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
+of the snapshot and `actions` are the controller's actions. The work starts
+on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useInbox } from "better-supabase/blocks/inbox/vue";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const { state } = useInbox({
+  organizationId,
+  load: () => loadConversations({ status: "open" }),
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="row in state.items ?? []" :key="row.id">{{ row.subject }}</li>
+  </ul>
+</template>
+```
+
+`loadConversations` stands for your server call, as in the React example.
+
+## Svelte
+
+`better-supabase/blocks/inbox/svelte` exports `useInbox`, `useConversation`
+and `useInboxWidget`. Each takes the options of the controller it wraps
+(`useInbox` those of `createInboxController`); `auth` and `ports` come from
+`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+store of the snapshot, read with `$`, with the actions on `.actions`. The
+work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useInbox } from "better-supabase/blocks/inbox/svelte";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const inbox = useInbox({
+    organizationId,
+    load: () => loadConversations({ status: "open" }),
+  });
+</script>
+
+<ul>
+  {#each $inbox.items ?? [] as row (row.id)}
+    <li>{row.subject}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/inbox/solid` exports `useInbox`, `useConversation`
+and `useInboxWidget`. Each takes the options of the controller it wraps
+(`useInbox` those of `createInboxController`); `auth` and `ports` come from
+`<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads
+the snapshot through `from`, and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useInbox } from "better-supabase/blocks/inbox/solid";
+
+export function Component(props: { organizationId: string }) {
+  const { state } = useInbox({
+    organizationId: props.organizationId,
+    load: () => loadConversations({ status: "open" }),
+  });
+  return (
+    <ul>
+      <For each={state().items ?? []}>{(row) => <li>{row.subject}</li>}</For>
+    </ul>
+  );
+}
+```
+
 ## Block events
 
 With the outbox installed the module emits `inbox_message.received`,

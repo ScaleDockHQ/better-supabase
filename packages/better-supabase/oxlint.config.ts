@@ -48,11 +48,14 @@ export default defineConfig({
     {
       // The React hook and React Compiler rules assume React components;
       // these bindings run under Vue, Solid and Svelte, where setup()
-      // functions and getters in objects are the idiom. 13 findings when
-      // measured (10 react/todo, 3 react/rules-of-hooks).
+      // functions and getters in objects are the idiom. 15 findings when
+      // measured (10 react/todo, 5 react/rules-of-hooks).
       files: [
         "src/{vue,solid,svelte}/**/*.ts",
         "tests/{vue,solid,svelte}/**/*.ts",
+        "src/blocks/{vue,solid,svelte}-controller.ts",
+        "src/blocks/*/{vue,solid,svelte}/*.ts",
+        "tests/blocks/{vue,solid,svelte}-controller.test.ts",
       ],
       rules: { "react/rules-of-hooks": "off", "react/todo": "off" },
     },

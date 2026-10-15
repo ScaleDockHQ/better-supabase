@@ -108,6 +108,100 @@ Change the topic and the broadcast event with
 `blocks.announcements.options.topic` and `event`, and pass the same
 `topic` to the hook (`null` loads once without Realtime).
 
+## Vue
+
+`better-supabase/blocks/announcements/vue` exports `useAnnouncements`. It
+takes the options of `createAnnouncementsController`; `auth` and `ports`
+come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a
+shallow ref of the snapshot and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useAnnouncements } from "better-supabase/blocks/announcements/vue";
+import {
+  createAnnouncements,
+  rpcTransport,
+} from "better-supabase/blocks/announcements";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useAnnouncements({
+  client: createAnnouncements({ transport: rpcTransport(supabase) }),
+  organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="item in state.items ?? []" :key="item.id">{{ item.title }}</li>
+  </ul>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/announcements/svelte` exports `useAnnouncements`. It
+takes the options of `createAnnouncementsController`; `auth` and `ports`
+come from `setBetterSupabase(bs)` unless you pass them. The hook returns a
+readable store of the snapshot, read with `$`, with the actions on
+`.actions`. The work starts on mount, and the controller is disposed with
+the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useAnnouncements } from "better-supabase/blocks/announcements/svelte";
+  import { createAnnouncements, rpcTransport } from "better-supabase/blocks/announcements";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const announcements = useAnnouncements({
+    client: createAnnouncements({ transport: rpcTransport(supabase) }),
+    organizationId,
+  });
+</script>
+
+<ul>
+  {#each $announcements.items ?? [] as item (item.id)}
+    <li>{item.title}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/announcements/solid` exports `useAnnouncements`. It
+takes the options of `createAnnouncementsController`; `auth` and `ports`
+come from `<BetterSupabaseProvider client={bs}>` unless you pass them.
+`state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useAnnouncements } from "better-supabase/blocks/announcements/solid";
+import {
+  createAnnouncements,
+  rpcTransport,
+} from "better-supabase/blocks/announcements";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useAnnouncements({
+    client: createAnnouncements({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+  });
+  return (
+    <ul>
+      <For each={state().items ?? []}>{(item) => <li>{item.title}</li>}</For>
+    </ul>
+  );
+}
+```
+
 ## Functions
 
 | Function                        | Granted to                      | Does                                          |

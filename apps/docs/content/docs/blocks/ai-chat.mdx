@@ -239,6 +239,102 @@ The list and the tree load again when the private Realtime topics
 (`blocks["ai-chat"].options.listTopic` and `topic`). In Server
 Components the hooks throw; call the block on the server instead.
 
+## Vue
+
+`better-supabase/blocks/ai-chat/vue` exports `useAiChats`, `useAiChatTree`,
+`useAiModels` and `useAiShare`. Each takes the options of the controller it
+wraps (`useAiChats` those of `createAiChatsController`); `auth` and `ports`
+come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a
+shallow ref of the snapshot and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useAiChats } from "better-supabase/blocks/ai-chat/vue";
+import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useAiChats({
+  client: createAiChat({ transport: rpcTransport(supabase) }),
+  query: { organizationId },
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="chat in state.items ?? []" :key="chat.id">{{ chat.title }}</li>
+  </ul>
+  <button @click="actions.loadMore()">Load more</button>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/ai-chat/svelte` exports `useAiChats`,
+`useAiChatTree`, `useAiModels` and `useAiShare`. Each takes the options of
+the controller it wraps (`useAiChats` those of `createAiChatsController`);
+`auth` and `ports` come from `setBetterSupabase(bs)` unless you pass them.
+The hook returns a readable store of the snapshot, read with `$`, with the
+actions on `.actions`. The work starts on mount, and the controller is
+disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useAiChats } from "better-supabase/blocks/ai-chat/svelte";
+  import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const chats = useAiChats({
+    client: createAiChat({ transport: rpcTransport(supabase) }),
+    query: { organizationId },
+  });
+</script>
+
+<ul>
+  {#each $chats.items ?? [] as chat (chat.id)}
+    <li>{chat.title}</li>
+  {/each}
+</ul>
+<button onclick={() => chats.actions.loadMore()}>Load more</button>
+```
+
+## Solid
+
+`better-supabase/blocks/ai-chat/solid` exports `useAiChats`,
+`useAiChatTree`, `useAiModels` and `useAiShare`. Each takes the options of
+the controller it wraps (`useAiChats` those of `createAiChatsController`);
+`auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless
+you pass them. `state()` reads the snapshot through `from`, and `actions`
+are the controller's actions. The work starts on mount, and the controller
+is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useAiChats } from "better-supabase/blocks/ai-chat/solid";
+import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state, actions } = useAiChats({
+    client: createAiChat({ transport: rpcTransport(supabase) }),
+    query: { props.organizationId },
+  });
+  return (
+    <>
+      <ul>
+        <For each={state().items ?? []}>{(chat) => <li>{chat.title}</li>}</For>
+      </ul>
+      <button onClick={() => actions.loadMore()}>Load more</button>
+    </>
+  );
+}
+```
+
 ## Message format
 
 `better-supabase/blocks/ai-chat` defines the message format the AI blocks

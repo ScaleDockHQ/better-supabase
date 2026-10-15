@@ -154,6 +154,104 @@ a drop or a resize maps back with `fromEventCalendarUpdate`.
 by default each event's resource is its calendar, and `resourceOf` picks
 another one, such as the event's subject.
 
+## Vue
+
+`better-supabase/blocks/calendar/vue` exports `useCalendar`. It takes the
+options of `createCalendarController`; the controller needs no provider.
+`state` is a shallow ref of the snapshot and `actions` are the controller's
+actions. The work starts on mount, and the controller is disposed with the
+component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useCalendar } from "better-supabase/blocks/calendar/vue";
+import { createCalendar } from "better-supabase/blocks/calendar";
+import { rpcTransport } from "better-supabase/blocks";
+
+const { calendarId } = defineProps<{ calendarId: string }>();
+const supabase = useSupabase();
+const { state } = useCalendar({
+  client: createCalendar({ transport: rpcTransport(supabase) }),
+  calendarIds: [calendarId],
+  range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="occurrence in state.occurrences ?? []" :key="occurrence.key">
+      {{ String(occurrence.start) }}
+    </li>
+  </ul>
+</template>
+```
+
+Call `actions.setRange(range)` when the visible range changes.
+
+## Svelte
+
+`better-supabase/blocks/calendar/svelte` exports `useCalendar`. It takes the
+options of `createCalendarController`; the controller needs no provider. The
+hook returns a readable store of the snapshot, read with `$`, with the
+actions on `.actions`. The work starts on mount, and the controller is
+disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useCalendar } from "better-supabase/blocks/calendar/svelte";
+  import { createCalendar } from "better-supabase/blocks/calendar";
+  import { rpcTransport } from "better-supabase/blocks";
+
+  let { calendarId }: { calendarId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const calendar = useCalendar({
+    client: createCalendar({ transport: rpcTransport(supabase) }),
+    calendarIds: [calendarId],
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  });
+</script>
+
+<ul>
+  {#each $calendar.occurrences ?? [] as occurrence (occurrence.key)}
+    <li>{String(occurrence.start)}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/calendar/solid` exports `useCalendar`. It takes the
+options of `createCalendarController`; the controller needs no provider.
+`state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useCalendar } from "better-supabase/blocks/calendar/solid";
+import { createCalendar } from "better-supabase/blocks/calendar";
+import { rpcTransport } from "better-supabase/blocks";
+
+export function Component(props: { calendarId: string }) {
+  const supabase = useSupabase();
+  const { state } = useCalendar({
+    client: createCalendar({ transport: rpcTransport(supabase) }),
+    calendarIds: [props.calendarId],
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  });
+  return (
+    <ul>
+      <For each={state().occurrences ?? []}>
+        {(occurrence) => <li>{String(occurrence.start)}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
 ## Hooks
 
 `before_calendar_event_save(tenant, calendar, item)` runs before an insert or

@@ -206,6 +206,88 @@ stored query outside React, and `sameQuery` compares two queries while
 ignoring the page and empty facets. `displayStateOf` drops `query` from a
 state, and `sameDisplayState` compares the rest.
 
+## Vue
+
+`better-supabase/blocks/saved-views/vue` exports `useSavedViews`. It takes
+the options of `createSavedViewsController`; the controller needs no
+provider. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSavedViews } from "better-supabase/blocks/saved-views/vue";
+
+const { state } = useSavedViews({
+  load: () => loadViews(),
+  urlState: () => readUrlState(),
+  setUrlState: (next) => writeUrlState(next),
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="view in state.views ?? []" :key="view.id">{{ view.name }}</li>
+  </ul>
+</template>
+```
+
+`loadViews`, `readUrlState` and `writeUrlState` stand for your server call
+and your router's query state. The controller's `apply`, `saveCurrent` and
+`remove` are on the actions.
+
+## Svelte
+
+`better-supabase/blocks/saved-views/svelte` exports `useSavedViews`. It
+takes the options of `createSavedViewsController`; the controller needs no
+provider. The hook returns a readable store of the snapshot, read with `$`,
+with the actions on `.actions`. The work starts on mount, and the controller
+is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useSavedViews } from "better-supabase/blocks/saved-views/svelte";
+
+  const views = useSavedViews({
+    load: () => loadViews(),
+    urlState: () => readUrlState(),
+    setUrlState: (next) => writeUrlState(next),
+  });
+</script>
+
+<ul>
+  {#each $views.views ?? [] as view (view.id)}
+    <li>{view.name}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/saved-views/solid` exports `useSavedViews`. It takes
+the options of `createSavedViewsController`; the controller needs no
+provider. `state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSavedViews } from "better-supabase/blocks/saved-views/solid";
+
+export function Component() {
+  const { state } = useSavedViews({
+    load: () => loadViews(),
+    urlState: () => readUrlState(),
+    setUrlState: (next) => writeUrlState(next),
+  });
+  return (
+    <ul>
+      <For each={state().views ?? []}>{(view) => <li>{view.name}</li>}</For>
+    </ul>
+  );
+}
+```
+
 ## Events
 
 `save` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
