@@ -27,9 +27,6 @@ export const navLinks: readonly NavLink[] = [
   { href: "/changelog", label: "Changelog" },
 ];
 
-/** Plan 003: the roadmap for Blocks, Recipes and Create. */
-export const websitePlan = `${site.github}/blob/main/plans/003-presets-registry-create.md`;
-
 export const footerColumns: readonly {
   readonly title: string;
   readonly links: readonly NavLink[];
