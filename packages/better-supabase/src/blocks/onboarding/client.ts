@@ -1,0 +1,94 @@
+import type { DbError } from "../../core/errors.ts";
+import type { AuthPort, Controller } from "../controller.ts";
+import type {
+  ChecklistClient,
+  ChecklistProgress,
+  ChecklistScope,
+  ChecklistSubject,
+} from "./onboarding.ts";
+
+import { defineController, whileSignedIn } from "../controller.ts";
+
+export interface OnboardingControllerOptions<
+  Id extends string,
+  Scope extends ChecklistScope,
+> {
+  /** `checklist.connect({ transport })`. */
+  readonly client: ChecklistClient<Id, Scope>;
+  /** `checklist.scope`. */
+  readonly scope: Scope;
+  readonly auth: AuthPort;
+  /** The organization, for an organization checklist; it waits without one. */
+  readonly organizationId?: string | null;
+}
+
+export interface OnboardingSnapshot<Id extends string> {
+  /** `undefined` until the first load. */
+  readonly progress: ChecklistProgress<Id> | undefined;
+  readonly error: DbError | undefined;
+}
+
+export interface OnboardingActions<Id extends string> {
+  /** Marks a step done, then loads the progress again. */
+  readonly complete: (step: Id) => Promise<void>;
+  readonly reset: (step: Id) => Promise<void>;
+  readonly refresh: () => Promise<void>;
+}
+
+export type OnboardingController<Id extends string> = Controller<
+  OnboardingSnapshot<Id>,
+  OnboardingActions<Id>
+>;
+
+/** A checklist's progress for the signed-in user, or for an organization. */
+export function createOnboardingController<
+  Id extends string,
+  Scope extends ChecklistScope,
+>(options: OnboardingControllerOptions<Id, Scope>): OnboardingController<Id> {
+  const { client } = options;
+  const organizationId = options.organizationId ?? null;
+  const ready = options.scope === "user" || organizationId !== null;
+  // SAFETY: ChecklistSubject is [organizationId] for organization checklists and [] for user ones.
+  const subject = (
+    options.scope === "organization" && organizationId !== null
+      ? [organizationId]
+      : []
+  ) as ChecklistSubject<Scope>;
+  return defineController<OnboardingSnapshot<Id>, OnboardingActions<Id>>(
+    { progress: undefined, error: undefined },
+    (state) => {
+      const refresh = async (): Promise<void> => {
+        const run = state.run();
+        const result = await client.progress(...subject);
+        if (run !== state.run()) return;
+        state.set(
+          result.ok
+            ? { progress: result.data, error: undefined }
+            : { error: result.error },
+        );
+      };
+      const change = async (
+        action: "complete" | "reset",
+        step: Id,
+      ): Promise<void> => {
+        const result = await client[action](step, ...subject);
+        if (result.ok) await refresh();
+        else state.set({ error: result.error });
+      };
+      return {
+        actions: {
+          refresh,
+          complete: (step) => change("complete", step),
+          reset: (step) => change("reset", step),
+        },
+        start: () =>
+          ready
+            ? whileSignedIn(options.auth, () => {
+                void refresh();
+                return;
+              })
+            : undefined,
+      };
+    },
+  );
+}

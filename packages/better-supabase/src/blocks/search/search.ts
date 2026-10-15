@@ -191,14 +191,14 @@ export function createSearch(options: SearchOptions): Search {
     service("search_pending_embeddings", { max_results: limit }, (value) =>
       recordsOf(value, "search_pending_embeddings").map(pendingOf),
     );
-  const setEmbedding: Search["setEmbedding"] = (document, embedding) =>
+  const setEmbedding: Search["setEmbedding"] = (entry, embedding) =>
     vectorArg(embedding).andThen((vector) =>
       service(
         "search_set_embedding",
         {
-          subject_type: document.subjectType,
-          subject_id: document.subjectId,
-          content_hash: document.contentHash,
+          subject_type: entry.subjectType,
+          subject_id: entry.subjectId,
+          content_hash: entry.contentHash,
           embedding: vector,
         },
         (value) => value === true,

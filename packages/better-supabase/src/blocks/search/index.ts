@@ -21,3 +21,11 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export { createCommandSearchController } from "./client.ts";
+export type {
+  CommandSearchActions,
+  CommandSearchController,
+  CommandSearchOptions,
+  CommandSearchSnapshot,
+} from "./client.ts";

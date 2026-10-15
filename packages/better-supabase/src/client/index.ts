@@ -9,9 +9,12 @@ import type { SessionEncoding } from "../auth/session.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterClient } from "./bind.ts";
+import type { ClientPorts } from "./ports.ts";
 
 import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
 import { bindClient } from "./bind.ts";
+import { storageUpload } from "./ports.ts";
+import { webPorts } from "./web-ports.ts";
 
 export { bindClient } from "./bind.ts";
 export { functions } from "./functions.ts";
@@ -29,6 +32,39 @@ export type {
   BindClientOptions,
   ClientAuth,
 } from "./bind.ts";
+export { memoryStorage, storageUpload } from "./ports.ts";
+export type {
+  ClientPorts,
+  DeepLinkPort,
+  FilePickerPort,
+  KeyboardPort,
+  PickedFile,
+  PickFilesOptions,
+  PushTokenPort,
+  Shortcut,
+  StoragePort,
+  TopicHandle,
+  TopicPort,
+  TopicWatch,
+  UploadDestination,
+  UploadPort,
+} from "./ports.ts";
+export { defineController, whileSignedIn } from "../blocks/controller.ts";
+export type {
+  AuthPort,
+  Controller,
+  ControllerParts,
+  ControllerState,
+} from "../blocks/controller.ts";
+export {
+  webDeepLinks,
+  webFilePicker,
+  webKeyboard,
+  webPorts,
+  webPushToken,
+  webStorage,
+} from "./web-ports.ts";
+export type { PushRegistrationLike, WebPushTokenOptions } from "./web-ports.ts";
 
 export interface ClientOptions {
   /** URL and publishable key. Not needed when `client` is given. */
@@ -61,6 +97,11 @@ export interface ClientOptions {
    * remount or a window focus reuses cached rows instead of refetching.
    */
   readonly staleTime?: number;
+  /**
+   * Platform services for the block hooks, over the web defaults
+   * (`webPorts()` and an upload port over Supabase Storage).
+   */
+  readonly ports?: ClientPorts;
 }
 
 type UserStorage = NonNullable<
@@ -114,9 +155,11 @@ export function createClient<
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: ClientOptions = {},
 ): BetterClient<M, F, E, C, P> {
-  return bindClient(
-    betterSupabase,
-    clientFor(options),
-    options.staleTime === undefined ? {} : { staleTime: options.staleTime },
-  );
+  const supabase = clientFor(options);
+  return bindClient(betterSupabase, supabase, {
+    ...(options.staleTime === undefined
+      ? {}
+      : { staleTime: options.staleTime }),
+    ports: { ...webPorts(), upload: storageUpload(supabase), ...options.ports },
+  });
 }

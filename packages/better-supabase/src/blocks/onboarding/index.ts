@@ -16,3 +16,11 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export { createOnboardingController } from "./client.ts";
+export type {
+  OnboardingActions,
+  OnboardingController,
+  OnboardingControllerOptions,
+  OnboardingSnapshot,
+} from "./client.ts";

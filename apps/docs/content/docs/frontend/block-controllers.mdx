@@ -1,0 +1,149 @@
+---
+title: Block controllers
+description: The framework-agnostic state behind every block hook, and the ports that give it storage, shortcuts, files, push and deep links on the web and React Native.
+---
+
+Every block hook, such as `useNotifications` or `useCommandSearch`, is a
+thin wrapper over a controller: a plain TypeScript object that loads the
+block's data, follows its realtime topic and runs its actions. Controllers
+import no React, DOM or React Native code, so the same hook runs in React DOM
+and React Native, and a Vue, Svelte or Solid UI can use the controller
+directly.
+
+## The contract
+
+A controller has four members, the external-store contract that React's
+`useSyncExternalStore` and the other frameworks' stores expect:
+
+| Member          | What it does                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `subscribe(fn)` | Adds a listener. The first one starts the work (loads, realtime, shortcuts); the last one to leave stops it |
+| `getSnapshot()` | The current state, the same object until it changes                                                         |
+| `actions`       | The methods, such as `refresh`, `dismiss` or `toggle`                                                       |
+| `dispose()`     | Stops the work and drops every listener                                                                     |
+
+```ts title="lib/unread.ts"
+import { createNotificationsController } from "better-supabase/blocks/notifications";
+import { topicPort } from "better-supabase/realtime";
+
+const unread = createNotificationsController({
+  auth: bs.auth,
+  ports: { topic: topicPort(bs.supabase) },
+  topic: `notifications:${userId}`,
+  load: () => listNotifications(),
+});
+
+const stop = unread.subscribe(() => {
+  badge.textContent = String(unread.getSnapshot().count);
+});
+```
+
+A Vue binding is a `shallowRef` that `subscribe` updates; a Svelte one is a
+`readable` store whose start function returns the unsubscribe.
+
+## Controllers by block
+
+Each block exports its controllers from its main entry,
+`better-supabase/blocks/<name>`. The hooks in `better-supabase/blocks/<name>/react`
+build them from the provider's client.
+
+| Block              | Controllers                                                                                                    | Hooks                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `ai-chat`          | `createAiChatsController`, `createAiChatTreeController`, `createAiModelsController`, `createAiShareController` | `useAiChats`, `useAiChatTree`, `useAiModels`, `useAiShare` |
+| `announcements`    | `createAnnouncementsController`                                                                                | `useAnnouncements`                                         |
+| `bookings`         | `createAvailableSlotsController`                                                                               | `useAvailableSlots`                                        |
+| `calendar`         | `createCalendarController`                                                                                     | `useCalendar`                                              |
+| `forms`            | `createQuestionnaireController`                                                                                | `useQuestionnaire`                                         |
+| `inbox`            | `createInboxController`, `createConversationController`, `createInboxWidgetController`                         | `useInbox`, `useConversation`, `useInboxWidget`            |
+| `notifications`    | `createNotificationsController`                                                                                | `useNotifications`                                         |
+| `onboarding`       | `createOnboardingController`                                                                                   | `useOnboarding`                                            |
+| `reactions`        | `createReactionsController`                                                                                    | `useReactions`                                             |
+| `saved-views`      | `createSavedViewsController`, `matchSavedViews`                                                                | `useSavedViews`                                            |
+| `search`           | `createCommandSearchController`                                                                                | `useCommandSearch`                                         |
+| `undo`             | `createUndoController`                                                                                         | `useUndoStack`                                             |
+| `workflows`        | `createWorkflowRunsController`, `createWorkflowRunController`                                                  | `useWorkflowRuns`, `useWorkflowRun`                        |
+| `workflow-builder` | `createWorkflowBuilderController`, `createWorkflowCanvasRunController`                                         | `useWorkflowBuilder`, `useWorkflowCanvasRun`               |
+
+Controllers with a moving input take it as an action instead of starting
+over: `setRange` on the calendar and bookings controllers and `setSubjects`
+on the reactions controller keep the shown data until the new data arrives.
+
+## Ports
+
+A controller reaches the platform only through ports, small interfaces the
+client carries in `bs.ports`. `createClient` from `better-supabase/client`
+fills the web ones; a React Native app passes `nativePorts()` from
+`better-supabase/client/native` to `createNativeClient`.
+
+| Port       | Type             | Web default                        | React Native default               | Used by                   |
+| ---------- | ---------------- | ---------------------------------- | ---------------------------------- | ------------------------- |
+| `topic`    | `TopicPort`      | `topicPort(supabase)`              | `topicPort(supabase)`              | Every realtime controller |
+| `storage`  | `StoragePort`    | `webStorage()` over `localStorage` | `nativeStorage(AsyncStorage)`      | `useInboxWidget`          |
+| `keyboard` | `KeyboardPort`   | `webKeyboard()` over `keydown`     | none                               | `useCommandSearch`        |
+| `files`    | `FilePickerPort` | `webFilePicker()`                  | `nativeFilePicker(DocumentPicker)` | Apps, for now             |
+| `upload`   | `UploadPort`     | `storageUpload(supabase)`          | `storageUpload(supabase)`          | Apps, for now             |
+| `push`     | `PushTokenPort`  | `webPushToken({ vapidPublicKey })` | `expoPushToken(Notifications)`     | Apps, for now             |
+| `links`    | `DeepLinkPort`   | `webDeepLinks()`                   | `nativeDeepLinks(Linking)`         | Apps, for now             |
+
+The topic port defaults to `topicPort(bs.supabase)` from
+`better-supabase/realtime` when `bs.ports` has none. A port the platform lacks stays unset, and the controller works
+without it: `useCommandSearch` on a phone has no Cmd+K.
+
+```ts title="src/lib/supabase/native.ts"
+import { createNativeClient, nativePorts } from "better-supabase/client/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
+
+export const bs = createNativeClient(betterSupabase, supabase, {
+  ports: nativePorts({
+    supabase,
+    storage: AsyncStorage,
+    linking: Linking,
+    notifications: Notifications,
+    projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+  }),
+});
+```
+
+On the web, `createClient(betterSupabase, { env, ports })` merges your
+ports over the defaults, for example a push port with your VAPID key:
+
+```ts title="lib/supabase/client.ts"
+import { createClient, webPushToken } from "better-supabase/client";
+
+export const bs = createClient(betterSupabase, {
+  env,
+  ports: { push: webPushToken({ vapidPublicKey: env.vapidPublicKey }) },
+});
+```
+
+## Testing a controller
+
+Pass fakes for the client and the ports, subscribe once, and read the
+snapshot. No renderer is needed:
+
+```ts title="tests/unread.test.ts"
+import { createNotificationsController } from "better-supabase/blocks/notifications";
+
+const joined: string[] = [];
+const controller = createNotificationsController({
+  auth: { current: () => signedIn, subscribe: () => () => undefined },
+  ports: {
+    topic: (topic, watch) => {
+      joined.push(topic);
+      watch.onStatus("subscribed");
+      return { leave: () => undefined, send: () => undefined };
+    },
+  },
+  topic: "notifications:u1",
+  load: async () => [{ id: "n1", readAt: null }],
+});
+const stop = controller.subscribe(() => undefined);
+await Promise.resolve();
+expect(controller.getSnapshot().count).toBe(1);
+stop();
+```
+
+`defineController` and `whileSignedIn` from `better-supabase/client` build
+controllers of your own the same way.

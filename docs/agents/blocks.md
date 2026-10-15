@@ -107,6 +107,21 @@ found;` returns the record's `found`. Check `found` before the record.
 - Time values are `Temporal.Instant` (ADR 0005). Stripe goes through
   `src/blocks/stripe.ts` (ADR 0009).
 
+## Client state
+
+- A block with UI state has a controller in `src/blocks/<name>/client.ts`
+  built with `defineController` (ADR 0030). It takes the block client (or a
+  `Pick` of it), `auth` and the ports it needs, and imports no React, DOM
+  or React Native code; `tests/blocks/platform-neutral.test.ts` checks the
+  whole import closure, so don't name a local `window` or `document` either.
+- A platform need is a port in `src/client/ports.ts` with a web default in
+  `src/client/web-ports.ts` and a native one in `src/client/native/ports.ts`.
+  Native defaults take Expo modules structurally, never by import.
+- The `/react` hook builds the controller with `useController` from
+  `src/blocks/react-controller.ts`, passes callbacks through `useLatest`,
+  and turns an input that changes often (a range, the subjects on screen)
+  into an action such as `setRange` instead of a new controller.
+
 ## The subpath
 
 `package.json` `exports` and `publishConfig.exports`, the entry list in

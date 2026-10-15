@@ -41,6 +41,33 @@ take the same `bs`.
 `better-supabase init expo` writes this file, a server file for
 [Expo Router](/docs/frameworks/expo) and `+middleware.ts`.
 
+## Block hooks on a device
+
+The block hooks, such as `useNotifications` from
+`better-supabase/blocks/notifications/react`, run in React Native as they
+do in React DOM: their state lives in a [controller](/docs/frontend/block-controllers)
+that reaches the platform only through ports. Pass the Expo modules you
+installed to `nativePorts`:
+
+```ts title="src/lib/supabase/native.ts"
+import { createNativeClient, nativePorts } from "better-supabase/client/native";
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
+
+export const bs = createNativeClient(betterSupabase, supabase, {
+  ports: nativePorts({
+    supabase,
+    linking: Linking,
+    notifications: Notifications,
+    projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+  }),
+});
+```
+
+The Expo example shows the unread count from `useNotifications` above its
+customer list (`src/lib/notifications.ts`), the same hook the Next.js
+example's header badge calls.
+
 ## Sessions in the keychain
 
 `secureStorage(SecureStore)` stores the Supabase session with

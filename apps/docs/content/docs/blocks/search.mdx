@@ -150,6 +150,13 @@ toggle it, the query is debounced, stale responses are dropped, and an empty
 query shows favorites and recents. `select` records the item as opened and
 closes the dialog.
 
+The shortcut goes through the client's keyboard port: `createClient` from
+`better-supabase/client` listens for `keydown` on the window, and React
+Native has no keyboard port, so the hook runs there without one. Pass
+`shortcut: false` to turn it off. The hook wraps
+`createCommandSearchController` from `better-supabase/blocks/search`
+(see [block controllers](/docs/frontend/block-controllers)).
+
 ```tsx
 const search = useCommandSearch({ organizationId });
 ```

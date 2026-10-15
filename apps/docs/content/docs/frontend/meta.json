@@ -4,6 +4,7 @@
     "client",
     "react-native",
     "react",
+    "block-controllers",
     "vue",
     "solid",
     "svelte",

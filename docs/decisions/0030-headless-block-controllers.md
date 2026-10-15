@@ -72,3 +72,27 @@ platforms. Each block with client state gains a `client.ts` and up to four
 small binding entries, so the subpath list, size baselines and export
 snapshot grow. Revisit if a framework's reactivity can't be expressed over
 `subscribe` and `getSnapshot` without losing updates.
+
+## Implementation
+
+The controllers are built with `defineController`
+(`src/blocks/controller.ts`): the first subscriber starts a controller's
+work and the last one to leave stops it, so a StrictMode remount needs no
+extra lifecycle. `whileSignedIn` reruns loads and realtime joins for each
+signed-in user. Controllers are exported from each block's main entry
+rather than from a `/client` subpath, since that entry already runs on every
+runtime and tree-shakes.
+
+The ports (`src/client/ports.ts`) travel on the client as `bs.ports`.
+`createClient` fills the web defaults (`src/client/web-ports.ts`, typed
+structurally so apps without the DOM lib still compile `better-supabase/client`),
+and `nativePorts()` from `better-supabase/client/native` builds the React
+Native ones from Expo modules the app passes in, importing none of them.
+`watchTopic` moved to `src/realtime/watch-topic.ts` and is exported with
+`topicPort` from `better-supabase/realtime`; the topic port defaults to
+`topicPort(bs.supabase)`. Clipboard has no port yet: no controller needs it.
+
+The static check is `tests/blocks/platform-neutral.test.ts`. It reads names,
+not scopes, so neutral code doesn't name a local `window` or `document`.
+The Vue, Svelte and Solid bindings and the binding conformance kit come
+with workstream 4b.

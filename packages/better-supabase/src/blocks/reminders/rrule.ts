@@ -322,15 +322,15 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
       ? part(input.rrule ?? "")
       : fromColumns(input.columns);
   const start = input.dtstart;
-  const window = input.window;
+  const span = input.window;
   const cap =
-    window === undefined
+    span === undefined
       ? Math.min(rule.count ?? input.limit ?? 366, input.limit ?? 366)
       : (input.limit ?? 1000);
   const first =
-    window === undefined || rule.count !== undefined
+    span === undefined || rule.count !== undefined
       ? 0
-      : skipTo(start, rule, window.from);
+      : skipTo(start, rule, span.from);
   const found: Temporal.ZonedDateTime[] = [];
   let generated = 0;
   for (
@@ -354,9 +354,9 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
       }
       generated += 1;
       if (rule.count !== undefined && generated > rule.count) return found;
-      if (window !== undefined) {
-        if (time.Instant.compare(instant, window.until) >= 0) return found;
-        if (time.Instant.compare(instant, window.from) < 0) continue;
+      if (span !== undefined) {
+        if (time.Instant.compare(instant, span.until) >= 0) return found;
+        if (time.Instant.compare(instant, span.from) < 0) continue;
       }
       found.push(when);
       if (found.length >= cap) return found;

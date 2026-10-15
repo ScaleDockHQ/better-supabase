@@ -5,7 +5,7 @@ export {
   groupHits,
   type CommandSearchGroup,
   type CommandSearchItem,
-} from "./groups.ts";
+} from "../groups.ts";
 
 /** The `react-server` build of `useCommandSearch`: call `search.search()` instead. */
 export const useCommandSearch: (

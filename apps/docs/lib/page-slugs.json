@@ -172,6 +172,7 @@
   "frameworks/solid-start",
   "frameworks/sveltekit",
   "frameworks/tanstack-start",
+  "frontend/block-controllers",
   "frontend/client",
   "frontend/live-queries",
   "frontend/query",

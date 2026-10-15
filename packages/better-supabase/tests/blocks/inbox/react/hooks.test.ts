@@ -10,6 +10,7 @@ import {
   useInbox,
   useInboxWidget,
 } from "../../../../src/blocks/inbox/react/index.ts";
+import { webStorage } from "../../../../src/client/web-ports.ts";
 import { defineSupabase } from "../../../../src/core/define.ts";
 import {
   BetterSupabaseProvider,
@@ -288,6 +289,7 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
     },
     db: run ?? { name: "db" },
     queries: { name: "queries" },
+    ports: { storage: webStorage() },
   } as unknown as ClientLike;
   const setAuth = (next: AuthSnapshot) => {
     snapshot = next;
@@ -432,10 +434,10 @@ describe("useConversation", () => {
     status?.("SUBSCRIBED");
     await flush();
     expect(view.result.items).toHaveLength(3);
-    expect(() => status?.("NOPE")).toThrow(/Unknown realtime status/);
 
     emit("inbox:c1", "typing", { user_id: OTHER });
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 

@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SubscriptionStatus } from "../../src/realtime/index.ts";
 
-import { watchTopic } from "../../src/blocks/react-topic.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
+import { topicPort, watchTopic } from "../../src/realtime/watch-topic.ts";
 
 type Listener = (message: { event: string; payload: unknown }) => void;
 
@@ -24,6 +24,7 @@ interface FakeChannel {
 function fakeRealtime() {
   const open: FakeChannel[] = [];
   const subscribe = vi.fn();
+  const sent = vi.fn();
   const client = {
     channel: vi.fn((name: string, _options?: unknown) => {
       const topic = `realtime:${name}`;
@@ -50,6 +51,10 @@ function fakeRealtime() {
           });
           return channel;
         },
+        send: (message: unknown) => {
+          sent(name, message);
+          return Promise.resolve("ok");
+        },
         entry,
       };
       return channel;
@@ -73,7 +78,7 @@ function fakeRealtime() {
   };
   // SAFETY: the fake implements the members watchTopic and joinTopic call.
   const supabase = client as unknown as SupabaseClient;
-  return { client, supabase, subscribe, emit, status };
+  return { client, supabase, subscribe, sent, emit, status };
 }
 
 function watcher() {
@@ -102,8 +107,16 @@ describe("watchTopic", () => {
     const realtime = fakeRealtime();
     const first = watcher();
     const second = watcher();
-    const leaveFirst = watchTopic(realtime.supabase, "chat:c1", first.watch);
-    const leaveSecond = watchTopic(realtime.supabase, "chat:c1", second.watch);
+    const { leave: leaveFirst } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      first.watch,
+    );
+    const { leave: leaveSecond } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      second.watch,
+    );
     await flush();
     expect(realtime.client.channel).toHaveBeenCalledTimes(1);
     expect(realtime.client.channel).toHaveBeenCalledWith("chat:c1", {
@@ -129,8 +142,16 @@ describe("watchTopic", () => {
     const realtime = fakeRealtime();
     const first = watcher();
     const second = watcher();
-    const leaveFirst = watchTopic(realtime.supabase, "chat:c1", first.watch);
-    const leaveSecond = watchTopic(realtime.supabase, "chat:c1", second.watch);
+    const { leave: leaveFirst } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      first.watch,
+    );
+    const { leave: leaveSecond } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      second.watch,
+    );
     await flush();
 
     leaveFirst();
@@ -153,8 +174,8 @@ describe("watchTopic", () => {
     const realtime = fakeRealtime();
     const mounted = watcher();
     // StrictMode runs the effect, its cleanup and the effect again.
-    watchTopic(realtime.supabase, "chat:c1", mounted.watch)();
-    const leave = watchTopic(realtime.supabase, "chat:c1", mounted.watch);
+    watchTopic(realtime.supabase, "chat:c1", mounted.watch).leave();
+    const { leave } = watchTopic(realtime.supabase, "chat:c1", mounted.watch);
     await settle();
     expect(realtime.client.removeChannel).not.toHaveBeenCalled();
     expect(realtime.subscribe).toHaveBeenCalledTimes(1);
@@ -168,11 +189,11 @@ describe("watchTopic", () => {
 
   it("joins again after the last watcher left", async () => {
     const realtime = fakeRealtime();
-    watchTopic(realtime.supabase, "chat:c1", watcher().watch)();
+    watchTopic(realtime.supabase, "chat:c1", watcher().watch).leave();
     await settle();
     expect(realtime.client.removeChannel).toHaveBeenCalledTimes(1);
     const next = watcher();
-    const leave = watchTopic(realtime.supabase, "chat:c1", next.watch);
+    const { leave } = watchTopic(realtime.supabase, "chat:c1", next.watch);
     await flush();
     expect(next.last()).toBe("subscribed");
     leave();
@@ -181,10 +202,18 @@ describe("watchTopic", () => {
   it("reports rejoins to each watcher, but not the first join", async () => {
     const realtime = fakeRealtime();
     const first = watcher();
-    const leaveFirst = watchTopic(realtime.supabase, "chat:c1", first.watch);
+    const { leave: leaveFirst } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      first.watch,
+    );
     await flush();
     const late = watcher();
-    const leaveLate = watchTopic(realtime.supabase, "chat:c1", late.watch);
+    const { leave: leaveLate } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      late.watch,
+    );
     expect(late.statuses).toEqual(["joining", "subscribed"]);
     expect(first.watch.onRejoin).not.toHaveBeenCalled();
 
@@ -208,9 +237,38 @@ describe("watchTopic", () => {
       { self: true },
     );
     const conflicting = watcher();
-    const leave = watchTopic(realtime.supabase, "chat:c1", conflicting.watch);
+    const { leave } = watchTopic(
+      realtime.supabase,
+      "chat:c1",
+      conflicting.watch,
+    );
     expect(conflicting.statuses).toEqual(["error"]);
     leave();
     await subscription.unsubscribe();
+  });
+
+  it("broadcasts through the shared channel until it leaves", async () => {
+    const realtime = fakeRealtime();
+    const handle = topicPort(realtime.supabase)("chat:c1", watcher().watch);
+    await flush();
+    handle.send("typing", { user_id: "u1" });
+    expect(realtime.sent).toHaveBeenCalledWith("chat:c1", {
+      type: "broadcast",
+      event: "typing",
+      payload: { user_id: "u1" },
+    });
+    handle.leave();
+    handle.send("typing", { user_id: "u1" });
+    expect(realtime.sent).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a closed handle when the join fails", () => {
+    const realtime = fakeRealtime();
+    const room = defineTopic("chat:{id}");
+    room.subscribe(realtime.supabase, { id: "c2" }, {}, { self: true });
+    const handle = watchTopic(realtime.supabase, "chat:c2", watcher().watch);
+    handle.send("typing", {});
+    handle.leave();
+    expect(realtime.sent).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import type { SearchHit } from "../search.ts";
+import type { SearchHit } from "./search.ts";
 
 /** A row of the dialog: a match, a recent or a favorite. */
 export interface CommandSearchItem {

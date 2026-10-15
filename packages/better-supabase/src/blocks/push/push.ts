@@ -1,3 +1,4 @@
+import type { ExpoNotificationsLike } from "../../client/native/push-token.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -7,6 +8,7 @@ import type {
   NotificationSendResult,
 } from "../notifications/channel.ts";
 
+import { expoPushToken } from "../../client/native/push-token.ts";
 import {
   applyTemporal,
   blockCall,
@@ -16,6 +18,8 @@ import {
   run,
   textOf,
 } from "../shared.ts";
+
+export type { ExpoNotificationsLike } from "../../client/native/push-token.ts";
 
 export type PushPlatform = "ios" | "android" | "web";
 export type PushProvider = "expo" | "fcm" | "apns" | "webpush";
@@ -120,15 +124,6 @@ export function createPushDevices(options: PushDevicesOptions): PushDevices {
   };
 }
 
-/** The part of `expo-notifications` `registerDevice` uses. */
-export interface ExpoNotificationsLike {
-  getPermissionsAsync(): Promise<{ readonly status: string }>;
-  requestPermissionsAsync(): Promise<{ readonly status: string }>;
-  getExpoPushTokenAsync(options?: {
-    readonly projectId?: string;
-  }): Promise<{ readonly data: string }>;
-}
-
 export interface RegisterDeviceOptions {
   readonly notifications: ExpoNotificationsLike;
   readonly devices: PushDevices;
@@ -167,13 +162,10 @@ export function registerDevice(
   return run(async (): Promise<RegisteredDevice | null> => {
     const { notifications, platform } = options;
     if (!isPlatform(platform)) return null;
-    let { status } = await notifications.getPermissionsAsync();
-    if (status !== "granted" && (options.request ?? true))
-      ({ status } = await notifications.requestPermissionsAsync());
-    if (status !== "granted") return null;
-    const { data: token } = await notifications.getExpoPushTokenAsync(
-      options.projectId === undefined ? {} : { projectId: options.projectId },
-    );
+    const token = await expoPushToken(notifications, {
+      projectId: options.projectId,
+    }).token({ request: options.request ?? true });
+    if (token === null) return null;
     const deviceId = await options.devices
       .register({
         token,

@@ -1,0 +1,115 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { ReactionCount } from "../../../src/blocks/reactions/reactions.ts";
+
+import { createReactionsController } from "../../../src/blocks/reactions/client.ts";
+import {
+  failed,
+  fakeAuth,
+  fakeTopic,
+  flush,
+  held,
+  mount,
+  resolved,
+} from "../../fixtures/ports.ts";
+
+const count = (emoji: string, reacted: boolean): ReactionCount => ({
+  emoji,
+  count: 1,
+  reacted,
+  actors: [],
+});
+
+function setup(topicName?: string | null) {
+  const topic = fakeTopic();
+  const summary = vi.fn((_org: string, _type: string, ids: readonly string[]) =>
+    resolved(Object.fromEntries(ids.map((id) => [id, [count("+1", false)]]))),
+  );
+  const react = vi.fn(() => resolved([count("+1", true)]));
+  const controller = createReactionsController({
+    client: { summary, react },
+    auth: fakeAuth(),
+    ports: { topic: topic.port },
+    organizationId: "org-1",
+    subjectType: "comment",
+    subjectIds: ["c1"],
+    ...(topicName === undefined ? {} : { topic: topicName }),
+  });
+  return { topic, summary, react, controller };
+}
+
+describe("createReactionsController", () => {
+  it("loads the subjects and reloads for their reactions only", async () => {
+    const { topic, summary, controller } = setup();
+    const { view, unmount } = mount(controller);
+    await flush();
+    expect(view().reactions).toEqual({ c1: [count("+1", false)] });
+    expect(topic.open()).toEqual(["reactions:org-1"]);
+
+    topic.emit("reactions:org-1", "reaction.added", {
+      subjectType: "task",
+      subjectId: "c1",
+    });
+    topic.emit("reactions:org-1", "reaction.added", {
+      subjectType: "comment",
+      subjectId: "c9",
+    });
+    topic.emit("reactions:org-1", "reaction.added", {
+      subjectType: "comment",
+      subjectId: 7,
+    });
+    expect(summary).toHaveBeenCalledTimes(1);
+    topic.emit("reactions:org-1", "reaction.added", {
+      subjectType: "comment",
+      subjectId: "c1",
+    });
+    topic.emit("reactions:org-1", "reaction.added", "opaque");
+    topic.rejoin("reactions:org-1");
+    expect(summary).toHaveBeenCalledTimes(4);
+
+    view().setSubjects(["c1"]);
+    expect(summary).toHaveBeenCalledTimes(4);
+    view().setSubjects(["c1", "c2"]);
+    await flush();
+    expect(summary).toHaveBeenLastCalledWith("org-1", "comment", ["c1", "c2"]);
+    expect(Object.keys(view().reactions ?? {})).toEqual(["c1", "c2"]);
+    unmount();
+    view().setSubjects(["c3"]);
+    expect(summary).toHaveBeenCalledTimes(5);
+  });
+
+  it("toggles a reaction on and off and keeps errors", async () => {
+    const { react, summary, controller } = setup(null);
+    const { view, unmount } = mount(controller);
+    await flush();
+    await view().toggle("c1", "+1");
+    expect(react).toHaveBeenLastCalledWith("org-1", "comment", "c1", "+1", {
+      present: true,
+    });
+    expect(view().reactions?.["c1"]).toEqual([count("+1", true)]);
+    await view().toggle("c1", "+1");
+    expect(react).toHaveBeenLastCalledWith("org-1", "comment", "c1", "+1", {
+      present: false,
+    });
+    react.mockReturnValue(failed("denied"));
+    await view().toggle("c1", "+1");
+    expect(view().error?.message).toBe("denied");
+    summary.mockReturnValue(failed("down"));
+    await view().refresh();
+    expect(view().error?.message).toBe("down");
+    unmount();
+  });
+
+  it("drops an answer a newer load overtook", async () => {
+    const { summary, controller } = setup(null);
+    const slow = held({ old: [] });
+    summary.mockImplementationOnce(() => slow.result);
+    const { view, unmount } = mount(controller);
+    await flush();
+    await view().refresh();
+    slow.release();
+    await flush();
+    expect(Object.keys(view().reactions ?? {})).toEqual(["c1"]);
+    unmount();
+  });
+});

@@ -243,6 +243,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | A SQL module                         | `src/sql/registry.ts` registry (module code in `src/sql/modules`, the `SqlModule` type in `src/sql/module-types.ts`), `sql-modules.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`) |
 | A permission a module checks         | its row in `OPERATIONS` (`src/sql/modules/access-model.ts`), keyed `<module>.<action>`, and the module's permissions table in its docs page                                                                                                                |
 | A block's methods, hooks or fields   | its `BlockHooks` typing and `withBlockHooks` wrap, its SQL `before_`/`after_` hooks (`tests/sql/block-hooks.test.ts`), `extending/blocks.mdx` and the block's page                                                                                         |
+| A block's React hook                 | its controller in `src/blocks/<name>/client.ts` (exported from the block entry), the controller's test with fake ports (`tests/fixtures/ports.ts`), `tests/blocks/platform-neutral.test.ts` stays green, `frontend/block-controllers.mdx`                  |
 | A block                              | its code in `src/blocks/<name>` and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx`                                                                                           |
 | An SDK adapter subpath               | no SQL and no tables (ADR 0010); its converters tested against `schemas/ai-message-v1.json`; the SDK as an optional peer loaded lazily or typed structurally (invariant 12); see A subpath                                                                 |
 | An engine storage module             | its SQL module (see A SQL module), the rows it writes to the run registry, and the engine's conformance tests                                                                                                                                              |
@@ -326,7 +327,7 @@ standard or sets how the repo works.
 - 0027: the fixture's migrations are squashed into one pg-delta baseline, and `supabase/schemas` uses the per-schema layout with the module files in `_better_supabase/`.
 - 0028: record stages run on tenant-editable pipelines whose categories map to open, success or failure, separate from the status column.
 - 0029: every block is one `defineBlock` manifest; `createBlocks` wires on what blocks provide and consume, events are declared per block, one contract is checked by a conformance test, and a top-level `blocks` key replaces `sql.modules`.
-- 0030: block client state lives in headless controllers (`src/blocks/<name>/client.ts`) with thin React (web and native), Vue, Svelte and Solid bindings.
+- 0030: block client state lives in headless controllers (`src/blocks/<name>/client.ts`) with thin React (web and native), Vue, Svelte and Solid bindings; they reach the platform only through the ports in `bs.ports`.
 - 0031: presets install a block selection, a shadcn-compatible registry ships glue only, and UI ships as recipes over the app's own shadcn components.
 
 ## Pre-release pins

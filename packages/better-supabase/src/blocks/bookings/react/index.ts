@@ -1,26 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import type { DbError } from "../../../core/errors.ts";
-import type { Result } from "../../../core/result.ts";
+import type { VisibleRange } from "../../range.ts";
+import type { Bookings } from "../bookings.ts";
 import type {
-  BookingCustomer,
-  Bookings,
-  BookingSlot,
-  PlacedBooking,
-} from "../bookings.ts";
+  AvailableSlotsActions,
+  AvailableSlotsSnapshot,
+} from "../client.ts";
 
 import { rpcTransport } from "../../../core/block-transport.ts";
-import { temporal } from "../../../core/temporal-required.ts";
-import { useSupabase } from "../../../react/hooks.ts";
+import { useController } from "../../react-controller.ts";
+import { useBlockEnv } from "../../react-env.ts";
 import { createBookings } from "../bookings.ts";
-import { slotsByDay } from "../event-calendar.ts";
+import { createAvailableSlotsController } from "../client.ts";
 
 export interface UseAvailableSlotsOptions {
   readonly serviceId: string;
   /** The visible range, as a date picker or schedule reports it. */
-  readonly range: { readonly start: Date; readonly end: Date };
+  readonly range: VisibleRange;
   /** The zone slot times are shown in. Default each resource's. */
   readonly tz?: string;
   readonly resourceId?: string;
@@ -30,19 +28,8 @@ export interface UseAvailableSlotsOptions {
   readonly schema?: string;
 }
 
-export interface AvailableSlotsState {
-  /** `undefined` until the first load. */
-  readonly slots: readonly BookingSlot[] | undefined;
-  /** The slots by local date (`YYYY-MM-DD`), for a day-by-day picker. */
-  readonly days: ReadonlyMap<string, readonly BookingSlot[]>;
-  readonly error: DbError | undefined;
-  readonly loading: boolean;
-  readonly refresh: () => Promise<void>;
-  /** Holds a slot, then loads the range again. With a token, `customer` needs a name and an email. */
-  readonly hold: (
-    slot: BookingSlot,
-    customer?: BookingCustomer,
-  ) => Promise<PlacedBooking | undefined>;
+export interface AvailableSlotsState
+  extends AvailableSlotsSnapshot, Omit<AvailableSlotsActions, "setRange"> {
   readonly client: Bookings;
 }
 
@@ -60,8 +47,8 @@ export interface AvailableSlotsState {
 export function useAvailableSlots(
   options: UseAvailableSlotsOptions,
 ): AvailableSlotsState {
-  const supabase = useSupabase();
-  const { schema, serviceId, tz, resourceId, token } = options;
+  const { supabase } = useBlockEnv();
+  const { schema, serviceId, tz, resourceId, token, range } = options;
   const client = useMemo(
     () =>
       createBookings({
@@ -70,86 +57,25 @@ export function useAvailableSlots(
       }),
     [supabase, schema],
   );
-  const from = options.range.start.getTime();
-  const until = options.range.end.getTime();
-  const [slots, setSlots] = useState<readonly BookingSlot[] | undefined>(
-    undefined,
+  const { controller, view } = useController(
+    () =>
+      createAvailableSlotsController({
+        client,
+        serviceId,
+        range,
+        ...(tz === undefined ? {} : { tz }),
+        ...(resourceId === undefined ? {} : { resourceId }),
+        ...(token === undefined ? {} : { token }),
+      }),
+    [client, serviceId, tz, resourceId, token],
   );
-  const [error, setError] = useState<DbError | undefined>(undefined);
-  const key = `${serviceId}|${from}|${until}|${tz ?? ""}|${resourceId ?? ""}|${token ?? ""}`;
-  const [settled, setSettled] = useState<string | undefined>(undefined);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    const time = temporal();
-    const range = {
-      from: time.Instant.fromEpochMilliseconds(from),
-      until: time.Instant.fromEpochMilliseconds(until),
-    };
-    if (token !== undefined) {
-      return client.public.slots(token, range, tz === undefined ? {} : { tz });
-    }
-    return client.availableSlots(serviceId, range, {
-      ...(tz === undefined ? {} : { tz }),
-      ...(resourceId === undefined ? {} : { resourceId }),
-    });
-  }, [client, serviceId, from, until, tz, resourceId, token]);
-
-  const apply = useCallback((result: Result<BookingSlot[]>, loaded: string) => {
-    if (result.ok) {
-      setSlots(result.data);
-      setError(undefined);
-    } else {
-      setError(result.error);
-    }
-    setSettled(loaded);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    apply(await load(), key);
-    setRefreshing(false);
-  }, [load, apply, key]);
-
+  const from = range.start.getTime();
+  const until = range.end.getTime();
   useEffect(() => {
-    let active = true;
-    void load().then((result) => {
-      if (active) apply(result, key);
+    controller.actions.setRange({
+      start: new Date(from),
+      end: new Date(until),
     });
-    return () => {
-      active = false;
-    };
-  }, [load, apply, key]);
-
-  const days = useMemo(() => slotsByDay(slots ?? []), [slots]);
-
-  return {
-    slots,
-    days,
-    error,
-    loading: refreshing || settled !== key,
-    refresh,
-    hold: async (slot, customer) => {
-      const result =
-        token === undefined
-          ? await client.hold(
-              serviceId,
-              slot.resourceId,
-              slot.startsAt,
-              customer,
-            )
-          : await client.public.hold(token, slot.resourceId, slot.startsAt, {
-              ...customer,
-              name: customer?.name ?? "",
-              email: customer?.email ?? "",
-            });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      await refresh();
-      return result.data;
-    },
-    client,
-  };
+  }, [controller, from, until]);
+  return useMemo(() => ({ ...view, client }), [view, client]);
 }

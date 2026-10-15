@@ -39,3 +39,11 @@ export {
   type OccurrenceRange,
   type SplitRules,
 } from "./occurrences.ts";
+
+export { createCalendarController } from "./client.ts";
+export type {
+  CalendarActions,
+  CalendarController,
+  CalendarControllerOptions,
+  CalendarSnapshot,
+} from "./client.ts";

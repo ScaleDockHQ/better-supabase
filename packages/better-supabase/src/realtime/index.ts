@@ -1,4 +1,6 @@
 export { defineTopic, rowChange } from "./topic.ts";
+export { topicPort, watchTopic } from "./watch-topic.ts";
+export type { TopicHandle, TopicPort, TopicWatch } from "./watch-topic.ts";
 export type {
   EventSchemas,
   PresenceInput,
