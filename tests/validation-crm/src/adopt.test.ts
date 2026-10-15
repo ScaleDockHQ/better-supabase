@@ -1,3 +1,5 @@
+import type { BlocksConfig } from "better-supabase/config";
+
 import { run } from "better-supabase/cli";
 import { decodePreset, encodePreset } from "better-supabase/preset";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -105,7 +107,7 @@ describe("apply --adopt on the CRM schema", () => {
     ]);
     expect(result.code).toBe(0);
     const data = JSON.parse(result.stdout) as {
-      adopted: Record<string, unknown>;
+      adopted: BlocksConfig;
       contents: string;
     };
     const proposed = JSON.parse(data.contents) as { preset: string };
@@ -113,10 +115,10 @@ describe("apply --adopt on the CRM schema", () => {
     // The CRM's tables keep their names: adopted tables are named in the
     // config, and only the managed blocks' default names follow sql.naming.
     const { blocks } = (await committed()) as {
-      blocks: Record<string, unknown>;
+      blocks: BlocksConfig;
     };
     expect(data.adopted).toEqual({
-      access: blocks["access"],
+      access: blocks.access,
       organizations: blocks["organizations"],
       profiles: blocks["profiles"],
       teams: blocks["teams"],
