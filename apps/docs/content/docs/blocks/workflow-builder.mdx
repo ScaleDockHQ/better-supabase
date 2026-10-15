@@ -460,6 +460,108 @@ every message on `workflow-run:<id>`. Both are Client Component hooks; in
 Server Components, call `builder.definitions.list()` and
 `builder.nodeRuns.list(run)` instead.
 
+## Vue
+
+`better-supabase/blocks/workflow-builder/vue` exports `useWorkflowBuilder`
+and `useWorkflowCanvasRun`. Each takes the options of the controller it
+wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
+`auth` and `ports` come from `app.use(betterSupabase(bs))` unless you pass
+them. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/vue";
+import {
+  createBuilder,
+  rpcTransport,
+} from "better-supabase/blocks/workflow-builder";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useWorkflowBuilder({
+  client: createBuilder({ transport: rpcTransport(supabase) }),
+  tenant: organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="definition in state.definitions ?? []" :key="definition.id">
+      {{ definition.name }}
+    </li>
+  </ul>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/workflow-builder/svelte` exports
+`useWorkflowBuilder` and `useWorkflowCanvasRun`. Each takes the options of
+the controller it wraps (`useWorkflowBuilder` those of
+`createWorkflowBuilderController`); `auth` and `ports` come from
+`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+store of the snapshot, read with `$`, with the actions on `.actions`. The
+work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/svelte";
+  import { createBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const builder = useWorkflowBuilder({
+    client: createBuilder({ transport: rpcTransport(supabase) }),
+    tenant: organizationId,
+  });
+</script>
+
+<ul>
+  {#each $builder.definitions ?? [] as definition (definition.id)}
+    <li>{definition.name}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/workflow-builder/solid` exports `useWorkflowBuilder`
+and `useWorkflowCanvasRun`. Each takes the options of the controller it
+wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
+`auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless
+you pass them. `state()` reads the snapshot through `from`, and `actions`
+are the controller's actions. The work starts on mount, and the controller
+is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/solid";
+import {
+  createBuilder,
+  rpcTransport,
+} from "better-supabase/blocks/workflow-builder";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useWorkflowBuilder({
+    client: createBuilder({ transport: rpcTransport(supabase) }),
+    tenant: props.organizationId,
+  });
+  return (
+    <ul>
+      <For each={state().definitions ?? []}>
+        {(definition) => <li>{definition.name}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
 ## Alerts
 
 ```ts

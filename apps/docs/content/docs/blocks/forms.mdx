@@ -177,6 +177,85 @@ With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a
 
 Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED` and `SIGNATURE_FORBIDDEN`.
 
+## Vue
+
+`better-supabase/blocks/forms/vue` exports `useQuestionnaire`. It takes the
+options of `createQuestionnaireController`; the controller needs no
+provider. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useQuestionnaire } from "better-supabase/blocks/forms/vue";
+import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+
+const { version } = defineProps<{ version: QuestionnaireForm }>();
+const { state, actions } = useQuestionnaire({
+  form: version,
+  onSubmit: (answers) => submitForm(formId, answers),
+});
+</script>
+
+<template>
+  <p>{{ state.step?.title }}</p>
+  <button @click="actions.next()">Next</button>
+</template>
+```
+
+`submitForm` stands for your server call that runs `forms.submit(formId,
+answers)`.
+
+## Svelte
+
+`better-supabase/blocks/forms/svelte` exports `useQuestionnaire`. It takes
+the options of `createQuestionnaireController`; the controller needs no
+provider. The hook returns a readable store of the snapshot, read with `$`,
+with the actions on `.actions`. The work starts on mount, and the controller
+is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useQuestionnaire } from "better-supabase/blocks/forms/svelte";
+  import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+
+  let { version }: { version: QuestionnaireForm } = $props();
+  const questionnaire = useQuestionnaire({
+    form: version,
+    onSubmit: (answers) => submitForm(formId, answers),
+  });
+</script>
+
+<p>{$questionnaire.step?.title}</p>
+<button onclick={() => questionnaire.actions.next()}>Next</button>
+```
+
+## Solid
+
+`better-supabase/blocks/forms/solid` exports `useQuestionnaire`. It takes
+the options of `createQuestionnaireController`; the controller needs no
+provider. `state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useQuestionnaire } from "better-supabase/blocks/forms/solid";
+import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+
+export function Component(props: { version: QuestionnaireForm }) {
+  const { state, actions } = useQuestionnaire({
+    form: props.version,
+    onSubmit: (answers) => submitForm(formId, answers),
+  });
+  return (
+    <>
+      <p>{state().step?.title}</p>
+      <button onClick={() => actions.next()}>Next</button>
+    </>
+  );
+}
+```
+
 ## Events and hooks
 
 The module records `form.created`, `form_version.published`, `form_submission.submitted` (with `versionId` and `source`: `member`, `public` or `service`), `form_submission.reviewed` (with `status`) and `form_submission.deleted`. The submission events carry the linked `subjectType` and `subjectId`, so an [outbox](/docs/blocks/outbox) consumer can count submissions per record. Creating a form, publishing, reviewing and deleting go to the [audit log](/docs/blocks/audit). It calls `before_form_publish`, `after_form_publish`, `before_form_submission`, `after_form_submission` and `before_public_form_submission`.

@@ -216,6 +216,104 @@ slots.days.get("2030-03-04")?.map((slot) => (
 for the staff side: each sits on its resource's row, holds are read-only and
 cancelled bookings are left out.
 
+## Vue
+
+`better-supabase/blocks/bookings/vue` exports `useAvailableSlots`. It takes
+the options of `createAvailableSlotsController`; the controller needs no
+provider. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useAvailableSlots } from "better-supabase/blocks/bookings/vue";
+import { createBookings } from "better-supabase/blocks/bookings";
+import { rpcTransport } from "better-supabase/blocks";
+
+const { serviceId } = defineProps<{ serviceId: string }>();
+const supabase = useSupabase();
+const { state } = useAvailableSlots({
+  client: createBookings({ transport: rpcTransport(supabase) }),
+  serviceId,
+  range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="slot in state.slots ?? []" :key="String(slot.startsAt)">
+      {{ String(slot.startsAt) }}
+    </li>
+  </ul>
+</template>
+```
+
+Call `actions.setRange(range)` when the visible range changes.
+
+## Svelte
+
+`better-supabase/blocks/bookings/svelte` exports `useAvailableSlots`. It
+takes the options of `createAvailableSlotsController`; the controller needs
+no provider. The hook returns a readable store of the snapshot, read with
+`$`, with the actions on `.actions`. The work starts on mount, and the
+controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useAvailableSlots } from "better-supabase/blocks/bookings/svelte";
+  import { createBookings } from "better-supabase/blocks/bookings";
+  import { rpcTransport } from "better-supabase/blocks";
+
+  let { serviceId }: { serviceId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const slots = useAvailableSlots({
+    client: createBookings({ transport: rpcTransport(supabase) }),
+    serviceId,
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  });
+</script>
+
+<ul>
+  {#each $slots.slots ?? [] as slot (String(slot.startsAt))}
+    <li>{String(slot.startsAt)}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/bookings/solid` exports `useAvailableSlots`. It
+takes the options of `createAvailableSlotsController`; the controller needs
+no provider. `state()` reads the snapshot through `from`, and `actions` are
+the controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useAvailableSlots } from "better-supabase/blocks/bookings/solid";
+import { createBookings } from "better-supabase/blocks/bookings";
+import { rpcTransport } from "better-supabase/blocks";
+
+export function Component(props: { serviceId: string }) {
+  const supabase = useSupabase();
+  const { state } = useAvailableSlots({
+    client: createBookings({ transport: rpcTransport(supabase) }),
+    serviceId: props.serviceId,
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  });
+  return (
+    <ul>
+      <For each={state().slots ?? []}>
+        {(slot) => <li>{String(slot.startsAt)}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
 ## Hooks
 
 `before_booking_reserve(tenant, service, resource, during, customer)` runs before a booking is

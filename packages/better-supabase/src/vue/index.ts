@@ -5,12 +5,10 @@ import {
   type App,
   computed,
   type ComputedRef,
-  getCurrentInstance,
   getCurrentScope,
   inject,
   type InjectionKey,
   type MaybeRefOrGetter,
-  onMounted,
   onScopeDispose,
   provide,
   readonly,
@@ -68,6 +66,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
+import { CLIENT, type Context, onClient, useContext } from "./context.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 
@@ -89,13 +88,6 @@ export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
-interface Context {
-  readonly client: ClientLike;
-  readonly queryClient: QueryClient | undefined;
-  readonly auth: Readonly<Ref<AuthSnapshot>>;
-}
-
-const CLIENT: InjectionKey<Context> = Symbol("better-supabase");
 const SESSION: InjectionKey<MaybeRefOrGetter<AuthSession>> = Symbol(
   "better-supabase-session",
 );
@@ -141,25 +133,6 @@ export function betterSupabase(
       });
     },
   };
-}
-
-function useContext(): Context {
-  const context = inject(CLIENT, null);
-  if (!context) {
-    throw new Error(
-      "better-supabase: install the plugin with app.use(betterSupabase(bs))",
-    );
-  }
-  return context;
-}
-
-/**
- * Runs `start` on mount in a component, at once elsewhere (an effect
- * scope), and never during server rendering.
- */
-function onClient(start: () => void): void {
-  if (getCurrentInstance()) onMounted(start);
-  else start();
 }
 
 /** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */

@@ -52,6 +52,17 @@ export { testIncomingDestination } from "./kits/incoming-destination.ts";
 export { testPlugin } from "./kits/plugin.ts";
 export { testQueueBackend } from "./kits/queue-backend.ts";
 export { testSupportSessionStore } from "./kits/support-session-store.ts";
+export {
+  PROBE_INITIAL,
+  testControllerBinding,
+} from "./kits/controller-binding.ts";
+export type {
+  ControllerBindingHarness,
+  MountedBinding,
+  ProbeActions,
+  ProbeController,
+  ProbeSnapshot,
+} from "./kits/controller-binding.ts";
 export { testAdapter } from "./adapter.ts";
 export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 export { testAuthorizationProvider } from "./authorization-provider.ts";

@@ -94,5 +94,15 @@ Native ones from Expo modules the app passes in, importing none of them.
 
 The static check is `tests/blocks/platform-neutral.test.ts`. It reads names,
 not scopes, so neutral code doesn't name a local `window` or `document`.
-The Vue, Svelte and Solid bindings and the binding conformance kit come
-with workstream 4b.
+The Vue, Svelte and Solid entries are generated from each block's
+`client.ts` by `pnpm --filter better-supabase gen:bindings`
+(`tests/blocks/bindings/render.ts`, with a drift test). Each hook calls the
+framework's `useBlockController` (`src/blocks/{vue,svelte,solid}-controller.ts`),
+which fills `auth` and `ports` from the framework's provider when the
+controller's options declare them, starts the work on mount and disposes
+the controller with the component. Their options are the controller's
+options, so a hook that builds a block client in React takes that client
+in Vue, Svelte and Solid. `testControllerBinding`
+(`src/testing/kits/controller-binding.ts`) runs against all four bindings;
+the React hook stops the work on unmount but keeps the controller, since
+StrictMode mounts twice.
