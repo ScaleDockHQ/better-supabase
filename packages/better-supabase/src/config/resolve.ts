@@ -74,11 +74,16 @@ function vectorSearchOf(
  * from the provider's templates instead of the built-in roles.
  */
 function sqlModulesOf(
-  config: SqlConfig["modules"] = [],
+  sql: SqlConfig = {},
   provider: boolean,
 ): Pick<ResolvedSqlConfig, "modules" | "moduleNames"> {
-  const modules: ModulesConfig = isModuleList(config) ? {} : config;
+  const config = sql.modules ?? [];
   const moduleNames = isModuleList(config) ? config : Object.keys(config);
+  const modules = withSqlDefaults(
+    isModuleList(config) ? {} : config,
+    moduleNames,
+    sql,
+  );
   if (
     !provider ||
     !moduleNames.includes("access") ||
@@ -90,6 +95,34 @@ function sqlModulesOf(
     modules: { ...modules, access: { ...modules.access, model: "provider" } },
     moduleNames,
   };
+}
+
+/**
+ * `sql.schema` and `sql.api` on every module that leaves its own unset. A
+ * module's `api: false` keeps it out of the API schema.
+ */
+function withSqlDefaults(
+  modules: ModulesConfig,
+  names: readonly string[],
+  sql: SqlConfig,
+): ModulesConfig {
+  if (sql.schema === undefined && sql.api === undefined) return modules;
+  const { schema, api } = sql;
+  return Object.fromEntries(
+    names.map((name) => {
+      const module = modules[name] ?? {};
+      return [
+        name,
+        {
+          ...module,
+          ...(schema === undefined || module.schema !== undefined
+            ? {}
+            : { schema }),
+          ...(api === undefined || module.api !== undefined ? {} : { api }),
+        },
+      ];
+    }),
+  );
 }
 
 function isModuleList(
@@ -223,7 +256,7 @@ export function resolveConfig(
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
-      ...sqlModulesOf(config.sql?.modules, config.authorization !== undefined),
+      ...sqlModulesOf(config.sql, config.authorization !== undefined),
     },
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,

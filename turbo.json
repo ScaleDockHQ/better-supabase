@@ -187,7 +187,18 @@
         "packages/better-supabase/skills/**"
       ]
     },
-    "//#knip": {},
+    "//#catalog": {
+      "inputs": [
+        "scripts/build-catalog.ts",
+        "packages/better-supabase/package.json",
+        "packages/better-supabase/src/**",
+        "apps/docs/content/docs/blocks/**"
+      ],
+      "outputs": ["apps/marketing/lib/catalog.json"]
+    },
+    "//#knip": {
+      "dependsOn": ["//#catalog"]
+    },
     "test": {
       "dependsOn": ["transit"]
     },

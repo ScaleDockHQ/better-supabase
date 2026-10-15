@@ -5,6 +5,7 @@ import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
@@ -568,7 +569,7 @@ export interface CatalogSubjectsOptions {
 export function catalogSubjects(
   subjectOptions: CatalogSubjectsOptions = {},
 ): SubjectsConfig {
-  const schema = subjectOptions.schema ?? "better_supabase";
+  const schema = subjectOptions.schema ?? DEFAULT_BLOCK_SCHEMA;
   const permissions = { read: "catalog.read", write: "catalog.manage" };
   return {
     product: {

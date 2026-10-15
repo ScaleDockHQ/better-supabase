@@ -732,3 +732,38 @@ describe("integrates", () => {
     expect(support.of("access").table("roles")).toContain('"app".');
   });
 });
+
+describe("fixed functions", () => {
+  it("names the tenant role helpers in better_supabase whatever the tenant schema", () => {
+    const flags = moduleContext(
+      "flags",
+      { modules: { tenant: { schema: "app" }, flags: { schema: "app" } } },
+      ["tenant", "flags"],
+    );
+    const tenant = flags.of("tenant");
+    expect(tenant.fn("member_organization_ids")).toBe(
+      "better_supabase.member_organization_ids",
+    );
+    expect(tenant.fn("has_organization_role")).toBe(
+      "better_supabase.has_organization_role",
+    );
+    expect(tenant.fn("membership_role_scope")).toBe(
+      '"app"."membership_role_scope"',
+    );
+  });
+
+  it("reads an unquoted column name, and refuses one mapped to null", () => {
+    const organizations = moduleContext("organizations", {
+      modules: {
+        organizations: {
+          mode: "adopt",
+          columns: { organizations: { id: "team_id", slug: null } },
+        },
+      },
+    });
+    expect(organizations.colName("organizations", "id")).toBe("team_id");
+    expect(() => organizations.colName("organizations", "slug")).toThrow(
+      "needs organizations.slug",
+    );
+  });
+});

@@ -185,6 +185,18 @@ const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
   "webhook-inbox",
 ]);
 
+// The tenant module's role helpers stay in better_supabase whatever its
+// schema says: policies, doctor and app SQL name them there. fn() returns
+// them unquoted, as the tenant module defines them, so callers render the
+// same text as the definitions.
+const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  tenant: new Set([
+    "member_organization_ids",
+    "has_organization_role",
+    "organization_member_role",
+  ]),
+};
+
 /** A function of a module's contract: what other modules and the TypeScript side call. */
 export interface ModuleContractFunction {
   readonly name: string;
@@ -217,6 +229,8 @@ export interface ModuleContext {
   };
   /** A logical column, quoted. Throws when an adopted table lacks it. */
   col(table: string, column: string): string;
+  /** A logical column, unquoted. Throws when an adopted table lacks it. */
+  colName(table: string, column: string): string;
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
@@ -469,6 +483,15 @@ export function createModuleContext(
     const mapped = config.columns[table]?.[logical];
     return mapped === undefined ? known.columns[logical]! : mapped;
   };
+  const requiredColumn = (table: string, logical: string): string => {
+    const name = column(table, logical);
+    if (name === null) {
+      throw new TypeError(
+        `Module "${module}" needs ${table}.${logical}, which sql.modules.${module}.columns maps to null`,
+      );
+    }
+    return name;
+  };
   function optionOf(name: string, type: "string", fallback: string): string;
   function optionOf(name: string, type: "number", fallback: number): number;
   function optionOf(name: string, type: "boolean", fallback: boolean): boolean;
@@ -627,21 +650,18 @@ export function createModuleContext(
     names,
     installedModules: [...installed],
     fn: (name) =>
-      `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(name)}`,
+      FIXED_FUNCTIONS[module]?.has(name)
+        ? `better_supabase.${name}`
+        : `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(name)}`,
     tableName,
     table(logical) {
       const parts = tableName(logical);
       return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
     },
     col(table, logical) {
-      const name = column(table, logical);
-      if (name === null) {
-        throw new TypeError(
-          `Module "${module}" needs ${table}.${logical}, which sql.modules.${module}.columns maps to null`,
-        );
-      }
-      return sqlIdent(name);
+      return sqlIdent(requiredColumn(table, logical));
     },
+    colName: (table, logical) => requiredColumn(table, logical),
     has: (table, logical) =>
       config.tables[table] !== null && column(table, logical) !== null,
     hasTable: (table) => {

@@ -1,10 +1,18 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
+
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { SqlDeps } from "../commands/sql.ts";
 import type { CommandResult } from "../io.ts";
-import type { Now } from "./migrations.ts";
 
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
 import { type SqlFlags, USAGE } from "./args.ts";
+import {
+  addModulesToConfig,
+  addModulesToJson,
+  keyText,
+} from "./config-edit.ts";
 import {
   layoutFor,
   MEMBERSHIP_CLAIM_MODULES,
@@ -16,7 +24,7 @@ export async function addModules(
   config: ResolvedConfig,
   args: SqlFlags,
   names: readonly string[],
-  now: Now,
+  deps: SqlDeps,
 ): Promise<CommandResult> {
   if (names.length === 0) {
     return { code: 2, error: `Name at least one module.\n${USAGE}` };
@@ -54,7 +62,7 @@ export async function addModules(
   ];
   const sqlLayout = await layoutFor(config, args, listed);
   const added = resolveModules(names, sqlLayout).map((module) => module.name);
-  const lines = await write(config, args, listed, sqlLayout, now, added);
+  const lines = await write(config, args, listed, sqlLayout, deps.now, added);
   const pulledIn = resolveModules(names, sqlLayout)
     .map((module) => module.name)
     .filter(
@@ -72,14 +80,47 @@ export async function addModules(
     .map((module) => module.name)
     .filter((name) => !config.sql.moduleNames.includes(name));
   if (untracked.length > 0) {
-    lines.push(
-      "",
-      `Add them to your config so \`sql sync --check\` keeps them current:`,
-      `  sql: { modules: [${[...config.sql.moduleNames, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
-    );
+    lines.push("", ...(await listInConfig(args, untracked, deps)));
   }
   if (args["dry-run"] !== true)
     lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
   lines.push("", await nextStep(config));
   return { code: 0, output: lines.join("\n") };
+}
+
+/**
+ * Lists `untracked` in `sql.modules` of the config file, so `sql sync
+ * --check` keeps them current, or prints the snippet when the file isn't a
+ * literal object the edit can follow.
+ */
+async function listInConfig(
+  args: SqlFlags,
+  untracked: readonly string[],
+  deps: SqlDeps,
+): Promise<string[]> {
+  const file = deps.configFile;
+  if (file === undefined) {
+    return [
+      "Add them to sql.modules in better-supabase.config.ts so `sql sync --check` keeps them current:",
+      ...untracked.map((name) => `  ${keyText(name)}: {},`),
+    ];
+  }
+  const source = await readFile(file, "utf8");
+  const edit = file.endsWith(".json")
+    ? addModulesToJson(source, untracked)
+    : addModulesToConfig(source, untracked);
+  if (!edit.ok) {
+    return [
+      `${basename(file)} wasn't changed: ${edit.reason}.`,
+      "Add them to sql.modules so `sql sync --check` keeps them current:",
+      ...untracked.map((name) => `  ${keyText(name)}: {},`),
+    ];
+  }
+  if (args["dry-run"] === true) {
+    return [
+      `Would add ${untracked.join(", ")} to sql.modules in ${basename(file)}.`,
+    ];
+  }
+  await writeFile(file, edit.text);
+  return [`Added ${untracked.join(", ")} to sql.modules in ${basename(file)}.`];
 }

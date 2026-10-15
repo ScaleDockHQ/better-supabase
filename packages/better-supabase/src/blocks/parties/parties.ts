@@ -5,6 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
@@ -381,7 +382,7 @@ export function partiesSubjects(
     readonly url?: { readonly company?: string; readonly person?: string };
   } = {},
 ): { readonly company: SubjectConfig; readonly person: SubjectConfig } {
-  const schema = options.schema ?? "better_supabase";
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   return {
     company: {
       table: `${schema}.companies`,

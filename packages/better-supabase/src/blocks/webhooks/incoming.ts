@@ -7,7 +7,7 @@ import type {
   IncomingWebhooksOptions,
 } from "./incoming-types.ts";
 
-import { asDbError } from "../../core/block-helpers.ts";
+import { asDbError, DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { dbError, type DbError } from "../../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../../core/problem.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -66,7 +66,7 @@ export function createIncomingWebhooks(
   options: IncomingWebhooksOptions = {},
 ): IncomingWebhooks {
   applyTemporal(options);
-  const schema = options.schema ?? "better_supabase";
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   if (!IDENT.test(schema)) {
     throw new TypeError(
       `createIncomingWebhooks: "${schema}" is not a schema name`,
