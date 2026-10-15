@@ -156,7 +156,7 @@ const requiresOf = (
  * tenant module and the access contract run wherever a tenant-scoped
  * module needs them.
  */
-export function scopeProblem(
+function scopeProblem(
   module: SqlModule,
   layout: ModuleLayout,
 ): string | undefined {

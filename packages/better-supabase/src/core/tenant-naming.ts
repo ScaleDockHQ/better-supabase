@@ -1,5 +1,5 @@
 /** The default name of the tenant concept in SQL and method names. */
-export const DEFAULT_TENANT_NAME = "organization";
+const DEFAULT_TENANT_NAME = "organization";
 
 const TENANT_NAME = /^[a-z][a-z0-9_]{0,40}$/;
 const DEFAULT_PATTERN = /organization(s?)/g;

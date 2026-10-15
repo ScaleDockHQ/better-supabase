@@ -27,7 +27,7 @@ import { deprecationWrappers } from "./upgrade.ts";
  * `create_organization.name` follows `create_organization` to
  * `create_workspace.name`.
  */
-export function renameQualifiers(sql: string, ctx: ModuleContext): string {
+function renameQualifiers(sql: string, ctx: ModuleContext): string {
   let out = sql;
   for (const [from, to] of ctx.functionRenames()) {
     out = out.replaceAll(
