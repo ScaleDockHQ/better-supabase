@@ -7,7 +7,7 @@ import {
   operationPermission,
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, tenantIn } from "../shared.ts";
+import { SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<InboxEvents> = {
@@ -388,7 +388,7 @@ export function inboxSql(
     can: (tenant, action) => ctx.can("tenant", tenant, key(action)),
     command: (tenant, name, action) =>
       ctx.can("tenant", tenant, commandKey(name, action)),
-    staff: (tenant, action = "read") => tenantIn(tenant, key(action)),
+    staff: (tenant, action = "read") => ctx.scope.check(tenant, key(action)),
     service: SERVICE_CALLER,
     topic,
     bucket,

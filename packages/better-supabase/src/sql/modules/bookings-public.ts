@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { fail, sha256Hex } from "../shared.ts";
 
@@ -7,6 +8,8 @@ const RATE_SCOPE = "bookings.public";
 
 /** The tables, columns and permission keys the bookings SQL is built from. */
 export interface Parts {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly ctx: ModuleContext;
   readonly r: (column: string) => string;
   readonly av: (column: string) => string;
@@ -23,8 +26,11 @@ export interface Parts {
   readonly read: string;
 }
 
-export const allowed = (tenant: string, key: string): string =>
-  `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${key}), false))`;
+export const allowed = (
+  scope: ModuleScope,
+  tenant: string,
+  key: string,
+): string => `(${SERVICE_CALLER} or ${scope.can(tenant, key)})`;
 
 export function record(
   p: Parts,

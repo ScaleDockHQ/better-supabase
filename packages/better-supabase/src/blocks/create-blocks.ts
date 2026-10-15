@@ -9,6 +9,7 @@ import type {
 } from "../core/block-events.ts";
 import type { BlockOptions } from "../core/block-helpers.ts";
 import type { BlockHooks } from "../core/block-hooks.ts";
+import type { BlockNaming } from "../core/block-names.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
@@ -18,7 +19,8 @@ import type { BlockPorts, PortName } from "./ports.ts";
 
 import { onBlockEvent } from "../core/block-events.ts";
 import { isRecord } from "../core/block-helpers.ts";
-import { withBlockHooks } from "../core/block-hooks.ts";
+import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
+import { blockNames } from "../core/block-names.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
 
@@ -249,10 +251,22 @@ function buildBlocks<B extends BlockMap>(
     return {
       ...shared,
       ...(entry === undefined ? {} : generatedOptions(entry)),
+      ...(entry?.naming === undefined ? {} : renamedTransports(entry.naming)),
       ...ports,
       ...block.settings,
     };
   };
+
+  /** `shared`'s transports, calling the block functions by the names the SQL gave them. */
+  function renamedTransports(naming: BlockNaming): Partial<BlockContext> {
+    const middleware = blockNames(naming);
+    return {
+      transport: wrapTransport(shared.transport, middleware),
+      ...(shared.service === undefined
+        ? {}
+        : { service: wrapTransport(shared.service, middleware) }),
+    };
+  }
 
   function portOf<P extends PortName>(
     key: string,

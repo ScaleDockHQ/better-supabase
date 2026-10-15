@@ -285,6 +285,82 @@ Errors raised by the modules carry a stable code in the `hint` field, for exampl
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
 
+## Scope and naming
+
+A block's rows belong to a tenant by default. `sql.scope` sets that for
+every block, and `blocks.<name>.scope` for one block.
+
+| Scope              | Rows belong to                                      | Checks                                                       |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
+| `tenant` (default) | a tenant, through the `tenant` module               | the access contract: `can`, `tenant_ids_with`, `is_platform` |
+| `user`             | the signed-in user, whose id the scope column holds | the scope column is the caller's id                          |
+| `none`             | one shared space                                    | any signed-in user                                           |
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { scope: "user" },
+  blocks: { tags: {}, comments: {}, notifications: {} },
+});
+```
+
+Outside `tenant` scope a block needs neither the `tenant` module nor the
+access contract, so `sql add` leaves them out, and its scope column is
+nullable: a user's id by default (`default auth.uid()`) in `user` scope, null
+in `none` scope. The block's functions take the same arguments in every
+scope. In `user` scope they replace the scope id a signed-in caller passes
+with the caller's own id, and in `none` scope with null, so one user can't
+write into another's rows. Blocks that need tenants (organizations,
+invitations, billing and most business blocks) run only in `tenant` scope,
+and `sql add` refuses them in another one; set their `scope` to `tenant` to
+keep them per tenant while the rest of the app runs per user.
+`tenant` and `access` always run in `tenant` scope.
+
+| Runs in       | Blocks                                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| every scope   | `tags`, `comments`, and the blocks without tenant data (`notifications`, `profiles`, `jobs`, `outbox`, `audit`, ...) |
+| `tenant` only | every other block that requires `tenant` or `access`, and the blocks that require one of them                        |
+
+`sql.naming.tenant` renames the tenant concept in the SQL the blocks write:
+`workspace` turns the `organizations` table into `workspaces`,
+`organization_id` into `workspace_id`, `create_organization` into
+`create_workspace` and `member_organization_ids` into `member_workspace_ids`.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { naming: { tenant: "workspace" } },
+  blocks: { organizations: {} },
+});
+```
+
+`blocks.<name>.functions` renames single functions next to `tables` and
+`columns`. Its keys are the default names, or the names after `sql.naming`;
+an unknown function is an error.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  tags: { functions: { create_tag: "make_tag" } },
+},
+```
+
+Some names stay as they are, so the TypeScript clients and event consumers
+work under any tenant name:
+
+- Function parameters, such as `organization` in `list_members`.
+- Event types and payload keys (`organization.created`, `organizationId`)
+  and permission keys.
+- The access contract (`can`, `tenant_ids_with`, `is_platform`).
+  `blocks.access.functions` keeps its meaning: the templates of the `custom`
+  model.
+- Tables and columns an adopted block maps by name.
+
+A tenant name that would rename a table or column to a name a block already
+uses is refused. `team`, for example, can't run with `teams`, `profiles` or the
+other blocks with a `team_id` column.
+
+`better-supabase gen` writes the names to `blocks.generated.ts`, and
+`defineBlocks` makes the block clients call the renamed functions; see
+[renamed functions](/docs/blocks/create-blocks#renamed-functions).
+
 ## Existing tables: managed, adopt and custom
 
 Each module has a contract: the functions policies, other modules and the
@@ -334,6 +410,13 @@ export default defineConfig({
 | `events`      | `false` stops the module writing its events to the outbox                                                                                                                |
 | `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                       |
 | `api`         | a schema for the Data API that gets entry points for the module's functions (`sql.api` by default; see below), or `false` for none                                       |
+
+[`better-supabase adopt <block> --from <schema.table>`](/docs/cli/presets#adopt)
+writes the `tables` and `columns` of an adopt-mode entry from the tables in
+the database and reports what can't map, and
+[`apply --preset <code> --adopt`](/docs/cli/presets#adopting-existing-tables)
+does the same for every block of a preset that has tables under its default
+names.
 
 `organizations` and `profiles` also take `options.extraColumns`: your own
 columns, keyed by name with their SQL type, which the module adds to its

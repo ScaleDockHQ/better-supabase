@@ -45,6 +45,42 @@ describe("blocks.generated.ts", () => {
     });
   });
 
+  it("writes the function names sql.naming and blocks.<name>.functions give", () => {
+    const config = resolveConfig(
+      {
+        sql: { naming: { tenant: "workspace" } },
+        blocks: {
+          organizations: {},
+          tags: { functions: { create_tag: "make_tag" } },
+          access: {
+            model: "custom",
+            functions: { can: "public.can({scope}, {id}, {permission})" },
+          },
+        },
+      },
+      "/project",
+    );
+    const entries = blockConfigEntries(config);
+    expect(entries["organizations"]?.naming).toEqual({ tenant: "workspace" });
+    expect(entries["tags"]?.naming).toEqual({
+      tenant: "workspace",
+      functions: { create_tag: "make_tag" },
+    });
+    expect(entries["access"]?.naming).toEqual({ tenant: "workspace" });
+    const plain = blockConfigEntries(
+      resolveConfig({ blocks: ["tags"] }, "/project"),
+    );
+    expect(plain["tags"]).not.toHaveProperty("naming");
+  });
+
+  it("leaves out tenant and access in user scope", () => {
+    const entries = blockConfigEntries(
+      resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),
+    );
+    expect(Object.keys(entries)).toContain("tags");
+    expect(Object.keys(entries)).not.toContain("tenant");
+  });
+
   it("emits a typed module next to the main generated module", () => {
     const config = resolveConfig(
       { output: "app/lib/db/generated.ts", blocks: ["tenant", "attachments"] },

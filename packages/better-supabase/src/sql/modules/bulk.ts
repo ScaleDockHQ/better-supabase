@@ -9,7 +9,6 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   fail,
   lockTable,
   quotedTable,
@@ -243,7 +242,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not ${canIn("bulk_apply.tenant", run)} then
+  if not ${ctx.scope.can("bulk_apply.tenant", run)} then
     ${fail("BULK_FORBIDDEN", "not allowed to run bulk actions")}
   end if;
   if not (bulk_apply.action = any (${knownList})) then
@@ -268,7 +267,7 @@ declare
   v_id uuid;
   v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));
 begin
-  if auth.uid() is null or not ${canIn("start_bulk.tenant", run)} then
+  if auth.uid() is null or not ${ctx.scope.can("start_bulk.tenant", run)} then
     ${fail("BULK_FORBIDDEN", "not allowed to run bulk actions")}
   end if;
   if not (start_bulk.action = any (${knownList})) then
@@ -346,7 +345,7 @@ begin
   v_chunk := v_run.${c("ids")}[v_run.${c("position")} + 1 : v_run.${c("position")} + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run.${c("createdBy")}, 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := ${canIn("v_run." + c("tenant"), run)};
+  v_allowed := ${ctx.scope.can("v_run." + c("tenant"), run)};
   if v_allowed then
     ${rowLoop(ctx, `v_run.${c("tenant")}`, `v_run.${c("subjectType")}`, `v_run.${c("action")}`, `v_run.${c("args")}`, "false")}
   end if;
@@ -403,6 +402,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const BULK: ModuleDefinition = {
   name: "bulk",
+  scopes: ["tenant"],
   title: "Bulk actions",
   description:
     "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",

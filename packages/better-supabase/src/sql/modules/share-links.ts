@@ -175,7 +175,7 @@ do $$
 begin
   if to_regclass('${ctx.schema}.ai_chat_shares') is not null then
     insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
-    select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${ctx.has("links", "leaf") ? ", s.leaf_id" : ""}
+    select c.${ctx.naming.rename("organization_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${ctx.has("links", "leaf") ? ", s.leaf_id" : ""}
     from ${ctx.schema}.ai_chat_shares s
     join ${ctx.schema}.ai_chats c on c.id = s.chat_id
     on conflict (${ctx.col("links", "tokenHash")}) do nothing;
@@ -191,7 +191,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(32), 'hex');
   v_id uuid;
 begin
-  select organization_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
+  select ${ctx.naming.rename("organization_id")}, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
   from ${ctx.schema}.ai_chats where id = share_ai_chat.chat;
   if not found or v_owner is distinct from auth.uid() then
     ${fail("AI_CHAT_NOT_FOUND", "no chat", "P0002")}
@@ -256,7 +256,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, ${create}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("create_share_link.tenant", create)}) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
   end if;
   ${versionCheck(ctx)}
@@ -403,6 +403,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SHARE_LINKS: ModuleDefinition = {
   name: "share-links",
+  scopes: ["tenant"],
   title: "Share links",
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.",

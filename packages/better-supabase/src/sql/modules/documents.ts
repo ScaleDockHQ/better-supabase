@@ -14,7 +14,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
@@ -122,7 +121,7 @@ function build(ctx: ModuleContext): string {
     );
   }
   const readable = (row: string): string =>
-    subjectReadable(subjects, {
+    subjectReadable(ctx, subjects, {
       type: `${row}.${c("subjectType")}`,
       id: `${row}.${c("subjectId")}`,
       tenant: `${row}.${c("tenant")}`,
@@ -161,7 +160,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant
 ${lockTable(documents, { read: true })}
 drop policy if exists "documents_read" on ${documents};
 create policy "documents_read" on ${documents} for select to authenticated
-  using (${tenantIn(c("tenant"), read)});
+  using (${ctx.scope.check(c("tenant"), read)});
 
 create table if not exists ${updates} (
   ${u("seq")} bigint generated always as identity primary key,
@@ -587,6 +586,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const DOCUMENTS: ModuleDefinition = {
   internal: ["document_updates_after"],
   name: "documents",
+  scopes: ["tenant"],
   title: "Collaborative documents",
   description:
     "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, and saved states through the versions module.",

@@ -15,6 +15,28 @@ import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
  */
 export type BlockMode = "managed" | "adopt" | "custom";
 
+/**
+ * Who a block's rows belong to. `tenant`: a tenant, checked through the
+ * access contract (`can`, `tenant_ids_with`). `user`: the signed-in user,
+ * whose id the scope column holds. `none`: one shared space every signed-in
+ * user reads and writes. Blocks that need tenants run only in `tenant`.
+ */
+export type BlockScope = "tenant" | "user" | "none";
+
+export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
+
+/** `sql.naming`: how the tenant concept is named in SQL. */
+export interface SqlNaming {
+  /**
+   * The tenant concept's singular name in table, function and column names:
+   * `workspace` turns `organizations` into `workspaces`,
+   * `create_organization` into `create_workspace` and `organization_id`
+   * into `workspace_id`. Lowercase letters, digits and underscores.
+   * Defaults to `organization`.
+   */
+  readonly tenant?: "organization" | "workspace" | "team" | (string & {});
+}
+
 /** Options every module takes; `Options` types `options` (`blocks.<module>.options`). */
 export interface BlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
@@ -38,6 +60,15 @@ export interface BlockConfig<
   >;
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
+  /** Who the block's rows belong to. Defaults to `sql.scope`, then `tenant`. */
+  readonly scope?: BlockScope;
+  /**
+   * Function name to the name the module writes it under, e.g.
+   * `{ create_organization: 'start_company' }`. Keys are the default names
+   * or the names after `sql.naming`; an unknown function is an error.
+   * `blocks.access.functions` is the custom model's templates instead.
+   */
+  readonly functions?: Readonly<Record<string, string>>;
   /**
    * Module action to permission key, checked through the access contract, e.g.
    * `{ invite: 'organization.members.invite' }`.
@@ -229,6 +260,8 @@ export interface ResolvedModule {
     Record<string, Readonly<Record<string, string | null>>>
   >;
   readonly idType?: string;
+  readonly scope?: BlockScope;
+  readonly functions: Readonly<Record<string, string>>;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
   readonly hooks: {
@@ -252,6 +285,8 @@ export function resolveModule(config: BlockConfig = {}): ResolvedModule {
     tables: config.tables ?? {},
     columns: config.columns ?? {},
     ...(config.idType === undefined ? {} : { idType: config.idType }),
+    ...(config.scope === undefined ? {} : { scope: config.scope }),
+    functions: config.functions ?? {},
     permissions: config.permissions ?? {},
     options: config.options ?? {},
     hooks: {

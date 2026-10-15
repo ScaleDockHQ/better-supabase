@@ -11,7 +11,6 @@ import {
   SERVICE_CALLER,
   activeMembership,
   serviceGrant,
-  tenantIn,
   fail,
 } from "../shared.ts";
 import { moduleOperations, type ModuleOperations } from "./access-model.ts";
@@ -176,7 +175,7 @@ export function builderSql(
   const holds = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
   const userHolds = (user: string, tenant: string, key: string): string =>
-    `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${key}), false)`;
+    ctx.scope.canUser(user, tenant, key);
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>
@@ -185,7 +184,7 @@ export function builderSql(
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
   const readable = (tenant: string): string =>
-    tenantIn(tenant, permission("read"));
+    ctx.scope.check(tenant, permission("read"));
   const definitionReadable = (column: string): string =>
     `${column} in (select x.${cd("id")} from ${d} x)`;
   const tenant = ctx.of("tenant");

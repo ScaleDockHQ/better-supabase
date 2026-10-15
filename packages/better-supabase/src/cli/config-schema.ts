@@ -46,6 +46,8 @@ const blockEntries = {
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
   idType: v.optional(v.string()),
+  scope: v.optional(v.picklist(["tenant", "user", "none"])),
+  functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
   options: v.optional(v.record(v.string(), v.unknown())),
   hooks: v.optional(
@@ -488,6 +490,20 @@ const ENTRIES = {
       testsDir: v.optional(v.string()),
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
+      scope: v.optional(v.picklist(["tenant", "user", "none"])),
+      naming: v.optional(
+        v.strictObject({
+          tenant: v.optional(
+            v.pipe(
+              v.string(),
+              v.regex(
+                /^[a-z][a-z0-9_]{0,40}$/,
+                "a tenant name is lowercase letters, digits and underscores",
+              ),
+            ),
+          ),
+        }),
+      ),
     }),
   ),
   seed: v.optional(

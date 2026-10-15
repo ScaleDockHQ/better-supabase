@@ -140,7 +140,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, ${manage}), false)) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_reminder.tenant", manage)}) then
     ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
   end if;
   insert into ${reminders} (${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}, ${ctx.col("reminders", "offsetMinutes")})
@@ -247,6 +247,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const REMINDERS: ModuleDefinition = {
   name: "reminders",
+  scopes: ["tenant"],
   title: "Reminders",
   description:
     "Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.",

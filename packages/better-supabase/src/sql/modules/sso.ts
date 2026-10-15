@@ -234,7 +234,7 @@ function build(ctx: ModuleContext): string {
   const key = ctx.permission("manage", permissions.manage);
   const can = (tenant: string): string => ctx.can("tenant", tenant, key);
   const actorCan = (tenant: string, actor: string): string =>
-    `(${actor} is null or coalesce(better_supabase.can_user(${actor}, 'tenant', ${tenant}, ${key}), false))`;
+    `(${actor} is null or ${ctx.scope.canUser(actor, tenant, key)})`;
   const tenant = ctx.of("tenant");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
@@ -341,8 +341,8 @@ create table if not exists ${d} (
   unique (${cd("tenant")}, ${cd("domain")}),
   check (not ${cd("enforceSso")} or ${cd("verifiedAt")} is not null)
 );
-create unique index if not exists organization_domains_verified_idx on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
-create index if not exists organization_domains_created_by_idx on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
+create unique index if not exists ${ctx.naming.rename("organization_domains_verified_idx")} on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
+create index if not exists ${ctx.naming.rename("organization_domains_created_by_idx")} on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
 ${lockTable(d)}
 
 -- SAML identity providers registered with Supabase Auth for an organization.
@@ -354,7 +354,7 @@ create table if not exists ${p} (
   ${cp("domains")} text[] not null default '{}',
   ${cp("createdAt")} timestamptz not null default now()
 );
-create index if not exists organization_sso_providers_tenant_idx on ${p} (${cp("tenant")});
+create index if not exists ${ctx.naming.rename("organization_sso_providers_tenant_idx")} on ${p} (${cp("tenant")});
 ${lockTable(p)}
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
@@ -954,6 +954,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SSO: ModuleDefinition = {
   name: "sso",
+  scopes: ["tenant"],
   title: "SSO and SCIM",
   description:
     "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",

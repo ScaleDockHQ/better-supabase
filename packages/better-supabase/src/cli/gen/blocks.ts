@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 
-import type { GeneratedBlock } from "../../blocks/index.ts";
+import type { BlockNaming, GeneratedBlock } from "../../blocks/index.ts";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
@@ -26,16 +26,44 @@ function hasSchema(
 }
 
 /**
+ * How `sql.naming` and the modules' `blocks.<module>.functions` rename the
+ * block's functions, or undefined when nothing does.
+ * `blocks.access.functions` is the custom model's templates, not renames.
+ */
+function namingOf(
+  config: Pick<ResolvedConfig, "blocks" | "sql">,
+  modules: readonly string[],
+): BlockNaming | undefined {
+  const functions = Object.fromEntries(
+    modules.flatMap((module) =>
+      module === "access"
+        ? []
+        : Object.entries(resolveModule(config.blocks[module]).functions),
+    ),
+  );
+  const tenant = config.sql.naming?.tenant;
+  const renames = Object.keys(functions).length > 0;
+  if (tenant === undefined && !renames) return undefined;
+  return {
+    ...(tenant === undefined ? {} : { tenant }),
+    ...(renames ? { functions } : {}),
+  };
+}
+
+/**
  * The generated config of every installed block: its schema, its API
  * schema, and the options marked `client` with the configured value or the
  * module's default. Blocks without a creator get an entry too, since
  * `block.using(...)` builds them with these options.
  */
 export function blockConfigEntries(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames">,
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = new Set(
-    resolveModules(config.blockNames).map((module) => module.name),
+    resolveModules(config.blockNames, {
+      modules: config.blocks,
+      ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
+    }).map((module) => module.name),
   );
   const entries: [string, GeneratedBlock][] = [];
   for (const manifest of PRESET_CATALOG.manifests) {
@@ -55,12 +83,14 @@ export function blockConfigEntries(
         if (value !== undefined) options[key] = value;
       }
     }
+    const naming = namingOf(config, modules);
     entries.push([
       manifest.name,
       {
         schema: resolved.schema,
         ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
         options,
+        ...(naming === undefined ? {} : { naming }),
       },
     ]);
   }
@@ -88,7 +118,7 @@ function literal(value: unknown, indent: string): string {
  * `undefined` when the config installs no blocks.
  */
 export function emitBlockConfig(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "output">,
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "output" | "sql">,
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) return undefined;

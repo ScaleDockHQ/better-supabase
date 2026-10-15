@@ -186,7 +186,7 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
       "blocks.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
     );
   }
-  const readable = subjectReadable(subjects, {
+  const readable = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
@@ -470,7 +470,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with(${view});
+  return query select ${ctx.scope.ids(view)};
 end;
 $$;
 revoke execute on function ${ctx.fn("incoming_webhook_tenant_ids")}() from public, anon;
@@ -800,6 +800,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     "incoming_webhook_subject_readable",
   ],
   name: "webhooks-in",
+  scopes: ["tenant"],
   title: "Incoming webhook endpoints",
   description:
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",

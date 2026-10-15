@@ -496,6 +496,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const METRICS: ModuleDefinition = {
   name: "metrics",
+  scopes: ["tenant"],
   title: "Metrics",
   description:
     "Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.",

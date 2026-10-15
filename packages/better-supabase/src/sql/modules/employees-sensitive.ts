@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 
 interface Detail {
   /** The camelCase key of `attrs`. */
@@ -56,7 +56,7 @@ export function sensitiveFunctions(
   const e = (column: string): string => n.c("employees", column);
   const employees = n.t("employees");
   const reader = (alias: string): string =>
-    `(${n.service} or ${canIn(`${alias}.${e("tenant")}`, n.sensitive)} or ${alias}.${e("user")} = auth.uid())`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)} or ${alias}.${e("user")} = auth.uid())`;
   const load = (fnName: string, arg: string, allowed: string): string => `
   select * into v_employee from ${employees} x where x.${e("id")} = ${fnName}.${arg};
   if v_employee.${e("id")} is null or not ${allowed} then
@@ -223,7 +223,7 @@ declare
   v_employee ${n.t("employees")};
   v_row ${table};
   v_starts date;
-begin${load("add_employee_contract", "employee", `(${n.service} or (${canIn(`v_employee.${e("tenant")}`, n.write)} and ${canIn(`v_employee.${e("tenant")}`, n.sensitive)}))`)}
+begin${load("add_employee_contract", "employee", `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.write)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)}))`)}
   begin
     v_starts := (${arg("startsOn")})::date;
     if v_starts is null then

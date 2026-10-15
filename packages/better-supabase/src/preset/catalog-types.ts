@@ -1,6 +1,6 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
-import type { PresetAccess } from "./fields.ts";
+import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
 /** One SQL module in the preset catalog: a key of `blocks` in the config. */
 export interface PresetCatalogBlock {
@@ -13,6 +13,10 @@ export interface PresetCatalogBlock {
   readonly requiresByAccess?: Partial<
     Readonly<Record<PresetAccess, readonly string[]>>
   >;
+  /** The scopes it runs in; unset, every scope. */
+  readonly scopes?: readonly PresetScope[];
+  /** Tenant names that would rename a table or column to a name it already uses. */
+  readonly tenantNameClashes?: readonly PresetTenantName[];
   /** Modules it works with when installed; `*` is every module. */
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */

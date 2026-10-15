@@ -3,11 +3,9 @@ import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
-  canIn,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
-  tenantIn,
   userGrant,
   revokeTable,
 } from "../shared.ts";
@@ -133,9 +131,9 @@ function build(ctx: ModuleContext): string {
   // Owners see their agents, members the tenant's published ones, every
   // signed-in user the published public ones, moderators all of the tenant's.
   const readable = (row: string): string =>
-    `(${row}.${a.owner} = (select auth.uid()) or (${row}.${a.publishedAt} is not null and (${row}.${a.visibility} = 'public' or (${row}.${a.visibility} = 'organization' and ${tenantIn(`${row}.${a.tenant}`, read)}))) or ${tenantIn(`${row}.${a.tenant}`, moderate)})`;
+    `(${row}.${a.owner} = (select auth.uid()) or (${row}.${a.publishedAt} is not null and (${row}.${a.visibility} = 'public' or (${row}.${a.visibility} = 'organization' and ${ctx.scope.check(`${row}.${a.tenant}`, read)}))) or ${ctx.scope.check(`${row}.${a.tenant}`, moderate)})`;
   const canChange = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${a.owner} = auth.uid() or ${canIn(`${row}.${a.tenant}`, moderate)})`;
+    `(${SERVICE_CALLER} or ${row}.${a.owner} = auth.uid() or ${ctx.scope.can(`${row}.${a.tenant}`, moderate)})`;
   const notFound = (agent: string): string =>
     raise("agent % not found", "P0002", "AGENT_NOT_FOUND", agent);
   const agentEvent = (type: string, row: string, extra = ""): string =>
@@ -268,7 +266,7 @@ begin
     ${raise("fields must be an object", "22023", "AGENT_INVALID")}
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not ${canIn("save_agent.tenant", create)} then
+    if auth.uid() is null or not ${ctx.scope.can("save_agent.tenant", create)} then
       ${raise("you may not create agents here", "42501", "AGENT_FORBIDDEN")}
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -325,8 +323,8 @@ begin
   if not found or not ${canChange("v_row")} then
     ${notFound("publish_agent.id")}
   end if;
-  if publish_agent.visibility <> 'private' and not (${SERVICE_CALLER} or ${canIn(`v_row.${a.tenant}`, moderate)}
-    or (v_row.${a.owner} = auth.uid() and ${canIn(`v_row.${a.tenant}`, publish)})) then
+  if publish_agent.visibility <> 'private' and not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${a.tenant}`, moderate)}
+    or (v_row.${a.owner} = auth.uid() and ${ctx.scope.can(`v_row.${a.tenant}`, publish)})) then
     ${raise("you may not publish agents here", "42501", "AGENT_FORBIDDEN")}
   end if;
   update ${agents} x set
@@ -424,7 +422,7 @@ as $$
 declare
   v_count integer;
 begin
-  if auth.uid() is null or not ${canIn("install_agent.tenant", read)} then
+  if auth.uid() is null or not ${ctx.scope.can("install_agent.tenant", read)} then
     ${raise("you may not use agents here", "42501", "AGENT_FORBIDDEN")}
   end if;
   if not install_agent.installed then
@@ -519,6 +517,7 @@ ${userGrant(`${fn("set_agent_skills")}(uuid, jsonb)`)}`;
 
 export const AGENTS_MODULE: ModuleDefinition = {
   name: "agents",
+  scopes: ["tenant"],
   title: "Agents",
   description:
     "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",

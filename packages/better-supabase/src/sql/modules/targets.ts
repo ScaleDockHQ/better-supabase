@@ -6,14 +6,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import {
-  canIn,
-  fail,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-  userGrant,
-} from "../shared.ts";
+import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -128,7 +121,7 @@ create index if not exists targets_period_idx on ${t} (${c("tenant")}, ${c("peri
 ${lockTable(t, { read: true })}
 drop policy if exists targets_read on ${t};
 create policy targets_read on ${t} for select to authenticated
-using (${tenantIn(c("tenant"), read)});
+using (${ctx.scope.check(c("tenant"), read)});
 `
     : ""
 }
@@ -144,7 +137,7 @@ as $$
 declare
   v_id uuid := save_target.target;
 begin
-  if not (auth.role() = 'service_role' or ${canIn("save_target.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_target.tenant", manage)}) then
     ${fail("TARGET_FORBIDDEN", "not allowed to manage targets")}
   end if;
   begin
@@ -212,6 +205,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const TARGETS: ModuleDefinition = {
   name: "targets",
+  scopes: ["tenant"],
   title: "Targets",
   description:
     "Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.",

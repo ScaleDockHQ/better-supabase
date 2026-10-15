@@ -336,11 +336,25 @@ export function addBlocksToJson(
     return { ok: false, reason: "its blocks key isn't an object or a list" };
   }
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
-  return {
-    ok: true,
-    text: `${JSON.stringify({ ...config, blocks: next }, null, indent)}\n`,
-  };
+  return jsonEdit(source, config, { ...config, blocks: next }, indent);
 }
+
+/**
+ * The JSON config with `next` written, or `source` as it is when `next`
+ * holds the same values, so a formatted file isn't rewritten for nothing.
+ */
+const jsonEdit = (
+  source: string,
+  config: unknown,
+  next: unknown,
+  indent: string,
+): ConfigEdit => ({
+  ok: true,
+  text:
+    JSON.stringify(next) === JSON.stringify(config)
+      ? source
+      : `${JSON.stringify(next, null, indent)}\n`,
+});
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -395,10 +409,7 @@ export function setPresetInJson(source: string, value: string): ConfigEdit {
   }
   if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
-  return {
-    ok: true,
-    text: `${JSON.stringify({ ...config, preset: value }, null, indent)}\n`,
-  };
+  return jsonEdit(source, config, { ...config, preset: value }, indent);
 }
 
 /** A block client to wire: `key: exportName`, imported from `subpath`. */
@@ -462,4 +473,117 @@ export function addBlocksToWiring(
       ? `${lines}\n\n${text}`
       : `${text.slice(0, at)}\n${lines}${text.slice(at)}`;
   return { ok: true, text };
+}
+
+/** `value` as a TypeScript literal, one key per line, indented from `indent`. */
+function literal(value: unknown, indent: string, quote: string): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return `${quote}${value}${quote}`;
+  if (typeof value !== "object") return String(value);
+  const entries = Object.entries(value);
+  if (entries.length === 0) return "{}";
+  const inner = `${indent}  `;
+  return `{\n${entries.map(([key, entry]) => `${inner}${keyText(key)}: ${literal(entry, inner, quote)},`).join("\n")}\n${indent}}`;
+}
+
+/**
+ * `source` with `blocks.<name>` set to `value`, replacing the entry it has.
+ * A `blocks` list becomes an object, each listed block mapped to `{}`.
+ */
+export function setBlockInConfig(
+  source: string,
+  name: string,
+  value: object,
+): ConfigEdit {
+  const code = mask(source);
+  const root = configObject(code);
+  if (root === undefined) {
+    return {
+      ok: false,
+      reason: "it doesn't pass an object literal to defineConfig()",
+    };
+  }
+  const rootProps = properties(source, code, root);
+  if (!rootProps)
+    return { ok: false, reason: "its config object can't be read" };
+  const quote = source.includes("'better-supabase/config'") ? "'" : '"';
+  const edit = (start: number, end: number, text: string): ConfigEdit => ({
+    ok: true,
+    text: source.slice(0, start) + text + source.slice(end),
+  });
+  const blocks = rootProps.find((prop) => prop.key === "blocks");
+  if (!blocks) {
+    const indent = rootProps[0]
+      ? indentAt(source, rootProps[0].start)
+      : `${indentAt(source, root)}  `;
+    const change = append(source, code, root, lastOf(rootProps), [
+      `blocks: ${literal({ [name]: value }, indent, quote)}`,
+    ]);
+    return edit(change.start, change.end, change.text);
+  }
+  const open = blocks.valueStart;
+  const indent = indentAt(source, blocks.start);
+  if (code[open] === "{") {
+    const listed = properties(source, code, open);
+    if (!listed)
+      return { ok: false, reason: "its blocks object can't be read" };
+    const current = listed.find((prop) => prop.key === name);
+    if (current) {
+      return edit(
+        current.valueStart,
+        current.valueEnd,
+        literal(value, indentAt(source, current.start), quote),
+      );
+    }
+    const inner = listed[0] ? indentAt(source, listed[0].start) : `${indent}  `;
+    const change = append(source, code, open, lastOf(listed), [
+      `${keyText(name)}: ${literal(value, inner, quote)}`,
+    ]);
+    return edit(change.start, change.end, change.text);
+  }
+  if (code[open] === "[") {
+    const close = closingIndex(code, open);
+    const listed = [
+      ...source.slice(open + 1, close).matchAll(/(["'])([^"']*)\1/g),
+    ].map((item) => item[2]!);
+    const object = Object.fromEntries([
+      ...listed.map((block): [string, object] => [block, {}]),
+      [name, value],
+    ]);
+    return edit(open, close + 1, literal(object, indent, quote));
+  }
+  return { ok: false, reason: "its blocks key isn't a literal object or list" };
+}
+
+/** `setBlockInConfig` for `better-supabase.config.json`. */
+export function setBlockInJson(
+  source: string,
+  name: string,
+  value: object,
+): ConfigEdit {
+  let config: unknown;
+  try {
+    config = JSON.parse(source);
+  } catch {
+    return { ok: false, reason: "it isn't valid JSON" };
+  }
+  if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
+  const blocks: unknown = config["blocks"] ?? {};
+  let current: Record<string, unknown>;
+  if (Array.isArray(blocks)) {
+    current = Object.fromEntries(
+      blocks.map((block: unknown) => [String(block), {}]),
+    );
+  } else if (isObject(blocks)) {
+    current = blocks;
+  } else {
+    return { ok: false, reason: "its blocks key isn't an object or a list" };
+  }
+  const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
+  return jsonEdit(
+    source,
+    config,
+    { ...config, blocks: { ...current, [name]: value } },
+    indent,
+  );
 }

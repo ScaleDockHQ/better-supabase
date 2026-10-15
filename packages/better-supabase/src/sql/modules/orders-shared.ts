@@ -1,11 +1,14 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
-import { canIn, fail } from "../shared.ts";
+import { fail } from "../shared.ts";
 import { amountOf as bareAmountOf } from "./catalog-functions.ts";
 
 export interface OrdersNames {
+  /** The block's scope checks. */
+  readonly scope: ModuleScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -44,8 +47,12 @@ export function paymentWindow(ctx: ModuleContext): number {
   return minutes;
 }
 
-export function guard(permission: string, tenant: string): string {
-  return `if not (auth.role() = 'service_role' or ${canIn(tenant, permission)}) then
+export function guard(
+  scope: ModuleScope,
+  permission: string,
+  tenant: string,
+): string {
+  return `if not (auth.role() = 'service_role' or ${scope.can(tenant, permission)}) then
     ${fail("ORDERS_FORBIDDEN", "not allowed to manage these orders")}
   end if;`;
 }

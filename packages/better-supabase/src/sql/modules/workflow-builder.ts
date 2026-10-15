@@ -298,7 +298,7 @@ grant select on ${d} to authenticated;
 grant all on ${d} to service_role;
 drop policy if exists workflow_definitions_read on ${d};
 create policy workflow_definitions_read on ${d} for select to authenticated
-  using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select better_supabase.tenant_ids_with(${s.permission("read")}))));
+  using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))})));
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
@@ -960,6 +960,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const WORKFLOW_BUILDER: ModuleDefinition = {
   name: "workflow-builder",
+  scopes: ["tenant"],
   title: "Workflow builder",
   description:
     "Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.",

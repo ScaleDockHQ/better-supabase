@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -13,7 +14,6 @@ import {
   type JsonSchemaCheck,
   jsonSchemaChecks,
   schemaPreamble,
-  tenantIn,
   revokeTable,
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
@@ -147,9 +147,13 @@ function platformKeys(ctx: ModuleContext): {
   return { fallback, keys };
 }
 
-const readRule = (read: PlatformRead, permission: string): string =>
+const readRule = (
+  scope: ModuleScope,
+  read: PlatformRead,
+  permission: string,
+): string =>
   read === "staff"
-    ? `coalesce(better_supabase.is_platform(${sqlString(permission)}), false)`
+    ? `coalesce(${scope.platform(sqlString(permission))}, false)`
     : "true";
 
 const unquote = (ident: string): string =>
@@ -241,7 +245,7 @@ function build(ctx: ModuleContext): string {
   const can = (tenant: string, action: "read" | "update"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const member = (tenant: string, action: "read" | "update"): string =>
-    tenantIn(tenant, ctx.permission(action, permissions[action]));
+    ctx.scope.check(tenant, ctx.permission(action, permissions[action]));
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
   const p = ctx.table("platform");
   const pc = (logical: string): string => ctx.col("platform", logical);
@@ -279,13 +283,15 @@ function build(ctx: ModuleContext): string {
     platform.keys.length === 0
       ? ""
       : `${pc("key")} in (${platform.keys.map((entry) => sqlString(entry.key)).join(", ")}) and `;
-  const writeCheck = `${listedKeys}coalesce(better_supabase.is_platform(${byKey(
-    (entry) => sqlString(entry.permission),
-    sqlString(platform.fallback.permission),
-  )}), false)`;
+  const writeCheck = `${listedKeys}coalesce(${ctx.scope.platform(
+    byKey(
+      (entry) => sqlString(entry.permission),
+      sqlString(platform.fallback.permission),
+    ),
+  )}, false)`;
   const authenticatedRead = byKey(
-    (entry) => readRule(entry.read, entry.permission),
-    readRule(platform.fallback.read, platform.fallback.permission),
+    (entry) => readRule(ctx.scope, entry.read, entry.permission),
+    readRule(ctx.scope, platform.fallback.read, platform.fallback.permission),
   );
   const publicKeys = platform.keys
     .filter((entry) => entry.read === "public")
@@ -331,23 +337,23 @@ create table if not exists ${o} (
   ${oc("updatedAt")} timestamptz not null default now(),
   primary key (${oc("tenant")}, ${oc("key")})
 );
-create index if not exists organization_settings_updated_by_idx on ${o} (${oc("updatedBy")});
+create index if not exists ${ctx.naming.rename("organization_settings_updated_by_idx")} on ${o} (${oc("updatedBy")});
 alter table ${o} enable row level security;
 ${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
-drop policy if exists "organization_settings_read" on ${o};
-create policy "organization_settings_read" on ${o} for select to authenticated
+drop policy if exists "${ctx.naming.rename("organization_settings_read")}" on ${o};
+create policy "${ctx.naming.rename("organization_settings_read")}" on ${o} for select to authenticated
   using (${member(oc("tenant"), "read")});
-drop policy if exists "organization_settings_insert" on ${o};
-create policy "organization_settings_insert" on ${o} for insert to authenticated
+drop policy if exists "${ctx.naming.rename("organization_settings_insert")}" on ${o};
+create policy "${ctx.naming.rename("organization_settings_insert")}" on ${o} for insert to authenticated
   with check (${can(oc("tenant"), "update")});
-drop policy if exists "organization_settings_update" on ${o};
-create policy "organization_settings_update" on ${o} for update to authenticated
+drop policy if exists "${ctx.naming.rename("organization_settings_update")}" on ${o};
+create policy "${ctx.naming.rename("organization_settings_update")}" on ${o} for update to authenticated
   using (${member(oc("tenant"), "update")})
   with check (${member(oc("tenant"), "update")});
-drop policy if exists "organization_settings_delete" on ${o};
-create policy "organization_settings_delete" on ${o} for delete to authenticated
+drop policy if exists "${ctx.naming.rename("organization_settings_delete")}" on ${o};
+create policy "${ctx.naming.rename("organization_settings_delete")}" on ${o} for delete to authenticated
   using (${member(oc("tenant"), "update")});
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -559,6 +565,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SETTINGS: ModuleDefinition = {
   name: "settings",
+  scopes: ["tenant"],
   title: "Settings",
   description:
     "Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.",

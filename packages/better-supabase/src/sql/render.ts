@@ -17,8 +17,26 @@ import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { checkModules, resolveModules } from "./registry.ts";
+import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
+import { tenantNameClashes } from "./tenant-clashes.ts";
 import { deprecationWrappers } from "./upgrade.ts";
+
+/**
+ * `sql` with the parameter qualifiers of renamed functions renamed too:
+ * PL/pgSQL and SQL functions name a parameter `fn.param`, so
+ * `create_organization.name` follows `create_organization` to
+ * `create_workspace.name`.
+ */
+function renameQualifiers(sql: string, ctx: ModuleContext): string {
+  let out = sql;
+  for (const [from, to] of ctx.functionRenames()) {
+    out = out.replaceAll(
+      new RegExp(`(?<![\\w."$])${from}\\.(?=[a-z_])`, "g"),
+      `${to}.`,
+    );
+  }
+  return out;
+}
 
 function moduleSql(
   module: SqlModule,
@@ -30,6 +48,7 @@ function moduleSql(
   if (
     module.render &&
     (layout.claims ||
+      layout.naming?.tenant !== undefined ||
       layout.entitlementsProvider ||
       layout.tenantColumn ||
       (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
@@ -54,7 +73,9 @@ export function moduleBody(
     layout,
     modules.map((entry) => entry.name),
   );
-  return ctx.mode === "custom" ? undefined : moduleSql(module, ctx, layout);
+  return ctx.mode === "custom"
+    ? undefined
+    : renameQualifiers(moduleSql(module, ctx, layout), ctx);
 }
 
 /** The table `moduleRow` writes to, created by every schema module's file. */
@@ -93,6 +114,7 @@ export function renderModules(
 ): ModuleFile[] {
   checkModules(layout.modules);
   const modules = resolveModules(names, layout);
+  checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
@@ -108,9 +130,10 @@ export function renderModules(
       `-- ${module.description}`,
       ...managed,
     ].join("\n");
-    const extra = module.extras?.(ctx, layout) ?? "";
+    const extra = renameQualifiers(module.extras?.(ctx, layout) ?? "", ctx);
     const wrappers = deprecationWrappers(module, ctx);
-    const body = moduleSql(module, ctx, layout).trim();
+    const body = renameQualifiers(moduleSql(module, ctx, layout).trim(), ctx);
+    module.contract?.(ctx);
     const api = ctx.config.api
       ? apiWrappers(
           body,
@@ -121,6 +144,7 @@ export function renderModules(
         )
       : "";
     if (module.target === "test") {
+      checkFunctionRenames(ctx);
       return [
         {
           module: module.name,
@@ -135,7 +159,7 @@ export function renderModules(
       eventTriggersOf(body)
         .map((trigger) => trigger.statement)
         .join("\n"),
-      module.data?.(ctx, layout).trim() ?? "",
+      renameQualifiers(module.data?.(ctx, layout).trim() ?? "", ctx),
       moduleRow(module, ctx.mode),
     ]
       .filter((part) => part !== "")
@@ -157,6 +181,8 @@ export function renderModules(
       `-- @bs-module-test ${module.name}`,
       ...managed,
     ].join("\n");
+    const tests = module.tests?.(ctx, layout) ?? [];
+    checkFunctionRenames(ctx);
     return [
       {
         module: module.name,
@@ -170,14 +196,39 @@ export function renderModules(
         path: moduleDataPath(module, layout),
         contents: `${dataHeader}\n\n${data}\n`,
       },
-      ...(module.tests?.(ctx, layout) ?? []).map((test): ModuleFile => ({
+      ...tests.map((test): ModuleFile => ({
         module: module.name,
         kind: "test",
         path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
-        contents: `${testHeader}\n\n${test.sql.trim()}\n`,
+        contents: `${testHeader}\n\n${renameQualifiers(test.sql.trim(), ctx)}\n`,
       })),
     ];
   });
+}
+
+/** Throws when `sql.naming.tenant` gives a renamed table or column a name a module already uses. */
+function checkTenantName(
+  modules: readonly SqlModule[],
+  layout: ModuleLayout,
+): void {
+  const tenant = layout.naming?.tenant;
+  if (tenant === undefined) return;
+  for (const module of modules) {
+    const clashes = tenantNameClashes(module, tenant, SQL_MODULES);
+    if (clashes.length === 0) continue;
+    throw new TypeError(
+      `sql.naming.tenant: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
+    );
+  }
+}
+
+/** Throws on a `blocks.<name>.functions` key the module writes no function for. */
+function checkFunctionRenames(ctx: ModuleContext): void {
+  const unknown = ctx.unusedFunctions();
+  if (unknown.length === 0) return;
+  throw new TypeError(
+    `blocks.${ctx.module}.functions: the ${ctx.module} module writes no function ${unknown.map((name) => `"${name}"`).join(", ")}`,
+  );
 }
 
 export interface ModuleTopic {
@@ -219,7 +270,10 @@ export function customContracts(
         module: module.name,
         schema: ctx.schemaName,
         idType: ctx.idType,
-        functions: module.contract(ctx),
+        functions: module.contract(ctx).map((fn) => ({
+          ...fn,
+          name: ctx.fnName(fn.name),
+        })),
       },
     ];
   });

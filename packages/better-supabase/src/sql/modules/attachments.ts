@@ -303,7 +303,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           "bs_attachments_mime_type",
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
-  const subjectReadableSql = subjectReadable(subjects, {
+  const subjectReadableSql = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
@@ -846,6 +846,7 @@ export const ATTACHMENTS: ModuleDefinition = {
     "object_clean",
   ],
   name: "attachments",
+  scopes: ["tenant"],
   title: "Attachments",
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",

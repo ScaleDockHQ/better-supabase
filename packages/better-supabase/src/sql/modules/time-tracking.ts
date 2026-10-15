@@ -14,7 +14,6 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
@@ -229,7 +228,7 @@ function build(ctx: ModuleContext): string {
   ): string => `if (${type} is null) <> (${id} is null) then
     ${fail("TIME_SUBJECT_INVALID", "name both subject_type and subject_id, or neither", "22023")}
   end if;
-  if ${type} is not null and not (${SERVICE_CALLER} or ${subjectReadable(subjects, { type, id, tenant })}) then
+  if ${type} is not null and not (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type, id, tenant })}) then
     ${forbidden("not allowed to track time on this record")}
   end if;`;
   const overlap = (row: string): string => `if exists (
@@ -280,7 +279,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_
 ${lockTable(entries, { read: true })}
 drop policy if exists "time_entries_read" on ${entries};
 create policy "time_entries_read" on ${entries} for select to authenticated
-  using (${e("user")} = (select auth.uid()) or ${tenantIn(e("tenant"), read)});
+  using (${e("user")} = (select auth.uid()) or ${ctx.scope.check(e("tenant"), read)});
 
 create table if not exists ${timesheets} (
   ${t("id")} uuid primary key default gen_random_uuid(),
@@ -299,7 +298,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_week_
 ${lockTable(timesheets, { read: true })}
 drop policy if exists "timesheets_read" on ${timesheets};
 create policy "timesheets_read" on ${timesheets} for select to authenticated
-  using (${t("user")} = (select auth.uid()) or ${tenantIn(t("tenant"), read)});
+  using (${t("user")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)});
 `
     : "";
   return `${schemaPreamble(ctx)}
@@ -858,6 +857,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const TIME_TRACKING: ModuleDefinition = {
   name: "time-tracking",
+  scopes: ["tenant"],
   title: "Time tracking",
   description:
     "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",

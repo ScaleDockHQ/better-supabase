@@ -126,7 +126,7 @@ function build(ctx: ModuleContext): string {
 ${lockTable(teams, { read: true })}
 drop policy if exists teams_read on ${teams};
 create policy teams_read on ${teams} for select to authenticated
-using (${tenant} in (select better_supabase.tenant_ids_with(${read})));
+using (${tenant} in (select ${ctx.scope.ids(read)}));
 
 create table if not exists ${members} (
   ${memberTeam} ${idType} not null references ${teams} (${id}) on delete cascade,
@@ -140,7 +140,7 @@ create index if not exists team_members_membership_idx on ${members} (${memberTe
 ${lockTable(members, { read: true })}
 drop policy if exists team_members_read on ${members};
 create policy team_members_read on ${members} for select to authenticated
-using (${memberTenant} in (select better_supabase.tenant_ids_with(${read})));
+using (${memberTenant} in (select ${ctx.scope.ids(read)}));
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
     : "";
@@ -170,7 +170,7 @@ declare
   v_id ${idType};
   v_slug text := trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g'));
 begin
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', create_team.tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("create_team.tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   if v_slug is null or v_slug = '' then
@@ -206,7 +206,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   update ${teams} as t
@@ -233,7 +233,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   update ${teams} set ${status} = 'archived', ${updatedAt} = now() where ${id} = archive_team.team;
@@ -256,7 +256,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   delete from ${teams} where ${id} = delete_team.team;
@@ -279,7 +279,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   ${membershipCheck(ctx, "v_tenant", "add_team_member.member")}
@@ -305,7 +305,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or coalesce(better_supabase.can('tenant', v_tenant, ${manage}), false)) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   delete from ${members}
@@ -333,7 +333,7 @@ as $$
   where t.${tenant} = list_teams.tenant
     and (
       ${service(ctx)}
-      or coalesce(better_supabase.can('tenant', list_teams.tenant, ${read}), false)
+      or ${ctx.scope.can("list_teams.tenant", read)}
     )
 $$;
 ${userGrant(`${fn("list_teams")}(${ctx.idType})`)}
@@ -476,6 +476,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const TEAMS: ModuleDefinition = {
   name: "teams",
+  scopes: ["tenant"],
   title: "Teams",
   description:
     "Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.",

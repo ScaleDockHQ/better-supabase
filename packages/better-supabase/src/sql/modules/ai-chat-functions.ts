@@ -5,7 +5,6 @@ import type { AiChatNames } from "./ai-chat.ts";
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   SERVICE_CALLER,
   serviceGrant,
@@ -63,7 +62,8 @@ function chats(ctx: ModuleContext, names: AiChatNames): string {
   const ch = names.c.chats;
   const p = names.c.projects;
   const m = names.c.messages;
-  const can = canIn;
+  const can = (tenant: string, permission: string): string =>
+    ctx.scope.can(tenant, permission);
   const notFound = raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "%CHAT%");
   const ownProject = (project: string, owner: string, tenant: string): string =>
     `exists (select 1 from ${t.projects} pr where pr.${p.id} = ${project} and pr.${p.owner} = ${owner} and pr.${p.tenant} = ${tenant})`;

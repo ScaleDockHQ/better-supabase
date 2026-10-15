@@ -1,6 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
-import { canIn, fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
 import {
   type OrdersNames,
   amountOf,
@@ -466,10 +466,10 @@ declare
   v_order record;
 begin
   ${load("cancel_order.order_id", true)}
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${canIn("v_order.tenant", names.read)}) then
+  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${ctx.scope.can("v_order.tenant", names.read)}) then
     ${fail("ORDERS_ORDER_NOT_FOUND", "order not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${canIn("v_order.tenant", names.manage)}) then
+  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${ctx.scope.can("v_order.tenant", names.manage)}) then
     ${fail("ORDERS_FORBIDDEN", "not allowed to cancel this order")}
   end if;
   if v_order.status = 'cancelled' then
@@ -525,7 +525,7 @@ declare
   v_order record;
 begin
   ${load("get_order.order_id", false)}
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${canIn("v_order.tenant", names.read)}) then
+  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${ctx.scope.can("v_order.tenant", names.read)}) then
     ${fail("ORDERS_ORDER_NOT_FOUND", "order not found", "P0002")}
   end if;
   return ${fn("order_json")}(v_order.id);

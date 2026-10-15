@@ -184,6 +184,37 @@ Postgres the same wrappers work. A transport's own `schema` option sends
 every call there instead. The executor needs `rpc()`: the built-in PostgREST
 and Postgres executors have it.
 
+### Renamed functions
+
+When the config sets `sql.naming` or `blocks.<name>.functions`, the SQL writes
+the block functions under other names. `gen` writes those names into each
+block's `naming` entry in `blocks.generated.ts`, and `defineBlocks` wraps that
+block's transport with `blockNames(naming)`, so the clients call the renamed
+functions with no change to `lib/blocks.ts`. Rows that a function returns
+whole get their renamed tenant columns (`workspace_id`) back under the names
+the clients read (`organization_id`).
+
+A creator you call yourself takes the same middleware:
+
+```ts
+import {
+  blockNames,
+  generatedOptions,
+  wrapTransport,
+} from "better-supabase/blocks";
+import { createOrganizations } from "better-supabase/blocks/organizations";
+
+import { blockConfig } from "./supabase/blocks.generated";
+
+const entry = blockConfig.organizations;
+const organizations = createOrganizations({
+  ...generatedOptions(entry),
+  transport: entry.naming
+    ? wrapTransport(transport, blockNames(entry.naming))
+    : transport,
+});
+```
+
 ## Ports
 
 A block's manifest says which ports it provides and consumes. `createBlocks`

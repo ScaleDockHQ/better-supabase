@@ -15,7 +15,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   sha256Hex,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
@@ -182,6 +181,7 @@ function build(ctx: ModuleContext): string {
     });
   const readableRequest = (row: string): string =>
     `(${ctx.can("tenant", `${row}.${r("tenant")}`, read)} and ${subjectReadable(
+      ctx,
       subjects,
       {
         type: `${row}.${r("subjectType")}`,
@@ -246,7 +246,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers
 ${lockTable(requests, { read: true })}
 drop policy if exists "signature_requests_read" on ${requests};
 create policy "signature_requests_read" on ${requests} for select to authenticated
-  using (${tenantIn(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")}));
+  using (${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")}));
 
 create table if not exists ${signatures} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -267,7 +267,7 @@ create table if not exists ${signatures} (
 ${lockTable(signatures, { read: true })}
 drop policy if exists "signatures_read" on ${signatures};
 create policy "signatures_read" on ${signatures} for select to authenticated
-  using (${tenantIn(s("tenant"), read)} or ${s("signer")} = (select auth.uid()));
+  using (${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid()));
 `
     : "";
   const hash = (row: string): string =>
@@ -298,6 +298,7 @@ declare
   v_row ${requests}%rowtype;
 begin
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", "create_signature_request.tenant", request)} and ${subjectReadable(
+    ctx,
     subjects,
     {
       type: "create_signature_request.subject_type",
@@ -623,6 +624,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SIGNATURES: ModuleDefinition = {
   name: "signatures",
+  scopes: ["tenant"],
   title: "Signatures",
   description:
     "Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.",

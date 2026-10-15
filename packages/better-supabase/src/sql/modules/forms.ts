@@ -15,7 +15,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   sha256Hex,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
@@ -309,7 +308,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
 ${lockTable(forms, { read: true })}
 drop policy if exists "forms_read" on ${forms};
 create policy "forms_read" on ${forms} for select to authenticated
-  using (${tenantIn(f("tenant"), read)});
+  using (${ctx.scope.check(f("tenant"), read)});
 
 create table if not exists ${versions} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -325,7 +324,7 @@ create table if not exists ${versions} (
 ${lockTable(versions, { read: true })}
 drop policy if exists "form_versions_read" on ${versions};
 create policy "form_versions_read" on ${versions} for select to authenticated
-  using (${tenantIn(v("tenant"), read)});
+  using (${ctx.scope.check(v("tenant"), read)});
 
 create table if not exists ${submissions} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -352,7 +351,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subj
 ${lockTable(submissions, { read: true })}
 drop policy if exists "form_submissions_read" on ${submissions};
 create policy "form_submissions_read" on ${submissions} for select to authenticated
-  using (${tenantIn(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
+  using (${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
 `
     : "";
   return `${schemaPreamble(ctx)}
@@ -646,7 +645,7 @@ begin
   if (submit_form.subject_type is null) <> (submit_form.subject_id is null) then
     ${fail("FORM_SUBJECT_INVALID", "pass both subject_type and subject_id, or neither", "22023")}
   end if;
-  if submit_form.subject_type is not null and not (${SERVICE_CALLER} or ${subjectReadable(subjects, { type: "submit_form.subject_type", id: "submit_form.subject_id", tenant: "v_tenant" })}) then
+  if submit_form.subject_type is not null and not (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type: "submit_form.subject_type", id: "submit_form.subject_id", tenant: "v_tenant" })}) then
     ${fail("FORM_FORBIDDEN", "not allowed to link this record")}
   end if;
   return ${fn("form_submission_save")}(submit_form.form_id, submit_form.answers, submit_form.subject_type, submit_form.subject_id, auth.uid(),
@@ -853,6 +852,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const FORMS: ModuleDefinition = {
   name: "forms",
+  scopes: ["tenant"],
   title: "Forms",
   description:
     "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.",

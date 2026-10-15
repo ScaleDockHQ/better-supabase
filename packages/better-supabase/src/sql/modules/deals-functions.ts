@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 
@@ -88,10 +88,10 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
   const stages = pipelines.table("stages");
   const s = (column: string): string => pipelines.col("stages", column);
   const editable = (alias: string): string =>
-    `(${n.service} or (${canIn(`${alias}.${d("tenant")}`, n.write)} and (${
+    `(${n.service} or (${ctx.scope.can(`${alias}.${d("tenant")}`, n.write)} and (${
       n.readAll ? "true" : "false"
     } or ${alias}.${d("owner")} = auth.uid()
-      or ${canIn(`${alias}.${d("tenant")}`, n.manage)}
+      or ${ctx.scope.can(`${alias}.${d("tenant")}`, n.manage)}
       or exists (select 1 from ${t("members")} mm where mm.${m("deal")} = ${alias}.${d("id")} and mm.${m("user")} = auth.uid()))))`;
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object(
@@ -188,7 +188,7 @@ declare
   v_company_type text := coalesce(create_deal.attrs -> 'company' ->> 'type', ${sqlString(n.company)});
   v_company_id text := create_deal.attrs -> 'company' ->> 'id';
 begin
-  if not (${n.service} or ${canIn("create_deal.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_deal.tenant", n.write)}) then
     ${fail("DEAL_FORBIDDEN", "not allowed to change deals")}
   end if;
   if nullif(trim(create_deal.attrs ->> 'name'), '') is null or (create_deal.attrs ->> 'closeOn') is null then
@@ -492,7 +492,7 @@ declare
 begin
   delete from ${t("deals")} x
   where x.${d("id")} = delete_deal.deal
-    and (${n.service} or x.${d("owner")} = auth.uid() or ${canIn(`x.${d("tenant")}`, n.manage)})
+    and (${n.service} or x.${d("owner")} = auth.uid() or ${ctx.scope.can(`x.${d("tenant")}`, n.manage)})
   returning * into v_row;
   if v_row.${d("id")} is null then
     return false;

@@ -5,9 +5,11 @@ import type {
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
 import type {
+  AnyBlocksConfig,
+  BlockScope,
   DisabledRow,
   BlockMode,
-  AnyBlocksConfig,
+  SqlNaming,
 } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
@@ -66,6 +68,13 @@ export interface SqlModule {
   readonly description: string;
   /** Modules this one needs, added along with it. */
   readonly requires: readonly string[];
+  /**
+   * The scopes the module runs in. A module that needs tenants declares
+   * `["tenant"]`; unset, it runs in every scope. Outside `tenant` scope a
+   * module needs neither `tenant` nor `access`, so they drop from
+   * `requires`.
+   */
+  readonly scopes?: readonly BlockScope[];
   /**
    * A module this one renders and is numbered ahead of, for a module that
    * owns a subject table the `case` checks of `comments` or `attachments`
@@ -224,6 +233,10 @@ export interface ModuleLayout {
   readonly accessProvider?: ModuleAccessProvider;
   /** `config.blocks`: modes, names and permission keys per module. */
   readonly modules?: AnyBlocksConfig;
+  /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
+  readonly scope?: BlockScope;
+  /** `sql.naming`: the tenant concept's name in tables, functions and columns. */
+  readonly naming?: SqlNaming;
   /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */

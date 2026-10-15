@@ -9,12 +9,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
-import {
-  replaceColumnCheck,
-  schemaPreamble,
-  tenantIn,
-  lockTable,
-} from "../shared.ts";
+import { replaceColumnCheck, schemaPreamble, lockTable } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
@@ -514,7 +509,7 @@ function tables(ctx: ModuleContext, names: AiChatNames): string {
     (type) => `@.type == "${type}"`,
   ).join(" || ");
   const textParts = `jsonb_path_query_array(${m.parts}, '$[*] ? (@.type == "text").text')`;
-  const visible = tenantIn(ch.tenant, perm.read);
+  const visible = ctx.scope.check(ch.tenant, perm.read);
 
   return `-- Projects group chats and carry instructions and a default model.
 create table if not exists ${t.projects} (
@@ -988,6 +983,7 @@ ${replaceColumnCheck({
 
 export const AI_CHAT: ModuleDefinition = {
   name: "ai-chat",
+  scopes: ["tenant"],
   title: "AI chat",
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",

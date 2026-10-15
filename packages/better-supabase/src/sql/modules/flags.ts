@@ -178,7 +178,7 @@ begin
   else
     -- The role and plan lookups run only for flags with rules that read them.
     if tenant is not null and flag.${f("rules")} @? '$[*].roles' then
-      role := better_supabase.organization_member_role(tenant, member);
+      role := ${ctx.of("tenant").fn("organization_member_role")}(tenant, member);
     end if;
     if tenant is not null and flag.${f("rules")} @? '$[*].plans' then
       tenant_plans := ${plans};
@@ -407,6 +407,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const FLAGS: ModuleDefinition = {
   name: "flags",
+  scopes: ["tenant"],
   title: "Feature flags",
   description:
     "Feature flags with variants, targeting rules over tenant, user, plan and role, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature.",

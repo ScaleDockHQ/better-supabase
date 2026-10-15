@@ -7,11 +7,14 @@ import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import {
   type BlockMode,
   type AnyBlocksConfig,
+  type BlockScope,
   type ResolvedModule,
   resolveModule,
 } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { type TenantNames, tenantNames } from "../core/tenant-naming.ts";
+import { type ModuleScope, moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 
 export { NOTHING };
@@ -185,6 +188,8 @@ export interface ModuleAction extends ModuleEmit {
   readonly audit: ModuleAudit | false;
 }
 
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+
 // These modules write their functions into better_supabase whatever
 // blocks.<name>.schema says; the schema only places their tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
@@ -226,8 +231,24 @@ export interface ModuleContext {
   readonly modules: AnyBlocksConfig;
   /** The app-wide subject registry (`config.subjects`). */
   readonly subjects: SubjectsConfig;
-  /** `schema.name` of a module function, quoted. */
+  /**
+   * Who the module's rows belong to, and the checks for it: the port every
+   * tenant, user or shared-space check goes through.
+   */
+  readonly scope: ModuleScope;
+  /** The tenant concept's names (`sql.naming.tenant`). */
+  readonly naming: TenantNames;
+  /**
+   * `schema.name` of a module function, quoted. The name is the default
+   * one; `sql.naming` and `blocks.<name>.functions` rename it.
+   */
   fn(name: string): string;
+  /** The unquoted name a module function is written under (see `fn`). */
+  fnName(name: string): string;
+  /** `blocks.<name>.functions` keys no `fn` call has asked for yet. */
+  unusedFunctions(): readonly string[];
+  /** Default name to written name, for every function `fn` renamed so far. */
+  functionRenames(): ReadonlyMap<string, string>;
   /** `schema.table` of a logical table, quoted. */
   table(logical: string): string;
   /** The unquoted schema and name of a logical table. */
@@ -319,7 +340,11 @@ export interface ModuleContext {
     payload: string,
     options?: { readonly indent?: string },
   ): string;
-  /** `coalesce(better_supabase.can(scope, id, permission), false)`; `permission` is a SQL expression. */
+  /**
+   * `coalesce(better_supabase.can(scope, id, permission), false)`;
+   * `permission` is a SQL expression. The `tenant` scope goes through
+   * `scope.can`.
+   */
   can(scope: string, id: string, permission: string): string;
   /**
    * True for the service role and platform staff holding `permission` (a SQL
@@ -350,6 +375,10 @@ export interface ModuleContextSource {
   readonly installed?: readonly string[];
   /** The id type the authorization provider gives, when the layout has one. */
   readonly providerIdType?: ModuleIdType;
+  /** `sql.scope`: the scope of a module whose config sets none. */
+  readonly scope?: BlockScope;
+  /** `sql.naming.tenant`. */
+  readonly tenantName?: string;
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -466,14 +495,47 @@ export function createModuleContext(
     return config.options[name];
   };
 
+  // The tenant module and the access contract are what tenant scope runs
+  // on, so they render for tenants whatever scope the blocks around them use.
+  const scopeKind = TENANT_PROVIDERS.has(module)
+    ? "tenant"
+    : (config.scope ?? source.scope ?? "tenant");
   const rawId =
-    config.idType ?? modules.access?.idType ?? source.providerIdType ?? "uuid";
+    scopeKind === "user"
+      ? (config.idType ?? "uuid")
+      : (config.idType ??
+        modules.access?.idType ??
+        source.providerIdType ??
+        "uuid");
   const idType = moduleIdType(rawId);
   if (!idType) {
     throw new TypeError(
       `${where}.idType: "${rawId}" is not one of ${MODULE_ID_TYPES.join(", ")}`,
     );
   }
+  if (scopeKind === "user" && idType !== "uuid") {
+    throw new TypeError(
+      `${where}.idType: in user scope the scope id is a user id, so it is uuid, not ${idType}`,
+    );
+  }
+  const naming = tenantNames(source.tenantName);
+  // blocks.access.functions holds the custom model's templates, and the
+  // access contract's names (can, tenant_ids_with) name no tenant.
+  const renames = module === "access" ? {} : config.functions;
+  for (const [name, target] of Object.entries(renames)) {
+    checkIdent(`${where}.functions`, name);
+    checkIdent(`${where}.functions.${name}`, target);
+  }
+  const requested = new Set<string>();
+  const applied = new Map<string, string>();
+  const fnName = (name: string): string => {
+    const renamed = naming.rename(name);
+    requested.add(name);
+    requested.add(renamed);
+    const written = renames[name] ?? renames[renamed] ?? renamed;
+    if (written !== name) applied.set(name, written);
+    return written;
+  };
 
   const tableName = (logical: string) => {
     const table = names.tables[logical];
@@ -486,7 +548,10 @@ export function createModuleContext(
         `Module "${module}" needs table "${logical}", which blocks.${module}.tables maps to null`,
       );
     }
-    const parts = splitTable(mapped ?? table.name, config.schema);
+    const parts = splitTable(
+      mapped ?? naming.rename(table.name),
+      config.schema,
+    );
     checkIdent(`${where}.tables.${logical}`, parts.schema);
     checkIdent(`${where}.tables.${logical}`, parts.name);
     return parts;
@@ -499,7 +564,9 @@ export function createModuleContext(
       );
     }
     const mapped = config.columns[table]?.[logical];
-    return mapped === undefined ? known.columns[logical]! : mapped;
+    return mapped === undefined
+      ? naming.rename(known.columns[logical]!)
+      : mapped;
   };
   const requiredColumn = (table: string, logical: string): string => {
     const name = column(table, logical);
@@ -643,6 +710,15 @@ export function createModuleContext(
       .map(([name, value]) => `    ${name} => ${value}`)
       .join(",\n")}\n  );`;
   };
+  const scope = moduleScope({
+    kind: scopeKind,
+    idType,
+    access: installed.has("access"),
+    members: () =>
+      createModuleContext("tenant", namesOf, source).fn(
+        "member_organization_ids",
+      ),
+  });
   function entitlements(tenant: string): string | undefined;
   function entitlements(tenant: string, fallback: string): string;
   function entitlements(tenant: string, fallback?: string): string | undefined {
@@ -661,14 +737,20 @@ export function createModuleContext(
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
     subjects: source.subjects ?? {},
+    scope,
+    naming,
     modules,
     manages: config.mode === "managed",
     names,
     installedModules: [...installed],
     fn: (name) =>
       FIXED_FUNCTIONS[module]?.has(name)
-        ? `better_supabase.${name}`
-        : `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(name)}`,
+        ? `better_supabase.${fnName(name)}`
+        : `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(fnName(name))}`,
+    fnName,
+    functionRenames: () => applied,
+    unusedFunctions: () =>
+      Object.keys(renames).filter((name) => !requested.has(name)),
     tableName,
     table(logical) {
       const parts = tableName(logical);
@@ -689,7 +771,7 @@ export function createModuleContext(
     permissionKey: (action, fallback) => config.permissions[action] ?? fallback,
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? fallback),
-    trigger: (name) => sqlIdent(`bs_${name}`),
+    trigger: (name) => sqlIdent(`bs_${naming.rename(name)}`),
     installed(name) {
       declares(name);
       return installed.has(name);
@@ -801,12 +883,14 @@ export function createModuleContext(
 ${indent}  perform realtime.send(${payload}, ${event}, ${topic}, true);
 ${indent}end if;`;
     },
-    can: (scope, id, permission) =>
-      `coalesce(better_supabase.can(${sqlString(scope)}, ${id}, ${permission}), false)`,
+    can: (name, id, permission) =>
+      name === "tenant"
+        ? scope.can(id, permission)
+        : `coalesce(better_supabase.can(${sqlString(name)}, ${id}, ${permission}), false)`,
     staff(permission) {
       declares("access");
       return installed.has("access")
-        ? `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${permission}), false))`
+        ? `(${SERVICE_CALLER} or coalesce(${scope.platform(permission)}, false))`
         : SERVICE_CALLER;
     },
   };

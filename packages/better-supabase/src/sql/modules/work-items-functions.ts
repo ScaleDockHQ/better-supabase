@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { canIn, fail, pageSize, userGrant } from "../shared.ts";
+import { fail, pageSize, userGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface WorkItemNames {
@@ -54,7 +54,7 @@ export function workItemFunctions(
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
   const editable = (alias: string): string =>
-    `(${n.service} or ${canIn(`${alias}.${w("tenant")}`, n.write)})`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb))`;
   const record = (type: string, alias: string, extra = ""): string =>
@@ -108,7 +108,7 @@ export function workItemFunctions(
   const i = (column: string): string => c("iterations", column);
   const manageGuard = (
     tenant: string,
-  ): string => `if not (${n.service} or ${canIn(tenant, n.manage)}) then
+  ): string => `if not (${n.service} or ${ctx.scope.can(tenant, n.manage)}) then
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to manage projects and iterations")}
   end if;`;
   const projects = ctx.hasTable("projects")
@@ -215,7 +215,7 @@ declare
   v_id uuid;
   v_row ${t("items")};
 begin
-  if not (${n.service} or ${canIn("create_work_item.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_work_item.tenant", n.write)}) then
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to change work items")}
   end if;
   if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
@@ -393,7 +393,7 @@ declare
 begin
   delete from ${t("items")} x
   where x.${w("id")} = delete_work_item.work_item
-    and (${n.service} or x.${w("createdBy")} = auth.uid() or ${canIn(`x.${w("tenant")}`, n.manage)})
+    and (${n.service} or x.${w("createdBy")} = auth.uid() or ${ctx.scope.can(`x.${w("tenant")}`, n.manage)})
   returning * into v_row;
   if v_row.${w("id")} is null then
     return false;

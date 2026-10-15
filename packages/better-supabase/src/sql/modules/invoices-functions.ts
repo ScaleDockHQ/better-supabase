@@ -3,7 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { canIn, fail, userGrant } from "../shared.ts";
+import { fail, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
@@ -29,7 +29,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
   const l = (column: string): string => c("lines", column);
   const p = (column: string): string => c("payments", column);
   const can = (alias: string, permission: string): string =>
-    `(${n.service} or ${canIn(`${alias}.${i("tenant")}`, permission)})`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
   const balance = (alias: string): string =>
     `(${alias}.${i("total")} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
   const row = (alias: string): string =>
@@ -105,7 +105,7 @@ declare
   v_lines jsonb;
 begin
   select * into v_quote from ${quotes.table("quotes")} x where x.${q("id")} = invoice_from_quote.quote;
-  if v_quote.${q("id")} is null or not (${n.service} or ${canIn(`v_quote.${q("tenant")}`, n.write)}) then
+  if v_quote.${q("id")} is null or not (${n.service} or ${ctx.scope.can(`v_quote.${q("tenant")}`, n.write)}) then
     ${fail("INVOICE_ORIGIN_NOT_FOUND", "no such quote you can invoice", "P0002")}
   end if;
   if v_quote.${q("status")} <> 'accepted' then
@@ -168,7 +168,7 @@ declare
   v_contact_type text := coalesce(create_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
   v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';
 begin
-  if not (${n.service} or ${canIn("create_invoice.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", n.write)}) then
     ${fail("INVOICE_FORBIDDEN", "not allowed to change invoices")}
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then

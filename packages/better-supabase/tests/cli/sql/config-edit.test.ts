@@ -4,6 +4,8 @@ import {
   addBlocksToConfig,
   addBlocksToJson,
   addBlocksToWiring,
+  setBlockInConfig,
+  setBlockInJson,
   setPresetInConfig,
   setPresetInJson,
 } from "../../../src/cli/sql/config-edit.ts";
@@ -341,5 +343,133 @@ describe("addBlocksToWiring", () => {
     expect(addBlocksToWiring("createBlocks(options, { a: ", [block]).ok).toBe(
       false,
     );
+  });
+});
+
+const ADOPTED = {
+  mode: "adopt",
+  tables: { teams: "public.teams", members: null },
+  columns: { teams: { tenant: "organization_id" } },
+};
+
+const setBlock = (source: string): string => {
+  const result = setBlockInConfig(source, "teams", ADOPTED);
+  if (!result.ok) throw new Error(result.reason);
+  return result.text;
+};
+
+describe("setBlockInConfig", () => {
+  it("replaces an entry in a blocks object, or appends one", () => {
+    const source = `import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  blocks: {
+    teams: {},
+    "api-keys": {},
+  },
+});
+`;
+    const replaced = `import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  blocks: {
+    teams: {
+      mode: "adopt",
+      tables: {
+        teams: "public.teams",
+        members: null,
+      },
+      columns: {
+        teams: {
+          tenant: "organization_id",
+        },
+      },
+    },
+    "api-keys": {},
+  },
+});
+`;
+    expect(setBlock(source)).toBe(replaced);
+    expect(setBlock(source.replace("    teams: {},\n", ""))).toBe(
+      `import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  blocks: {
+    "api-keys": {},
+    teams: {
+      mode: "adopt",
+      tables: {
+        teams: "public.teams",
+        members: null,
+      },
+      columns: {
+        teams: {
+          tenant: "organization_id",
+        },
+      },
+    },
+  },
+});
+`,
+    );
+  });
+
+  it("turns a blocks list into an object, and adds blocks when there is none", () => {
+    const listed = setBlock(
+      "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  blocks: ['tags'],\n});\n",
+    );
+    expect(listed).toContain(
+      "  blocks: {\n    tags: {},\n    teams: {\n      mode: 'adopt',",
+    );
+    const added = setBlock(
+      'export default defineConfig({\n  casing: "camel",\n});\n',
+    );
+    expect(added).toContain(
+      '  casing: "camel",\n  blocks: {\n    teams: {\n      mode: "adopt",',
+    );
+  });
+
+  it("refuses what it can't read", () => {
+    expect(setBlockInConfig("export const x = 1;", "teams", {})).toEqual({
+      ok: false,
+      reason: "it doesn't pass an object literal to defineConfig()",
+    });
+    expect(
+      setBlockInConfig("defineConfig({ blocks: names });", "teams", {}),
+    ).toEqual({
+      ok: false,
+      reason: "its blocks key isn't a literal object or list",
+    });
+  });
+});
+
+describe("setBlockInJson", () => {
+  it("sets the entry, turning a list into an object", () => {
+    const result = setBlockInJson(
+      '{\n  "blocks": ["tags"]\n}\n',
+      "teams",
+      ADOPTED,
+    );
+    expect(result.ok && JSON.parse(result.text)).toEqual({
+      blocks: { tags: {}, teams: ADOPTED },
+    });
+    const object = setBlockInJson('{"blocks":{"teams":{}}}', "teams", {});
+    expect(object.ok && JSON.parse(object.text)).toEqual({
+      blocks: { teams: {} },
+    });
+  });
+
+  it("keeps the file as it is when the entry holds the same values", () => {
+    const source = '{ "blocks": { "teams": { "mode": "adopt" } } }\n';
+    expect(setBlockInJson(source, "teams", { mode: "adopt" })).toEqual({
+      ok: true,
+      text: source,
+    });
+  });
+
+  it("refuses what isn't a JSON object with readable blocks", () => {
+    expect(setBlockInJson("{", "teams", {}).ok).toBe(false);
+    expect(setBlockInJson("[]", "teams", {}).ok).toBe(false);
+    expect(setBlockInJson('{"blocks":1}', "teams", {}).ok).toBe(false);
   });
 });

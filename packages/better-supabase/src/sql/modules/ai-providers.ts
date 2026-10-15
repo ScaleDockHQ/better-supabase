@@ -4,12 +4,10 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
   revokeTable,
 } from "../shared.ts";
@@ -159,7 +157,7 @@ grant select on ${keys} to authenticated;
 grant all on ${keys} to service_role;
 drop policy if exists ai_provider_keys_read on ${keys};
 create policy ai_provider_keys_read on ${keys} for select to authenticated
-  using (${tenantIn(k.tenant, manage)});
+  using (${ctx.scope.check(k.tenant, manage)});
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -192,7 +190,7 @@ grant select on ${batches} to authenticated;
 grant all on ${batches} to service_role;
 drop policy if exists ai_batches_read on ${batches};
 create policy ai_batches_read on ${batches} for select to authenticated
-  using (${b.user} = (select auth.uid()) or ${tenantIn(b.tenant, manage)});
+  using (${b.user} = (select auth.uid()) or ${ctx.scope.check(b.tenant, manage)});
 
 create table if not exists ${items} (
   ${i.batch} uuid not null references ${batches} (${b.id}) on delete cascade,
@@ -240,7 +238,7 @@ declare
   v_old jsonb;
   v_row ${keys}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or ${canIn("save_ai_provider_key.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("save_ai_provider_key.tenant", manage)}) then
     ${raise("you may not manage provider keys here", "42501", "AI_PROVIDER_KEY_FORBIDDEN")}
   end if;
   ${tenantRefGuard("save_ai_provider_key.credential_ref", "save_ai_provider_key.tenant")}
@@ -273,7 +271,7 @@ declare
   v_row ${keys}%rowtype;
 begin
   select * into v_row from ${keys} x where x.${k.id} = delete_ai_provider_key.id for update;
-  if not found or not (${SERVICE_CALLER} or ${canIn(`v_row.${k.tenant}`, manage)}) then
+  if not found or not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${k.tenant}`, manage)}) then
     return null;
   end if;
   delete from ${keys} x where x.${k.id} = v_row.${k.id};
@@ -327,7 +325,7 @@ declare
   v_row ${batches}%rowtype;
   v_fields jsonb := coalesce(record_ai_batch.fields, '{}');
 begin
-  if not (${SERVICE_CALLER} or (auth.uid() is not null and ${canIn("record_ai_batch.tenant", use)})) then
+  if not (${SERVICE_CALLER} or (auth.uid() is not null and ${ctx.scope.can("record_ai_batch.tenant", use)})) then
     ${raise("you may not start batches here", "42501", "AI_BATCH_FORBIDDEN")}
   end if;
   insert into ${batches} (${b.tenant}, ${b.user}, ${b.provider}, ${b.reference}, ${b.status}, ${b.rawStatus}, ${b.itemCount}, ${b.counts}, ${b.metadata}, ${b.expiresAt}, ${b.nextPollAt})
@@ -508,6 +506,7 @@ $$;`;
 
 export const AI_PROVIDERS: ModuleDefinition = {
   name: "ai-providers",
+  scopes: ["tenant"],
   title: "AI providers",
   description:
     "A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.",

@@ -13,13 +13,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
-import {
-  addExtraColumns,
-  fail,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { moduleOperations } from "./access-model.ts";
 import { dealFunctions, type DealNames } from "./deals-functions.ts";
@@ -160,9 +154,9 @@ function tables(ctx: ModuleContext, n: DealNames): string {
   const m = (column: string): string => c("members", column);
   const canSubject = ctx.of("subjects").fn("can_subject");
   const visible = n.readAll
-    ? tenantIn(d("tenant"), n.read)
-    : `${tenantIn(d("tenant"), n.read)} and (${d("owner")} = (select auth.uid())
-      or ${tenantIn(d("tenant"), n.manage)}
+    ? ctx.scope.check(d("tenant"), n.read)
+    : `${ctx.scope.check(d("tenant"), n.read)} and (${d("owner")} = (select auth.uid())
+      or ${ctx.scope.check(d("tenant"), n.manage)}
       or exists (select 1 from ${t("members")} x where x.${m("deal")} = ${d("id")} and x.${m("user")} = (select auth.uid())))`;
   return `
 create table if not exists ${t("deals")} (
@@ -251,7 +245,7 @@ create policy deal_contacts_read on ${t("contacts")} for select to authenticated
 using (exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read'));
 drop policy if exists deal_members_read on ${t("members")};
 create policy deal_members_read on ${t("members")} for select to authenticated
-using (${m("user")} = (select auth.uid()) or ${tenantIn(m("tenant"), n.read)});
+using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)});
 `;
 }
 
@@ -420,6 +414,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const DEALS: ModuleDefinition = {
   name: "deals",
+  scopes: ["tenant"],
   title: "Deals",
   description:
     "Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.",

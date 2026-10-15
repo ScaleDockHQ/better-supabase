@@ -1,6 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
-import { canIn, fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
 import {
   type OrdersNames,
   amountOf,
@@ -30,7 +30,7 @@ function ownCart(
   const readers =
     options.readers === undefined
       ? ""
-      : ` or ${canIn("v_cart.tenant", options.readers)}`;
+      : ` or ${ctx.scope.can("v_cart.tenant", options.readers)}`;
   return `select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status,
     x.${c("currency")} as currency, x.${c("priceList")} as price_list, x.${c("shippingAddress")} as shipping_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = ${id}${options.lock ? " for update" : ""};
@@ -82,7 +82,7 @@ declare
   v_id uuid;
   v_countries text[];
 begin
-  ${guard(names.manage, "save_shipping_rate.tenant")}
+  ${guard(names.scope, names.manage, "save_shipping_rate.tenant")}
   if jsonb_typeof(data) is distinct from 'object' then
     ${fail("ORDERS_RATE_INVALID", "the rate is an object", "22023")}
   end if;
@@ -132,7 +132,7 @@ begin
   if not found then
     return false;
   end if;
-  ${guard(names.manage, "v_tenant")}
+  ${guard(names.scope, names.manage, "v_tenant")}
   delete from ${rates} x where x.${s("id")} = delete_shipping_rate.rate;
   return true;
 end;
@@ -292,7 +292,7 @@ export function cartFunctions(ctx: ModuleContext, names: OrdersNames): string {
     catalog.hasTable("priceLists") && catalog.has("prices", "priceList");
   const priceListCheck = lists
     ? `if create_cart.price_list is not null then
-    if not (auth.role() = 'service_role' or ${canIn("create_cart.tenant", names.manage)}) then
+    if not (auth.role() = 'service_role' or ${ctx.scope.can("create_cart.tenant", names.manage)}) then
       ${fail("ORDERS_FORBIDDEN", "only staff can put a cart on a price list")}
     end if;
     if not exists (select 1 from ${catalog.table("priceLists")} x where x.${catalog.col("priceLists", "id")} = create_cart.price_list and x.${catalog.col("priceLists", "tenant")} = create_cart.tenant) then

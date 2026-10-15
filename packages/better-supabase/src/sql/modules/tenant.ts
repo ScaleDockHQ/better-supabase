@@ -355,7 +355,7 @@ function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
       and not better_supabase.tenant_disabled(m.${tenant})${active}
   )`
       : `  select has_organization_role.organization in (
-    select better_supabase.member_organization_ids(has_organization_role.roles)
+    select ${ctx.fn("member_organization_ids")}(has_organization_role.roles)
   )`;
   const memberRoleFilter =
     members.idsFor === undefined
@@ -399,7 +399,7 @@ grant all on ${m} to service_role;
 drop policy if exists bs_memberships_read on ${m};
 create policy bs_memberships_read on ${m}
   for select to authenticated
-  using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_organization_ids()));
+  using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
 `
     : "";
   // The access module defines tenant_disabled and user_disabled when it is
@@ -425,7 +425,7 @@ ${currentTenant(ctx)}
 -- Under the authorization provider, membership comes from its memberIds;
 -- the memberships table only names roles.`
   }
-create or replace function better_supabase.member_organization_ids(roles text[] default null)
+create or replace function ${ctx.fn("member_organization_ids")}(roles text[] default null)
 returns setof ${id}
 language sql
 rows 1
@@ -436,7 +436,7 @@ as $$
 ${memberIdsBody}
 $$;
 
-create or replace function better_supabase.has_organization_role(organization ${id}, roles text[] default null)
+create or replace function ${ctx.fn("has_organization_role")}(organization ${id}, roles text[] default null)
 returns boolean
 language sql
 stable
@@ -447,7 +447,7 @@ ${hasRoleBody}
 $$;
 
 -- The role of a user in a tenant, or null when they aren't a member.
-create or replace function better_supabase.organization_member_role(organization ${id}, member uuid)
+create or replace function ${ctx.fn("organization_member_role")}(organization ${id}, member uuid)
 returns text
 language sql
 stable
@@ -457,12 +457,12 @@ as $$
   select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member${memberRoleFilter}
 $$;
 ${policy}
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(${id}, text[]) from public, anon;
-revoke execute on function better_supabase.organization_member_role(${id}, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(${id}, text[]) to authenticated, service_role;
-grant execute on function better_supabase.organization_member_role(${id}, uuid) to service_role;
+revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public, anon;
+revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public, anon;
+revoke execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) from public, anon, authenticated;
+grant execute on function ${ctx.fn("member_organization_ids")}(text[]) to authenticated, service_role;
+grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to authenticated, service_role;
+grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to service_role;
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is
 -- [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }. When an

@@ -5,7 +5,7 @@ import type { ModuleAccessProvider } from "./module-types.ts";
 import { fillTemplate } from "../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/access-model.ts";
-import { quotedTable, splitTable, tenantIn } from "./shared.ts";
+import { quotedTable, splitTable } from "./shared.ts";
 
 /**
  * One subject type a module's rows belong to (`options.subjects`): the
@@ -325,6 +325,7 @@ export function subjectTableBindings(
  * its permission. `true` without `subjects`, `false` for an unlisted type.
  */
 export function subjectReadable(
+  ctx: Pick<ModuleContext, "scope" | "naming">,
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
@@ -335,9 +336,9 @@ export function subjectReadable(
         return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)})`;
       }
       const extra = subject.permission
-        ? ` and coalesce(better_supabase.can('tenant', ${args.tenant}, ${sqlString(subject.permission)}), false)`
+        ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
         : "";
-      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and s.${sqlIdent(subject.tenant ?? "organization_id")} = ${args.tenant})${extra}`;
+      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
 }
@@ -500,12 +501,15 @@ export function subjectAccess<A extends string>(
       const cases = list.map(
         (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
       );
-      return `coalesce(better_supabase.can('tenant', ${tenant}, case ${type} ${cases.join(" ")} else ${permission(action)} end), false)`;
+      return ctx.scope.can(
+        tenant,
+        `case ${type} ${cases.join(" ")} else ${permission(action)} end`,
+      );
     },
     memberOn(tenant, type, id, action) {
       if (keyed(action).length === 0)
-        return tenantIn(tenant, permission(action));
-      return branches(action, type, id, (key) => tenantIn(tenant, key));
+        return ctx.scope.check(tenant, permission(action));
+      return branches(action, type, id, (key) => ctx.scope.check(tenant, key));
     },
     keyFor(type, action) {
       const cases = entries.flatMap((entry) => {

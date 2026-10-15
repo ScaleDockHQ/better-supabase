@@ -1,6 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
-import { canIn, fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
 import {
   type OrdersNames,
   columns,
@@ -113,7 +113,7 @@ declare
   v_id uuid;
 begin
   ${load("create_fulfillment.order_id")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_order.status <> 'paid' then
     ${fail("ORDERS_NOT_PAID", "only a paid order can be fulfilled", "55000")}
   end if;
@@ -163,7 +163,7 @@ declare
   v_order record;
 begin
   ${loadFulfillment("ship_fulfillment.fulfillment")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'shipped' then
     return false;
   end if;
@@ -209,7 +209,7 @@ declare
   v_order record;
 begin
   ${loadFulfillment("deliver_fulfillment.fulfillment")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'delivered' then
     return false;
   end if;
@@ -240,7 +240,7 @@ declare
   v_order record;
 begin
   ${loadFulfillment("cancel_fulfillment.fulfillment")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'cancelled' then
     return false;
   end if;
@@ -272,7 +272,7 @@ declare
   v_units integer := 0;
 begin
   ${load("request_return.order_id")}
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${canIn("v_order.tenant", names.manage)}) then
+  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${ctx.scope.can("v_order.tenant", names.manage)}) then
     ${fail("ORDERS_FORBIDDEN", "not allowed to return this order")}
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -326,7 +326,7 @@ declare
   v_units integer := 0;
 begin
   ${loadReturn("receive_return.return_id")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_return.status = 'received' then
     return false;
   end if;
@@ -359,7 +359,7 @@ declare
   v_order record;
 begin
   ${loadReturn("reject_return.return_id")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_return.status <> 'requested' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a requested return can be rejected", "55000")}
   end if;
@@ -387,7 +387,7 @@ declare
   v_id uuid;
 begin
   ${load("create_refund.order_id")}
-  ${guard(names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}
   ${ctx.hook("before_refund_create", [["uuid", "v_order.id"]])}
   if create_refund.return_id is not null and not exists (
     select 1 from ${returns} x where x.${r("id")} = create_refund.return_id and x.${r("order")} = v_order.id) then

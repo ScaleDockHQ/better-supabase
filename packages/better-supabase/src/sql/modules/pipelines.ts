@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { lockTable, schemaPreamble, tenantIn } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { type Names, pipelineBindings } from "./pipelines-bindings.ts";
 import {
@@ -150,7 +150,7 @@ function tables(ctx: ModuleContext, names: Names): string {
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${tenantIn(c(table, "tenant"), names.read)});`;
+using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
   const transitions = ctx.hasTable("transitions")
     ? `
 create table if not exists ${t("transitions")} (
@@ -235,7 +235,7 @@ ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
 drop policy if exists pipeline_stage_history_read on ${t("history")};
 create policy pipeline_stage_history_read on ${t("history")} for select to authenticated
-using (${tenantIn(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read'));
+using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read'));
 `;
 }
 
@@ -309,6 +309,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const PIPELINES: ModuleDefinition = {
   name: "pipelines",
+  scopes: ["tenant"],
   title: "Pipelines",
   description:
     "Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.",

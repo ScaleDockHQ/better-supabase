@@ -9,12 +9,10 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  canIn,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -117,7 +115,7 @@ function build(ctx: ModuleContext): string {
       audit: false,
     });
   const editable = (alias: string): string =>
-    `(auth.role() = 'service_role' or ${alias}.${e("createdBy")} = auth.uid() or ${alias}.${e("owner")} = auth.uid() or ${canIn(`${alias}.${e("tenant")}`, manage)})`;
+    `(auth.role() = 'service_role' or ${alias}.${e("createdBy")} = auth.uid() or ${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
   const subjectsOf = (id: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by sx.${l("position")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
   const row = (alias: string): string =>
@@ -204,10 +202,10 @@ ${lockTable(t("links"), { read: true })}
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on ${t("links")};
 create policy engagement_subjects_read on ${t("links")} for select to authenticated
-using (${tenantIn(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read'));
+using (${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read'));
 drop policy if exists engagements_read on ${t("engagements")};
 create policy engagements_read on ${t("engagements")} for select to authenticated
-using (${tenantIn(e("tenant"), read)} and (
+using (${ctx.scope.check(e("tenant"), read)} and (
   not exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")})
   or exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")} and ${canSubject}(x.${l("subjectType")}, x.${l("subjectId")}, 'read'))
 ));
@@ -235,7 +233,7 @@ declare
   v_first jsonb;
   v_claims text;
 begin
-  if not (auth.role() = 'service_role' or ${canIn("v_tenant", write)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", write)}) then
     ${fail("ENGAGEMENT_FORBIDDEN", "not allowed to log engagements")}
   end if;
   if v_type is null or not (v_type = any (${typeList})) then
@@ -473,6 +471,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const ENGAGEMENTS: ModuleDefinition = {
   name: "engagements",
+  scopes: ["tenant"],
   title: "Engagements",
   description:
     "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",

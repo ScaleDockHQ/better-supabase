@@ -303,7 +303,7 @@ ${
   ctx.has("log", "table") && ctx.has("log", "record")
     ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
     : ""
-}create index if not exists audit_events_organization_idx on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
+}create index if not exists ${ctx.naming.rename("audit_events_organization_idx")} on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
 create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
     ctx.has("log", "correlationId")
       ? `
@@ -847,7 +847,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return query select t::${ctx.idType} from better_supabase.tenant_ids_with(${view}) t;
+  return query select t::${ctx.idType} from ${ctx.scope.ids(view)} t;
 end;
 $$;
 create or replace function ${ctx.fn("audit_reads_all")}()
@@ -857,7 +857,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return better_supabase.is_platform(${viewAll});
+  return ${ctx.scope.platform(viewAll)};
 end;
 $$;
 revoke execute on function ${ctx.fn("audit_read_tenants")}() from public, anon;

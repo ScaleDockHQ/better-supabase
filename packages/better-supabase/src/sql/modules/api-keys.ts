@@ -251,7 +251,7 @@ begin
     end if;
     if personal and tenant is null and exists (
       select 1 from ${ctx.of("tenant").fn("member_organization_ids")}() as m(id)
-      where m.id not in (select better_supabase.tenant_ids_with(${ctx.permission("own", permissions.own)}))
+      where m.id not in (select ${ctx.scope.ids(ctx.permission("own", permissions.own))})
     ) then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys for every tenant")}
     end if;
@@ -375,7 +375,7 @@ begin
     ))
     or (found.${c("tenant")} is not null and better_supabase.tenant_disabled(found.${c("tenant")}))
     or (found.${c("user")} is not null and found.${c("tenant")} is not null
-      and better_supabase.organization_member_role(found.${c("tenant")}, found.${c("user")}) is null)
+      and ${ctx.of("tenant").fn("organization_member_role")}(found.${c("tenant")}, found.${c("user")}) is null)
   then
     return jsonb_build_object('status', 'invalid');
   end if;
@@ -472,6 +472,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const API_KEYS: ModuleDefinition = {
   name: "api-keys",
+  scopes: ["tenant"],
   title: "API keys",
   description:
     "Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.",

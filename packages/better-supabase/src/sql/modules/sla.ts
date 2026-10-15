@@ -9,12 +9,10 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
-  canIn,
   fail,
   lockTable,
   schemaPreamble,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
@@ -319,7 +317,7 @@ create unique index if not exists sla_policies_match_idx on ${t("policies")} (${
 ${lockTable(t("policies"), { read: true })}
 drop policy if exists sla_policies_read on ${t("policies")};
 create policy sla_policies_read on ${t("policies")} for select to authenticated
-using (${tenantIn(p("tenant"), read)});
+using (${ctx.scope.check(p("tenant"), read)});
 
 create table if not exists ${t("clocks")} (
   ${k("id")} uuid primary key default gen_random_uuid(),
@@ -343,7 +341,7 @@ create index if not exists sla_clocks_policy_idx on ${t("clocks")} (${k("policy"
 ${lockTable(t("clocks"), { read: true })}
 drop policy if exists sla_clocks_read on ${t("clocks")};
 create policy sla_clocks_read on ${t("clocks")} for select to authenticated
-using (${tenantIn(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read'));
+using (${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read'));
 `
     : ""
 }
@@ -397,7 +395,7 @@ as $$
 declare
   v_id uuid := save_sla_policy.policy;
 begin
-  if not (${service} or ${canIn("save_sla_policy.tenant", manage)}) then
+  if not (${service} or ${ctx.scope.can("save_sla_policy.tenant", manage)}) then
     ${fail("SLA_FORBIDDEN", "not allowed to manage service levels")}
   end if;
   begin
@@ -651,6 +649,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SLA: ModuleDefinition = {
   name: "sla",
+  scopes: ["tenant"],
   title: "Service levels",
   description:
     "Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.",

@@ -258,6 +258,10 @@ export function resolveConfig(
       dir: config.sql?.dir ?? CONFIG_DEFAULTS.sql.dir,
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
+      ...(config.sql?.scope === undefined ? {} : { scope: config.sql.scope }),
+      ...(config.sql?.naming === undefined
+        ? {}
+        : { naming: config.sql.naming }),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),

@@ -1,3 +1,5 @@
+import type { BlockNaming } from "../core/block-names.ts";
+
 /**
  * One block's entry in `blocks.generated.ts`, which `better-supabase gen`
  * writes from the `blocks` config, so the SQL and TypeScript halves of a
@@ -13,6 +15,12 @@ export interface GeneratedBlock {
    * as `attachments.requireScan` or the notifications `topic`.
    */
   readonly options: Readonly<Record<string, unknown>>;
+  /**
+   * The names the SQL gives the block's functions when `sql.naming` or
+   * `blocks.<module>.functions` renames them. `defineBlocks` wraps the
+   * block's transport with `blockNames(naming)`.
+   */
+  readonly naming?: BlockNaming;
 }
 
 /** `blocks.generated.ts`: the installed blocks' generated config, keyed by block name. */

@@ -130,7 +130,7 @@ ${lockTable(t, { read: true })}
 ${tables}
 drop policy if exists service_principals_read on ${t};
 create policy service_principals_read on ${t} for select to authenticated
-using (${c("tenant")} in (select better_supabase.tenant_ids_with(${read})));
+using (${c("tenant")} in (select ${ctx.scope.ids(read)}));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -311,6 +311,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const SERVICE_PRINCIPALS: ModuleDefinition = {
   name: "service-principals",
+  scopes: ["tenant"],
   title: "Service principals",
   description:
     "Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.",

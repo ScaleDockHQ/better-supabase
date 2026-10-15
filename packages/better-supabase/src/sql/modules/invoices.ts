@@ -12,12 +12,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
-import {
-  addExtraColumns,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { invoiceFunctions, type InvoiceNames } from "./invoices-functions.ts";
 
@@ -171,7 +166,7 @@ create index if not exists invoices_company_idx on ${t("invoices")} (${i("compan
 ${lockTable(t("invoices"), { read: true })}
 drop policy if exists invoices_read on ${t("invoices")};
 create policy invoices_read on ${t("invoices")} for select to authenticated
-using (${tenantIn(i("tenant"), n.read)});
+using (${ctx.scope.check(i("tenant"), n.read)});
 
 create table if not exists ${t("payments")} (
   ${p("id")} uuid primary key default gen_random_uuid(),
@@ -189,7 +184,7 @@ create unique index if not exists invoice_payments_reference_idx on ${t("payment
 ${lockTable(t("payments"), { read: true })}
 drop policy if exists invoice_payments_read on ${t("payments")};
 create policy invoice_payments_read on ${t("payments")} for select to authenticated
-using (${tenantIn(p("tenant"), n.read)});
+using (${ctx.scope.check(p("tenant"), n.read)});
 `;
 }
 
@@ -262,6 +257,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const INVOICES: ModuleDefinition = {
   name: "invoices",
+  scopes: ["tenant"],
   title: "Invoices",
   description:
     "Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.",

@@ -431,6 +431,31 @@ describe("defineBlocks", () => {
     expect(seen).toEqual(["i1", "organization.created"]);
   });
 
+  it("calls the functions by the generated names", async () => {
+    const calls: string[] = [];
+    const named = defineBlocks(
+      {
+        organizations: {
+          schema: "better_supabase",
+          options: {},
+          naming: { tenant: "workspace" },
+        },
+      },
+      { organizations: organizationsBlock },
+    );
+    const blocks = named.create({
+      transport: {
+        async call(_schema, fn) {
+          calls.push(fn);
+          return [{ workspace_id: "w1", role: "owner" }];
+        },
+      },
+    });
+    await blocks.organizations.mine();
+    expect(calls).toEqual(["list_my_workspaces"]);
+    blocks.close();
+  });
+
   it("creates the blocks with the generated config", () => {
     const blocks = set.create({ transport });
     expect(set.config).toBe(config);

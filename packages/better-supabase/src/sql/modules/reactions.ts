@@ -8,13 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import {
-  fail,
-  schemaPreamble,
-  SERVICE_CALLER,
-  tenantIn,
-  userGrant,
-} from "../shared.ts";
+import { fail, schemaPreamble, SERVICE_CALLER, userGrant } from "../shared.ts";
 import {
   subjectCascades,
   subjectReadable,
@@ -117,7 +111,7 @@ function visibleCase(
       `    when ${sqlString(INBOX_MESSAGE_SUBJECT)} then exists (select 1 from ${inbox.table("messages")} m where m.${mc("id")}::text = ${args.id} and m.${mc("tenant")} = ${args.tenant})`,
     );
   }
-  const rest = subjectReadable(subjects, args);
+  const rest = subjectReadable(ctx, subjects, args);
   if (whens.length === 0) return rest;
   return `case ${args.type}
 ${whens.join("\n")}
@@ -218,7 +212,7 @@ grant select on ${emojiTable} to authenticated;
 grant all on ${emojiTable} to service_role;
 drop policy if exists "custom_emoji_read" on ${emojiTable};
 create policy "custom_emoji_read" on ${emojiTable} for select to authenticated
-  using (${tenantIn(e("tenant"), read)});
+  using (${ctx.scope.check(e("tenant"), read)});
 `
     : "";
   return `${schemaPreamble(ctx)}
@@ -239,13 +233,13 @@ grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated
 
 drop policy if exists "reactions_read" on ${reactions};
 create policy "reactions_read" on ${reactions} for select to authenticated
-  using (${tenantIn(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "reactions_insert" on ${reactions};
 create policy "reactions_insert" on ${reactions} for insert to authenticated
   with check (
     ${c("user")} = (select auth.uid())
     and ${c("actor")} = (select auth.uid())::text
-    and ${tenantIn(c("tenant"), create)}${insertCheck}
+    and ${ctx.scope.check(c("tenant"), create)}${insertCheck}
     and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
 drop policy if exists "reactions_delete" on ${reactions};
@@ -472,7 +466,7 @@ begin
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${topic}:%`)}
-        and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from better_supabase.tenant_ids_with(${read}) x)
+        and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from ${ctx.scope.ids(read)} x)
       );
   end if;
 end;
@@ -499,6 +493,7 @@ function contract(): readonly ModuleContractFunction[] {
 export const REACTIONS: ModuleDefinition = {
   internal: ["reaction_subject_visible"],
   name: "reactions",
+  scopes: ["tenant"],
   title: "Reactions",
   description:
     "Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",

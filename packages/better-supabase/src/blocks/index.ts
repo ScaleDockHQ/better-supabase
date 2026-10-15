@@ -70,6 +70,8 @@ export type {
   DbTransportSource,
   RpcClient,
 } from "../core/block-transport.ts";
+export { blockNames } from "../core/block-names.ts";
+export type { BlockNaming } from "../core/block-names.ts";
 export { FINAL_RUN_STATES } from "../core/run-state.ts";
 export type { FinalRunState, RunState } from "../core/run-state.ts";
 export {

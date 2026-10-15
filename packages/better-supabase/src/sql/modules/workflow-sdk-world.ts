@@ -121,7 +121,7 @@ begin
     v_principal_kind := null;
   end if;
   if v_tenant is not null and v_actor is not null and v_principal_kind is null
-    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, ${runKey}), false) then
+    and not ${ctx.scope.canUser("v_actor", "v_tenant", runKey)} then
     v_tenant := null;
   end if;
   v_subject := new.attributes ->> 'bs.subject';
@@ -234,6 +234,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const WORKFLOW_SDK_WORLD: ModuleDefinition = {
   name: "workflow-sdk-world",
+  scopes: ["tenant"],
   title: "Workflow SDK World",
   description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.`,
   requires: ["workflows", "jobs", "access"],

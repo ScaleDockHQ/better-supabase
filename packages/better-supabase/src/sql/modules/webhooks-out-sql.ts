@@ -126,7 +126,7 @@ function userMay(
       )} as t(id))`;
   if (ctx.installed("access"))
     return (user, tenant, permission) =>
-      `coalesce(better_supabase.can_user(${user}, 'tenant', ${tenant}, ${permission}), false)`;
+      ctx.scope.canUser(user, tenant, permission);
   return () => "false";
 }
 
@@ -174,7 +174,7 @@ export function hookNames(
         : "false",
     member: (tenant, action) =>
       access
-        ? `${tenant} in (select better_supabase.tenant_ids_with(${ctx.permission(action, permissions[action])}))`
+        ? `${tenant} in (select ${ctx.scope.ids(ctx.permission(action, permissions[action]))})`
         : "false",
     clientAccess:
       access && has("endpoints", "tenant") && has("deliveries", "tenant"),

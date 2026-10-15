@@ -48,6 +48,8 @@ export function moduleContext(
       ...(layout.claims ? { claims: layout.claims } : {}),
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(installed ? { installed } : {}),
+      ...(layout.scope ? { scope: layout.scope } : {}),
+      ...(layout.naming?.tenant ? { tenantName: layout.naming.tenant } : {}),
       ...providerIdType(layout),
       integrations(module) {
         const definition = registry().modules[module];

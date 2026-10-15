@@ -239,7 +239,7 @@ function tables(ctx: ModuleContext, names: InventoryNames): string {
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.col(table, "tenant")} in (select better_supabase.tenant_ids_with(${names.read})));`;
+using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
   const l = columns(ctx, "locations");
   const lv = columns(ctx, "levels");
   const m = columns(ctx, "movements");
@@ -464,6 +464,7 @@ for each row execute function ${fn("stock_movements_append_only")}();
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const names: InventoryNames = {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", OPERATIONS["inventory.manage"]),
     read: ctx.permission("read", OPERATIONS["inventory.read"]),
@@ -558,6 +559,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const INVENTORY: ModuleDefinition = {
   name: "inventory",
+  scopes: ["tenant"],
   title: "Inventory",
   description:
     "Stock per catalog variant and location: an append-only movement ledger, reservations with expiry, transfers and purchase orders with partial receiving.",

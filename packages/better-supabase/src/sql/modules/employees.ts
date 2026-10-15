@@ -8,13 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  fail,
-  lockTable,
-  schemaPreamble,
-  tenantIn,
-} from "../shared.ts";
+import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   employeeFunctions,
@@ -208,7 +202,7 @@ create index if not exists employees_manager_idx on ${t("employees")} (${e("mana
 ${lockTable(t("employees"), { read: true })}
 drop policy if exists employees_read on ${t("employees")};
 create policy employees_read on ${t("employees")} for select to authenticated
-using (${tenantIn(e("tenant"), n.read)} or ${e("user")} = (select auth.uid()));
+using (${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
@@ -232,7 +226,7 @@ create index if not exists employee_private_details_user_idx on ${t("privateDeta
 ${lockTable(t("privateDetails"), { read: true })}
 drop policy if exists employee_private_details_read on ${t("privateDetails")};
 create policy employee_private_details_read on ${t("privateDetails")} for select to authenticated
-using (${tenantIn(p("tenant"), n.sensitive)} or ${p("user")} = (select auth.uid()));
+using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${p("user")} = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -256,7 +250,7 @@ create index if not exists employee_contracts_employee_idx on ${t("contracts")} 
 ${lockTable(t("contracts"), { read: true })}
 drop policy if exists employee_contracts_read on ${t("contracts")};
 create policy employee_contracts_read on ${t("contracts")} for select to authenticated
-using (${tenantIn(k("tenant"), n.sensitive)} or exists (
+using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid())));
 `;
 }
@@ -395,6 +389,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const EMPLOYEES: ModuleDefinition = {
   name: "employees",
+  scopes: ["tenant"],
   title: "Employees",
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.",

@@ -124,7 +124,7 @@ function tables(ctx: ModuleContext, names: PromotionsNames): string {
   const cart = columns(orders, "carts");
   const order = columns(orders, "orders");
   const tenantRead = (table: string): string =>
-    `${ctx.col(table, "tenant")} in (select better_supabase.tenant_ids_with(${names.read}))`;
+    `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`;
   const policy = (
     table: string,
     using: string,
@@ -216,6 +216,7 @@ ${policy("redemptions", `${tenantRead("redemptions")} or ${r("customer")} = (sel
 
 function namesOf(ctx: ModuleContext): PromotionsNames {
   return {
+    scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", OPERATIONS["promotions.manage"]),
     read: ctx.permission("read", OPERATIONS["promotions.read"]),
@@ -265,6 +266,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const PROMOTIONS: ModuleDefinition = {
   name: "promotions",
+  scopes: ["tenant"],
   title: "Promotions",
   description:
     "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",

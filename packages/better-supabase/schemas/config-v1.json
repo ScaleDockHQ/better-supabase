@@ -1689,6 +1689,24 @@
         "api": {
           "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false.",
           "type": "string"
+        },
+        "scope": {
+          "description": "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
+          "enum": ["tenant", "user", "none"],
+          "default": "tenant"
+        },
+        "naming": {
+          "description": "Names for the tenant concept in SQL.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tenant": {
+              "description": "The tenant concept's singular name in table, function and column names, such as workspace or team.",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "default": "organization"
+            }
+          }
         }
       }
     },
@@ -2097,6 +2115,14 @@
       "idType": {
         "type": "string"
       },
+      "scope": {
+        "description": "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant.",
+        "enum": ["tenant", "user", "none"]
+      },
+      "functions": {
+        "description": "Function name to the name the block writes it under, such as create_organization to start_company.",
+        "$ref": "#/$defs/stringRecord"
+      },
       "triggerPrefix": {
         "type": "string",
         "default": "bs_"
@@ -2153,6 +2179,12 @@
         "idType": {
           "$ref": "#/$defs/moduleConfigProperties/idType"
         },
+        "scope": {
+          "$ref": "#/$defs/moduleConfigProperties/scope"
+        },
+        "functions": {
+          "$ref": "#/$defs/moduleConfigProperties/functions"
+        },
         "triggerPrefix": {
           "$ref": "#/$defs/moduleConfigProperties/triggerPrefix"
         },
@@ -2186,30 +2218,8 @@
         "idType": {
           "$ref": "#/$defs/moduleConfigProperties/idType"
         },
-        "triggerPrefix": {
-          "$ref": "#/$defs/moduleConfigProperties/triggerPrefix"
-        },
-        "permissions": {
-          "$ref": "#/$defs/moduleConfigProperties/permissions"
-        },
-        "options": {
-          "$ref": "#/$defs/moduleConfigProperties/options"
-        },
-        "api": {
-          "$ref": "#/$defs/moduleConfigProperties/api"
-        },
-        "model": {
-          "enum": ["roles", "catalog", "provider", "custom"],
-          "default": "roles"
-        },
-        "roles": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
+        "scope": {
+          "$ref": "#/$defs/moduleConfigProperties/scope"
         },
         "functions": {
           "type": "object",
@@ -2234,6 +2244,31 @@
               "type": "string"
             },
             "canAssignFor": {
+              "type": "string"
+            }
+          }
+        },
+        "triggerPrefix": {
+          "$ref": "#/$defs/moduleConfigProperties/triggerPrefix"
+        },
+        "permissions": {
+          "$ref": "#/$defs/moduleConfigProperties/permissions"
+        },
+        "options": {
+          "$ref": "#/$defs/moduleConfigProperties/options"
+        },
+        "api": {
+          "$ref": "#/$defs/moduleConfigProperties/api"
+        },
+        "model": {
+          "enum": ["roles", "catalog", "provider", "custom"],
+          "default": "roles"
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
               "type": "string"
             }
           }

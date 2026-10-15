@@ -15,7 +15,6 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  tenantIn,
   userGrant,
 } from "../shared.ts";
 import {
@@ -207,6 +206,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
   const declared = (row: string): string =>
     `(${row}.${c("subjectType")} ${timesheets === undefined ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
+      ctx,
       subjects,
       {
         type: `${row}.${c("subjectType")}`,
@@ -431,7 +431,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_
 ${lockTable(requests, { read: true })}
 drop policy if exists "approval_requests_read" on ${requests};
 create policy "approval_requests_read" on ${requests} for select to authenticated
-  using (${linked.length === 0 ? tenantIn(c("tenant"), read) : `(${tenantIn(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid()));
+  using (${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid()));
 
 create table if not exists ${decisions} (
   ${d("id")} uuid primary key default gen_random_uuid(),
@@ -450,7 +450,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("decisions").name}_delega
 ${lockTable(decisions, { read: true })}
 drop policy if exists "approval_decisions_read" on ${decisions};
 create policy "approval_decisions_read" on ${decisions} for select to authenticated
-  using (${tenantIn(d("tenant"), read)});
+  using (${ctx.scope.check(d("tenant"), read)});
 `
     : "";
   return `${schemaPreamble(ctx)}
@@ -654,7 +654,7 @@ begin
   if v_policy is null then
     ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(ctx, subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
     ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
   end if;
   return ${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
@@ -970,6 +970,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const APPROVALS: ModuleDefinition = {
   name: "approvals",
+  scopes: ["tenant"],
   title: "Approvals",
   description:
     "Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.",

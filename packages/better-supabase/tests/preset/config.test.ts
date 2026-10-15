@@ -96,14 +96,36 @@ describe("expandPreset", () => {
   });
 
   it("throws on what can't install", () => {
-    const code = encodePreset({ blocks: ["comments"], scope: "user" });
+    const code = encodePreset({ blocks: ["organizations"], scope: "user" });
     expect(() => expandPreset({ preset: code })).toThrow(
-      `preset: comments (it needs tenants, and scope "user" has none) can't install.`,
+      `preset: organizations (it needs tenants, and scope "user" has none) can't install.`,
     );
     const expo = encodePreset({ framework: "expo", blocks: [] });
     expect(() => expandPreset({ preset: expo })).toThrow(
       "preset: platforms (Expo builds a native app: choose native or both) can't install.",
     );
+  });
+});
+
+describe("conventions", () => {
+  it("write sql.scope and sql.naming when they differ from the defaults", () => {
+    const user = expandPreset({
+      preset: encodePreset({ blocks: ["tags"], scope: "user" }),
+    });
+    expect(user.sql).toEqual({ scope: "user" });
+    expect(user.blocks).toEqual({ tags: {} });
+    const workspace = expandPreset({
+      preset: encodePreset({
+        blocks: ["organizations"],
+        tenantName: "workspace",
+        api: "api",
+      }),
+    });
+    expect(workspace.sql).toEqual({
+      api: "api",
+      naming: { tenant: "workspace" },
+    });
+    expect(expandPreset({ preset: "minimal" }).sql).toBeUndefined();
   });
 });
 

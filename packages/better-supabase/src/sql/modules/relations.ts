@@ -8,13 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import {
-  canIn,
-  fail,
-  lockTable,
-  schemaPreamble,
-  userGrant,
-} from "../shared.ts";
+import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import {
   type Subject,
   qualifiedTable,
@@ -219,7 +213,11 @@ function build(ctx: ModuleContext): string {
   const kindsOf = kindTable(kinds);
   const fn = (value: string): string => ctx.fn(value);
   const readable = (prefix: string, type: string, idValue: string): string =>
-    subjectReadable(list, { type, id: idValue, tenant: `${prefix}.tenant` });
+    subjectReadable(ctx, list, {
+      type,
+      id: idValue,
+      tenant: `${prefix}.tenant`,
+    });
   const tables = ctx.manages
     ? `create table if not exists ${relations} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -292,7 +290,7 @@ ${lockTable(relations, { read: true })}
 ${tables}
 drop policy if exists relations_read on ${relations};
 create policy relations_read on ${relations} for select to authenticated
-using (${tenant} in (select better_supabase.tenant_ids_with(${read})));
+using (${tenant} in (select ${ctx.scope.ids(read)}));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -312,7 +310,7 @@ ${canonicalVars}
   v_replaced jsonb;
   v_old ${relations};
 begin
-  if not (auth.role() = 'service_role' or ${canIn("link.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("link.tenant", manage)}) then
     ${fail("RELATION_FORBIDDEN", "not allowed to link records")}
   end if;
   if link.data is not null and jsonb_typeof(link.data) <> 'object' then
@@ -401,7 +399,7 @@ declare
 ${canonicalVars}
   v_old ${relations};
 begin
-  if not (auth.role() = 'service_role' or ${canIn("unlink.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("unlink.tenant", manage)}) then
     ${fail("RELATION_FORBIDDEN", "not allowed to unlink records")}
   end if;
 ${canonical("unlink")}
@@ -658,6 +656,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 export const RELATIONS: ModuleDefinition = {
   name: "relations",
+  scopes: ["tenant"],
   title: "Relations",
   description:
     "Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.",
