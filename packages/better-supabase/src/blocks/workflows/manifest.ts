@@ -9,7 +9,9 @@ import { createWorkflows } from "./workflows.ts";
 export const workflowsBlock: BlockOf<
   "workflows",
   typeof createWorkflows,
-  WorkflowsEvents
+  WorkflowsEvents,
+  Record<never, never>,
+  "workflows"
 > = defineBlock({
   name: "workflows",
   sql: ["workflows"],

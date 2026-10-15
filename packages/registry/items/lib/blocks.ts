@@ -3,10 +3,13 @@ import {
   createBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { createAuditLog } from "better-supabase/blocks/audit";
-import { createNotifications } from "better-supabase/blocks/notifications";
-import { createOrganizations } from "better-supabase/blocks/organizations";
-import { createSearch } from "better-supabase/blocks/search";
+import { auditBlock } from "better-supabase/blocks/audit";
+import {
+  createNotifications,
+  notificationsBlock,
+} from "better-supabase/blocks/notifications";
+import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { searchBlock } from "better-supabase/blocks/search";
 
 import { notificationTypes } from "@/lib/notification-types";
 
@@ -26,11 +29,12 @@ export function blocks(supabase: RpcClient) {
       schema: API_SCHEMA,
     },
     {
-      organizations: createOrganizations,
-      audit: createAuditLog,
-      search: createSearch,
-      notifications: (options) =>
+      organizations: organizationsBlock,
+      audit: auditBlock,
+      search: searchBlock,
+      notifications: notificationsBlock.using((options) =>
         createNotifications({ ...options, types: notificationTypes }),
+      ),
     },
   );
 }

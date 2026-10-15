@@ -1,6 +1,7 @@
-import type { Events, PartyEventData } from "../../core/block-events.ts";
+import type { PartyEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `parties` block: type to data. */
 export type PartiesEvents = {

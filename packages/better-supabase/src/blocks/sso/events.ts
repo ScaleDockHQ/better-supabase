@@ -1,12 +1,12 @@
 import type {
-  Events,
   OrganizationDomainEventData,
   OrganizationEventData,
   ScimEventData,
   SsoProviderEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `sso` block: type to data. */
 export type SsoEvents = {

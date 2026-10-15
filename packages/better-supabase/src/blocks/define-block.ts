@@ -1,5 +1,6 @@
 import type { EventMap, Events } from "../core/block-events.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
+import type { BlockContext } from "./create-blocks.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
@@ -35,12 +36,23 @@ export type BlockProvides<Client, Options> = {
   ) => BlockPorts[P] | undefined;
 };
 
+/**
+ * The ports a built block provides, by name. `createBlocks` calls each with
+ * the block's client and options.
+ */
+export type ProvidedPorts<P extends PortName> = {
+  readonly [K in P]: (
+    client: never,
+    options: never,
+  ) => BlockPorts[K] | undefined;
+};
+
 /** An options schema per SQL module, keyed by module name. */
 export type BlockOptionSchemas = Readonly<
   Record<string, StandardSchemaV1<unknown, Readonly<Record<string, unknown>>>>
 >;
 
-type NoEvents = Record<never, never>;
+type Nothing = Record<never, never>;
 
 /** What `defineBlock` takes. */
 export interface BlockDefinition<
@@ -49,6 +61,7 @@ export interface BlockDefinition<
   Client,
   M extends EventMap,
   C extends BlockConsumes,
+  P extends PortName,
 > {
   readonly name: Name;
   /** The SQL modules (`SqlModule` keys) this block installs. */
@@ -58,7 +71,7 @@ export interface BlockDefinition<
   /** The block's own events. */
   readonly events?: Events<M>;
   readonly consumes?: C;
-  readonly provides?: BlockProvides<Client, Options>;
+  readonly provides?: Pick<Required<BlockProvides<Client, Options>>, P>;
   /** The creator, `create<Name>(options)`; absent for a block with only SQL. */
   readonly create?: (options: Options) => Client;
   /** The headless controller's name (ADR 0030), when the block has one. */
@@ -68,6 +81,10 @@ export interface BlockDefinition<
   readonly recipes?: readonly string[];
 }
 
+/** What `using` passes its creator: the shared block options and the consumed ports. */
+export type UsingOptions<C extends BlockConsumes> = BlockContext &
+  ConsumedPorts<C>;
+
 /**
  * One block (ADR 0029): its SQL modules, options, events, the ports it
  * provides and consumes, and its creator. `createBlocks` wires blocks on
@@ -75,10 +92,11 @@ export interface BlockDefinition<
  */
 export interface Block<
   Name extends string = string,
-  Options = never,
-  Client = never,
-  M extends EventMap = NoEvents,
-  C extends BlockConsumes = NoEvents,
+  Options = BlockContext,
+  Client = unknown,
+  M extends EventMap = Nothing,
+  C extends BlockConsumes = Nothing,
+  P extends PortName = never,
 > {
   readonly apiVersion: 1;
   readonly name: Name;
@@ -86,15 +104,26 @@ export interface Block<
   readonly options: BlockOptionSchemas;
   readonly events: Events<M>;
   readonly consumes: C;
-  readonly provides: BlockProvides<Client, Options>;
+  readonly provides: ProvidedPorts<P>;
   readonly create: ((options: Options) => Client) | undefined;
   readonly client: string | undefined;
   readonly category: BlockCategory;
   readonly recipes: readonly string[];
-  /** The options `with` set, passed to `create` over the shared ones. */
-  readonly settings: Partial<Options>;
+  /** The options `with` set, passed to `create` and the providers over the shared ones. */
+  readonly settings: object;
   /** This block with `settings` merged into the options `createBlocks` passes it. */
-  with(settings: Partial<Options>): Block<Name, Options, Client, M, C>;
+  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P>;
+  /**
+   * This block built by `create` instead, keeping its SQL, events and ports:
+   * for a creator's type parameters (`notificationsBlock.using((options) =>
+   * createNotifications({ ...options, types }))`) or a block with only SQL
+   * and a helper (`settingsBlock.using((options) => settings.connect(options))`).
+   * The ports it provides receive the new client. Settings from an earlier
+   * `with` still reach `create` and the providers.
+   */
+  using<Next>(
+    create: (options: UsingOptions<C>) => Next,
+  ): Block<Name, UsingOptions<C>, Next, M, C, P>;
 }
 
 /** Any block, for constraints. */
@@ -105,27 +134,24 @@ export interface AnyBlock {
   readonly options: BlockOptionSchemas;
   readonly events: Events;
   readonly consumes: BlockConsumes;
-  readonly provides: {
-    readonly [P in PortName]?: (
-      client: never,
-      options: never,
-    ) => BlockPorts[P] | undefined;
-  };
+  readonly provides: Partial<ProvidedPorts<PortName>>;
   readonly create: ((options: never) => unknown) | undefined;
   readonly client: string | undefined;
   readonly category: BlockCategory;
   readonly recipes: readonly string[];
   readonly settings: object;
   with(settings: never): AnyBlock;
+  using(create: never): AnyBlock;
 }
 
-/** The block a creator makes, with its event map and the ports it consumes. */
+/** The block a creator makes, with its event map, consumed ports and provided ports. */
 export type BlockOf<
   Name extends string,
   Create extends (options: never) => unknown,
-  M extends EventMap = NoEvents,
-  C extends BlockConsumes = NoEvents,
-> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C>;
+  M extends EventMap = Nothing,
+  C extends BlockConsumes = Nothing,
+  P extends PortName = never,
+> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P>;
 
 /** The client a block's creator returns. */
 export type ClientOf<B> = B extends {
@@ -137,33 +163,72 @@ export type ClientOf<B> = B extends {
 /** Describes a block with one manifest (ADR 0029). */
 export function defineBlock<
   const Name extends string,
-  Options = never,
-  Client = never,
-  M extends EventMap = NoEvents,
-  const C extends BlockConsumes = NoEvents,
+  Options = BlockContext,
+  Client = unknown,
+  M extends EventMap = Nothing,
+  const C extends BlockConsumes = Nothing,
+  P extends PortName = never,
 >(
-  definition: BlockDefinition<Name, Options, Client, M, C>,
-): Block<Name, Options, Client, M, C> {
-  const build = (
-    settings: Partial<Options>,
-  ): Block<Name, Options, Client, M, C> => ({
+  definition: BlockDefinition<Name, Options, Client, M, C, P>,
+): Block<Name, Options, Client, M, C, P> {
+  const { create, consumes, provides, ...rest } = definition;
+  return blockOf(
+    {
+      ...rest,
+      // SAFETY: a block without `consumes` consumes nothing, which is
+      // `Nothing` when `C` is left to its default.
+      consumes: consumes ?? ({} as C),
+      // SAFETY: each provider takes this block's client and options, which
+      // `createBlocks` passes it; a block without `provides` provides
+      // nothing, which is `ProvidedPorts<never>` when `P` is left to its default.
+      provides: (provides ?? {}) as ProvidedPorts<P>,
+    },
+    create,
+    {},
+  );
+}
+
+interface BlockParts<
+  Name extends string,
+  M extends EventMap,
+  C extends BlockConsumes,
+  P extends PortName,
+> extends Omit<
+  BlockDefinition<Name, never, never, M, C, P>,
+  "create" | "consumes" | "provides"
+> {
+  readonly consumes: C;
+  readonly provides: ProvidedPorts<P>;
+}
+
+function blockOf<
+  Name extends string,
+  Options,
+  Client,
+  M extends EventMap,
+  C extends BlockConsumes,
+  P extends PortName,
+>(
+  parts: BlockParts<Name, M, C, P>,
+  create: ((options: Options) => Client) | undefined,
+  settings: object,
+): Block<Name, Options, Client, M, C, P> {
+  return {
     apiVersion: 1,
-    name: definition.name,
-    sql: definition.sql ?? [],
-    options: definition.options ?? {},
-    events: definition.events ?? { types: [] },
-    // SAFETY: a block without `consumes` consumes nothing, which is
-    // `NoEvents` when `C` is left to its default.
-    consumes: definition.consumes ?? ({} as C),
-    provides: definition.provides ?? {},
-    create: definition.create,
-    client: definition.client,
-    category: definition.category,
-    recipes: definition.recipes ?? [],
+    name: parts.name,
+    sql: parts.sql ?? [],
+    options: parts.options ?? {},
+    events: parts.events ?? { types: [] },
+    consumes: parts.consumes,
+    provides: parts.provides,
+    create,
+    client: parts.client,
+    category: parts.category,
+    recipes: parts.recipes ?? [],
     settings,
-    with: (more) => build({ ...settings, ...more }),
-  });
-  return build({});
+    with: (more) => blockOf(parts, create, { ...settings, ...more }),
+    using: (next) => blockOf(parts, next, settings),
+  };
 }
 
 /**

@@ -25,6 +25,8 @@ export type {
   BlockProvides,
   ClientOf,
   ConsumedPorts,
+  ProvidedPorts,
+  UsingOptions,
 } from "./define-block.ts";
 export type { BlockPorts, Notifier, NotifierInput, PortName } from "./ports.ts";
 export {

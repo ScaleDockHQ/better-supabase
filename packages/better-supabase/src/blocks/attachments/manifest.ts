@@ -9,7 +9,9 @@ import { attachmentsEvents } from "./events.ts";
 export const attachmentsBlock: BlockOf<
   "attachments",
   typeof createAttachments,
-  AttachmentsEvents
+  AttachmentsEvents,
+  Record<never, never>,
+  "attachments"
 > = defineBlock({
   name: "attachments",
   sql: ["attachments"],

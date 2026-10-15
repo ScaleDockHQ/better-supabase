@@ -366,14 +366,14 @@ await builder.triggers.save({ definition: id, kind: "webhook" }).orThrow();
 const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown once
 ```
 
-| Kind       | How it starts a run                                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `manual`   | `builder.run()` from your UI                                                                                           |
-| `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input |
-| `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron`   |
-| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`        |
-| `form`     | Your form calls `run()`; `config.schema` holds its fields                                                              |
-| `chat`     | Your chat calls `run()`                                                                                                |
+| Kind       | How it starts a run                                                                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manual`   | `builder.run()` from your UI                                                                                                                        |
+| `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input                              |
+| `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron` through the `workflows` option |
+| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`                                     |
+| `form`     | Your form calls `run()`; `config.schema` holds its fields                                                                                           |
+| `chat`     | Your chat calls `run()`                                                                                                                             |
 
 ```ts title="app/api/hooks/workflows/[token]/route.ts"
 export const POST = (request: Request) =>
@@ -385,6 +385,12 @@ disabled token and `405` for a method other than `POST`. A body that is not
 JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
 header keys the start, so a retried delivery starts one run. Only the
 token's SHA-256 is stored; rotating it ends the old one.
+
+`syncSchedule` writes through the `workflows` option, the workflows block
+built with a transport that may create schedules (the service role);
+`createBlocks` passes it as the `workflows` port when the set has
+`workflowsBlock`. Without it, `syncSchedule` fails with the hint
+`WORKFLOW_BUILDER_WORKFLOWS_CLIENT`.
 
 Schedule triggers run on the `workflows` schedule tick. Pass
 `builder.triggers.starter(fallback)` as its `start`: it starts the

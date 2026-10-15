@@ -1,6 +1,7 @@
-import type { ApiKeyEventData, Events } from "../../core/block-events.ts";
+import type { ApiKeyEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `api-keys` block: type to data. */
 export type ApiKeysEvents = {

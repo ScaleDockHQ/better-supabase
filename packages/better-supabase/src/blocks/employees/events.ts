@@ -1,6 +1,7 @@
-import type { EmployeeEventData, Events } from "../../core/block-events.ts";
+import type { EmployeeEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `employees` block: type to data. */
 export type EmployeesEvents = {

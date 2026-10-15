@@ -9,7 +9,9 @@ import { createNotifications } from "./notifications.ts";
 export const notificationsBlock: BlockOf<
   "notifications",
   typeof createNotifications,
-  NotificationsEvents
+  NotificationsEvents,
+  Record<never, never>,
+  "notifier"
 > = defineBlock({
   name: "notifications",
   sql: ["notifications"],

@@ -1,10 +1,10 @@
 import type {
   AttachmentEventData,
-  Events,
   StorageObjectEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `attachments` block: type to data. */
 export type AttachmentsEvents = {

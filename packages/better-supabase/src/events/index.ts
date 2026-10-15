@@ -260,6 +260,7 @@ export {
   BLOCK_EVENT_RENAMES,
   blockEventAttributes,
   defineEvents,
+  emitBlockEvent,
   event,
   mergeEvents,
   onBlockEvent,

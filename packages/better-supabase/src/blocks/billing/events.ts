@@ -1,6 +1,7 @@
-import type { BillingEventData, Events } from "../../core/block-events.ts";
+import type { BillingEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `billing` block: type to data. */
 export type BillingEvents = {

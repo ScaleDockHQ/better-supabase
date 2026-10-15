@@ -1,10 +1,10 @@
 import type {
-  Events,
   IncomingWebhookEventData,
   WebhookEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `webhooks` block: type to data. */
 export type WebhooksEvents = {

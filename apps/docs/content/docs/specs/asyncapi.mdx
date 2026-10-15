@@ -178,9 +178,10 @@ for `dev.better-supabase.row.created`. Its payload holds `table`, the `row`
 table's JSON Schema otherwise) and `actorId`.
 
 `blocks` maps a block event type to `true` (an open payload) or a Standard
-Schema for its data. The keys and the schemas are typed by `BlockEventMap`:
-`BlockEventSchemas` only takes known block event types, and a schema must be
-a `BlockEventSchema<T>` whose output is that event's data. A block can
+Schema for its data. `BlockEventSchemas<M>` types the keys and the schemas
+by a block's event map, such as `BlockEventSchemas<CommentsEvents>`: it only
+takes that block's event types, and a schema must be a `BlockEventSchema<T>`
+whose output is that event's data. A block can
 export its own `BlockEventSchemas` map. The message is `block<Event>`, its
 type is the prefix plus the event (`dev.better-supabase.support.started`),
 and its payload gains `actorId` when the schema doesn't have it.

@@ -1,6 +1,7 @@
-import type { Events, SaasSubjectEventData } from "../../core/block-events.ts";
+import type { SaasSubjectEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `relations` block: type to data. */
 export type RelationsEvents = {

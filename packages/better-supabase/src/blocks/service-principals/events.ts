@@ -1,6 +1,7 @@
-import type { Events, SaasEventData } from "../../core/block-events.ts";
+import type { SaasEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `service-principals` block: type to data. */
 export type ServicePrincipalsEvents = {

@@ -1630,8 +1630,10 @@
       "Notifier",
       "NotifierInput",
       "PortName",
+      "ProvidedPorts",
       "RpcClient",
       "RunState",
+      "UsingOptions",
       "WithBlockHooksOptions"
     ]
   },
@@ -2083,6 +2085,7 @@
       "blockCloudEvent",
       "blockEventAttributes",
       "defineEvents",
+      "emitBlockEvent",
       "event",
       "forwardBlockEvents",
       "forwardMutations",

@@ -1,9 +1,7 @@
-import type {
-  CollaborationEventData,
-  Events,
-} from "../../core/block-events.ts";
+import type { CollaborationEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `approvals` block: type to data. */
 export type ApprovalsEvents = {

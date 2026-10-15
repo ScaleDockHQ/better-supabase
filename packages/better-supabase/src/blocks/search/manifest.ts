@@ -5,7 +5,13 @@ import { createSearch } from "./search.ts";
 import { searchSink } from "./sink.ts";
 
 /** The `search` block's manifest (ADR 0029). */
-export const searchBlock: BlockOf<"search", typeof createSearch> = defineBlock({
+export const searchBlock: BlockOf<
+  "search",
+  typeof createSearch,
+  Record<never, never>,
+  Record<never, never>,
+  "sink"
+> = defineBlock({
   name: "search",
   sql: ["search"],
   options: {

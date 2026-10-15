@@ -47,9 +47,11 @@ user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   (`ModuleEvents`): its subject collection (a kebab-case plural), the
   payload keys and `retries` when a retried call can record it again, which
   then needs a `key`. `ctx.record` throws for an undeclared type or a
-  mismatch. Add the type and its data to `BlockEventMap`
-  (`src/core/block-events.ts`) and the table on `extending/events.mdx`;
-  `tests/sql/event-catalog.test.ts` checks all three. Names are
+  mismatch. Add the type and its data to the block's `events.ts`
+  (`src/blocks/<name>/events.ts`: the map type and its `defineEvents` value),
+  type the module's `EVENTS` as `ModuleEvents<NameEvents>`, and add the row
+  on `extending/events.mdx`; `tests/sql/event-catalog.test.ts` and
+  `tests/blocks/conformance.test.ts` check them. Names are
   `<entity>.<past_tense_verb>`, the payload is camelCase and carries
   `organizationId` when the event has a tenant. Use `memberAddedRecord`
   from `shared.ts` for `organization.member_added`.
@@ -82,6 +84,34 @@ found;` returns the record's `found`. Check `found` before the record.
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into
   `better_supabase`, and the pg-delta round trip diffs them.
+
+## The manifest
+
+Every block has one `src/blocks/<name>/manifest.ts` (ADR 0029), built with
+`defineBlock` and exported as `<camelName>Block` from the block's `index.ts`,
+and listed in `src/blocks/registry.ts` and `tests/blocks/all-blocks.ts`. A
+block with only SQL gets a directory with just the manifest (and
+`events.ts` when it records events).
+
+- `sql` lists the SQL modules it installs; every module belongs to exactly
+  one block. `options` holds `optionKeys([...])` per module, matching
+  `NAMES.options`.
+- `events` is the block's own map from `events.ts`. Never add a type to a
+  shared map in core.
+- `consumes` and `provides` name ports from `src/blocks/ports.ts`
+  (`notifier`, `files`, `attachments`, `workflows`, `sink`). A block reaches
+  another block only through a consumed port: never import or call a
+  sibling's creator. A new port goes in `BlockPorts` and the `createBlocks`
+  port list, with a row on `blocks/create-blocks.mdx`.
+- `create` is the creator itself, `create<Name>`, so the conformance test
+  can read its name. Options a sibling used to need (a notification type, a
+  sink's events) are the creator's own options, set with `.with(...)`.
+- `category` and `recipes` feed the catalog and `/recipes`
+  (`scripts/build-catalog.ts`, `scripts/build-recipes.ts`).
+
+`tests/blocks/conformance.test.ts` checks the contract over every manifest,
+with allowlists of today's exceptions. Fix a block to take it off a list;
+never add a new block to one.
 
 ## The TypeScript side
 

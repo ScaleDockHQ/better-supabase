@@ -1,7 +1,7 @@
 import { createBlocks, sqlTransport } from "better-supabase/blocks";
-import { createRank } from "better-supabase/blocks/rank";
-import { createShareLinks } from "better-supabase/blocks/share-links";
-import { createTags } from "better-supabase/blocks/tags";
+import { rankBlock } from "better-supabase/blocks/rank";
+import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { tagsBlock } from "better-supabase/blocks/tags";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -28,7 +28,7 @@ describe.skipIf(!live)("drive recipe", () => {
       const watchers = await watching(s);
       const { shareLinks, tags, rank } = createBlocks(
         { transport: sqlTransport(s.sql) },
-        { shareLinks: createShareLinks, tags: createTags, rank: createRank },
+        { shareLinks: shareLinksBlock, tags: tagsBlock, rank: rankBlock },
       );
 
       await s.as(owner);

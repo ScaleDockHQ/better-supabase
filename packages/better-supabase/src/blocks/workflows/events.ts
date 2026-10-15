@@ -1,6 +1,7 @@
-import type { Events, WorkflowRunEventData } from "../../core/block-events.ts";
+import type { WorkflowRunEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `workflows` block: type to data. */
 export type WorkflowsEvents = {

@@ -132,6 +132,10 @@ between. [Time tracking](/docs/blocks/time-tracking#metrics) exports
 [orders](/docs/blocks/orders#metrics) exports `orderMetrics` with the events
 that feed it.
 
+Through [`createBlocks`](/docs/blocks/create-blocks#outbox-sinks), the
+metrics block's `sink` option (`{ on, time }`) builds the same sink into
+`sinks.metrics`.
+
 ## Read series and KPIs
 
 `createMetrics({ transport, metrics })` types the metric keys and each

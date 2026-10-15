@@ -1,6 +1,7 @@
-import type { Events, QuoteEventData } from "../../core/block-events.ts";
+import type { QuoteEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `quotes` block: type to data. */
 export type QuotesEvents = {

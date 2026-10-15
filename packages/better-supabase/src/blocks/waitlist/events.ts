@@ -1,11 +1,11 @@
 import type {
-  Events,
   InviteCodeEventData,
   OrganizationEventData,
   WaitlistEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `waitlist` block: type to data. */
 export type WaitlistEvents = {

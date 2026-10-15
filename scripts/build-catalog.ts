@@ -10,6 +10,9 @@ import * as v from "valibot";
 
 // A relative import, not `better-supabase/sql`: Vercel installs only the
 // marketing app's dependencies, so the root has no link to the package.
+import type { BlockCategory } from "../packages/better-supabase/src/blocks/define-block.ts";
+
+import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
   renderModules,
   SQL_MODULES,
@@ -36,123 +39,19 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
-// Block manifests (plan 003, W1c) will carry the category; until then it is
-// kept here, and the script fails on a module that has none.
-const CATEGORY_OF = {
-  Foundation: [
-    "updated-at",
-    "actor",
-    "tenant",
-    "access",
-    "organizations",
-    "invitations",
-    "profiles",
-    "teams",
-    "subjects",
-    "reserved-slugs",
-    "settings",
-    "identities",
-    "sessions",
-    "mfa",
-    "sso",
-  ],
-  Collaboration: [
-    "comments",
-    "attachments",
-    "notifications",
-    "reactions",
-    "inbox",
-    "chat-sdk-state",
-    "share-links",
-    "push",
-  ],
-  "CRM & sales": ["parties", "engagements", "deals", "quotes", "targets"],
-  Work: [
-    "work-items",
-    "pipelines",
-    "tags",
-    "custom-fields",
-    "relations",
-    "collections",
-    "saved-views",
-    "state-machine",
-    "rank",
-    "bulk",
-    "search",
-    "sla",
-    "hiring",
-    "employees",
-    "approvals",
-    "access-requests",
-  ],
-  "Billing & commerce": [
-    "entitlements",
-    "usage",
-    "billing",
-    "catalog",
-    "inventory",
-    "orders",
-    "promotions",
-    "invoices",
-  ],
-  Scheduling: ["calendar", "bookings", "reminders", "time-tracking"],
-  AI: [
-    "vector-search",
-    "ai-chat",
-    "ai-files",
-    "knowledge",
-    "memory",
-    "agents",
-    "connectors",
-    "ai-tasks",
-    "ai-cache",
-    "ai-providers",
-  ],
-  Content: [
-    "documents",
-    "versions",
-    "forms",
-    "signatures",
-    "templates",
-    "drive",
-    "drive-files",
-    "trash",
-    "imports",
-  ],
-  Operations: [
-    "audit",
-    "support-sessions",
-    "data-lifecycle",
-    "onboarding",
-    "waitlist",
-    "announcements",
-    "flags",
-    "metrics",
-    "workflows",
-    "workflow-sdk-world",
-    "workflow-builder",
-  ],
-  Platform: [
-    "jobs",
-    "idempotency",
-    "webhook-inbox",
-    "realtime-tables",
-    "jsonb-schemas",
-    "pgtap",
-    "grants",
-    "read-sets",
-    "rate-limit",
-    "outbox",
-    "webhooks-out",
-    "webhooks-in",
-    "api-keys",
-    "streams",
-    "credentials",
-    "service-principals",
-    "ensure-rls",
-    "number-sequences",
-  ],
-} satisfies Readonly<Record<Category, readonly string[]>>;
+/** The catalog heading for each manifest category. */
+const CATEGORY_TITLES = {
+  foundation: "Foundation",
+  collaboration: "Collaboration",
+  crm: "CRM & sales",
+  work: "Work",
+  commerce: "Billing & commerce",
+  scheduling: "Scheduling",
+  ai: "AI",
+  content: "Content",
+  operations: "Operations",
+  platform: "Platform",
+} as const satisfies Readonly<Record<BlockCategory, Category>>;
 
 export interface CatalogBlock {
   readonly name: string;
@@ -177,17 +76,15 @@ export interface Catalog {
   readonly blocks: readonly CatalogBlock[];
 }
 
+/** The category of the block whose manifest installs the module. */
 function categoryOf(name: string): Category {
-  const found = CATEGORIES.filter((category) =>
-    CATEGORY_OF[category].includes(name),
-  );
-  const [category] = found;
-  if (category === undefined || found.length > 1) {
+  const block = BLOCK_MANIFESTS.find((each) => each.sql.includes(name));
+  if (block === undefined) {
     throw new Error(
-      `build-catalog: give the "${name}" module exactly one category in CATEGORY_OF (it has ${String(found.length)}).`,
+      `build-catalog: no block manifest installs the "${name}" module; add it to one's \`sql\`.`,
     );
   }
-  return category;
+  return CATEGORY_TITLES[block.category];
 }
 
 /** Module name to docs page, from the Blocks table in `blocks/index.mdx`. */
@@ -275,16 +172,6 @@ function eventsOf(module: SqlModule): readonly string[] {
 export function buildCatalog(): Catalog {
   const exports = exportsOf();
   const pages = docsPages();
-  const names = new Set(Object.keys(SQL_MODULES));
-  for (const category of CATEGORIES) {
-    for (const name of CATEGORY_OF[category]) {
-      if (!names.has(name)) {
-        throw new Error(
-          `build-catalog: CATEGORY_OF.${category} names "${name}", which is not a SQL module.`,
-        );
-      }
-    }
-  }
   const blocks = Object.values(SQL_MODULES).map((module): CatalogBlock => {
     const subpath = `./blocks/${module.name}`;
     const reactSource = exports.get(`${subpath}/react`);

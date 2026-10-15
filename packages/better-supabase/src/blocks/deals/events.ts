@@ -1,6 +1,7 @@
-import type { DealEventData, Events } from "../../core/block-events.ts";
+import type { DealEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `deals` block: type to data. */
 export type DealsEvents = {

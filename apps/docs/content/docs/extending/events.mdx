@@ -69,17 +69,53 @@ never changes a result.
 
 ## Block events
 
-The blocks and the SQL modules report what they did as `block` events.
-`onBlockEvent` from `better-supabase/events` listens to one type or to every
-type with a prefix, and types the data for the match:
+The blocks and the SQL modules report what they did as `block` events. Each
+block declares its own events in its manifest, and exports them next to it:
+`commentsEvents` from `better-supabase/blocks/comments`, `supportSessionsEvents`
+from `better-supabase/server`, `credentialsEvents` from
+`better-supabase/credentials`. `onBlockEvent` from `better-supabase/events`
+listens to one type or to every type with a prefix, and types the data for the
+match from the events you pass:
 
 ```ts
 import { onBlockEvent } from "better-supabase/events";
+import { supportSessionsEvents } from "better-supabase/server";
 
-onBlockEvent(betterSupabase, "support.*", (event) => {
+onBlockEvent(betterSupabase, supportSessionsEvents, "support.*", (event) => {
   // event.type is "support.started" | "support.ended" | "support.denied"
   auditTrail.write({ type: event.type, admin: event.data.adminId });
 });
+```
+
+[`defineBlocks`](/docs/blocks/create-blocks#typed-events-with-defineblocks)
+merges the events of every block you use, so `app.on(betterSupabase,
+"comment.*", handler)` types them without listing each block's events. The
+union comes from the manifests you pass, never from `declare module`.
+
+### App events
+
+`defineEvents` declares your own events with their data, for
+`defineBlocks(blocks, appEvents)` and `onBlockEvent`. `emitBlockEvent` sends
+one, typed by the same map:
+
+```ts
+import {
+  defineEvents,
+  emitBlockEvent,
+  event,
+  type EventMapOf,
+} from "better-supabase/events";
+
+export const appEvents = defineEvents({
+  "invoice.sent": event<{ readonly invoiceId: string }>(),
+});
+
+emitBlockEvent<EventMapOf<typeof appEvents>>(
+  betterSupabase.events,
+  "invoice.sent",
+  { invoiceId },
+  { subject: `invoices/${invoiceId}`, tenant: organizationId },
+);
 ```
 
 Every type is `<entity>.<past_verb>` in snake case. A payload with a tenant
@@ -205,8 +241,9 @@ and the `reason` passed to `transition()`, or `null`.
 `attachment.uploaded`, `time_entry.*` and `workflow_run.completed`,
 `.failed` and `.cancelled` carry `subjectType` and `subjectId` only when the
 row belongs to a record: a run started without a subject has `null` there.
-They are not part of `SubjectEventType`, whose keys are never `null`, so a
-sink that wants them checks `subjectType` first.
+They are not part of `SubjectEventType<M>`, the types in an event map `M`
+whose keys are never `null`, so a sink that wants them checks `subjectType`
+first.
 
 `BLOCK_EVENT_RENAMES` from `better-supabase/events` maps the 0.5 names to the
 current ones (`BLOCK_EVENT_RENAMES[type] ?? type`), for consumers that still

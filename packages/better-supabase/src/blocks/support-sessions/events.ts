@@ -1,6 +1,7 @@
-import type { Events, SupportEventData } from "../../core/block-events.ts";
+import type { SupportEventData } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `support-sessions` block: type to data. */
 export type SupportSessionsEvents = {

@@ -1,10 +1,10 @@
 import type {
-  Events,
   PipelineEventData,
   PipelineStageEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `pipelines` block: type to data. */
 export type PipelinesEvents = {

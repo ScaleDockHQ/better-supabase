@@ -1,10 +1,10 @@
 import type {
-  Events,
   SaasEventData,
   SaasSubjectEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `share-links` block: type to data. */
 export type ShareLinksEvents = {

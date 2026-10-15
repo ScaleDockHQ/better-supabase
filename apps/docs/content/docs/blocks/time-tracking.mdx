@@ -103,7 +103,7 @@ blocks: {
 },
 ```
 
-Time is often logged for a past day, so the metrics sink buckets entry events by the entry's `startedAt` instead of when the event happened. Pass `TIME_TRACKING_METRIC_EVENTS` and `timeEntryMetricTime` to `createBlocks`:
+Time is often logged for a past day, so the metrics sink buckets entry events by the entry's `startedAt` instead of when the event happened. Pass `TIME_TRACKING_METRIC_EVENTS` and `timeEntryMetricTime` to the metrics block's `sink` option:
 
 ```ts title="app/api/outbox/route.ts"
 import {
@@ -113,14 +113,15 @@ import {
 } from "better-supabase/blocks/time-tracking";
 
 const app = createBlocks(
+  { transport: service },
   {
-    transport: service,
-    metricEvents: TIME_TRACKING_METRIC_EVENTS,
-    metricTime: timeEntryMetricTime,
-  },
-  {
-    metrics: (options) =>
-      createMetrics({ ...options, metrics: timeTrackingMetrics() }),
+    metrics: metricsBlock
+      .with({
+        sink: { on: TIME_TRACKING_METRIC_EVENTS, time: timeEntryMetricTime },
+      })
+      .using((options) =>
+        createMetrics({ ...options, metrics: timeTrackingMetrics() }),
+      ),
   },
 );
 ```

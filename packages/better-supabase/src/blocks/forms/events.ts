@@ -1,11 +1,11 @@
 import type {
-  Events,
   FormEventData,
   FormSubmissionEventData,
   SignatureEventData,
 } from "../../core/block-events.ts";
+import type { Events } from "../../core/event-map.ts";
 
-import { defineEvents, event } from "../../core/block-events.ts";
+import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `forms` block: type to data. */
 export type FormsEvents = {
