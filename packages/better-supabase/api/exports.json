@@ -1814,6 +1814,42 @@
       "UseNotificationsOptions"
     ]
   },
+  "./blocks/notifications/vue": {
+    "values": [
+      "useNotifications"
+    ],
+    "types": [
+      "BlockOptions",
+      "NotificationsActions",
+      "NotificationsControllerOptions",
+      "NotificationsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/notifications/svelte": {
+    "values": [
+      "useNotifications"
+    ],
+    "types": [
+      "BlockOptions",
+      "NotificationsActions",
+      "NotificationsControllerOptions",
+      "NotificationsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/notifications/solid": {
+    "values": [
+      "useNotifications"
+    ],
+    "types": [
+      "BlockOptions",
+      "NotificationsActions",
+      "NotificationsControllerOptions",
+      "NotificationsSnapshot",
+      "SolidController"
+    ]
+  },
   "./env": {
     "values": [
       "ENV_VARIABLES",
@@ -2533,6 +2569,45 @@
       "UseOnboardingOptions"
     ]
   },
+  "./blocks/onboarding/vue": {
+    "values": [
+      "useOnboarding"
+    ],
+    "types": [
+      "BlockOptions",
+      "ChecklistScope",
+      "OnboardingActions",
+      "OnboardingControllerOptions",
+      "OnboardingSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/onboarding/svelte": {
+    "values": [
+      "useOnboarding"
+    ],
+    "types": [
+      "BlockOptions",
+      "ChecklistScope",
+      "OnboardingActions",
+      "OnboardingControllerOptions",
+      "OnboardingSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/onboarding/solid": {
+    "values": [
+      "useOnboarding"
+    ],
+    "types": [
+      "BlockOptions",
+      "ChecklistScope",
+      "OnboardingActions",
+      "OnboardingControllerOptions",
+      "OnboardingSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/waitlist": {
     "values": [
       "createWaitlist",
@@ -2600,6 +2675,54 @@
       "UseWorkflowRunsOptions",
       "WorkflowRunsState",
       "WorkflowRunState"
+    ]
+  },
+  "./blocks/workflows/vue": {
+    "values": [
+      "useWorkflowRun",
+      "useWorkflowRuns"
+    ],
+    "types": [
+      "BlockOptions",
+      "VueController",
+      "WorkflowRunActions",
+      "WorkflowRunControllerOptions",
+      "WorkflowRunsActions",
+      "WorkflowRunsControllerOptions",
+      "WorkflowRunSnapshot",
+      "WorkflowRunsSnapshot"
+    ]
+  },
+  "./blocks/workflows/svelte": {
+    "values": [
+      "useWorkflowRun",
+      "useWorkflowRuns"
+    ],
+    "types": [
+      "BlockOptions",
+      "SvelteController",
+      "WorkflowRunActions",
+      "WorkflowRunControllerOptions",
+      "WorkflowRunsActions",
+      "WorkflowRunsControllerOptions",
+      "WorkflowRunSnapshot",
+      "WorkflowRunsSnapshot"
+    ]
+  },
+  "./blocks/workflows/solid": {
+    "values": [
+      "useWorkflowRun",
+      "useWorkflowRuns"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "WorkflowRunActions",
+      "WorkflowRunControllerOptions",
+      "WorkflowRunsActions",
+      "WorkflowRunsControllerOptions",
+      "WorkflowRunSnapshot",
+      "WorkflowRunsSnapshot"
     ]
   },
   "./blocks/workflow-builder": {
@@ -2687,6 +2810,54 @@
       "UseWorkflowCanvasRunOptions",
       "WorkflowBuilderState",
       "WorkflowCanvasRunState"
+    ]
+  },
+  "./blocks/workflow-builder/vue": {
+    "values": [
+      "useWorkflowBuilder",
+      "useWorkflowCanvasRun"
+    ],
+    "types": [
+      "BlockOptions",
+      "VueController",
+      "WorkflowBuilderActions",
+      "WorkflowBuilderControllerOptions",
+      "WorkflowBuilderSnapshot",
+      "WorkflowCanvasRunActions",
+      "WorkflowCanvasRunControllerOptions",
+      "WorkflowCanvasRunSnapshot"
+    ]
+  },
+  "./blocks/workflow-builder/svelte": {
+    "values": [
+      "useWorkflowBuilder",
+      "useWorkflowCanvasRun"
+    ],
+    "types": [
+      "BlockOptions",
+      "SvelteController",
+      "WorkflowBuilderActions",
+      "WorkflowBuilderControllerOptions",
+      "WorkflowBuilderSnapshot",
+      "WorkflowCanvasRunActions",
+      "WorkflowCanvasRunControllerOptions",
+      "WorkflowCanvasRunSnapshot"
+    ]
+  },
+  "./blocks/workflow-builder/solid": {
+    "values": [
+      "useWorkflowBuilder",
+      "useWorkflowCanvasRun"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "WorkflowBuilderActions",
+      "WorkflowBuilderControllerOptions",
+      "WorkflowBuilderSnapshot",
+      "WorkflowCanvasRunActions",
+      "WorkflowCanvasRunControllerOptions",
+      "WorkflowCanvasRunSnapshot"
     ]
   },
   "./workflow-sdk": {
@@ -2989,6 +3160,66 @@
       "UseInboxWidgetOptions"
     ]
   },
+  "./blocks/inbox/vue": {
+    "values": [
+      "useConversation",
+      "useInbox",
+      "useInboxWidget"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationActions",
+      "ConversationControllerOptions",
+      "ConversationSnapshot",
+      "InboxControllerOptions",
+      "InboxListActions",
+      "InboxListSnapshot",
+      "InboxWidgetActions",
+      "InboxWidgetControllerOptions",
+      "InboxWidgetSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/inbox/svelte": {
+    "values": [
+      "useConversation",
+      "useInbox",
+      "useInboxWidget"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationActions",
+      "ConversationControllerOptions",
+      "ConversationSnapshot",
+      "InboxControllerOptions",
+      "InboxListActions",
+      "InboxListSnapshot",
+      "InboxWidgetActions",
+      "InboxWidgetControllerOptions",
+      "InboxWidgetSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/inbox/solid": {
+    "values": [
+      "useConversation",
+      "useInbox",
+      "useInboxWidget"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationActions",
+      "ConversationControllerOptions",
+      "ConversationSnapshot",
+      "InboxControllerOptions",
+      "InboxListActions",
+      "InboxListSnapshot",
+      "InboxWidgetActions",
+      "InboxWidgetControllerOptions",
+      "InboxWidgetSnapshot",
+      "SolidController"
+    ]
+  },
   "./chat-sdk": {
     "values": [
       "approvalLink",
@@ -3192,6 +3423,78 @@
       "AiShareState",
       "UseAiChatsOptions",
       "UseAiChatTreeOptions"
+    ]
+  },
+  "./blocks/ai-chat/vue": {
+    "values": [
+      "useAiChats",
+      "useAiChatTree",
+      "useAiModels",
+      "useAiShare"
+    ],
+    "types": [
+      "AiChatsActions",
+      "AiChatsControllerOptions",
+      "AiChatsSnapshot",
+      "AiChatTreeActions",
+      "AiChatTreeControllerOptions",
+      "AiChatTreeSnapshot",
+      "AiModelsActions",
+      "AiModelsControllerOptions",
+      "AiModelsSnapshot",
+      "AiShareActions",
+      "AiShareControllerOptions",
+      "AiShareSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/ai-chat/svelte": {
+    "values": [
+      "useAiChats",
+      "useAiChatTree",
+      "useAiModels",
+      "useAiShare"
+    ],
+    "types": [
+      "AiChatsActions",
+      "AiChatsControllerOptions",
+      "AiChatsSnapshot",
+      "AiChatTreeActions",
+      "AiChatTreeControllerOptions",
+      "AiChatTreeSnapshot",
+      "AiModelsActions",
+      "AiModelsControllerOptions",
+      "AiModelsSnapshot",
+      "AiShareActions",
+      "AiShareControllerOptions",
+      "AiShareSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/ai-chat/solid": {
+    "values": [
+      "useAiChats",
+      "useAiChatTree",
+      "useAiModels",
+      "useAiShare"
+    ],
+    "types": [
+      "AiChatsActions",
+      "AiChatsControllerOptions",
+      "AiChatsSnapshot",
+      "AiChatTreeActions",
+      "AiChatTreeControllerOptions",
+      "AiChatTreeSnapshot",
+      "AiModelsActions",
+      "AiModelsControllerOptions",
+      "AiModelsSnapshot",
+      "AiShareActions",
+      "AiShareControllerOptions",
+      "AiShareSnapshot",
+      "BlockOptions",
+      "SolidController"
     ]
   },
   "./blocks/ai-files": {
@@ -3701,6 +4004,42 @@
       "UseUndoStackOptions"
     ]
   },
+  "./blocks/undo/vue": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "BlockOptions",
+      "UndoActions",
+      "UndoSnapshot",
+      "UndoStackOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/undo/svelte": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "BlockOptions",
+      "SvelteController",
+      "UndoActions",
+      "UndoSnapshot",
+      "UndoStackOptions"
+    ]
+  },
+  "./blocks/undo/solid": {
+    "values": [
+      "useUndoStack"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "UndoActions",
+      "UndoSnapshot",
+      "UndoStackOptions"
+    ]
+  },
   "./blocks/tags": {
     "values": [
       "createTags"
@@ -3940,6 +4279,45 @@
       "UseSavedViewsOptions"
     ]
   },
+  "./blocks/saved-views/vue": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "BlockOptions",
+      "SavedViewLike",
+      "SavedViewsActions",
+      "SavedViewsControllerOptions",
+      "SavedViewsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/saved-views/svelte": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "BlockOptions",
+      "SavedViewLike",
+      "SavedViewsActions",
+      "SavedViewsControllerOptions",
+      "SavedViewsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/saved-views/solid": {
+    "values": [
+      "useSavedViews"
+    ],
+    "types": [
+      "BlockOptions",
+      "SavedViewLike",
+      "SavedViewsActions",
+      "SavedViewsControllerOptions",
+      "SavedViewsSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/search": {
     "values": [
       "createCommandSearchController",
@@ -3978,6 +4356,42 @@
       "CommandSearchItem",
       "CommandSearchState",
       "UseCommandSearchOptions"
+    ]
+  },
+  "./blocks/search/vue": {
+    "values": [
+      "useCommandSearch"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommandSearchActions",
+      "CommandSearchOptions",
+      "CommandSearchSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/search/svelte": {
+    "values": [
+      "useCommandSearch"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommandSearchActions",
+      "CommandSearchOptions",
+      "CommandSearchSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/search/solid": {
+    "values": [
+      "useCommandSearch"
+    ],
+    "types": [
+      "BlockOptions",
+      "CommandSearchActions",
+      "CommandSearchOptions",
+      "CommandSearchSnapshot",
+      "SolidController"
     ]
   },
   "./blocks/metrics": {
@@ -4145,6 +4559,42 @@
       "UseCalendarOptions"
     ]
   },
+  "./blocks/calendar/vue": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "BlockOptions",
+      "CalendarActions",
+      "CalendarControllerOptions",
+      "CalendarSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/calendar/svelte": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "BlockOptions",
+      "CalendarActions",
+      "CalendarControllerOptions",
+      "CalendarSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/calendar/solid": {
+    "values": [
+      "useCalendar"
+    ],
+    "types": [
+      "BlockOptions",
+      "CalendarActions",
+      "CalendarControllerOptions",
+      "CalendarSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/bookings": {
     "values": [
       "BOOKING_EXPIRE_QUEUE",
@@ -4184,6 +4634,42 @@
     "types": [
       "AvailableSlotsState",
       "UseAvailableSlotsOptions"
+    ]
+  },
+  "./blocks/bookings/vue": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsActions",
+      "AvailableSlotsOptions",
+      "AvailableSlotsSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/bookings/svelte": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsActions",
+      "AvailableSlotsOptions",
+      "AvailableSlotsSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/bookings/solid": {
+    "values": [
+      "useAvailableSlots"
+    ],
+    "types": [
+      "AvailableSlotsActions",
+      "AvailableSlotsOptions",
+      "AvailableSlotsSnapshot",
+      "BlockOptions",
+      "SolidController"
     ]
   },
   "./blocks/versions": {
@@ -4426,6 +4912,42 @@
     "types": [
       "QuestionnaireView",
       "UseQuestionnaireOptions"
+    ]
+  },
+  "./blocks/forms/vue": {
+    "values": [
+      "useQuestionnaire"
+    ],
+    "types": [
+      "BlockOptions",
+      "QuestionnaireActions",
+      "QuestionnaireOptions",
+      "QuestionnaireSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/forms/svelte": {
+    "values": [
+      "useQuestionnaire"
+    ],
+    "types": [
+      "BlockOptions",
+      "QuestionnaireActions",
+      "QuestionnaireOptions",
+      "QuestionnaireSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/forms/solid": {
+    "values": [
+      "useQuestionnaire"
+    ],
+    "types": [
+      "BlockOptions",
+      "QuestionnaireActions",
+      "QuestionnaireOptions",
+      "QuestionnaireSnapshot",
+      "SolidController"
     ]
   },
   "./blocks/time-tracking": {
@@ -4855,6 +5377,42 @@
       "UseReactionsOptions"
     ]
   },
+  "./blocks/reactions/vue": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "BlockOptions",
+      "ReactionsActions",
+      "ReactionsControllerOptions",
+      "ReactionsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/reactions/svelte": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "BlockOptions",
+      "ReactionsActions",
+      "ReactionsControllerOptions",
+      "ReactionsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/reactions/solid": {
+    "values": [
+      "useReactions"
+    ],
+    "types": [
+      "BlockOptions",
+      "ReactionsActions",
+      "ReactionsControllerOptions",
+      "ReactionsSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/catalog": {
     "values": [
       "catalogSubjects",
@@ -5025,6 +5583,42 @@
     "types": [
       "AnnouncementsState",
       "UseAnnouncementsOptions"
+    ]
+  },
+  "./blocks/announcements/vue": {
+    "values": [
+      "useAnnouncements"
+    ],
+    "types": [
+      "AnnouncementsActions",
+      "AnnouncementsControllerOptions",
+      "AnnouncementsSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/announcements/svelte": {
+    "values": [
+      "useAnnouncements"
+    ],
+    "types": [
+      "AnnouncementsActions",
+      "AnnouncementsControllerOptions",
+      "AnnouncementsSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/announcements/solid": {
+    "values": [
+      "useAnnouncements"
+    ],
+    "types": [
+      "AnnouncementsActions",
+      "AnnouncementsControllerOptions",
+      "AnnouncementsSnapshot",
+      "BlockOptions",
+      "SolidController"
     ]
   },
   "./openapi": {
@@ -5387,6 +5981,7 @@
       "LOCAL_JWT_SECRET",
       "localAuth",
       "localSigningKey",
+      "PROBE_INITIAL",
       "signLocalJwt",
       "signTestJwt",
       "signTestJwtWithKey",
@@ -5402,6 +5997,7 @@
       "testBuilderStarter",
       "testCacheAdapter",
       "testChatState",
+      "testControllerBinding",
       "testCredentialProvider",
       "testDeliveryTransport",
       "testDocumentFormat",
@@ -5430,6 +6026,7 @@
       "BudgetResponse",
       "ConformanceCheck",
       "ConformanceReport",
+      "ControllerBindingHarness",
       "DbBudgetExpectation",
       "ExactSeed",
       "InstantBrowserContext",
@@ -5443,6 +6040,10 @@
       "LiteStackOptions",
       "LocalStack",
       "MeasuredRender",
+      "MountedBinding",
+      "ProbeActions",
+      "ProbeController",
+      "ProbeSnapshot",
       "ReceivedDelivery",
       "ResponseBudgetExpectation",
       "ResponseDbStats",

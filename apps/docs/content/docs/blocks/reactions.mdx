@@ -73,6 +73,106 @@ const { reactions, toggle } = useReactions({
 });
 ```
 
+## Vue
+
+`better-supabase/blocks/reactions/vue` exports `useReactions`. It takes the
+options of `createReactionsController`; `auth` and `ports` come from
+`app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
+of the snapshot and `actions` are the controller's actions. The work starts
+on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useReactions } from "better-supabase/blocks/reactions/vue";
+import {
+  createReactions,
+  rpcTransport,
+} from "better-supabase/blocks/reactions";
+
+const { organizationId, subjectIds } = defineProps<{
+  organizationId: string;
+  subjectIds: string[];
+}>();
+const supabase = useSupabase();
+const { state, actions } = useReactions({
+  client: createReactions({ transport: rpcTransport(supabase) }),
+  organizationId,
+  subjectType: "comment",
+  subjectIds,
+});
+</script>
+
+<template>
+  <p>{{ Object.keys(state.reactions ?? {}).length }}</p>
+  <button @click="actions.refresh()">Refresh</button>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/reactions/svelte` exports `useReactions`. It takes
+the options of `createReactionsController`; `auth` and `ports` come from
+`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+store of the snapshot, read with `$`, with the actions on `.actions`. The
+work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useReactions } from "better-supabase/blocks/reactions/svelte";
+  import { createReactions, rpcTransport } from "better-supabase/blocks/reactions";
+
+  let { organizationId, subjectIds }: { organizationId: string; subjectIds: string[] } = $props();
+  const { supabase } = getBetterSupabase();
+  const reactions = useReactions({
+    client: createReactions({ transport: rpcTransport(supabase) }),
+    organizationId,
+    subjectType: "comment",
+    subjectIds,
+  });
+</script>
+
+<p>{Object.keys($reactions.reactions ?? {}).length}</p>
+<button onclick={() => reactions.actions.refresh()}>Refresh</button>
+```
+
+## Solid
+
+`better-supabase/blocks/reactions/solid` exports `useReactions`. It takes
+the options of `createReactionsController`; `auth` and `ports` come from
+`<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads
+the snapshot through `from`, and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useReactions } from "better-supabase/blocks/reactions/solid";
+import {
+  createReactions,
+  rpcTransport,
+} from "better-supabase/blocks/reactions";
+
+export function Component(props: {
+  organizationId: string;
+  subjectIds: string[];
+}) {
+  const supabase = useSupabase();
+  const { state, actions } = useReactions({
+    client: createReactions({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+    subjectType: "comment",
+    subjectIds: props.subjectIds,
+  });
+  return (
+    <>
+      <p>{Object.keys(state().reactions ?? {}).length}</p>
+      <button onClick={() => actions.refresh()}>Refresh</button>
+    </>
+  );
+}
+```
+
 ## Events and hooks
 
 The module records `reaction.added` and `reaction.removed` with `organizationId`, `subjectType`, `subjectId`, `emoji` and `actor`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.

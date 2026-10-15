@@ -263,6 +263,21 @@
       "react-server": "./dist/blocks/notifications/react/server.js",
       "default": "./dist/blocks/notifications/react/index.js"
     },
+    "./blocks/notifications/vue": {
+      "@better-supabase/source": "./src/blocks/notifications/vue/index.ts",
+      "types": "./dist/blocks/notifications/vue/index.d.ts",
+      "default": "./dist/blocks/notifications/vue/index.js"
+    },
+    "./blocks/notifications/svelte": {
+      "@better-supabase/source": "./src/blocks/notifications/svelte/index.ts",
+      "types": "./dist/blocks/notifications/svelte/index.d.ts",
+      "default": "./dist/blocks/notifications/svelte/index.js"
+    },
+    "./blocks/notifications/solid": {
+      "@better-supabase/source": "./src/blocks/notifications/solid/index.ts",
+      "types": "./dist/blocks/notifications/solid/index.d.ts",
+      "default": "./dist/blocks/notifications/solid/index.js"
+    },
     "./env": {
       "@better-supabase/source": "./src/env/index.ts",
       "types": "./dist/env/index.d.ts",
@@ -354,6 +369,21 @@
       "react-server": "./dist/blocks/onboarding/react/server.js",
       "default": "./dist/blocks/onboarding/react/index.js"
     },
+    "./blocks/onboarding/vue": {
+      "@better-supabase/source": "./src/blocks/onboarding/vue/index.ts",
+      "types": "./dist/blocks/onboarding/vue/index.d.ts",
+      "default": "./dist/blocks/onboarding/vue/index.js"
+    },
+    "./blocks/onboarding/svelte": {
+      "@better-supabase/source": "./src/blocks/onboarding/svelte/index.ts",
+      "types": "./dist/blocks/onboarding/svelte/index.d.ts",
+      "default": "./dist/blocks/onboarding/svelte/index.js"
+    },
+    "./blocks/onboarding/solid": {
+      "@better-supabase/source": "./src/blocks/onboarding/solid/index.ts",
+      "types": "./dist/blocks/onboarding/solid/index.d.ts",
+      "default": "./dist/blocks/onboarding/solid/index.js"
+    },
     "./blocks/waitlist": {
       "@better-supabase/source": "./src/blocks/waitlist/index.ts",
       "types": "./dist/blocks/waitlist/index.d.ts",
@@ -370,6 +400,21 @@
       "react-server": "./dist/blocks/workflows/react/server.js",
       "default": "./dist/blocks/workflows/react/index.js"
     },
+    "./blocks/workflows/vue": {
+      "@better-supabase/source": "./src/blocks/workflows/vue/index.ts",
+      "types": "./dist/blocks/workflows/vue/index.d.ts",
+      "default": "./dist/blocks/workflows/vue/index.js"
+    },
+    "./blocks/workflows/svelte": {
+      "@better-supabase/source": "./src/blocks/workflows/svelte/index.ts",
+      "types": "./dist/blocks/workflows/svelte/index.d.ts",
+      "default": "./dist/blocks/workflows/svelte/index.js"
+    },
+    "./blocks/workflows/solid": {
+      "@better-supabase/source": "./src/blocks/workflows/solid/index.ts",
+      "types": "./dist/blocks/workflows/solid/index.d.ts",
+      "default": "./dist/blocks/workflows/solid/index.js"
+    },
     "./blocks/workflow-builder": {
       "@better-supabase/source": "./src/blocks/workflow-builder/index.ts",
       "types": "./dist/blocks/workflow-builder/index.d.ts",
@@ -380,6 +425,21 @@
       "types": "./dist/blocks/workflow-builder/react/index.d.ts",
       "react-server": "./dist/blocks/workflow-builder/react/server.js",
       "default": "./dist/blocks/workflow-builder/react/index.js"
+    },
+    "./blocks/workflow-builder/vue": {
+      "@better-supabase/source": "./src/blocks/workflow-builder/vue/index.ts",
+      "types": "./dist/blocks/workflow-builder/vue/index.d.ts",
+      "default": "./dist/blocks/workflow-builder/vue/index.js"
+    },
+    "./blocks/workflow-builder/svelte": {
+      "@better-supabase/source": "./src/blocks/workflow-builder/svelte/index.ts",
+      "types": "./dist/blocks/workflow-builder/svelte/index.d.ts",
+      "default": "./dist/blocks/workflow-builder/svelte/index.js"
+    },
+    "./blocks/workflow-builder/solid": {
+      "@better-supabase/source": "./src/blocks/workflow-builder/solid/index.ts",
+      "types": "./dist/blocks/workflow-builder/solid/index.d.ts",
+      "default": "./dist/blocks/workflow-builder/solid/index.js"
     },
     "./workflow-sdk": {
       "@better-supabase/source": "./src/workflow-sdk/index.ts",
@@ -442,6 +502,21 @@
       "react-server": "./dist/blocks/inbox/react/server.js",
       "default": "./dist/blocks/inbox/react/index.js"
     },
+    "./blocks/inbox/vue": {
+      "@better-supabase/source": "./src/blocks/inbox/vue/index.ts",
+      "types": "./dist/blocks/inbox/vue/index.d.ts",
+      "default": "./dist/blocks/inbox/vue/index.js"
+    },
+    "./blocks/inbox/svelte": {
+      "@better-supabase/source": "./src/blocks/inbox/svelte/index.ts",
+      "types": "./dist/blocks/inbox/svelte/index.d.ts",
+      "default": "./dist/blocks/inbox/svelte/index.js"
+    },
+    "./blocks/inbox/solid": {
+      "@better-supabase/source": "./src/blocks/inbox/solid/index.ts",
+      "types": "./dist/blocks/inbox/solid/index.d.ts",
+      "default": "./dist/blocks/inbox/solid/index.js"
+    },
     "./chat-sdk": {
       "@better-supabase/source": "./src/chat-sdk/index.ts",
       "types": "./dist/chat-sdk/index.d.ts",
@@ -463,6 +538,21 @@
       "types": "./dist/blocks/ai-chat/react/index.d.ts",
       "react-server": "./dist/blocks/ai-chat/react/server.js",
       "default": "./dist/blocks/ai-chat/react/index.js"
+    },
+    "./blocks/ai-chat/vue": {
+      "@better-supabase/source": "./src/blocks/ai-chat/vue/index.ts",
+      "types": "./dist/blocks/ai-chat/vue/index.d.ts",
+      "default": "./dist/blocks/ai-chat/vue/index.js"
+    },
+    "./blocks/ai-chat/svelte": {
+      "@better-supabase/source": "./src/blocks/ai-chat/svelte/index.ts",
+      "types": "./dist/blocks/ai-chat/svelte/index.d.ts",
+      "default": "./dist/blocks/ai-chat/svelte/index.js"
+    },
+    "./blocks/ai-chat/solid": {
+      "@better-supabase/source": "./src/blocks/ai-chat/solid/index.ts",
+      "types": "./dist/blocks/ai-chat/solid/index.d.ts",
+      "default": "./dist/blocks/ai-chat/solid/index.js"
     },
     "./blocks/ai-files": {
       "@better-supabase/source": "./src/blocks/ai-files/index.ts",
@@ -592,6 +682,21 @@
       "react-server": "./dist/blocks/undo/react/server.js",
       "default": "./dist/blocks/undo/react/index.js"
     },
+    "./blocks/undo/vue": {
+      "@better-supabase/source": "./src/blocks/undo/vue/index.ts",
+      "types": "./dist/blocks/undo/vue/index.d.ts",
+      "default": "./dist/blocks/undo/vue/index.js"
+    },
+    "./blocks/undo/svelte": {
+      "@better-supabase/source": "./src/blocks/undo/svelte/index.ts",
+      "types": "./dist/blocks/undo/svelte/index.d.ts",
+      "default": "./dist/blocks/undo/svelte/index.js"
+    },
+    "./blocks/undo/solid": {
+      "@better-supabase/source": "./src/blocks/undo/solid/index.ts",
+      "types": "./dist/blocks/undo/solid/index.d.ts",
+      "default": "./dist/blocks/undo/solid/index.js"
+    },
     "./blocks/tags": {
       "@better-supabase/source": "./src/blocks/tags/index.ts",
       "types": "./dist/blocks/tags/index.d.ts",
@@ -658,6 +763,21 @@
       "react-server": "./dist/blocks/saved-views/react/server.js",
       "default": "./dist/blocks/saved-views/react/index.js"
     },
+    "./blocks/saved-views/vue": {
+      "@better-supabase/source": "./src/blocks/saved-views/vue/index.ts",
+      "types": "./dist/blocks/saved-views/vue/index.d.ts",
+      "default": "./dist/blocks/saved-views/vue/index.js"
+    },
+    "./blocks/saved-views/svelte": {
+      "@better-supabase/source": "./src/blocks/saved-views/svelte/index.ts",
+      "types": "./dist/blocks/saved-views/svelte/index.d.ts",
+      "default": "./dist/blocks/saved-views/svelte/index.js"
+    },
+    "./blocks/saved-views/solid": {
+      "@better-supabase/source": "./src/blocks/saved-views/solid/index.ts",
+      "types": "./dist/blocks/saved-views/solid/index.d.ts",
+      "default": "./dist/blocks/saved-views/solid/index.js"
+    },
     "./blocks/search": {
       "@better-supabase/source": "./src/blocks/search/index.ts",
       "types": "./dist/blocks/search/index.d.ts",
@@ -668,6 +788,21 @@
       "types": "./dist/blocks/search/react/index.d.ts",
       "react-server": "./dist/blocks/search/react/server.js",
       "default": "./dist/blocks/search/react/index.js"
+    },
+    "./blocks/search/vue": {
+      "@better-supabase/source": "./src/blocks/search/vue/index.ts",
+      "types": "./dist/blocks/search/vue/index.d.ts",
+      "default": "./dist/blocks/search/vue/index.js"
+    },
+    "./blocks/search/svelte": {
+      "@better-supabase/source": "./src/blocks/search/svelte/index.ts",
+      "types": "./dist/blocks/search/svelte/index.d.ts",
+      "default": "./dist/blocks/search/svelte/index.js"
+    },
+    "./blocks/search/solid": {
+      "@better-supabase/source": "./src/blocks/search/solid/index.ts",
+      "types": "./dist/blocks/search/solid/index.d.ts",
+      "default": "./dist/blocks/search/solid/index.js"
     },
     "./blocks/metrics": {
       "@better-supabase/source": "./src/blocks/metrics/index.ts",
@@ -690,6 +825,21 @@
       "react-server": "./dist/blocks/calendar/react/server.js",
       "default": "./dist/blocks/calendar/react/index.js"
     },
+    "./blocks/calendar/vue": {
+      "@better-supabase/source": "./src/blocks/calendar/vue/index.ts",
+      "types": "./dist/blocks/calendar/vue/index.d.ts",
+      "default": "./dist/blocks/calendar/vue/index.js"
+    },
+    "./blocks/calendar/svelte": {
+      "@better-supabase/source": "./src/blocks/calendar/svelte/index.ts",
+      "types": "./dist/blocks/calendar/svelte/index.d.ts",
+      "default": "./dist/blocks/calendar/svelte/index.js"
+    },
+    "./blocks/calendar/solid": {
+      "@better-supabase/source": "./src/blocks/calendar/solid/index.ts",
+      "types": "./dist/blocks/calendar/solid/index.d.ts",
+      "default": "./dist/blocks/calendar/solid/index.js"
+    },
     "./blocks/bookings": {
       "@better-supabase/source": "./src/blocks/bookings/index.ts",
       "types": "./dist/blocks/bookings/index.d.ts",
@@ -700,6 +850,21 @@
       "types": "./dist/blocks/bookings/react/index.d.ts",
       "react-server": "./dist/blocks/bookings/react/server.js",
       "default": "./dist/blocks/bookings/react/index.js"
+    },
+    "./blocks/bookings/vue": {
+      "@better-supabase/source": "./src/blocks/bookings/vue/index.ts",
+      "types": "./dist/blocks/bookings/vue/index.d.ts",
+      "default": "./dist/blocks/bookings/vue/index.js"
+    },
+    "./blocks/bookings/svelte": {
+      "@better-supabase/source": "./src/blocks/bookings/svelte/index.ts",
+      "types": "./dist/blocks/bookings/svelte/index.d.ts",
+      "default": "./dist/blocks/bookings/svelte/index.js"
+    },
+    "./blocks/bookings/solid": {
+      "@better-supabase/source": "./src/blocks/bookings/solid/index.ts",
+      "types": "./dist/blocks/bookings/solid/index.d.ts",
+      "default": "./dist/blocks/bookings/solid/index.js"
     },
     "./blocks/versions": {
       "@better-supabase/source": "./src/blocks/versions/index.ts",
@@ -746,6 +911,21 @@
       "types": "./dist/blocks/forms/react/index.d.ts",
       "react-server": "./dist/blocks/forms/react/server.js",
       "default": "./dist/blocks/forms/react/index.js"
+    },
+    "./blocks/forms/vue": {
+      "@better-supabase/source": "./src/blocks/forms/vue/index.ts",
+      "types": "./dist/blocks/forms/vue/index.d.ts",
+      "default": "./dist/blocks/forms/vue/index.js"
+    },
+    "./blocks/forms/svelte": {
+      "@better-supabase/source": "./src/blocks/forms/svelte/index.ts",
+      "types": "./dist/blocks/forms/svelte/index.d.ts",
+      "default": "./dist/blocks/forms/svelte/index.js"
+    },
+    "./blocks/forms/solid": {
+      "@better-supabase/source": "./src/blocks/forms/solid/index.ts",
+      "types": "./dist/blocks/forms/solid/index.d.ts",
+      "default": "./dist/blocks/forms/solid/index.js"
     },
     "./blocks/time-tracking": {
       "@better-supabase/source": "./src/blocks/time-tracking/index.ts",
@@ -823,6 +1003,21 @@
       "react-server": "./dist/blocks/reactions/react/server.js",
       "default": "./dist/blocks/reactions/react/index.js"
     },
+    "./blocks/reactions/vue": {
+      "@better-supabase/source": "./src/blocks/reactions/vue/index.ts",
+      "types": "./dist/blocks/reactions/vue/index.d.ts",
+      "default": "./dist/blocks/reactions/vue/index.js"
+    },
+    "./blocks/reactions/svelte": {
+      "@better-supabase/source": "./src/blocks/reactions/svelte/index.ts",
+      "types": "./dist/blocks/reactions/svelte/index.d.ts",
+      "default": "./dist/blocks/reactions/svelte/index.js"
+    },
+    "./blocks/reactions/solid": {
+      "@better-supabase/source": "./src/blocks/reactions/solid/index.ts",
+      "types": "./dist/blocks/reactions/solid/index.d.ts",
+      "default": "./dist/blocks/reactions/solid/index.js"
+    },
     "./blocks/catalog": {
       "@better-supabase/source": "./src/blocks/catalog/index.ts",
       "types": "./dist/blocks/catalog/index.d.ts",
@@ -848,6 +1043,21 @@
       "types": "./dist/blocks/announcements/react/index.d.ts",
       "react-server": "./dist/blocks/announcements/react/server.js",
       "default": "./dist/blocks/announcements/react/index.js"
+    },
+    "./blocks/announcements/vue": {
+      "@better-supabase/source": "./src/blocks/announcements/vue/index.ts",
+      "types": "./dist/blocks/announcements/vue/index.d.ts",
+      "default": "./dist/blocks/announcements/vue/index.js"
+    },
+    "./blocks/announcements/svelte": {
+      "@better-supabase/source": "./src/blocks/announcements/svelte/index.ts",
+      "types": "./dist/blocks/announcements/svelte/index.d.ts",
+      "default": "./dist/blocks/announcements/svelte/index.js"
+    },
+    "./blocks/announcements/solid": {
+      "@better-supabase/source": "./src/blocks/announcements/solid/index.ts",
+      "types": "./dist/blocks/announcements/solid/index.d.ts",
+      "default": "./dist/blocks/announcements/solid/index.js"
     },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
@@ -1127,6 +1337,18 @@
         "react-server": "./dist/blocks/notifications/react/server.js",
         "default": "./dist/blocks/notifications/react/index.js"
       },
+      "./blocks/notifications/vue": {
+        "types": "./dist/blocks/notifications/vue/index.d.ts",
+        "default": "./dist/blocks/notifications/vue/index.js"
+      },
+      "./blocks/notifications/svelte": {
+        "types": "./dist/blocks/notifications/svelte/index.d.ts",
+        "default": "./dist/blocks/notifications/svelte/index.js"
+      },
+      "./blocks/notifications/solid": {
+        "types": "./dist/blocks/notifications/solid/index.d.ts",
+        "default": "./dist/blocks/notifications/solid/index.js"
+      },
       "./env": {
         "types": "./dist/env/index.d.ts",
         "default": "./dist/env/index.js"
@@ -1200,6 +1422,18 @@
         "react-server": "./dist/blocks/onboarding/react/server.js",
         "default": "./dist/blocks/onboarding/react/index.js"
       },
+      "./blocks/onboarding/vue": {
+        "types": "./dist/blocks/onboarding/vue/index.d.ts",
+        "default": "./dist/blocks/onboarding/vue/index.js"
+      },
+      "./blocks/onboarding/svelte": {
+        "types": "./dist/blocks/onboarding/svelte/index.d.ts",
+        "default": "./dist/blocks/onboarding/svelte/index.js"
+      },
+      "./blocks/onboarding/solid": {
+        "types": "./dist/blocks/onboarding/solid/index.d.ts",
+        "default": "./dist/blocks/onboarding/solid/index.js"
+      },
       "./blocks/waitlist": {
         "types": "./dist/blocks/waitlist/index.d.ts",
         "default": "./dist/blocks/waitlist/index.js"
@@ -1213,6 +1447,18 @@
         "react-server": "./dist/blocks/workflows/react/server.js",
         "default": "./dist/blocks/workflows/react/index.js"
       },
+      "./blocks/workflows/vue": {
+        "types": "./dist/blocks/workflows/vue/index.d.ts",
+        "default": "./dist/blocks/workflows/vue/index.js"
+      },
+      "./blocks/workflows/svelte": {
+        "types": "./dist/blocks/workflows/svelte/index.d.ts",
+        "default": "./dist/blocks/workflows/svelte/index.js"
+      },
+      "./blocks/workflows/solid": {
+        "types": "./dist/blocks/workflows/solid/index.d.ts",
+        "default": "./dist/blocks/workflows/solid/index.js"
+      },
       "./blocks/workflow-builder": {
         "types": "./dist/blocks/workflow-builder/index.d.ts",
         "default": "./dist/blocks/workflow-builder/index.js"
@@ -1221,6 +1467,18 @@
         "types": "./dist/blocks/workflow-builder/react/index.d.ts",
         "react-server": "./dist/blocks/workflow-builder/react/server.js",
         "default": "./dist/blocks/workflow-builder/react/index.js"
+      },
+      "./blocks/workflow-builder/vue": {
+        "types": "./dist/blocks/workflow-builder/vue/index.d.ts",
+        "default": "./dist/blocks/workflow-builder/vue/index.js"
+      },
+      "./blocks/workflow-builder/svelte": {
+        "types": "./dist/blocks/workflow-builder/svelte/index.d.ts",
+        "default": "./dist/blocks/workflow-builder/svelte/index.js"
+      },
+      "./blocks/workflow-builder/solid": {
+        "types": "./dist/blocks/workflow-builder/solid/index.d.ts",
+        "default": "./dist/blocks/workflow-builder/solid/index.js"
       },
       "./workflow-sdk": {
         "types": "./dist/workflow-sdk/index.d.ts",
@@ -1271,6 +1529,18 @@
         "react-server": "./dist/blocks/inbox/react/server.js",
         "default": "./dist/blocks/inbox/react/index.js"
       },
+      "./blocks/inbox/vue": {
+        "types": "./dist/blocks/inbox/vue/index.d.ts",
+        "default": "./dist/blocks/inbox/vue/index.js"
+      },
+      "./blocks/inbox/svelte": {
+        "types": "./dist/blocks/inbox/svelte/index.d.ts",
+        "default": "./dist/blocks/inbox/svelte/index.js"
+      },
+      "./blocks/inbox/solid": {
+        "types": "./dist/blocks/inbox/solid/index.d.ts",
+        "default": "./dist/blocks/inbox/solid/index.js"
+      },
       "./chat-sdk": {
         "types": "./dist/chat-sdk/index.d.ts",
         "default": "./dist/chat-sdk/index.js"
@@ -1288,6 +1558,18 @@
         "types": "./dist/blocks/ai-chat/react/index.d.ts",
         "react-server": "./dist/blocks/ai-chat/react/server.js",
         "default": "./dist/blocks/ai-chat/react/index.js"
+      },
+      "./blocks/ai-chat/vue": {
+        "types": "./dist/blocks/ai-chat/vue/index.d.ts",
+        "default": "./dist/blocks/ai-chat/vue/index.js"
+      },
+      "./blocks/ai-chat/svelte": {
+        "types": "./dist/blocks/ai-chat/svelte/index.d.ts",
+        "default": "./dist/blocks/ai-chat/svelte/index.js"
+      },
+      "./blocks/ai-chat/solid": {
+        "types": "./dist/blocks/ai-chat/solid/index.d.ts",
+        "default": "./dist/blocks/ai-chat/solid/index.js"
       },
       "./blocks/ai-files": {
         "types": "./dist/blocks/ai-files/index.d.ts",
@@ -1392,6 +1674,18 @@
         "react-server": "./dist/blocks/undo/react/server.js",
         "default": "./dist/blocks/undo/react/index.js"
       },
+      "./blocks/undo/vue": {
+        "types": "./dist/blocks/undo/vue/index.d.ts",
+        "default": "./dist/blocks/undo/vue/index.js"
+      },
+      "./blocks/undo/svelte": {
+        "types": "./dist/blocks/undo/svelte/index.d.ts",
+        "default": "./dist/blocks/undo/svelte/index.js"
+      },
+      "./blocks/undo/solid": {
+        "types": "./dist/blocks/undo/solid/index.d.ts",
+        "default": "./dist/blocks/undo/solid/index.js"
+      },
       "./blocks/tags": {
         "types": "./dist/blocks/tags/index.d.ts",
         "default": "./dist/blocks/tags/index.js"
@@ -1445,6 +1739,18 @@
         "react-server": "./dist/blocks/saved-views/react/server.js",
         "default": "./dist/blocks/saved-views/react/index.js"
       },
+      "./blocks/saved-views/vue": {
+        "types": "./dist/blocks/saved-views/vue/index.d.ts",
+        "default": "./dist/blocks/saved-views/vue/index.js"
+      },
+      "./blocks/saved-views/svelte": {
+        "types": "./dist/blocks/saved-views/svelte/index.d.ts",
+        "default": "./dist/blocks/saved-views/svelte/index.js"
+      },
+      "./blocks/saved-views/solid": {
+        "types": "./dist/blocks/saved-views/solid/index.d.ts",
+        "default": "./dist/blocks/saved-views/solid/index.js"
+      },
       "./blocks/search": {
         "types": "./dist/blocks/search/index.d.ts",
         "default": "./dist/blocks/search/index.js"
@@ -1453,6 +1759,18 @@
         "types": "./dist/blocks/search/react/index.d.ts",
         "react-server": "./dist/blocks/search/react/server.js",
         "default": "./dist/blocks/search/react/index.js"
+      },
+      "./blocks/search/vue": {
+        "types": "./dist/blocks/search/vue/index.d.ts",
+        "default": "./dist/blocks/search/vue/index.js"
+      },
+      "./blocks/search/svelte": {
+        "types": "./dist/blocks/search/svelte/index.d.ts",
+        "default": "./dist/blocks/search/svelte/index.js"
+      },
+      "./blocks/search/solid": {
+        "types": "./dist/blocks/search/solid/index.d.ts",
+        "default": "./dist/blocks/search/solid/index.js"
       },
       "./blocks/metrics": {
         "types": "./dist/blocks/metrics/index.d.ts",
@@ -1471,6 +1789,18 @@
         "react-server": "./dist/blocks/calendar/react/server.js",
         "default": "./dist/blocks/calendar/react/index.js"
       },
+      "./blocks/calendar/vue": {
+        "types": "./dist/blocks/calendar/vue/index.d.ts",
+        "default": "./dist/blocks/calendar/vue/index.js"
+      },
+      "./blocks/calendar/svelte": {
+        "types": "./dist/blocks/calendar/svelte/index.d.ts",
+        "default": "./dist/blocks/calendar/svelte/index.js"
+      },
+      "./blocks/calendar/solid": {
+        "types": "./dist/blocks/calendar/solid/index.d.ts",
+        "default": "./dist/blocks/calendar/solid/index.js"
+      },
       "./blocks/bookings": {
         "types": "./dist/blocks/bookings/index.d.ts",
         "default": "./dist/blocks/bookings/index.js"
@@ -1479,6 +1809,18 @@
         "types": "./dist/blocks/bookings/react/index.d.ts",
         "react-server": "./dist/blocks/bookings/react/server.js",
         "default": "./dist/blocks/bookings/react/index.js"
+      },
+      "./blocks/bookings/vue": {
+        "types": "./dist/blocks/bookings/vue/index.d.ts",
+        "default": "./dist/blocks/bookings/vue/index.js"
+      },
+      "./blocks/bookings/svelte": {
+        "types": "./dist/blocks/bookings/svelte/index.d.ts",
+        "default": "./dist/blocks/bookings/svelte/index.js"
+      },
+      "./blocks/bookings/solid": {
+        "types": "./dist/blocks/bookings/solid/index.d.ts",
+        "default": "./dist/blocks/bookings/solid/index.js"
       },
       "./blocks/versions": {
         "types": "./dist/blocks/versions/index.d.ts",
@@ -1516,6 +1858,18 @@
         "types": "./dist/blocks/forms/react/index.d.ts",
         "react-server": "./dist/blocks/forms/react/server.js",
         "default": "./dist/blocks/forms/react/index.js"
+      },
+      "./blocks/forms/vue": {
+        "types": "./dist/blocks/forms/vue/index.d.ts",
+        "default": "./dist/blocks/forms/vue/index.js"
+      },
+      "./blocks/forms/svelte": {
+        "types": "./dist/blocks/forms/svelte/index.d.ts",
+        "default": "./dist/blocks/forms/svelte/index.js"
+      },
+      "./blocks/forms/solid": {
+        "types": "./dist/blocks/forms/solid/index.d.ts",
+        "default": "./dist/blocks/forms/solid/index.js"
       },
       "./blocks/time-tracking": {
         "types": "./dist/blocks/time-tracking/index.d.ts",
@@ -1578,6 +1932,18 @@
         "react-server": "./dist/blocks/reactions/react/server.js",
         "default": "./dist/blocks/reactions/react/index.js"
       },
+      "./blocks/reactions/vue": {
+        "types": "./dist/blocks/reactions/vue/index.d.ts",
+        "default": "./dist/blocks/reactions/vue/index.js"
+      },
+      "./blocks/reactions/svelte": {
+        "types": "./dist/blocks/reactions/svelte/index.d.ts",
+        "default": "./dist/blocks/reactions/svelte/index.js"
+      },
+      "./blocks/reactions/solid": {
+        "types": "./dist/blocks/reactions/solid/index.d.ts",
+        "default": "./dist/blocks/reactions/solid/index.js"
+      },
       "./blocks/catalog": {
         "types": "./dist/blocks/catalog/index.d.ts",
         "default": "./dist/blocks/catalog/index.js"
@@ -1598,6 +1964,18 @@
         "types": "./dist/blocks/announcements/react/index.d.ts",
         "react-server": "./dist/blocks/announcements/react/server.js",
         "default": "./dist/blocks/announcements/react/index.js"
+      },
+      "./blocks/announcements/vue": {
+        "types": "./dist/blocks/announcements/vue/index.d.ts",
+        "default": "./dist/blocks/announcements/vue/index.js"
+      },
+      "./blocks/announcements/svelte": {
+        "types": "./dist/blocks/announcements/svelte/index.d.ts",
+        "default": "./dist/blocks/announcements/svelte/index.js"
+      },
+      "./blocks/announcements/solid": {
+        "types": "./dist/blocks/announcements/solid/index.d.ts",
+        "default": "./dist/blocks/announcements/solid/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
@@ -1685,6 +2063,7 @@
     "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
+    "gen:bindings": "node scripts/gen-bindings.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
     "test": "vitest run --project unit --coverage",

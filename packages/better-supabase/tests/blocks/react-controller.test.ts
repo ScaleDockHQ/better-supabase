@@ -9,6 +9,7 @@ import {
   BetterSupabaseProvider,
   type ClientLike,
 } from "../../src/react/hooks.ts";
+import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { fakeAuth, fakeTopic } from "../fixtures/ports.ts";
 
@@ -77,5 +78,27 @@ describe("useController", () => {
     view.rerender("b");
     expect(view.result).toMatchObject({ label: "b", count: 0 });
     view.unmount();
+  });
+});
+
+describe("useController conformance", () => {
+  it("passes the controller binding conformance kit", async () => {
+    await testControllerBinding("react", {
+      mount: (create) => {
+        const view = renderHook(
+          () => useController(create, []).view,
+          undefined,
+        );
+        return {
+          read: () => view.result,
+          actions: view.result,
+          unmount: () => {
+            view.unmount();
+          },
+        };
+      },
+      // StrictMode mounts twice, so the hook stops the work and keeps the controller.
+      disposes: false,
+    });
   });
 });

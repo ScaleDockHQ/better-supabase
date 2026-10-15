@@ -116,6 +116,108 @@ once. `useWorkflowRun(id)` reads one run, follows `workflow-run:<id>` and
 returns `cancel()`. In Server Components, call `workflows.runs.list()`
 instead.
 
+## Vue
+
+`better-supabase/blocks/workflows/vue` exports `useWorkflowRuns` and
+`useWorkflowRun`. Each takes the options of the controller it wraps
+(`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
+`ports` come from `app.use(betterSupabase(bs))` unless you pass them.
+`state` is a shallow ref of the snapshot and `actions` are the controller's
+actions. The work starts on mount, and the controller is disposed with the
+component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useWorkflowRuns } from "better-supabase/blocks/workflows/vue";
+import {
+  createWorkflows,
+  rpcTransport,
+} from "better-supabase/blocks/workflows";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useWorkflowRuns({
+  client: createWorkflows({ transport: rpcTransport(supabase) }),
+  tenant: organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="run in state.runs ?? []" :key="run.id">
+      {{ `${run.definition}: ${run.status}` }}
+    </li>
+  </ul>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/workflows/svelte` exports `useWorkflowRuns` and
+`useWorkflowRun`. Each takes the options of the controller it wraps
+(`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
+`ports` come from `setBetterSupabase(bs)` unless you pass them. The hook
+returns a readable store of the snapshot, read with `$`, with the actions on
+`.actions`. The work starts on mount, and the controller is disposed with
+the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useWorkflowRuns } from "better-supabase/blocks/workflows/svelte";
+  import { createWorkflows, rpcTransport } from "better-supabase/blocks/workflows";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const runs = useWorkflowRuns({
+    client: createWorkflows({ transport: rpcTransport(supabase) }),
+    tenant: organizationId,
+  });
+</script>
+
+<ul>
+  {#each $runs.runs ?? [] as run (run.id)}
+    <li>{`${run.definition}: ${run.status}`}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`better-supabase/blocks/workflows/solid` exports `useWorkflowRuns` and
+`useWorkflowRun`. Each takes the options of the controller it wraps
+(`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
+`ports` come from `<BetterSupabaseProvider client={bs}>` unless you pass
+them. `state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { useWorkflowRuns } from "better-supabase/blocks/workflows/solid";
+import {
+  createWorkflows,
+  rpcTransport,
+} from "better-supabase/blocks/workflows";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useWorkflowRuns({
+    client: createWorkflows({ transport: rpcTransport(supabase) }),
+    tenant: props.organizationId,
+  });
+  return (
+    <ul>
+      <For each={state().runs ?? []}>
+        {(run) => <li>{`${run.definition}: ${run.status}`}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
 ## Schedules
 
 Workflow schedules sit between job schedules and per-user AI tasks; see
