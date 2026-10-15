@@ -107,3 +107,36 @@ describe("resolveConfig access model", () => {
     ).toEqual({});
   });
 });
+
+describe("resolveConfig sql defaults", () => {
+  it("gives every module sql.schema and sql.api unless it sets its own", () => {
+    const sql = resolveConfig(
+      {
+        sql: {
+          schema: "app",
+          api: "api",
+          modules: {
+            comments: {},
+            settings: { schema: "settings", api: "public_api" },
+            jobs: { api: false },
+          },
+        },
+      },
+      "/app",
+    ).sql;
+    expect(sql.modules).toEqual({
+      comments: { schema: "app", api: "api" },
+      settings: { schema: "settings", api: "public_api" },
+      jobs: { schema: "app", api: false },
+    });
+  });
+
+  it("applies the defaults to a module list", () => {
+    const sql = resolveConfig(
+      { sql: { api: "api", modules: ["tags"] } },
+      "/app",
+    ).sql;
+    expect(sql.modules).toEqual({ tags: { api: "api" } });
+    expect(sql.moduleNames).toEqual(["tags"]);
+  });
+});

@@ -46,6 +46,17 @@ export interface SqlConfig {
   /** Directory pgTAP files (the `pgtap` module) are written to. */
   readonly testsDir?: string;
   /**
+   * The schema every module writes its functions and managed tables to,
+   * unless `modules.<name>.schema` sets its own. Defaults to `better_supabase`.
+   */
+  readonly schema?: string;
+  /**
+   * The Data API schema, such as `api`, every module writes its `security
+   * invoker` wrappers to, unless `modules.<name>.api` sets its own or
+   * `false`.
+   */
+  readonly api?: string;
+  /**
    * The SQL modules to keep in sync (`better-supabase sql add`): a list of
    * names, or an object keyed by module name whose values set each module's
    * mode, schema, table and column names, permission keys and options.
