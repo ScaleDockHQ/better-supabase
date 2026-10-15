@@ -55,6 +55,7 @@
   "blocks/entitlements",
   "blocks/flags",
   "blocks/forms",
+  "blocks/hiring",
   "blocks/identities",
   "blocks/imports",
   "blocks/inbox",
