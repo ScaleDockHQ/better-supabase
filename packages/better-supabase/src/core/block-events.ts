@@ -391,6 +391,8 @@ export type SubjectEventType =
   | "engagement.updated"
   | "engagement.completed"
   | "engagement.deleted"
+  | "collection.entry_added"
+  | "collection.entry_removed"
   | "pipeline.stage_changed"
   | "comment.created"
   | "comment.mentioned"
@@ -632,6 +634,23 @@ export interface EngagementEventData extends SubjectEventData {
   /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
   readonly type: string;
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/** `collection.created` and `collection.archived`: a list of one subject type. */
+export interface CollectionEventData {
+  readonly organizationId: string;
+  readonly collectionId: string;
+  /** The type of the records the collection holds. */
+  readonly subjectType: string;
+  readonly name: string;
+  /** For `collection.created`: `user`, `team` or `tenant`. */
+  readonly scope?: string;
+}
+
+/** `collection.entry_added` and `collection.entry_removed`: a record in a list. */
+export interface CollectionEntryEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly collectionId: string;
 }
 
 /** Events from the deals module. Amounts are minor units as text. */
@@ -1025,6 +1044,10 @@ export interface BlockEventMap {
   "engagement.updated": EngagementEventData;
   "engagement.completed": EngagementEventData;
   "engagement.deleted": EngagementEventData;
+  "collection.created": CollectionEventData;
+  "collection.archived": CollectionEventData;
+  "collection.entry_added": CollectionEntryEventData;
+  "collection.entry_removed": CollectionEntryEventData;
   "company.created": PartyEventData;
   "company.updated": PartyEventData;
   "company.archived": PartyEventData;

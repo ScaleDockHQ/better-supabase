@@ -27,6 +27,7 @@ Each block that is installed adds its action:
 | `stateMachine.transition` | [State machine](/docs/blocks/state-machine) | `{ to, reason? }`                       |
 | `relations.link`          | [Relations](/docs/blocks/relations)         | `{ kind, targetType, targetId, data? }` |
 | `trash.trash`             | [Trash](/docs/blocks/trash)                 | none (`{}`)                             |
+| `collections.add`         | [Collections](/docs/blocks/collections)     | `{ collectionId }`                      |
 
 An app adds its own actions in `options.actions`, each a function that
 takes `(tenant, subject_type, subject_id, args jsonb)` and raises with a

@@ -154,6 +154,9 @@ ${lockTable(views, { read: true })}
       (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
       or (${alias}.${scope} = 'team' and ${inTeam(`${alias}.${team}`)})
       or ${alias}.${scope} = 'tenant')))`;
+  const collection = ctx.installed("collections")
+    ? collectionCheck(ctx.of("collections"))
+    : "";
   const preferences = ctx.hasTable("preferences")
     ? preferenceParts(ctx, { views, maySee })
     : undefined;
@@ -188,7 +191,7 @@ begin
   end if;
   if not (v_service or ${canIn("save_view.tenant", read)}) then
     ${fail("SAVED_VIEW_FORBIDDEN", "not allowed to save views")}
-  end if;
+  end if;${collection}
   if save_view.scope = 'user' and auth.uid() is null then
     ${fail("SAVED_VIEW_INVALID", "a personal view needs a signed-in user", "22023")}
   end if;
@@ -388,6 +391,26 @@ ${userGrant(`${fn("duplicate_view")}(uuid, text, text, text)`)}
 ${preferences?.functions ?? ""}`;
 }
 
+/**
+ * With the collections module, a view's `state.collectionId` must name a
+ * collection in the same tenant that is shared or the caller's own.
+ */
+function collectionCheck(collections: ModuleContext): string {
+  const c = (column: string): string => collections.col("collections", column);
+  return `
+  if save_view.state ? 'collectionId' and (
+    jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
+    or (save_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    or not exists (
+      select 1 from ${collections.table("collections")} c
+      where c.${c("id")} = (save_view.state ->> 'collectionId')::uuid
+        and c.${c("tenant")} = save_view.tenant
+        and (v_service or c.${c("scope")} <> 'user' or c.${c("owner")} = auth.uid())
+    )) then
+    ${fail("SAVED_VIEW_COLLECTION_NOT_FOUND", "the view's collection is not found", "P0002")}
+  end if;`;
+}
+
 interface PreferenceParts {
   /** The table, its policy. */
   readonly ddl: string;
@@ -528,7 +551,7 @@ export const SAVED_VIEWS: ModuleDefinition = {
   description:
     "Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "teams"],
+  integrates: ["outbox", "teams", "collections"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 2,

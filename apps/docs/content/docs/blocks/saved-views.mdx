@@ -123,12 +123,21 @@ const copy = await savedViews
   .orThrow();
 ```
 
-| Hint                      | When                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `SAVED_VIEW_INVALID`      | A name, list, kind or scope is out of range, `state` is not an object, or a preference has no signed-in user |
-| `SAVED_VIEW_FORBIDDEN`    | The caller can't read, share or change the view                                                              |
-| `SAVED_VIEW_NOT_FOUND`    | The view doesn't exist or isn't visible                                                                      |
-| `SAVED_VIEW_RANK_INVALID` | `reorder` was given a key that is not a rank key                                                             |
+| Hint                              | When                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SAVED_VIEW_INVALID`              | A name, list, kind or scope is out of range, `state` is not an object, or a preference has no signed-in user |
+| `SAVED_VIEW_FORBIDDEN`            | The caller can't read, share or change the view                                                              |
+| `SAVED_VIEW_NOT_FOUND`            | The view doesn't exist or isn't visible                                                                      |
+| `SAVED_VIEW_RANK_INVALID`         | `reorder` was given a key that is not a rank key                                                             |
+| `SAVED_VIEW_COLLECTION_NOT_FOUND` | `state.collectionId` names no list in the organization that is shared or the caller's own                    |
+
+## Views of a list
+
+`state.collectionId` keeps a view to the records of a static list from the
+[collections](/docs/blocks/collections) block. The view stores the list's id;
+pass `collections.where(state.collectionId)` as the list query's `where` when
+you run it. With the collections module installed, `save` checks that the
+list exists in the organization and is shared or the caller's own.
 
 ## Sync with the URL
 

@@ -38,6 +38,8 @@ const SUBJECT_EVENTS = [
   "engagement.updated",
   "engagement.completed",
   "engagement.deleted",
+  "collection.entry_added",
+  "collection.entry_removed",
   "pipeline.stage_changed",
   "comment.created",
   "comment.mentioned",
