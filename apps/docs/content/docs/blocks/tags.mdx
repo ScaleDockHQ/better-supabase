@@ -15,6 +15,8 @@ import { createTags } from "better-supabase/blocks/tags";
 
 In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). In adopt mode each subject can name its own link table.
 
+Tags run in every [scope](/docs/blocks/sql#scope-and-naming). In `user` scope each user has their own tags, and in `none` scope every signed-in user shares one set.
+
 ## Adopt mode
 
 ```ts title="better-supabase.config.ts"

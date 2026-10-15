@@ -120,6 +120,40 @@ the Data API it has to be an exposed schema, such as the API schema that
 work, so pass one schema for both. The executor needs `rpc()`: the built-in
 PostgREST and Postgres executors have it.
 
+### Renamed functions
+
+When the config sets `sql.naming` or `blocks.<name>.functions`, the SQL writes
+the block functions under other names. `gen` writes those names to the
+generated module as `blockNaming`. Wrap the transport with `blockNames` so the
+block clients call the renamed functions. Rows that a function returns whole
+get their renamed tenant columns (`workspace_id`) back under the names the
+clients read (`organization_id`):
+
+```ts title="src/lib/blocks.ts"
+import {
+  type RpcClient,
+  blockNames,
+  createBlocks,
+  rpcTransport,
+  wrapTransport,
+} from "better-supabase/blocks";
+import { organizationsBlock } from "better-supabase/blocks/organizations";
+
+import { blockNaming } from "./supabase/generated";
+
+export function blocks(supabase: RpcClient) {
+  return createBlocks(
+    {
+      transport: wrapTransport(rpcTransport(supabase), blockNames(blockNaming)),
+    },
+    { organizations: organizationsBlock },
+  );
+}
+```
+
+`init --preset` and `apply --preset` write this wiring when the preset sets a
+tenant name.
+
 ## Ports
 
 A block's manifest says which ports it provides and consumes. `createBlocks`

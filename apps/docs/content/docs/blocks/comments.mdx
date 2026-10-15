@@ -9,6 +9,11 @@ mentioned members through the [notifications](/docs/blocks/notifications)
 block, and every comment writes a `comment.*` event to the
 [outbox](/docs/blocks/outbox).
 
+Comments run in every [scope](/docs/blocks/sql#scope-and-naming). In `user`
+scope a thread is visible only to the user whose scope it is in, and mentions
+of other users notify no one. In `none` scope every signed-in user reads and
+writes every thread.
+
 ```bash
 better-supabase sql add comments   # adds tenant and access as well
 ```

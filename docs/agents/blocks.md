@@ -18,9 +18,21 @@ workflow; this page is the checklist for a new block.
   `create table if not exists`, and no line of a schema file starts with
   `insert`, `select` or another data statement (`tests/sql/registry.test.ts`).
   Rows go in `data(ctx)` instead.
-- Permissions go through the access contract: `better_supabase.can('tenant',
-id, key)` in functions and `tenant in (select
-better_supabase.tenant_ids_with(key))` in policies. Add the module's keys to
+- Permissions go through the scope port, never the access contract by name:
+  `ctx.scope.can(id, key)` in functions, `ctx.scope.check(column, key)` in
+  policies, `ctx.scope.ids(key)` for the set of scope ids, `ctx.scope.canUser`,
+  `ctx.scope.platform` and `ctx.scope.members()`. In `tenant` scope they render
+  the access contract (`can`, `tenant_ids_with`, `is_platform`);
+  `tests/sql/scope.test.ts` fails on a literal call in `src/sql/modules`. A
+  module that needs tenants declares `scopes: ["tenant"]`. One that runs per
+  user or in one shared space uses `ctx.scope.column()` for its scope column,
+  `ctx.scope.bind` or `ctx.scope.value` for scope id arguments, and
+  `ctx.scope.eq` to compare scope ids, and gets golden files under
+  `tests/sql/__golden__/scope-*`.
+- Name module functions, triggers, indexes and policies through `ctx.fn`,
+  `ctx.trigger` or `ctx.naming.rename(...)`, never a literal that contains
+  `organization`, so `sql.naming.tenant` renames them
+  (`tests/sql/__golden__/naming-workspace`). Parameter names stay. Add the module's keys to
   `MODULE_PERMISSIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/access-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
@@ -66,7 +78,7 @@ found;` returns the record's `found`. Check `found` before the record.
   `ctx.entitlements`, `ctx.staff`) to a hard requirement. The matrix in
   `blocks/index.mdx` is checked against both lists by
   `tests/cli/docs-drift.test.ts`.
-- Shared SQL lives in `src/sql/shared.ts`: `raise`, `canIn`, `userGrant`,
+- Shared SQL lives in `src/sql/shared.ts`: `raise`, `userGrant`,
   `serviceGrant`, `serviceOnly`, `sha256Hex` and `pageSize`. Don't copy them
   into a module.
 - Raise errors with an `errcode` and a `hint` such as `API_KEY_FORBIDDEN`;
