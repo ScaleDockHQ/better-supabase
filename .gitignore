@@ -33,6 +33,9 @@ apps/marketing/CLAUDE.md
 test-results/
 playwright-report/
 
+# the blocks catalog (scripts/build-catalog.ts)
+apps/marketing/lib/catalog.json
+
 # fumadocs-mdx
 .source/
 
