@@ -73,10 +73,10 @@ describe("apply --adopt on the CRM schema", () => {
     const { blocks } = (await committed()) as {
       blocks: Record<string, { columns?: unknown }>;
     };
-    expect(blocks.profiles?.columns).toMatchObject({
+    expect(blocks["profiles"]?.columns).toMatchObject({
       profiles: { key: "user_id" },
     });
-    expect(blocks.teams?.columns).toEqual({
+    expect(blocks["teams"]?.columns).toEqual({
       teams: { tenant: "organization_id" },
       members: { tenant: "organization_id" },
     });

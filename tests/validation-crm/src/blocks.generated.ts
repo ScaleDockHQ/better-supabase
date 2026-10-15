@@ -8,7 +8,31 @@ import type { GeneratedBlocks } from "better-supabase/blocks";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
+  access: {
+    schema: "better_supabase",
+    options: {},
+  },
+  organizations: {
+    schema: "better_supabase",
+    options: {},
+  },
+  profiles: {
+    schema: "better_supabase",
+    options: {},
+  },
   "read-sets": {
+    schema: "better_supabase",
+    options: {},
+  },
+  teams: {
+    schema: "better_supabase",
+    options: {},
+  },
+  tenant: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "updated-at": {
     schema: "better_supabase",
     options: {},
   },
