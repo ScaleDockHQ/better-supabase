@@ -5,7 +5,8 @@ Status: TODO. Written 2026-10-14 against `main` at `3d9920b`, with `feat/pipelin
 - better-supabase ships no visible UI components. It ships helpers and glue, plus recipes that build the UI from shadcn components.
 - The client helpers are shared between React and React Native.
 - `sql.modules` is renamed to `blocks`.
-- This work ships as one breaking release. Nothing keeps a deprecated alias or a compatibility shim; a codemod and clear errors take their place (see "Breaking release").
+- The project is greenfield with no external users, so every change here is made in place: no deprecated aliases, no compatibility shims, no codemods and no migration guides (see "Breaking changes").
+- The config key is a top-level `blocks` (decided 2026-10-15).
 
 The goal of better-supabase is mix and match: run everything with the default config, change behaviour by changing the config, and build a new SaaS by picking blocks, tweaking them and extending later. This plan has five workstreams:
 
@@ -114,12 +115,11 @@ export default defineConfig({
 
 The foundation modules (`tenant`, `access`, `updated-at`, `ensure-rls`, ...) become blocks in a `foundation` category, so there is one key and one word.
 
-Migration, as part of the breaking release:
+Doing the rename:
 
-1. `sql.modules` is removed. Config validation rejects it with an error that names `blocks` and the codemod.
-2. `better-supabase codemod blocks-config` rewrites the config file.
-3. The docs (about 240 references), CLI messages, code comments such as `sql.modules.notifications.options.topic`, the JSON schema (`schemas/config-v1.json`) and the validation projects move to `blocks` in the same release.
-4. `SqlModule` stays the internal name of the SQL half of a block.
+1. `sql.modules` is removed. An unknown top-level or `sql` key is already a config validation error.
+2. The docs (about 240 references), CLI messages, code comments such as `sql.modules.notifications.options.topic`, the JSON schema (`schemas/config-v1.json`) and the validation projects move to `blocks` in the same release.
+3. `SqlModule` stays the internal name of the SQL half of a block.
 
 ### 1c. `defineBlock` manifests
 
@@ -289,7 +289,7 @@ export function createNotificationsController(
 ### 4c. Migration of the current hooks
 
 - Move the state logic of the 14 existing `/react` entries into controllers: ai-chat, announcements, bookings, calendar, forms, inbox, notifications, onboarding, reactions, saved-views, search, undo, workflows and workflow-builder.
-- Hook signatures may change where the controller makes a cleaner API; the codemod covers renames, and the recipes and examples move in the same release.
+- Hook signatures change wherever the controller allows a cleaner API. The examples and recipes change in the same commit.
 - `search` moves its `window` keydown listener behind the keyboard port.
 - Then add controllers for the blocks that have none but need client state: comments, tags, organizations (switching), invitations, api-keys, approvals and settings.
 
@@ -351,7 +351,7 @@ Each recipe is also published as a consumer skill section and in `/llms.txt`, so
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- | ---------- |
 | 0     | W1a fixes; ADR 0029 (manifests, block contract, `blocks` config key); ADR 0030 (headless controllers); ADR 0031 (presets, glue-only registry, recipes) | now                       | none       |
 | 1     | W5 skeleton: navigation and `/blocks` from a first catalog script over `SQL_MODULES`; W4a/4c controllers for the existing `/react` entries             | now                       | none       |
-| 2     | W1b `blocks` config key and codemod; W1c manifests and the generic `createBlocks`; W1e conformance as a warning                                        | after the pipelines merge | 0          |
+| 2     | W1b `blocks` config key; W1c manifests and the generic `createBlocks`; W1e conformance as a warning                                                    | after the pipelines merge | 0          |
 | 3     | W2a preset model and catalog; W5 `/create` (with the `sql add` fallback)                                                                               | after 2                   | 2          |
 | 4     | W3 glue registry; W5 `/recipes` with extracted snippets; W4b Vue, Svelte and Solid bindings; the Expo example                                          | parallel to 3             | 1          |
 | 5     | W2b CLI (`init --preset`, `apply`, `add`, `adopt`, `preset`, `blocks`); `/create` switches to the preset command                                       | after 3                   | 3, 4       |
@@ -360,24 +360,26 @@ Each recipe is also published as a consumer skill section and in `/llms.txt`, so
 
 Run `pnpm verify` before every push, with one changeset per user-visible change. Run `pnpm size` for every new entry, and update the exports map, `tsdown.config.ts`, the size baseline, the export snapshot and the docs per invariant 9.
 
-## Breaking release
+## Breaking changes
 
-The decoupling (W1b, W1c, W1e, W1f) and the controllers (W4c) ship in one breaking release with no backwards compatibility layer. The package is pre-1.0, so that is the next minor version. That keeps the code free of aliases and dual paths.
+better-supabase is greenfield: there are no external users to migrate. Every phase changes the API in place and updates the repository's own callers (examples, validation projects, docs, skills, tests) in the same PR.
 
-- **Removed outright:** `sql.modules`, the sibling-specific `createBlocks` options (`aiTaskNotification`, `reminderNotification`, `metricEvents`, `metricTime`), the closed `BlockEventMap` export, the old creator names (`createBuilder`, `createPushDevices`), and the framework-glue form of `add`.
-- **What users get instead:**
-  - `better-supabase codemod` rewrites what can be rewritten mechanically: the config key, creator names, `createBlocks` options moved to manifests, and imports.
-  - Config validation and the type errors name the replacement for every removed option.
-  - A migration guide in `apps/docs/content/docs/migration`, in the `0.x-to-0.y` form of the existing guides, lists every change with before and after code.
-- **Database:**
-  - Function and table renames from the naming conventions (W1f) only apply when an app opts into a non-default name, so existing databases need no migration for this release.
-  - `sql upgrade` writes the forward steps for any module whose SQL changes.
-- **Changesets** are `minor` bumps for `better-supabase` and link the migration guide.
+- **Removed outright, with no replacement shim:**
+  - `sql.modules`;
+  - the sibling-specific `createBlocks` options (`aiTaskNotification`, `reminderNotification`, `metricEvents`, `metricTime`);
+  - the closed `BlockEventMap` export;
+  - the old creator names (`createBuilder`, `createPushDevices`);
+  - the framework-glue form of `add`.
+- **Not built:** codemods, deprecation notices, doctor findings for old keys, or a migration guide for these changes.
+- **SQL.**
+  - Module SQL can change freely.
+  - The fixture's pg-delta baseline (ADR 0027) is regenerated, not migrated.
+  - `sql upgrade` steps are only needed once there are released installs to upgrade.
+- **Versions.** Changesets are `minor` bumps for `better-supabase`, which is pre-1.0, and say what changed.
 
 ## Open decisions
 
-1. **Where the config key lives.** The plan uses a top-level `blocks` because a block's config covers SQL and client options. `sql.blocks` also works if the key should stay SQL-only.
-2. **Preset code format.** The plan uses base62 over a BigInt, which is short and matches shadcn. Named presets cover the readable case.
-3. **Default tenant name.** "organization" stays the default because it is the most common term, not for compatibility; a breaking release could change it.
-4. **The native UI library the recipes name.** This needs a check of which shadcn-style React Native library has a working registry before the recipes reference it. Until then, the native recipes use plain React Native primitives.
-5. **Whether `everything` is a public preset.** It installs about 90 modules.
+1. **Preset code format.** The plan uses base62 over a BigInt, which is short and matches shadcn. Named presets cover the readable case.
+2. **Default tenant name.** "organization" is the proposed default because it is the most common term; nothing ties us to it.
+3. **The native UI library the recipes name.** This needs a check of which shadcn-style React Native library has a working registry before the recipes reference it. Until then, the native recipes use plain React Native primitives.
+4. **Whether `everything` is a public preset.** It installs about 90 modules.
