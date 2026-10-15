@@ -6,17 +6,17 @@
  * before anything is written.
  */
 
-import type { BlockConfig, BlocksConfig } from "../../config/blocks.ts";
+import type { BlockConfig, BlocksConfig } from "../../config/index.ts";
 import type { CatalogTable } from "../introspect/types.ts";
 
-import { toSnake } from "../../casing/index.ts";
+import { toSnake } from "../../index.ts";
 import {
   adoptedColumnProblems,
+  adoptedTables,
   migrationOptionUses,
   moduleIdType,
   SQL_MODULES,
 } from "../../sql/index.ts";
-import { moduleContext } from "../../sql/module-context.ts";
 
 /** The part of an introspected table a proposal reads. */
 export interface ExistingTable {
@@ -309,7 +309,8 @@ export function proposeAdoption(
   if (errors.length === 0) {
     const blocks = { ...options.blocks, [block]: entry };
     try {
-      moduleContext(block, { modules: blocks }, Object.keys(blocks));
+      // Builds each adopted module's context, which throws on what it refuses.
+      adoptedTables(blocks);
       const adopted = [...chosen.values()].filter(
         (table): table is ExistingTable => table !== null,
       );

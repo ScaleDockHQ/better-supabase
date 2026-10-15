@@ -1,7 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-import type { BlockConfig } from "../../config/blocks.ts";
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { Now } from "../sql/migrations.ts";
