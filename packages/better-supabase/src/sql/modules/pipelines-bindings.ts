@@ -1,3 +1,4 @@
+import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -163,17 +164,140 @@ function statusOf(
 }
 
 /** `options.subjects`, checked: one binding per subject type that runs on pipelines. */
+/**
+ * The binding a record block brings when it is installed: the subject type,
+ * its module and table, and the binding entry. An app's own entry for the
+ * type in options.subjects is merged over it.
+ */
+interface BuiltInBinding {
+  readonly module: string;
+  readonly table: string;
+  readonly type: string;
+  readonly entry: Readonly<Record<string, unknown>>;
+}
+
+/** The record blocks that run on pipelines. */
+const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
+  {
+    module: "deals",
+    table: "deals",
+    type: "deal",
+    entry: {
+      enteredAt: "stage_entered_at",
+      amount: "amount",
+      currency: "currency",
+      probability: "probability",
+      owner: "owner_user_id",
+      categories: { open: "open", won: "success", lost: "failure" },
+      status: {
+        column: "outcome",
+        values: { open: "open", won: "won", lost: "lost" },
+      },
+      stages: [
+        {
+          key: "qualified",
+          name: "Qualified",
+          category: "open",
+          probability: 20,
+        },
+        {
+          key: "discovery",
+          name: "Discovery",
+          category: "open",
+          probability: 35,
+        },
+        {
+          key: "proposal",
+          name: "Proposal",
+          category: "open",
+          probability: 55,
+        },
+        {
+          key: "negotiation",
+          name: "Negotiation",
+          category: "open",
+          probability: 75,
+        },
+        {
+          key: "closed_won",
+          name: "Closed won",
+          category: "won",
+          probability: 100,
+        },
+        {
+          key: "closed_lost",
+          name: "Closed lost",
+          category: "lost",
+          probability: 0,
+        },
+      ],
+    },
+  },
+  {
+    module: "work-items",
+    table: "items",
+    type: "work_item",
+    entry: {
+      enteredAt: "stage_entered_at",
+      scope: "team_id",
+      categories: {
+        triage: "open",
+        backlog: "open",
+        unstarted: "open",
+        started: "open",
+        completed: "success",
+        canceled: "failure",
+      },
+      status: {
+        column: "state",
+        values: {
+          triage: "triage",
+          backlog: "backlog",
+          unstarted: "unstarted",
+          started: "started",
+          completed: "completed",
+          canceled: "canceled",
+        },
+      },
+      stages: [
+        { key: "triage", name: "Triage", category: "triage" },
+        { key: "backlog", name: "Backlog", category: "backlog" },
+        { key: "todo", name: "Todo", category: "unstarted" },
+        { key: "in_progress", name: "In progress", category: "started" },
+        { key: "in_review", name: "In review", category: "started" },
+        { key: "done", name: "Done", category: "completed" },
+        { key: "canceled", name: "Canceled", category: "canceled" },
+      ],
+    },
+  },
+];
+
 export function pipelineBindings(
   ctx: ModuleContext,
 ): readonly PipelineBinding[] {
-  const raw = ctx.option("subjects");
-  if (raw === undefined) return [];
-  if (!isRecord(raw)) {
+  const configured = ctx.option("subjects") ?? {};
+  if (!isRecord(configured)) {
     throw new TypeError(
       "sql.modules.pipelines.options.subjects must be an object",
     );
   }
-  const registry = registeredSubjects(ctx.subjects);
+  const raw: Record<string, unknown> = {};
+  const builtInSubjects: Record<string, SubjectConfig> = {};
+  for (const builtIn of BUILT_IN_BINDINGS) {
+    if (!ctx.installed(builtIn.module)) continue;
+    const own = configured[builtIn.type];
+    raw[builtIn.type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
+    const { schema, name } = ctx.of(builtIn.module).tableName(builtIn.table);
+    builtInSubjects[builtIn.type] = {
+      table: `${schema}.${name}`,
+      idType: "uuid",
+      tenant: "tenant_id",
+    };
+  }
+  for (const [type, entry] of Object.entries(configured)) {
+    if (!(type in raw)) raw[type] = entry;
+  }
+  const registry = registeredSubjects({ ...builtInSubjects, ...ctx.subjects });
   return Object.entries(raw).map(([type, entry]) => {
     const where = `sql.modules.pipelines.options.subjects.${type}`;
     const subject = registry.find((item) => item.type === type);

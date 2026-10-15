@@ -77,6 +77,10 @@
     "pipelines",
     "parties",
     "engagements",
+    "deals",
+    "work-items",
+    "quotes",
+    "invoices",
     "identities",
     "service-principals"
   ]

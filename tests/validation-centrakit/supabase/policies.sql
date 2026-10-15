@@ -13,3 +13,12 @@ create policy webhook_destinations_update on centrakit.webhook_destinations
 create policy webhook_destinations_delete on centrakit.webhook_destinations
   for delete to authenticated
   using (organization_id in (select better_supabase.tenant_ids_with('organization.webhooks.manage')));
+
+create policy customers_member on centrakit.customers
+  for all to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('crm.read')))
+  with check (organization_id in (select better_supabase.tenant_ids_with('crm.read')));
+create policy customer_contacts_member on centrakit.customer_contacts
+  for all to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('crm.read')))
+  with check (organization_id in (select better_supabase.tenant_ids_with('crm.read')));

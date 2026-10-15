@@ -602,3 +602,25 @@ grant all on all tables in schema centrakit to service_role;
 grant select on all tables in schema centrakit to authenticated;
 -- Members manage webhook destinations through RLS, as in CentraKit.
 grant insert, update, delete on centrakit.webhook_destinations to authenticated;
+
+-- CRM: customers (companies) and their contacts, with bigint ids as in
+-- CentraKit. Deals point at them through config.subjects.
+create table centrakit.customers (
+  id bigint generated always as identity primary key,
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  company_name text not null,
+  status text not null default 'prospect'
+);
+alter table centrakit.customers enable row level security;
+grant select, insert, update on centrakit.customers to authenticated;
+grant all on centrakit.customers to service_role;
+
+create table centrakit.customer_contacts (
+  id bigint generated always as identity primary key,
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  customer_id bigint not null references centrakit.customers(id) on delete cascade,
+  name text not null
+);
+alter table centrakit.customer_contacts enable row level security;
+grant select, insert, update on centrakit.customer_contacts to authenticated;
+grant all on centrakit.customer_contacts to service_role;
