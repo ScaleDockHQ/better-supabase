@@ -36,6 +36,14 @@ const BUILTIN: readonly (readonly [string, CliEntry])[] = [
     },
   ],
   [
+    "adopt",
+    {
+      load: () => import("./commands/adopt.ts").then((m) => m.adoptCommand),
+      description:
+        "Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map",
+    },
+  ],
+  [
     "preset",
     {
       load: () => import("./commands/preset.ts").then((m) => m.presetCommand),

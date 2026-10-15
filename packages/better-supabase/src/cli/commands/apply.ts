@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 
+import type { BlockConfig } from "../../config/blocks.ts";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
@@ -17,6 +18,14 @@ import { loadConfig } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { display } from "../io.ts";
 import {
+  type AdoptProposal,
+  adoptableBlocks,
+  describeProposal,
+  type ExistingTable,
+  hasDefaultTable,
+  proposeAdoption,
+} from "../sql/adopt.ts";
+import {
   addBlocksToConfig,
   addBlocksToJson,
   type ConfigEdit,
@@ -25,6 +34,8 @@ import {
 } from "../sql/config-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { type Paint, painter, plain } from "../style.ts";
+import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
+import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
 const APPLY_ARGS = {
   preset: {
@@ -37,6 +48,11 @@ const APPLY_ARGS = {
     description:
       "blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks",
     valueHint: "blocks|conventions",
+  },
+  adopt: {
+    type: "boolean",
+    description:
+      "Map the preset's blocks onto tables the database already has under their default names (adopt mode)",
   },
   "dry-run": {
     type: "boolean",
@@ -53,6 +69,61 @@ export interface ApplyDeps {
   readonly paint?: Paint;
   /** Loads the config file again after the edit; `loadConfig` by default. */
   readonly reload?: (root: string, file: string) => Promise<ResolvedConfig>;
+  /** The tables in the database, read for `--adopt`. */
+  readonly tables?: () => Promise<readonly ExistingTable[]>;
+}
+
+interface Adoption {
+  readonly text: string;
+  readonly lines: readonly string[];
+  readonly adopted: readonly AdoptProposal[];
+  readonly refused: readonly AdoptProposal[];
+}
+
+/**
+ * `text` with an adopt-mode entry for each of `blocks` that has a table
+ * under one of its default names. A block the config already sets to another
+ * mode is left as it is.
+ */
+function adoptBlocks(
+  config: ResolvedConfig,
+  file: string,
+  text: string,
+  blocks: readonly string[],
+  tables: readonly ExistingTable[],
+): Adoption {
+  const schemas = adoptSchemas(config);
+  const adoptable = new Set(adoptableBlocks());
+  const adopted: AdoptProposal[] = [];
+  const refused: AdoptProposal[] = [];
+  const lines: string[] = [];
+  let next = text;
+  for (const block of blocks) {
+    if (!adoptable.has(block) || !hasDefaultTable(block, tables, schemas)) {
+      continue;
+    }
+    if ((config.blocks[block]?.mode ?? "managed") !== "managed") continue;
+    const proposal = proposeAdoption(block, tables, {
+      blocks: config.blocks,
+      schemas,
+    });
+    lines.push(`Adopting ${block}:`, ...describeProposal(proposal));
+    if (proposal.errors.length > 0) {
+      refused.push(proposal);
+      continue;
+    }
+    const edit = withAdoptedBlock(file, next, proposal);
+    if (!edit.ok) {
+      refused.push({
+        ...proposal,
+        errors: [`blocks.${block} can't be set: ${edit.reason}.`],
+      });
+      continue;
+    }
+    next = edit.text;
+    adopted.push(proposal);
+  }
+  return { text: next, lines, adopted, refused };
 }
 
 const describeConflicts = (preset: Preset): string | undefined => {
@@ -140,24 +211,86 @@ export async function runApply(
     };
   }
   const paint = deps.paint ?? plain;
-  if (edit.text === source) {
-    return { code: 0, output: `${shown} already holds the preset.` };
+  let text = edit.text;
+  const lines: string[] = [];
+  let adopted: Readonly<Record<string, BlockConfig>> = {};
+  if (args.adopt === true) {
+    if (only === "conventions" || deps.tables === undefined) {
+      return {
+        code: 2,
+        error:
+          only === "conventions"
+            ? "--adopt maps blocks, and --only conventions takes none."
+            : "--adopt needs the database or a snapshot to read the tables from.",
+      };
+    }
+    const adoption = adoptBlocks(
+      config,
+      file,
+      text,
+      resolvePreset(preset).blocks.map((block) => block.name),
+      await deps.tables(),
+    );
+    if (adoption.refused.length > 0) {
+      return {
+        code: 1,
+        output: adoption.lines.join("\n"),
+        data: {
+          file: shown,
+          written: false,
+          refused: Object.fromEntries(
+            adoption.refused.map((proposal) => [
+              proposal.block,
+              proposal.errors,
+            ]),
+          ),
+        },
+        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --from <schema.table>\`, or leave the block out of the preset.`,
+      };
+    }
+    text = adoption.text;
+    adopted = Object.fromEntries(
+      adoption.adopted.map((proposal) => [proposal.block, proposal.entry]),
+    );
+    lines.push(
+      ...(adoption.lines.length === 0
+        ? ["No existing tables to adopt: every block stays managed."]
+        : adoption.lines),
+      "",
+    );
   }
-  const lines = [fileDiff(shown, source, edit.text, paint)];
+  const data = { file: shown, adopted, contents: text };
+  if (text === source) {
+    lines.push(`${shown} already holds the preset.`);
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { ...data, written: false },
+    };
+  }
+  lines.push(fileDiff(shown, source, text, paint));
   if (args["dry-run"] === true) {
     lines.push(
       "",
       "Dry run: nothing written. Run without --dry-run to apply it.",
     );
-    return { code: 0, output: lines.join("\n") };
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { ...data, written: false },
+    };
   }
-  await writeFile(file, edit.text);
+  await writeFile(file, text);
   const reload =
     deps.reload ?? ((root: string, path: string) => loadConfig(root, path));
   const next = await reload(config.root, file);
   const synced = await syncModules(next, {}, paint, deps.now);
   lines.push("", `Updated ${shown}.`, "", synced.output ?? synced.error ?? "");
-  return { code: synced.code, output: lines.join("\n") };
+  return {
+    code: synced.code,
+    output: lines.join("\n"),
+    data: { ...data, written: true },
+  };
 }
 
 export const applyCommand: AnyCommand = defineCliCommand({
@@ -166,11 +299,15 @@ export const applyCommand: AnyCommand = defineCliCommand({
     description:
       "Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules",
   },
-  args: APPLY_ARGS,
-  run: (args, { config, configFile, io }) =>
+  args: { ...APPLY_ARGS, ...SOURCE_ARGS },
+  run: async (args, { config, configFile, env, io, signal }) =>
     runApply(config, args, {
       now: () => new Date(),
       paint: painter(io.color),
+      tables: snapshotTables(config, env, {
+        ...(await sourceArgs(args, io)),
+        ...(signal ? { signal } : {}),
+      }),
       ...(configFile === undefined ? {} : { configFile }),
     }),
 });

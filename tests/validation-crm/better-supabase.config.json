@@ -6,5 +6,65 @@
   "casing": "camel",
   "output": "src/generated.ts",
   "readSets": ["src/latency.ts", "src/customer-detail.ts"],
-  "blocks": ["read-sets"]
+  "blocks": {
+    "read-sets": {},
+    "updated-at": {},
+    "tenant": {},
+    "access": {
+      "mode": "adopt",
+      "tables": {
+        "roles": "public.roles",
+        "permissions": "public.permissions",
+        "rolePermissions": "public.role_permissions",
+        "overrides": null,
+        "platformAssignments": null
+      },
+      "columns": {
+        "roles": {
+          "tenant": "organization_id"
+        }
+      }
+    },
+    "organizations": {
+      "mode": "adopt",
+      "tables": {
+        "organizations": "public.organizations"
+      },
+      "columns": {
+        "organizations": {
+          "createdBy": null,
+          "deletedAt": null
+        }
+      }
+    },
+    "profiles": {
+      "mode": "adopt",
+      "tables": {
+        "profiles": "public.profiles"
+      },
+      "columns": {
+        "profiles": {
+          "key": "user_id",
+          "fullName": null,
+          "avatar": null,
+          "onboarding": null
+        }
+      }
+    },
+    "teams": {
+      "mode": "adopt",
+      "tables": {
+        "teams": "public.teams",
+        "members": "public.team_members"
+      },
+      "columns": {
+        "teams": {
+          "tenant": "organization_id"
+        },
+        "members": {
+          "tenant": "organization_id"
+        }
+      }
+    }
+  }
 }
