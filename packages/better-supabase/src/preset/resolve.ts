@@ -53,17 +53,25 @@ export function listNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
+// Outside tenant scope a block checks the caller itself, so it needs neither
+// the tenant module nor the access contract (as `requiresOf` in
+// src/sql/registry.ts).
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+
 function requiresOf(
   block: PresetCatalogBlock,
-  preset: Pick<Preset, "access">,
+  preset: Pick<Preset, "access" | "scope">,
 ): readonly string[] {
-  return block.requiresByAccess?.[preset.access] ?? block.requires;
+  const requires = block.requiresByAccess?.[preset.access] ?? block.requires;
+  return preset.scope === "tenant" || TENANT_PROVIDERS.has(block.name)
+    ? requires
+    : requires.filter((name) => !TENANT_PROVIDERS.has(name));
 }
 
 /** `name` and everything it requires, dependencies first. */
 function closureOf(
   name: string,
-  preset: Pick<Preset, "access">,
+  preset: Pick<Preset, "access" | "scope">,
   byName: ReadonlyMap<string, PresetCatalogBlock>,
 ): string[] {
   const out: string[] = [];
@@ -89,11 +97,22 @@ export function presetBlockConflict(
   const byName = new Map(catalog.blocks.map((block) => [block.name, block]));
   if (!byName.has(name)) return `"${name}" is not a block`;
   if (preset.scope === "tenant") return undefined;
-  if (!closureOf(name, preset, byName).includes("tenant")) return undefined;
-  return name === "tenant"
-    ? `scope "${preset.scope}" has no tenants`
-    : `it needs tenants, and scope "${preset.scope}" has none`;
+  if (TENANT_PROVIDERS.has(name))
+    return `scope "${preset.scope}" has no tenants`;
+  const tenantOnly = closureOf(name, preset, byName).filter(
+    (each) =>
+      !(byName.get(each)?.scopes ?? [preset.scope]).includes(preset.scope),
+  );
+  if (tenantOnly.length === 0) return undefined;
+  return tenantOnly[0] === name
+    ? `it needs tenants, and scope "${preset.scope}" has none`
+    : `it needs ${listNames(tenantOnly)}, which need tenants, and scope "${preset.scope}" has none`;
 }
+
+/** Blocks whose default table names the tenant name would take over. */
+const TENANT_NAME_CLASHES: Readonly<Record<string, readonly string[]>> = {
+  team: ["teams"],
+};
 
 function fieldConflicts(preset: Preset): PresetConflict[] {
   const conflicts: PresetConflict[] = [];
@@ -134,6 +153,14 @@ export function resolvePreset(
       continue;
     }
     for (const each of closureOf(name, preset, byName)) installed.add(each);
+  }
+  for (const block of TENANT_NAME_CLASHES[preset.tenantName] ?? []) {
+    if (!installed.has(block)) continue;
+    conflicts.push({
+      block,
+      field: "tenantName",
+      reason: `tenant name "${preset.tenantName}" renames organizations to ${preset.tenantName}s, the table the ${block} block already writes`,
+    });
   }
   const members = catalog.blocks.filter((block) => installed.has(block.name));
   for (const block of members) {

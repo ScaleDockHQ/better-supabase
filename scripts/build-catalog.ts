@@ -336,6 +336,7 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     requires,
     integrates: module.integrates ?? [],
     manifest: manifest.name,
+    ...(module.scopes === undefined ? {} : { scopes: module.scopes }),
   } satisfies PresetCatalogBlock;
   return Object.keys(byAccess).length === 0
     ? block

@@ -42,6 +42,18 @@ function conventionEntry(
   };
 }
 
+/** `sql` for the preset's conventions, or undefined when they are the defaults. */
+function sqlOf(preset: Preset): BetterSupabaseConfig["sql"] {
+  const sql = {
+    ...(preset.api === "none" ? {} : { api: preset.api }),
+    ...(preset.scope === "tenant" ? {} : { scope: preset.scope }),
+    ...(preset.tenantName === "organization"
+      ? {}
+      : { naming: { tenant: preset.tenantName } }),
+  };
+  return Object.keys(sql).length === 0 ? undefined : sql;
+}
+
 /** The config keys a resolved preset sets: its blocks and the conventions that differ from the defaults. */
 export function presetConfig(resolved: ResolvedPreset): Pick<
   BetterSupabaseConfig,
@@ -50,9 +62,10 @@ export function presetConfig(resolved: ResolvedPreset): Pick<
   readonly blocks: BlocksConfig;
 } {
   const { preset } = resolved;
+  const sql = sqlOf(preset);
   return {
     ...(preset.casing === "snake" ? {} : { casing: preset.casing }),
-    ...(preset.api === "none" ? {} : { sql: { api: preset.api } }),
+    ...(sql === undefined ? {} : { sql }),
     ...(preset.integrations.length === 0
       ? {}
       : { integrations: preset.integrations }),

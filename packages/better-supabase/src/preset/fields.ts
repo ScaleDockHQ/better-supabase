@@ -26,7 +26,7 @@ export interface PresetConventions {
   readonly casing: "snake" | "camel";
   readonly idType: "uuid" | "text" | "bigint" | "integer";
   readonly scope: "tenant" | "user" | "none";
-  readonly tenantName: "organization";
+  readonly tenantName: PresetTenantName;
   readonly access: "roles" | "catalog" | "provider" | "custom";
   readonly api: "none" | "api";
   readonly integrations: readonly IntegrationName[];
@@ -46,6 +46,15 @@ function field<K extends PresetFieldKey>(
 ): PresetField<K, ValueOf<K>> {
   return definition;
 }
+
+/** The tenant names a preset can set (`sql.naming.tenant`), in code order. */
+export const PRESET_TENANT_NAMES = [
+  "organization",
+  "workspace",
+  "team",
+] as const;
+
+export type PresetTenantName = (typeof PRESET_TENANT_NAMES)[number];
 
 /** The frameworks `/create` and `init --preset` set up glue for. */
 export const PRESET_FRAMEWORKS = [
@@ -102,10 +111,10 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
     bits: 2,
     since: 1,
   }),
-  // Other tenant names join when `sql.naming` renames the tenant concept.
+  // `sql.naming.tenant`. New names go at the end.
   field({
     key: "tenantName",
-    values: ["organization"],
+    values: PRESET_TENANT_NAMES,
     default: "organization",
     bits: 3,
     since: 1,

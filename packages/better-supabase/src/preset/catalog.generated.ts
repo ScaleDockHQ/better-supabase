@@ -58,7 +58,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "organizations",
         "profiles"
       ],
-      "manifest": "organizations"
+      "manifest": "organizations",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "reserved-slugs",
@@ -151,7 +154,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "billing",
         "organizations"
       ],
-      "manifest": "entitlements"
+      "manifest": "entitlements",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "rate-limit",
@@ -199,7 +205,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invitations",
         "approvals"
       ],
-      "manifest": "support-sessions"
+      "manifest": "support-sessions",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "organizations",
@@ -217,7 +226,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invitations",
         "reserved-slugs"
       ],
-      "manifest": "organizations"
+      "manifest": "organizations",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "profiles",
@@ -282,7 +294,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "webhook-inbox"
       ],
       "integrates": [],
-      "manifest": "incoming-webhooks"
+      "manifest": "incoming-webhooks",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "api-keys",
@@ -293,7 +308,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "api-keys"
+      "manifest": "api-keys",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "settings",
@@ -306,7 +324,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "jsonb-schemas"
       ],
-      "manifest": "settings"
+      "manifest": "settings",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "usage",
@@ -319,7 +340,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "entitlements"
       ],
-      "manifest": "usage"
+      "manifest": "usage",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "billing",
@@ -332,7 +356,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "organizations"
       ],
-      "manifest": "billing"
+      "manifest": "billing",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "flags",
@@ -345,7 +372,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access",
         "entitlements"
       ],
-      "manifest": "flags"
+      "manifest": "flags",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "comments",
@@ -361,7 +391,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subjects",
         "audit"
       ],
-      "manifest": "comments"
+      "manifest": "comments",
+      "scopes": [
+        "tenant",
+        "user",
+        "none"
+      ]
     },
     {
       "name": "attachments",
@@ -372,7 +407,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "attachments"
+      "manifest": "attachments",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "data-lifecycle",
@@ -385,7 +423,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "*"
       ],
-      "manifest": "data-lifecycle"
+      "manifest": "data-lifecycle",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "sso",
@@ -398,7 +439,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "organizations"
       ],
-      "manifest": "sso"
+      "manifest": "sso",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "onboarding",
@@ -411,7 +455,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "onboarding"
+      "manifest": "onboarding",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "waitlist",
@@ -425,7 +472,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invitations",
         "organizations"
       ],
-      "manifest": "waitlist"
+      "manifest": "waitlist",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "announcements",
@@ -438,7 +488,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "entitlements"
       ],
-      "manifest": "announcements"
+      "manifest": "announcements",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "streams",
@@ -465,7 +518,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "workflows"
+      "manifest": "workflows",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "workflow-sdk-world",
@@ -477,7 +533,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "workflow-sdk-world"
+      "manifest": "workflow-sdk-world",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "workflow-builder",
@@ -493,7 +552,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subjects",
         "teams"
       ],
-      "manifest": "workflow-builder"
+      "manifest": "workflow-builder",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "chat-sdk-state",
@@ -518,7 +580,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "reactions"
       ],
-      "manifest": "inbox"
+      "manifest": "inbox",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "ai-chat",
@@ -534,7 +599,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-providers",
         "approvals"
       ],
-      "manifest": "ai-chat"
+      "manifest": "ai-chat",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "ai-files",
@@ -547,7 +615,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "ai-chat"
       ],
-      "manifest": "ai-files"
+      "manifest": "ai-files",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "knowledge",
@@ -563,7 +634,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-files",
         "jobs"
       ],
-      "manifest": "knowledge"
+      "manifest": "knowledge",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "memory",
@@ -577,7 +651,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "ai-chat"
       ],
-      "manifest": "memory"
+      "manifest": "memory",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "agents",
@@ -588,7 +665,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "agents"
+      "manifest": "agents",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "connectors",
@@ -599,7 +679,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "connectors"
+      "manifest": "connectors",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "ai-tasks",
@@ -614,7 +697,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-chat",
         "jobs"
       ],
-      "manifest": "ai-tasks"
+      "manifest": "ai-tasks",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "push",
@@ -643,7 +729,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "ai-chat"
       ],
-      "manifest": "ai-providers"
+      "manifest": "ai-providers",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "number-sequences",
@@ -657,7 +746,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "number-sequences"
+      "manifest": "number-sequences",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "teams",
@@ -672,7 +764,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "teams"
+      "manifest": "teams",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "tags",
@@ -685,7 +780,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "tags"
+      "manifest": "tags",
+      "scopes": [
+        "tenant",
+        "user",
+        "none"
+      ]
     },
     {
       "name": "state-machine",
@@ -700,7 +800,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "approvals"
       ],
-      "manifest": "state-machine"
+      "manifest": "state-machine",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "custom-fields",
@@ -713,7 +816,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "custom-fields"
+      "manifest": "custom-fields",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "share-links",
@@ -728,7 +834,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "versions"
       ],
-      "manifest": "share-links"
+      "manifest": "share-links",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "reminders",
@@ -743,7 +852,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "outbox"
       ],
-      "manifest": "reminders"
+      "manifest": "reminders",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "imports",
@@ -758,7 +870,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "attachments",
         "outbox"
       ],
-      "manifest": "imports"
+      "manifest": "imports",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "subjects",
@@ -768,7 +883,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [],
-      "manifest": "subjects"
+      "manifest": "subjects",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "rank",
@@ -781,7 +899,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "jobs"
       ],
-      "manifest": "rank"
+      "manifest": "rank",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "saved-views",
@@ -796,7 +917,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "teams",
         "collections"
       ],
-      "manifest": "saved-views"
+      "manifest": "saved-views",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "relations",
@@ -809,7 +933,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "relations"
+      "manifest": "relations",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "bulk",
@@ -828,7 +955,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "trash",
         "collections"
       ],
-      "manifest": "bulk"
+      "manifest": "bulk",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "search",
@@ -843,7 +973,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "vector-search"
       ],
-      "manifest": "search"
+      "manifest": "search",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "metrics",
@@ -857,7 +990,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "usage",
         "jobs"
       ],
-      "manifest": "metrics"
+      "manifest": "metrics",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "calendar",
@@ -872,7 +1008,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "reminders",
         "outbox"
       ],
-      "manifest": "calendar"
+      "manifest": "calendar",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "bookings",
@@ -890,7 +1029,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "reminders",
         "outbox"
       ],
-      "manifest": "bookings"
+      "manifest": "bookings",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "versions",
@@ -905,7 +1047,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "share-links"
       ],
-      "manifest": "versions"
+      "manifest": "versions",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "trash",
@@ -919,7 +1064,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "trash"
+      "manifest": "trash",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "reactions",
@@ -934,7 +1082,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "comments",
         "inbox"
       ],
-      "manifest": "reactions"
+      "manifest": "reactions",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "approvals",
@@ -956,7 +1107,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-chat",
         "support-sessions"
       ],
-      "manifest": "approvals"
+      "manifest": "approvals",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "access-requests",
@@ -971,7 +1125,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "access-requests"
+      "manifest": "access-requests",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "documents",
@@ -987,7 +1144,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "jobs",
         "versions"
       ],
-      "manifest": "documents"
+      "manifest": "documents",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "catalog",
@@ -1002,7 +1162,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "state-machine",
         "inventory"
       ],
-      "manifest": "catalog"
+      "manifest": "catalog",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "inventory",
@@ -1016,7 +1179,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "inventory"
+      "manifest": "inventory",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "drive",
@@ -1036,7 +1202,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "teams",
         "share-links"
       ],
-      "manifest": "drive"
+      "manifest": "drive",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "drive-files",
@@ -1055,7 +1224,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "teams",
         "share-links"
       ],
-      "manifest": "drive"
+      "manifest": "drive",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "orders",
@@ -1073,7 +1245,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "number-sequences",
         "state-machine"
       ],
-      "manifest": "orders"
+      "manifest": "orders",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "promotions",
@@ -1088,7 +1263,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "promotions"
+      "manifest": "promotions",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "forms",
@@ -1106,7 +1284,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "forms"
+      "manifest": "forms",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "signatures",
@@ -1123,7 +1304,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "signatures"
+      "manifest": "signatures",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "time-tracking",
@@ -1138,7 +1322,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "time-tracking"
+      "manifest": "time-tracking",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "identities",
@@ -1161,7 +1348,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "audit"
       ],
-      "manifest": "service-principals"
+      "manifest": "service-principals",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "templates",
@@ -1177,7 +1367,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "workflow-builder",
         "jsonb-schemas"
       ],
-      "manifest": "templates"
+      "manifest": "templates",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "pipelines",
@@ -1197,7 +1390,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "work-items",
         "hiring"
       ],
-      "manifest": "pipelines"
+      "manifest": "pipelines",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "parties",
@@ -1213,7 +1409,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "inbox"
       ],
-      "manifest": "parties"
+      "manifest": "parties",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "engagements",
@@ -1228,7 +1427,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "notifications"
       ],
-      "manifest": "engagements"
+      "manifest": "engagements",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "deals",
@@ -1246,7 +1448,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "number-sequences",
         "engagements"
       ],
-      "manifest": "deals"
+      "manifest": "deals",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "work-items",
@@ -1263,7 +1468,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "number-sequences"
       ],
-      "manifest": "work-items"
+      "manifest": "work-items",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "quotes",
@@ -1281,7 +1489,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "deals",
         "relations"
       ],
-      "manifest": "quotes"
+      "manifest": "quotes",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "invoices",
@@ -1300,7 +1511,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "quotes",
         "relations"
       ],
-      "manifest": "invoices"
+      "manifest": "invoices",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "sla",
@@ -1315,7 +1529,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "notifications"
       ],
-      "manifest": "sla"
+      "manifest": "sla",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "targets",
@@ -1330,7 +1547,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "work-items",
         "invoices"
       ],
-      "manifest": "targets"
+      "manifest": "targets",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "hiring",
@@ -1345,7 +1565,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox"
       ],
-      "manifest": "hiring"
+      "manifest": "hiring",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "employees",
@@ -1360,7 +1583,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "hiring"
       ],
-      "manifest": "employees"
+      "manifest": "employees",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "collections",
@@ -1375,7 +1601,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "teams"
       ],
-      "manifest": "collections"
+      "manifest": "collections",
+      "scopes": [
+        "tenant"
+      ]
     },
     {
       "name": "ensure-rls",

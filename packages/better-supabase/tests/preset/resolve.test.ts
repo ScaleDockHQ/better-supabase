@@ -77,15 +77,21 @@ describe("resolvePreset", () => {
 
   it("refuses blocks that need tenants under a user or no scope", () => {
     const resolved = resolvePreset(
-      preset(["profiles", "comments", "tenant"], { scope: "user" }),
+      preset(["profiles", "organizations", "tenant", "drive"], {
+        scope: "user",
+      }),
     );
     expect(resolved.blocks.map((block) => block.name)).toEqual(["profiles"]);
     expect(resolved.conflicts).toEqual([
       {
-        block: "comments",
+        block: "organizations",
         reason: 'it needs tenants, and scope "user" has none',
       },
       { block: "tenant", reason: 'scope "user" has no tenants' },
+      {
+        block: "drive",
+        reason: 'it needs tenants, and scope "user" has none',
+      },
     ]);
     expect(
       presetBlockConflict({ scope: "none", access: "roles" }, "push"),
@@ -93,6 +99,40 @@ describe("resolvePreset", () => {
     expect(
       presetBlockConflict({ scope: "tenant", access: "roles" }, "comments"),
     ).toBe(undefined);
+  });
+
+  it("runs tags, comments and notifications without tenants per user or in one space", () => {
+    for (const scope of ["user", "none"] as const) {
+      const resolved = resolvePreset(
+        preset(["tags", "comments", "notifications"], { scope }),
+      );
+      expect(resolved.conflicts).toEqual([]);
+      const names = resolved.blocks.map((block) => block.name);
+      expect(names).toEqual(
+        expect.arrayContaining(["tags", "comments", "notifications"]),
+      );
+      expect(names).not.toContain("tenant");
+      expect(names).not.toContain("access");
+    }
+    expect(
+      resolvePreset(preset(["tags"])).blocks.map((block) => block.name),
+    ).toEqual(expect.arrayContaining(["tenant", "access"]));
+  });
+
+  it("refuses a tenant name a block's tables already use", () => {
+    expect(
+      resolvePreset(preset(["teams"], { tenantName: "team" })).conflicts,
+    ).toEqual([
+      {
+        block: "teams",
+        field: "tenantName",
+        reason:
+          'tenant name "team" renames organizations to teams, the table the teams block already writes',
+      },
+    ]);
+    expect(
+      resolvePreset(preset(["teams"], { tenantName: "workspace" })).conflicts,
+    ).toEqual([]);
   });
 
   it("reports unknown blocks", () => {
