@@ -1,6 +1,10 @@
 import type { SqlClient } from "better-supabase/postgres";
 
-import { resolveConfig } from "better-supabase/config";
+import {
+  type ModulesConfig,
+  resolveConfig,
+  type SubjectsConfig,
+} from "better-supabase/config";
 import { renderModules } from "better-supabase/sql";
 import { readFile } from "node:fs/promises";
 import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
@@ -63,18 +67,34 @@ const ORGANIZATION_PERMISSIONS = [
   "drive.manage",
 ];
 
+/** What the CRM and work records need; members work with them, admins manage. */
+const RECORD_PERMISSIONS = [
+  "crm.read",
+  "pipelines.read",
+  "deals.read",
+  "deals.write",
+  "work_items.read",
+  "work_items.write",
+];
+const RECORD_MANAGE = ["pipelines.manage", "deals.manage", "work_items.manage"];
+
 const GRANTS = {
-  owner: ORGANIZATION_PERMISSIONS,
-  admin: ORGANIZATION_PERMISSIONS.filter(
-    (key) =>
-      key !== "organization.delete" &&
-      key !== "organization.ownership.transfer",
-  ),
+  owner: [...ORGANIZATION_PERMISSIONS, ...RECORD_PERMISSIONS, ...RECORD_MANAGE],
+  admin: [
+    ...ORGANIZATION_PERMISSIONS.filter(
+      (key) =>
+        key !== "organization.delete" &&
+        key !== "organization.ownership.transfer",
+    ),
+    ...RECORD_PERMISSIONS,
+    ...RECORD_MANAGE,
+  ],
   member: [
     "notifications.send",
     "notifications.read",
     "drive.read",
     "drive.create",
+    ...RECORD_PERMISSIONS,
   ],
   systemSupport: ["system.users.manage"],
 } satisfies Record<keyof typeof ROLES, readonly string[]>;
@@ -164,10 +184,18 @@ export class Session {
   }
 }
 
+/** More modules and subjects to install next to CentraKit's own config. */
+export interface Extra {
+  readonly modules: readonly string[];
+  readonly config?: ModulesConfig;
+  readonly subjects?: SubjectsConfig;
+}
+
 /** Runs `body` against CentraKit's tables with the block installed, then rolls back. */
 export async function withCentraKit(
   pool: Pool,
   body: (session: Session) => Promise<void>,
+  extra?: Extra,
 ): Promise<void> {
   const client = await pool.connect();
   const session = new Session(client);
@@ -192,7 +220,12 @@ export async function withCentraKit(
     );
     await client.query(SEED[0]!);
     await client.query(SEED[1]!, [
-      [...ORGANIZATION_PERMISSIONS, "system.users.manage"],
+      [
+        ...ORGANIZATION_PERMISSIONS,
+        ...RECORD_PERMISSIONS,
+        ...RECORD_MANAGE,
+        "system.users.manage",
+      ],
     ]);
     await client.query(
       SEED[2]!,
@@ -202,7 +235,14 @@ export async function withCentraKit(
       "insert into centrakit.user_roles (user_id, role_id) values ($1, $2)",
       [USERS.support, ROLES.systemSupport],
     );
-    for (const file of renderModules(sql.moduleNames, { modules: sql.modules }))
+    const modules = { ...sql.modules, ...extra?.config };
+    const layout = extra?.subjects
+      ? { modules, subjects: extra.subjects }
+      : { modules };
+    for (const file of renderModules(
+      [...sql.moduleNames, ...(extra?.modules ?? [])],
+      layout,
+    ))
       await client.query(file.contents);
     await client.query(
       await readFile(

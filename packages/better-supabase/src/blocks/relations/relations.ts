@@ -117,6 +117,28 @@ export interface Relations {
   ): AsyncResult<RelationNode[]>;
   /** Aggregates a column over a subject's descendants, such as estimates under an epic. */
   rollup(input: RollupInput): AsyncResult<number | string | null>;
+  /**
+   * The id of the record of `intoType` that `origin` was already converted
+   * into through a `created_from` link, or `undefined`. Check it before a
+   * conversion so converting twice returns the first record.
+   */
+  convertedInto(
+    organizationId: string,
+    origin: SubjectRef,
+    intoType: string,
+  ): AsyncResult<string | undefined>;
+  /**
+   * The records a subject was converted from (`origins`, nearest first) and
+   * into (`conversions`) through `created_from` links: a deal, its quote,
+   * the order and the invoice.
+   */
+  lineage(
+    organizationId: string,
+    subject: SubjectRef,
+  ): AsyncResult<{
+    readonly origins: RelationNode[];
+    readonly conversions: RelationNode[];
+  }>;
 }
 
 const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -294,6 +316,33 @@ export function createRelations(options: RelationsOptions): Relations {
         },
         (value) => recordsOf(value, "descendants").map(nodeOf),
       ),
+    convertedInto: (organizationId, origin, intoType) =>
+      call(
+        "converted_into",
+        {
+          tenant: organizationId,
+          origin_type: origin.type,
+          origin_id: origin.id,
+          into_type: intoType,
+        },
+        (value) => (typeof value === "string" ? value : undefined),
+      ),
+    lineage: (organizationId, subject) => {
+      const args = {
+        tenant: organizationId,
+        kind: "created_from",
+        subject_type: subject.type,
+        subject_id: subject.id,
+      };
+      return call("ancestors", args, (value) =>
+        recordsOf(value, "ancestors").map(nodeOf),
+      ).andThen((origins) =>
+        call("descendants", args, (value) => ({
+          origins,
+          conversions: recordsOf(value, "descendants").map(nodeOf),
+        })),
+      );
+    },
     rollup: (input) =>
       call(
         "relation_rollup",

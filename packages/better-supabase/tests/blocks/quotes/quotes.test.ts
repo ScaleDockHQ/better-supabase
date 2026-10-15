@@ -1,0 +1,239 @@
+import { describe, expect, it } from "vitest";
+
+import { createQuotes } from "../../../src/blocks/quotes/index.ts";
+
+function transport(
+  results: Record<string, (args: Record<string, unknown>) => unknown>,
+) {
+  const calls: [string, Record<string, unknown>][] = [];
+  return {
+    calls,
+    call(_schema: string, fn: string, args: Record<string, unknown>) {
+      calls.push([fn, args]);
+      const result = results[fn];
+      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+      return Promise.resolve(result(args));
+    },
+  };
+}
+
+const LINE = {
+  description: "Licences",
+  quantity: 10,
+  unitAmount: "100000",
+  discountBps: 0,
+  taxRateBps: 2100,
+  taxCode: null,
+  product: { type: "product", id: "p1" },
+};
+const ROW = {
+  id: "q1",
+  tenant_id: "o",
+  number: 1,
+  identifier: "Q-1",
+  revision: 2,
+  supersedes_id: "q0",
+  title: "Rollout",
+  company_type: "company",
+  company_id: "c1",
+  contact_type: null,
+  contact_id: null,
+  owner_user_id: "u1",
+  currency: "EUR",
+  status: "sent",
+  valid_until: "2026-11-14",
+  terms: "Net 30",
+  note: null,
+  origin_type: "deal",
+  origin_id: "d1",
+  sent_at: "2026-10-15T09:00:00Z",
+  viewed_at: null,
+  decided_at: null,
+  decided_by: null,
+  decision_note: null,
+  created_by: "u1",
+  created_at: "2026-10-15T09:00:00Z",
+  updated_at: "2026-10-15T09:00:00Z",
+  list_total: 1000000,
+  discount_total: 0,
+  subtotal: 1000000,
+  tax_total: 210000,
+  total: 1210000,
+  lines: [LINE],
+  region: "eu",
+};
+
+describe("quotes block", () => {
+  it("creates with lines and dates as the database reads them", async () => {
+    const t = transport({ create_quote: () => ROW });
+    const quote = await createQuotes({ transport: t })
+      .create(
+        "o",
+        { title: "Rollout", validUntil: Temporal.PlainDate.from("2026-11-14") },
+        [{ description: "Licences", quantity: 10, unitAmount: 100_000n }],
+      )
+      .orThrow();
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "o",
+      attrs: { title: "Rollout", validUntil: "2026-11-14" },
+      lines: [{ description: "Licences", quantity: 10, unitAmount: "100000" }],
+    });
+    expect(quote).toMatchObject({
+      revision: 2,
+      supersedesId: "q0",
+      company: { type: "company", id: "c1" },
+      origin: { type: "deal", id: "d1" },
+      totals: { total: 1_210_000n },
+      lines: [
+        {
+          unitAmount: 100_000n,
+          taxRateBps: 2100,
+          product: { type: "product", id: "p1" },
+        },
+      ],
+      fields: { region: "eu" },
+    });
+    expect(quote.contact).toBeUndefined();
+    expect(quote.validUntil?.toString()).toBe("2026-11-14");
+  });
+
+  it("sends, decides, revises and converts deals", async () => {
+    const t = transport({
+      send_quote: () => ({ ...ROW, token: "tok" }),
+      decide_quote: () => ({ ...ROW, status: "accepted" }),
+      revise_quote: () => ROW,
+      quote_from_deal: () => ROW,
+      update_quote: () => ROW,
+      set_quote_lines: () => ({
+        listTotal: "1",
+        discountTotal: "0",
+        subtotal: "1",
+        taxTotal: "0",
+        total: "1",
+      }),
+    });
+    const quotes = createQuotes({ transport: t });
+    expect((await quotes.send("q1").orThrow()).token).toBe("tok");
+    expect(
+      (await quotes.decide("q1", "accepted", { by: "Els" }).orThrow()).status,
+    ).toBe("accepted");
+    await quotes.revise("q1").orThrow();
+    await quotes.fromDeal("d1").orThrow();
+    await quotes.update("q1", { note: null }).orThrow();
+    expect((await quotes.setLines("q1", []).orThrow()).total).toBe(1n);
+    expect(t.calls[1]?.[1]).toEqual({
+      quote: "q1",
+      decision: "accepted",
+      note: null,
+      by: "Els",
+    });
+  });
+
+  it("serves the customer's page and answers", async () => {
+    const t = transport({
+      public_quote: () => ({
+        identifier: "Q-1",
+        revision: 1,
+        title: "Rollout",
+        status: "viewed",
+        currency: "EUR",
+        validUntil: null,
+        terms: null,
+        subtotal: "10",
+        discountTotal: "0",
+        taxTotal: "2",
+        total: "12",
+        lines: [LINE],
+      }),
+      respond_to_quote: () => ({ status: "accepted", identifier: "Q-1" }),
+      expire_quotes: () => 3,
+    });
+    const quotes = createQuotes({ transport: t });
+    expect(await quotes.view("tok").orThrow()).toMatchObject({
+      status: "viewed",
+      total: 12n,
+    });
+    expect(
+      await quotes.respond("tok", "accepted", { name: "Els" }).orThrow(),
+    ).toEqual({ status: "accepted" });
+    expect(await quotes.expire().orThrow()).toBe(3);
+    expect(t.calls[1]?.[1]).toEqual({
+      token: "tok",
+      decision: "accepted",
+      name: "Els",
+      note: null,
+    });
+  });
+});
+
+describe("quotes block, defaults", () => {
+  it("decides without options, reads a decided quote and a dated public page", async () => {
+    const decided = {
+      ...ROW,
+      status: "rejected",
+      contact_type: "person",
+      contact_id: "p1",
+      supersedes_id: null,
+      origin_type: null,
+      origin_id: null,
+      viewed_at: "2026-10-16T09:00:00Z",
+      decided_at: "2026-10-17T09:00:00Z",
+      decided_by: "Els",
+      decision_note: "Too high",
+      lines: [
+        {
+          ...LINE,
+          product: null,
+          quantity: null,
+          discountBps: null,
+          taxRateBps: null,
+        },
+      ],
+    };
+    const t = transport({
+      decide_quote: () => decided,
+      public_quote: () => ({
+        identifier: "Q-1",
+        revision: null,
+        title: "Rollout",
+        status: "sent",
+        currency: "EUR",
+        validUntil: "2026-11-14",
+        terms: "Net 30",
+        subtotal: "10",
+        discountTotal: "0",
+        taxTotal: "2",
+        total: "12",
+        lines: [],
+      }),
+      respond_to_quote: () => ({ status: "changes_requested" }),
+    });
+    const quotes = createQuotes({ transport: t });
+    const quote = await quotes.decide("q1", "rejected").orThrow();
+    expect(quote).toMatchObject({
+      contact: { type: "person", id: "p1" },
+      decidedBy: "Els",
+      decisionNote: "Too high",
+    });
+    expect(quote.origin).toBeUndefined();
+    expect(quote.lines[0]).toMatchObject({
+      quantity: 1,
+      discountBps: 0,
+      taxRateBps: 0,
+    });
+    expect(quote.lines[0]?.product).toBeUndefined();
+    expect(t.calls[0]?.[1]).toEqual({
+      quote: "q1",
+      decision: "rejected",
+      note: null,
+      by: null,
+    });
+    const page = await quotes.view("tok").orThrow();
+    expect(page).toMatchObject({ revision: 1, terms: "Net 30" });
+    expect(page.validUntil?.toString()).toBe("2026-11-14");
+    await quotes
+      .respond("tok", "changes_requested", { name: "Els", note: "Fewer seats" })
+      .orThrow();
+    expect(t.calls[2]?.[1]).toMatchObject({ note: "Fewer seats" });
+  });
+});

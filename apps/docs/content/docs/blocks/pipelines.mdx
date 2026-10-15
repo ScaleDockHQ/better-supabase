@@ -1,0 +1,184 @@
+---
+title: Pipelines
+description: Tenant-editable pipelines for any record type, with ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status the stage sets through the state machine.
+---
+
+`pipelines` puts any record your app registers in [`config.subjects`](/docs/blocks/sql#subject-registry) on a pipeline the organization edits: deals, quotes, job applications, tickets, tasks. Each organization can keep several pipelines per record type, each with its own stages, and every stage has a category your config declares. A category maps to one of three fixed outcomes, `open`, `success` or `failure`, so reports and policies read the outcome and never a stage name.
+
+The module writes a history row every time a record changes stage, keeps the time it entered its current stage, totals each board column per currency, and can set a status column from the stage category, so `won` on a deal still runs through the [state machine](/docs/blocks/state-machine).
+
+Reading pipelines and boards needs `pipelines.read`, and creating, renaming, reordering or archiving pipelines and stages needs `pipelines.manage`. Admins get both and members get `pipelines.read`. Moving a record is an update of its own table, so your table's policies decide who may move it.
+
+```bash
+better-supabase sql add pipelines
+```
+
+The module needs `tenant`, `access` and `subjects`.
+
+## Bind a record type
+
+Register the record in `config.subjects`, add a `stage_id` and a `pipeline_id` column (both `uuid`) to its table, and bind it in the module's options. `categories` is required: it names the categories stages of this type can have and maps each to an outcome. `stages` is the template the first pipeline of an organization starts with.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  deal: {
+    table: "public.deals",
+    idType: "uuid",
+    rank: { column: "rank", group: "stage_id" },
+  },
+},
+sql: {
+  modules: {
+    pipelines: {
+      options: {
+        subjects: {
+          deal: {
+            categories: { open: "open", won: "success", lost: "failure" },
+            enteredAt: "stage_entered_at",
+            amount: "amount",
+            currency: "currency",
+            probability: "probability",
+            owner: "owner_id",
+            status: { column: "outcome", values: { open: "open", won: "won", lost: "lost" } },
+            stages: [
+              { key: "qualified", name: "Qualified", category: "open", probability: 20 },
+              { key: "proposal", name: "Proposal", category: "open", probability: 55 },
+              { key: "won", name: "Closed won", category: "won", probability: 100 },
+              { key: "lost", name: "Closed lost", category: "lost", probability: 0 },
+            ],
+          },
+        },
+      },
+    },
+  },
+},
+```
+
+| Key           | Meaning                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `categories`  | Each category of this type and its outcome: `open`, `success` or `failure`. At least one is `open`           |
+| `stage`       | The stage column, `stage_id` by default                                                                      |
+| `pipeline`    | The pipeline column, `pipeline_id` by default                                                                |
+| `enteredAt`   | A `timestamptz` column the module sets whenever the stage changes                                            |
+| `amount`      | A `bigint` column of minor units the board totals. Needs `currency`, a `char(3)` column                      |
+| `probability` | A record's own win probability (0 to 100), which overrides the stage's in weighted totals                    |
+| `owner`       | A user id column. The owner watches the record and `board` can filter by it                                  |
+| `scope`       | A column whose value picks one pipeline per scope, such as `job_id` for a pipeline per job                   |
+| `status`      | A status column and the value each category sets in it                                                       |
+| `stages`      | The first pipeline's stages: `key`, `name`, `category` and `probability`. Without it, one stage per category |
+
+An insert without a pipeline lands in the organization's default pipeline for the type and scope, created from `stages` the first time. An insert without a stage lands in the first open stage. The first pipeline an admin creates for a type and scope becomes its default.
+
+## Manage pipelines and stages
+
+```ts
+import { createPipelines } from "better-supabase/blocks/pipelines";
+
+const pipelines = createPipelines({ transport });
+const renewals = await pipelines
+  .save(organizationId, {
+    subjectType: "deal",
+    key: "renewals",
+    name: "Renewals",
+  })
+  .orThrow();
+await pipelines
+  .saveStage(renewals.id, {
+    key: "due",
+    name: "Renewal due",
+    category: "open",
+    probability: 70,
+    rottingAfterDays: 14,
+    wipLimit: 25,
+  })
+  .orThrow();
+const [deals] = await pipelines.list(organizationId, "deal").orThrow();
+```
+
+`saveStage` adds a stage at the end, or changes one when you pass its `id`. Its category must be one the type declares (`PIPELINE_CATEGORY_UNKNOWN`), and a stage that holds records keeps its outcome (`PIPELINE_STAGE_IN_USE`), so a won stage never turns open under its deals. `reorderStage(stageId, { previous, next })` moves a stage between two rank keys. `archiveStage` and `archive` refuse a stage or pipeline that still holds records, and a pipeline keeps at least one open stage (`PIPELINE_LAST_OPEN_STAGE`).
+
+Without transitions, a record moves from any stage to any other. `setTransitions(pipelineId, [{ from, to }])` limits the moves to the pairs you list, and an empty list allows every move again (`PIPELINE_TRANSITION_INVALID` for any other move).
+
+## Move records
+
+A record changes stage when its stage column changes. An update from your app, a bulk action or a board drag all go through the same trigger, which refuses a stage of another pipeline, an archived stage, or a stage of another organization (`PIPELINE_STAGE_INVALID`), checks the transitions, closes the previous history row and opens a new one.
+
+On a board, move the card with [rank](/docs/blocks/rank) and the stage id as the group, so the rank key and the stage change in one update:
+
+```ts
+import { createRank } from "better-supabase/blocks/rank";
+
+const rank = createRank({ transport });
+await rank
+  .move("deal", dealId, {
+    previous: aboveId,
+    next: belowId,
+    group: proposalStageId,
+  })
+  .orThrow();
+```
+
+With `status` set, a stage in a mapped category also writes the status column in a separate update, so a [state machine](/docs/blocks/state-machine) on that column checks the change and records `status.changed`. Moving a deal to `Closed won` sets `outcome` to `won`, and moving it back to an open stage sets `open` again.
+
+## Board, stats and health
+
+```ts
+const columns = await pipelines
+  .board("deal", pipelineId, { owner: userId })
+  .orThrow();
+// [{ stageId, name, outcome, count, overLimit, totals: [{ currency, amount, weighted }] }]
+
+const stats = await pipelines
+  .stats(pipelineId, { since: quarterStart, until: quarterEnd })
+  .orThrow();
+// { won, lost, winRate, stages: [{ stageId, entered, averageSeconds }] }
+
+const stuck = (await pipelines.health(pipelineId).orThrow()).filter(
+  (row) => row.rotting,
+);
+```
+
+`board` returns every active stage in order with the number of records the caller can see and, per currency, the total amount and the amount weighted by probability (the record's own, else the stage's). Amounts are `bigint` minor units, and currencies are never added together. `overLimit` is true when a stage holds more records than its WIP limit. All three reads run as the caller, so the record table's policies decide what they count.
+
+`stats` reads the stage history in a time window: how many records entered each stage, how long the ones that left stayed on average, and the win rate (records that entered a success stage over those that entered a success or failure stage). `health` lists the open records with the time they entered their stage, their days in stage and whether they sit longer than the stage's `rottingAfterDays`.
+
+## Watching
+
+With the [notifications](/docs/blocks/notifications) module installed, the owner column's user watches the record at the `participating` level when the record is created or reassigned, and a level the user already chose stays. Every stage change notifies the record's watchers with a `pipeline.stage_changed` notification. Anyone else watches a record with the notifications client's `subscribe({ subject: { type: "deal", id } })`.
+
+## Events
+
+| Event                                                       | When                            | Data                                                                                                          |
+| ----------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pipeline.stage_changed`                                    | a record moved to another stage | `organizationId`, `subjectType`, `subjectId`, `pipelineId`, `fromStageId`, `toStageId`, `category`, `outcome` |
+| `pipeline.created`, `pipeline.updated`, `pipeline.archived` | an admin changed a pipeline     | `organizationId`, `pipelineId`, `subjectType`, `key`                                                          |
+| `pipeline_stage.saved`, `pipeline_stage.archived`           | an admin changed a stage        | `organizationId`, `pipelineId`, `stageId`, `key`, `category`                                                  |
+
+`pipeline.stage_changed` carries the record as its subject, so the [activity feed](/docs/blocks/comments#activity-feed) shows it on the record's timeline. Pipeline and stage changes are written to the audit log as configuration changes.
+
+## Hooks
+
+The module calls `before_pipeline_save`, `after_pipeline_save`, `before_pipeline_stage_save` and `after_pipeline_stage_save` around admin changes, and `before_pipeline_stage_change(subject_type text, subject_id text, from_stage uuid, to_stage uuid)` and `after_pipeline_stage_change(subject_type text, subject_id text, to_stage uuid)` inside the trigger. A `before_` hook raises to refuse the move. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
+
+## Wire it to ReUI
+
+The ReUI Kanban commits a finished drag through `onValueCommit(value, meta)`. Call `rank.move` with the card's new neighbours in `meta.overContainer` and the column's stage id as the group, and restore `meta.previousValue` when the result is an error. Read the column headers from `board`, and the count and totals of each column from its entry.
+
+## Errors
+
+| Hint                           | Cause                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `PIPELINE_FORBIDDEN`           | the caller lacks `pipelines.manage`                                     |
+| `PIPELINE_SUBJECT_UNKNOWN`     | the subject type has no binding in `options.subjects`                   |
+| `PIPELINE_NOT_FOUND`           | no such pipeline                                                        |
+| `PIPELINE_KEY_TAKEN`           | another pipeline of the type and scope has the key                      |
+| `PIPELINE_IN_USE`              | records are still in the pipeline                                       |
+| `PIPELINE_CATEGORY_UNKNOWN`    | the type declares no such category                                      |
+| `PIPELINE_STAGE_NOT_FOUND`     | no such stage in the pipeline                                           |
+| `PIPELINE_STAGE_KEY_TAKEN`     | another stage of the pipeline has the key                               |
+| `PIPELINE_STAGE_IN_USE`        | records are in the stage, so it can't be archived or change its outcome |
+| `PIPELINE_LAST_OPEN_STAGE`     | archiving it would leave the pipeline without an open stage             |
+| `PIPELINE_STAGE_INVALID`       | the stage isn't an active stage of the record's pipeline                |
+| `PIPELINE_TRANSITION_INVALID`  | the pipeline's transitions don't allow the move                         |
+| `PIPELINE_TRANSITIONS_INVALID` | a transition names a stage of another pipeline                          |
+| `PIPELINE_RANK_INVALID`        | not a rank key                                                          |

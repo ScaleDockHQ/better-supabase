@@ -21,6 +21,14 @@ const layout: ModuleLayout = {
       table: "rank_it.deals",
       rank: { column: "rank", group: "stage" },
     },
+    ticket: {
+      table: "rank_it.tickets",
+      rank: { column: "rank", group: "stage_id" },
+    },
+    bug: {
+      table: "rank_it.bugs",
+      rank: { column: "rank", group: "lane" },
+    },
   },
   modules: {
     "state-machine": {
@@ -52,7 +60,20 @@ alter table rank_it.deals enable row level security;
 create policy deals_acme on rank_it.deals for all to authenticated
   using (organization_id = '${ACME}') with check (organization_id = '${ACME}');
 grant usage on schema rank_it to authenticated;
-grant select, update on rank_it.deals to authenticated;`;
+grant select, update on rank_it.deals to authenticated;
+create table rank_it.tickets (
+  id text primary key,
+  organization_id uuid not null,
+  stage_id uuid not null,
+  rank text collate "C" not null
+);
+create type rank_it.lane as enum ('triage', 'doing', 'done');
+create table rank_it.bugs (
+  id text primary key,
+  organization_id uuid not null,
+  lane rank_it.lane not null default 'triage',
+  rank text collate "C" not null
+);`;
 
 interface PgError {
   readonly hint?: string;
@@ -197,6 +218,39 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
       "select better_supabase.move('deal', 'd3', null, null, 'lead')",
     );
     expect(back.message).toMatch(/transition|not allowed/i);
+  });
+
+  it("moves into a uuid or enum group column", async () => {
+    const [from, to] = [
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a2",
+    ];
+    await client.query(
+      `insert into rank_it.tickets values ('t1', '${ACME}', $1, 'V'), ('t2', '${ACME}', $2, 'V')`,
+      [from, to],
+    );
+    await client.query(
+      `insert into rank_it.bugs (id, organization_id, rank) values ('b1', '${ACME}', 'V')`,
+    );
+    await one(
+      "select better_supabase.move('ticket', 't1', 't2', null, $1) as value",
+      [to],
+    );
+    expect(
+      await one(
+        "select stage_id::text as value from rank_it.tickets where id = 't1'",
+      ),
+    ).toBe(to);
+    await one(
+      "select better_supabase.move('bug', 'b1', null, null, 'done') as value",
+    );
+    expect(
+      await one("select lane::text as value from rank_it.bugs where id = 'b1'"),
+    ).toBe("done");
+    const bad = await failure(
+      "select better_supabase.move('bug', 'b1', null, null, 'nope')",
+    );
+    expect(bad.message).toMatch(/invalid input value for enum/);
   });
 
   it("rejects a neighbour from another group", async () => {

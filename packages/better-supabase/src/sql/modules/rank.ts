@@ -43,6 +43,15 @@ ${subjects.map((subject) => `    when ${sqlString(subject.type)} then\n${branch(
   end case;`;
 }
 
+/**
+ * `v_group` read back as the group column's own type. Text has no
+ * assignment cast to uuid or an enum, so a plain `set group = v_group`
+ * fails for a `stage_id` column; the row type carries the cast.
+ */
+function typedGroup(subject: RegisteredSubject, column: string): string {
+  return `(jsonb_populate_record(null::${subject.qualified}, jsonb_build_object(${sqlString(column)}, v_group))).${sqlIdent(column)}`;
+}
+
 /** The `move` branch for one subject: neighbours, the new key, one update. */
 function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
   const rank = sqlIdent(subject.config.rank?.column ?? "rank");
@@ -78,7 +87,7 @@ function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
         ${fail("RANK_CONFLICT", "the neighbours share a rank key; rebalance the group first", "22023")}
       end if;
       v_key := ${ctx.fn("rank_between")}(v_previous, v_next);
-      update ${subject.qualified} s set ${rank} = v_key${group === undefined ? "" : `, ${group} = v_group`}
+      update ${subject.qualified} s set ${rank} = v_key${group === undefined ? "" : `, ${group} = ${typedGroup(subject, groupName ?? "")}`}
         where ${registeredIdMatches(subject, "move.subject_id")};
       if not found then
         ${fail("RANK_FORBIDDEN", "not allowed to move this row")}

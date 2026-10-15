@@ -40,6 +40,7 @@ const DEFAULT_RELATION_KINDS: Readonly<Record<string, RelationKind>> = {
   blocks: { inverse: "blocked_by", acyclic: true },
   parent: { inverse: "children", cardinality: "one", acyclic: true },
   relates: { symmetric: true },
+  created_from: { inverse: "converted_to", cardinality: "one", acyclic: true },
 };
 
 /** The aggregates `rollup` accepts. */
@@ -540,6 +541,27 @@ as $$
 $$;
 ${userGrant(`${fn("descendants")}(${ctx.idType}, text, text, text)`)}
 
+-- The record of into_type an origin was already converted into: the source
+-- of a created_from link whose target is the origin. Conversions call it
+-- first, so converting the same deal twice returns the first quote.
+create or replace function ${fn("converted_into")}(tenant ${ctx.idType}, origin_type text, origin_id text, into_type text)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select r.${sourceId}
+  from ${relations} r
+  where r.${tenant} = converted_into.tenant
+    and r.${kind} = (select k.canonical from ${kindsOf} where k.name = 'created_from')
+    and r.${targetType} = converted_into.origin_type and r.${targetId} = converted_into.origin_id
+    and r.${sourceType} = converted_into.into_type
+  order by r.${createdAt}, r.${id}
+  limit 1
+$$;
+${userGrant(`${fn("converted_into")}(${ctx.idType}, text, text, text)`)}
+
 -- Aggregates a column over a subject's descendants of one type, such as the
 -- sum of estimates under an epic. Runs as the caller, so the subject table's
 -- policies decide which rows count. agg is count, sum, avg, min or max.
@@ -619,6 +641,11 @@ function contract(): readonly ModuleContractFunction[] {
       name: "descendants",
       args: ["{id}", "text", "text", "text"],
       returns: "jsonb",
+    },
+    {
+      name: "converted_into",
+      args: ["{id}", "text", "text", "text"],
+      returns: "text",
     },
     {
       name: "relation_rollup",

@@ -30,8 +30,10 @@ import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -43,6 +45,7 @@ import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
+import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
@@ -55,10 +58,13 @@ import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
+import { PARTIES } from "./modules/parties.ts";
 import { PGTAP } from "./modules/pgtap.ts";
+import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
+import { QUOTES } from "./modules/quotes.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
@@ -93,6 +99,7 @@ import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { WORK_ITEMS } from "./modules/work-items.ts";
 import { WORKFLOW_BUILDER } from "./modules/workflow-builder.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk-world.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
@@ -214,6 +221,13 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
       built(TEMPLATES),
+      built(PIPELINES),
+      built(PARTIES),
+      built(ENGAGEMENTS),
+      built(DEALS),
+      built(WORK_ITEMS),
+      built(QUOTES),
+      built(INVOICES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

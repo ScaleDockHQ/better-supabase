@@ -2003,6 +2003,8 @@
       "CredentialEventData",
       "DataExportEventData",
       "DataschemaContext",
+      "DealEventData",
+      "EngagementEventData",
       "EventSink",
       "FlagEventData",
       "FormEventData",
@@ -2015,12 +2017,17 @@
       "IncomingWebhookEventData",
       "InvitationEventData",
       "InviteCodeEventData",
+      "InvoiceEventData",
       "NotificationDeliveryEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
       "OrganizationDomainEventData",
       "OrganizationEventData",
+      "PartyEventData",
+      "PipelineEventData",
+      "PipelineStageEventData",
       "PushDeviceEventData",
+      "QuoteEventData",
       "RowEventData",
       "SaasEventData",
       "SaasSubjectEventData",
@@ -2040,7 +2047,8 @@
       "WaitlistEventData",
       "WebhookEventData",
       "WorkflowEventData",
-      "WorkflowRunEventData"
+      "WorkflowRunEventData",
+      "WorkItemEventData"
     ]
   },
   "./blocks/webhooks": {
@@ -4314,6 +4322,205 @@
       "TemplateVersion",
       "TemplateWorkflow",
       "TemplateWorkflowInput"
+    ]
+  },
+  "./blocks/pipelines": {
+    "values": [
+      "createPipelines",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Pipeline",
+      "PipelineColumn",
+      "PipelineHealth",
+      "PipelineInput",
+      "PipelineOutcome",
+      "Pipelines",
+      "PipelinesOptions",
+      "PipelineStage",
+      "PipelineStageInput",
+      "PipelineStats",
+      "PipelineTotal",
+      "PipelineTransition",
+      "RpcClient"
+    ]
+  },
+  "./blocks/parties": {
+    "values": [
+      "createParties",
+      "dbTransport",
+      "extendBlock",
+      "partiesSubjects",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Company",
+      "CompanyInput",
+      "CompanyPerson",
+      "Parties",
+      "PartiesOptions",
+      "PartyCursor",
+      "PartyListOptions",
+      "PartyPage",
+      "Person",
+      "PersonInput",
+      "RpcClient"
+    ]
+  },
+  "./blocks/engagements": {
+    "values": [
+      "createEngagements",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Engagement",
+      "EngagementInput",
+      "Engagements",
+      "EngagementsOptions",
+      "EngagementSubject",
+      "RpcClient"
+    ]
+  },
+  "./blocks/deals": {
+    "values": [
+      "createDeals",
+      "dbTransport",
+      "dealsSubjects",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Deal",
+      "DealChange",
+      "DealChangeResult",
+      "DealContact",
+      "DealField",
+      "DealForecast",
+      "DealHealth",
+      "DealInput",
+      "DealLineInput",
+      "DealOutcome",
+      "DealParty",
+      "Deals",
+      "DealsOptions",
+      "DealTotals",
+      "ForecastCategory",
+      "RpcClient"
+    ]
+  },
+  "./blocks/work-items": {
+    "values": [
+      "createWorkItems",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "workItemsSubjects",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CloseReason",
+      "Iteration",
+      "Project",
+      "RpcClient",
+      "WorkItem",
+      "WorkItemChange",
+      "WorkItemChangeResult",
+      "WorkItemField",
+      "WorkItemInput",
+      "WorkItemListOptions",
+      "WorkItemNode",
+      "WorkItems",
+      "WorkItemsOptions",
+      "WorkItemState"
+    ]
+  },
+  "./blocks/quotes": {
+    "values": [
+      "createQuotes",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Line",
+      "LineInput",
+      "PublicQuote",
+      "Quote",
+      "QuoteDecision",
+      "QuoteInput",
+      "Quotes",
+      "QuotesOptions",
+      "QuoteStatus",
+      "RecordRef",
+      "RpcClient",
+      "Totals"
+    ]
+  },
+  "./blocks/invoices": {
+    "values": [
+      "createInvoices",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Invoice",
+      "InvoiceAging",
+      "InvoiceInput",
+      "InvoicePayment",
+      "Invoices",
+      "InvoicesOptions",
+      "InvoiceStatus",
+      "Line",
+      "LineInput",
+      "RecordRef",
+      "RpcClient",
+      "Totals"
     ]
   },
   "./blocks/reactions/react": {

@@ -300,3 +300,42 @@ describe("relation adapters", () => {
     ).toEqual(["top"]);
   });
 });
+
+describe("relations conversions", () => {
+  it("reads the converted record and the lineage of created_from", async () => {
+    const t = transport({
+      converted_into: "q1",
+      ancestors: [{ type: "deal", id: "d1", depth: 1 }],
+      descendants: [{ type: "invoice", id: "i1", depth: 1 }],
+    });
+    const relations = createRelations({ transport: t });
+    expect(
+      await relations
+        .convertedInto(ORG, { type: "deal", id: "d1" }, "quote")
+        .orThrow(),
+    ).toBe("q1");
+    expect(
+      await relations.lineage(ORG, { type: "quote", id: "q1" }).orThrow(),
+    ).toEqual({
+      origins: [{ type: "deal", id: "d1", depth: 1 }],
+      conversions: [{ type: "invoice", id: "i1", depth: 1 }],
+    });
+    expect(t.calls.map((call) => [call.fn, call.args["kind"]])).toEqual([
+      ["converted_into", undefined],
+      ["ancestors", "created_from"],
+      ["descendants", "created_from"],
+    ]);
+  });
+
+  it("reads no conversion as undefined and stops the lineage on an error", async () => {
+    const none = createRelations({
+      transport: transport({ converted_into: null }),
+    });
+    expect(await none.convertedInto(ORG, a, "quote").orThrow()).toBeUndefined();
+    const failing = transport({ ancestors: new Error("down") });
+    expect(
+      (await createRelations({ transport: failing }).lineage(ORG, a)).ok,
+    ).toBe(false);
+    expect(failing.calls.map((call) => call.fn)).toEqual(["ancestors"]);
+  });
+});

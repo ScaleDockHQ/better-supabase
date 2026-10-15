@@ -33,3 +33,4 @@ add one, and link it from the code or config it explains.
 | [0025](0025-drive-on-attachments.md)            | The drive is two modules on attachments; `before` renders a module ahead of the subject checks           |
 | [0026](0026-delegation-cap-and-operations.md)   | Delegated tokens are narrowed inside the access functions; every checked action is a row in `OPERATIONS` |
 | [0027](0027-fixture-pgdelta-baseline.md)        | The fixture's migrations are one pg-delta baseline, and its schema uses the per-schema layout            |
+| [0028](0028-pipelines.md)                       | Record stages run on tenant-editable pipelines with fixed outcomes, separate from status                 |
