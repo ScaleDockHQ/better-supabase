@@ -93,10 +93,11 @@ const runWith = (argv: readonly string[], prompts: Prompter) =>
 
 describe("init prompts", () => {
   it("asks for the casing and the integrations, pre-checking detected ones", async () => {
-    const prompts = fake(["snake", ["mcp"]]);
+    const prompts = fake(["none", "snake", ["mcp"]]);
     const result = await runWith(["init"], prompts);
     expect(result.code).toBe(0);
     expect(prompts.asked).toEqual([
+      { kind: "select", message: "Preset", initial: "none" },
       { kind: "select", message: "Row keys", initial: "camel" },
       { kind: "multiselect", message: "Integrations", initial: ["hono"] },
     ]);
@@ -116,10 +117,11 @@ describe("init prompts", () => {
       join(dir, "apps/api/package.json"),
       JSON.stringify({ name: "api", dependencies: { hono: "4" } }),
     );
-    const prompts = fake(["camel", "apps/api", ["hono"]]);
+    const prompts = fake(["none", "camel", "apps/api", ["hono"]]);
     const result = await runWith(["init"], prompts);
     expect(result.code).toBe(0);
     expect(prompts.asked).toEqual([
+      { kind: "select", message: "Preset", initial: "none" },
       { kind: "select", message: "Row keys", initial: "camel" },
       {
         kind: "select",
@@ -131,7 +133,9 @@ describe("init prompts", () => {
     expect(existsSync(join(dir, "apps/api/better-supabase.config.ts"))).toBe(
       true,
     );
-    expect((await runWith(["init"], fake(["camel", undefined]))).code).toBe(1);
+    expect(
+      (await runWith(["init"], fake(["none", "camel", undefined]))).code,
+    ).toBe(1);
   });
 
   it("asks nothing with --yes or when the flags answer", async () => {
@@ -152,7 +156,7 @@ describe("init prompts", () => {
 
   it("confirms before overwriting existing files", async () => {
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
-    const keep = fake(["camel", [], false]);
+    const keep = fake(["none", "camel", [], false]);
     const kept = await runWith(["init"], keep);
     expect(kept.stdout).toContain("Kept    better-supabase.config.ts (exists)");
     expect(keep.asked.at(-1)).toEqual({
@@ -160,7 +164,7 @@ describe("init prompts", () => {
       message: "better-supabase.config.ts exists. Overwrite?",
     });
 
-    const replace = fake(["camel", [], true]);
+    const replace = fake(["none", "camel", [], true]);
     await runWith(["init"], replace);
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
@@ -168,16 +172,31 @@ describe("init prompts", () => {
   });
 
   it("stops when the person cancels", async () => {
-    for (const answers of [[undefined], ["camel", undefined]]) {
+    for (const answers of [
+      [undefined],
+      ["none", undefined],
+      ["none", "camel", undefined],
+    ]) {
       expect(await runWith(["init"], fake(answers))).toMatchObject({
         code: 1,
         stderr: "Cancelled.\n",
       });
     }
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
-    expect((await runWith(["init"], fake(["camel", [], undefined]))).code).toBe(
-      1,
-    );
+    expect(
+      (await runWith(["init"], fake(["none", "camel", [], undefined]))).code,
+    ).toBe(1);
+  });
+
+  it("starts from the preset the person picks", async () => {
+    const prompts = fake(["minimal"]);
+    const result = await runWith(["init", "--dry-run"], prompts);
+    expect(result.code).toBe(0);
+    expect(prompts.asked).toEqual([
+      { kind: "select", message: "Preset", initial: "none" },
+    ]);
+    expect(result.stdout).toContain("Would write lib/blocks.ts");
+    expect(result.stdout).toContain("(profiles)");
   });
 });
 

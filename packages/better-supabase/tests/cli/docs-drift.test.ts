@@ -18,6 +18,9 @@ const docs = join(repo, "apps/docs/content/docs");
 const PAGES: Readonly<Record<string, string>> = {
   init: "cli/init.mdx",
   add: "cli/init.mdx",
+  apply: "cli/presets.mdx",
+  preset: "cli/presets.mdx",
+  blocks: "cli/presets.mdx",
   env: "cli/local.mdx",
   keys: "cli/local.mdx",
   seed: "cli/local.mdx",

@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "init",
+    "presets",
     "gen",
     "introspect",
     "local",

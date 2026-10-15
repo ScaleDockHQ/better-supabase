@@ -1,5 +1,7 @@
+import type { PresetCatalog, PresetGlueItem } from "./catalog-types.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
+import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig } from "./config.ts";
 
@@ -108,10 +110,43 @@ export function presetBlocksSource(resolved: ResolvedPreset): string {
   return lines.join("\n");
 }
 
-/** The command that installs the preset's blocks today: `sql add` with the selected blocks. */
+/** Where `presetBlocksSource` goes, as a shadcn target. */
+const WIRING_TARGET = "@lib/blocks.ts";
+
+/**
+ * The registry glue for the preset's framework and platforms: each item
+ * whose blocks are all installed, except bundles and items that write
+ * `lib/blocks.ts`, which the preset writes itself.
+ */
+export function presetGlue(
+  resolved: ResolvedPreset,
+  catalog: PresetCatalog = PRESET_CATALOG,
+): readonly PresetGlueItem[] {
+  const { preset } = resolved;
+  const platforms =
+    preset.platforms === "both" ? ["web", "native"] : [preset.platforms];
+  const installed = new Set(resolved.blocks.map((block) => block.name));
+  return catalog.glue.filter(
+    (item) =>
+      item.preset === undefined &&
+      !item.targets.includes(WIRING_TARGET) &&
+      item.frameworks.includes(preset.framework) &&
+      item.platforms.some((platform) => platforms.includes(platform)) &&
+      item.blocks.every((block) => installed.has(block)),
+  );
+}
+
+/** The shadcn command that copies glue items into the app. */
+export function glueCommand(items: readonly PresetGlueItem[]): string {
+  return `npx shadcn@latest add ${items.map((item) => `@better-supabase/${item.name}`).join(" ")}`;
+}
+
+/** The command that starts a project from the preset. */
 export function presetInstallCommand(resolved: ResolvedPreset): string {
-  const selected = resolved.blocks
-    .filter((block) => block.selected)
-    .map((block) => block.name);
-  return `npx better-supabase sql add ${selected.join(" ")}`;
+  return `npx better-supabase init --preset ${encodePreset(resolved.preset)}`;
+}
+
+/** The command that applies the preset to an existing project. */
+export function presetApplyCommand(resolved: ResolvedPreset): string {
+  return `npx better-supabase apply --preset ${encodePreset(resolved.preset)}`;
 }

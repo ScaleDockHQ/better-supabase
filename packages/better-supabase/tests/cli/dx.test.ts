@@ -238,13 +238,22 @@ describe("init and add", () => {
 
   it("adds integrations with their dependencies", async () => {
     await project({ hono: "4" });
-    const add = await run(["add", "mcp", "orpc", "--cwd", dir, "--dry-run"]);
+    const add = await run([
+      "add",
+      "--framework",
+      "mcp,orpc",
+      "--cwd",
+      dir,
+      "--dry-run",
+    ]);
     expect(add.code).toBe(0);
     expect(add.stdout).toContain("Would write supabase/functions/mcp/index.ts");
     expect(add.stdout).toContain("Would write router.ts");
     expect(add.stdout).toContain("pnpm add @orpc/server @supabase/server");
     expect(existsSync(join(dir, "router.ts"))).toBe(false);
-    expect((await run(["add", "nope", "--cwd", dir])).code).toBe(2);
+    expect((await run(["add", "--framework", "nope", "--cwd", dir])).code).toBe(
+      2,
+    );
     expect(resolveIntegrations(["react"])).toEqual(["client", "react"]);
   });
 
@@ -788,7 +797,14 @@ describe("flags from the config", () => {
     expect((await run(["add", "--cwd", dir])).stdout).toBe(
       "Every integration in the config is set up: mcp.\n",
     );
-    const orpc = await run(["add", "orpc", "--dry-run", "--cwd", dir]);
+    const orpc = await run([
+      "add",
+      "--framework",
+      "orpc",
+      "--dry-run",
+      "--cwd",
+      dir,
+    ]);
     expect(orpc.stdout).toContain("  integrations: ['mcp', 'orpc']");
   });
 });

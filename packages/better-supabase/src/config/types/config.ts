@@ -240,6 +240,8 @@ export interface ResolvedConfig {
   readonly realtime: Required<Omit<RealtimeConfig, "policies">> & {
     readonly policies?: TopicPoliciesConfig;
   };
+  /** The `preset` the config started from, as written; `blocks` already holds it expanded. */
+  readonly preset?: string;
   /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
   readonly blocks: BlocksConfig;
   /** The installed blocks, in config order. */

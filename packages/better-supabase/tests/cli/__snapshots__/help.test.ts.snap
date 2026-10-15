@@ -1,23 +1,62 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`help > documents add 1`] = `
-"Adds glue for an integration to an existing project (better-supabase add v<version>)
+"Adds blocks with what they require, or glue for an integration with --framework (better-supabase add v<version>)
 
-USAGE better-supabase add [OPTIONS] [INTEGRATION]
+USAGE better-supabase add [OPTIONS] [BLOCK]
 
 ARGUMENTS
 
-  INTEGRATION    next, hono, orpc, edge, expo, mcp, client or react. Defaults to the integrations in the config that have no files yet
+  BLOCK    Blocks to add (\`better-supabase blocks list\`). Without blocks or --framework, sets up the integrations in the config that have no files yet
 
 OPTIONS
 
-          --force    Overwrite files that exist                                                                                     
-        --dry-run    Show what would be written                                                                                     
-      --cwd=<dir>    Project directory                                                                                              
-  --config=<file>    Config file, relative to --cwd                                                                                 
-     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-           --json    Print one JSON document on stdout; errors as Problem Details                                                   
-        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
+  --framework=<integration,...>    Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react                         
+                        --force    Overwrite files that exist; with blocks, write modules a provider's hook would duplicate                       
+                      --dry-run    Show what would be written                                                                                     
+                    --cwd=<dir>    Project directory                                                                                              
+                --config=<file>    Config file, relative to --cwd                                                                                 
+                   --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+                         --json    Print one JSON document on stdout; errors as Problem Details                                                   
+                      -y, --yes    Ask nothing; use the flags and the defaults                                                                    
+"
+`;
+
+exports[`help > documents apply 1`] = `
+"Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules (better-supabase apply v<version>)
+
+USAGE better-supabase apply [OPTIONS] 
+
+OPTIONS
+
+     --preset=<name|code|url>    A named preset, a code from /create or its URL                                                                      
+  --only=<blocks|conventions>    blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
+                    --dry-run    Show the config diff and write nothing                                                                              
+                  --cwd=<dir>    Project directory                                                                                                   
+              --config=<file>    Config file, relative to --cwd                                                                                      
+                 --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set     
+                       --json    Print one JSON document on stdout; errors as Problem Details                                                        
+                    -y, --yes    Ask nothing; use the flags and the defaults                                                                         
+"
+`;
+
+exports[`help > documents blocks 1`] = `
+"Lists, shows and searches the blocks you can add (better-supabase blocks v<version>)
+
+USAGE better-supabase blocks [OPTIONS] [ACTION]
+
+ARGUMENTS
+
+  ACTION    list, view or search
+
+OPTIONS
+
+  --category=<name>    With list: one category (foundation, collaboration, crm, work, commerce, scheduling, ai, content, operations or platform)
+        --cwd=<dir>    Project directory                                                                                                        
+    --config=<file>    Config file, relative to --cwd                                                                                           
+       --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set          
+             --json    Print one JSON document on stdout; errors as Problem Details                                                             
+          -y, --yes    Ask nothing; use the flags and the defaults                                                                              
 "
 `;
 
@@ -136,18 +175,19 @@ USAGE better-supabase init [OPTIONS]
 
 OPTIONS
 
-                  --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                                
-                --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react                
-                         --package=<dir>    Workspace package to write to, relative to --cwd                                                               
-  --workflow=<pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations                            
-                                  --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                                 
-                                 --force    Overwrite files that exist                                                                                     
-                               --dry-run    Show what would be written                                                                                     
-                             --cwd=<dir>    Project directory                                                                                              
-                         --config=<file>    Config file, relative to --cwd                                                                                 
-                            --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-                                  --json    Print one JSON document on stdout; errors as Problem Details                                                   
-                               -y, --yes    Ask nothing; use the flags and the defaults                                                                    
+                  --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                                         
+                --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react                         
+                         --package=<dir>    Workspace package to write to, relative to --cwd                                                                        
+  --workflow=<pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations                                     
+                --preset=<name|code|url>    A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts
+                                  --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                                          
+                                 --force    Overwrite files that exist                                                                                              
+                               --dry-run    Show what would be written                                                                                              
+                             --cwd=<dir>    Project directory                                                                                                       
+                         --config=<file>    Config file, relative to --cwd                                                                                          
+                            --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set         
+                                  --json    Print one JSON document on stdout; errors as Problem Details                                                            
+                               -y, --yes    Ask nothing; use the flags and the defaults                                                                             
 "
 `;
 
@@ -204,6 +244,25 @@ OPTIONS
           --check    Fail when the file differs from the document                                                                   
    --entry=<file>    Defaults to openapi.entry. Exports \`openapi\` or default: a document or a function returning one                
      --out=<file>    Defaults to openapi.output                                                                                     
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
+"
+`;
+
+exports[`help > documents preset 1`] = `
+"Decodes a preset code, or shows the config's preset and how the config differs from it (better-supabase preset v<version>)
+
+USAGE better-supabase preset [OPTIONS] [ACTION]
+
+ARGUMENTS
+
+  ACTION    decode or info
+
+OPTIONS
+
       --cwd=<dir>    Project directory                                                                                              
   --config=<file>    Config file, relative to --cwd                                                                                 
      --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
@@ -335,7 +394,7 @@ OPTIONS
 exports[`help > lists the commands and the global options 1`] = `
 "Typed Supabase: codegen, doctor, the SQL modules and project setup (better-supabase v<version>)
 
-USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|spec|scaffold|seed|doctor|sql|config|codemod
+USAGE better-supabase [OPTIONS] init|add|apply|preset|blocks|env|keys|skills|gen|introspect|openapi|spec|scaffold|seed|doctor|sql|config|codemod
 
 OPTIONS
 
@@ -348,7 +407,10 @@ OPTIONS
 COMMANDS
 
         init    Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json    
-         add    Adds glue for an integration to an existing project                                                        
+         add    Adds blocks with what they require, or glue for an integration with --framework                            
+       apply    Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules   
+      preset    Decodes a preset code, or shows the config's preset and how the config differs from it                     
+      blocks    Lists, shows and searches the blocks you can add                                                           
          env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines       
         keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones     
       skills    Installs the Agent Skills that ship with this version of better-supabase                                   

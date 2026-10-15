@@ -1,6 +1,6 @@
 # 003: Composable blocks, presets, a shadcn-compatible registry and Create
 
-Status: phases 0 to 3 done; phase 3 shipped `better-supabase/preset`, the named presets, `defineConfig({ preset })`, `tests/validation-presets` and `/create` with the `sql add` fallback. Phase 5 (the preset CLI) is next once phase 4 is complete. Written 2026-10-14 against `main` at `3d9920b`, with `feat/pipelines-foundation` (parties, pipelines, engagements) still open. That branch merges first; see "Order and conflicts". Revised 2026-10-15:
+Status: phases 0 to 3 done, and phase 5 apart from `adopt`: `init --preset`, `apply --preset [--only]`, `add <block...>` (framework glue under `add --framework`), `preset decode|info` and `blocks list|view|search` shipped, and `/create` shows the `init` and `apply` commands. Next: `adopt` and `apply --adopt` with the validation-crm port, and the rest of phase 4 (the Expo example on the organizations and comments hooks). Written 2026-10-14 against `main` at `3d9920b`, with `feat/pipelines-foundation` (parties, pipelines, engagements) still open. That branch merges first; see "Order and conflicts". Revised 2026-10-15:
 
 - better-supabase ships no visible UI components. It ships helpers and glue, plus recipes that build the UI from shadcn components.
 - The client helpers are shared between React and React Native.

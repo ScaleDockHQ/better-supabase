@@ -23,7 +23,31 @@ const BUILTIN: readonly (readonly [string, CliEntry])[] = [
     "add",
     {
       load: () => import("./commands/add.ts").then((m) => m.addCommand),
-      description: "Adds glue for an integration to an existing project",
+      description:
+        "Adds blocks with what they require, or glue for an integration with --framework",
+    },
+  ],
+  [
+    "apply",
+    {
+      load: () => import("./commands/apply.ts").then((m) => m.applyCommand),
+      description:
+        "Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules",
+    },
+  ],
+  [
+    "preset",
+    {
+      load: () => import("./commands/preset.ts").then((m) => m.presetCommand),
+      description:
+        "Decodes a preset code, or shows the config's preset and how the config differs from it",
+    },
+  ],
+  [
+    "blocks",
+    {
+      load: () => import("./commands/blocks.ts").then((m) => m.blocksCommand),
+      description: "Lists, shows and searches the blocks you can add",
     },
   ],
   [

@@ -1,6 +1,6 @@
 ---
 title: init and add
-description: Scaffold the config, the data layer and framework glue for your project.
+description: Scaffold the config, the data layer and framework glue for your project, start from a preset, and add blocks.
 ---
 
 ```bash
@@ -60,6 +60,36 @@ Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
 `src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
 
+## Starting from a preset
+
+```bash
+npx better-supabase init --preset saas
+npx better-supabase init --preset 1pWEF3d578B1iGt16
+```
+
+`--preset` takes a [named preset](/docs/presets), a code from
+[Create](https://bettersupabase.com/create) or its whole URL. `init` then
+also:
+
+- writes `preset` into `better-supabase.config.ts`, which `defineConfig`
+  expands into `blocks` and the preset's conventions, and takes `casing` from
+  the preset unless you pass `--casing`
+- adds the preset's integrations and its framework's integration to the
+  ones it found
+- writes the module files of every block the preset installs, as
+  `better-supabase sql sync` does
+- writes `lib/blocks.ts`, which wires the blocks that have a TypeScript
+  client with `createBlocks`
+- prints the `npx shadcn@latest add @better-supabase/...` command for the
+  [registry glue](/docs/registry) that fits the preset's framework and
+  platforms
+
+A preset that can't install, such as one whose blocks need tenants under
+scope `user`, stops `init` with the reason. In a terminal without
+`--preset`, `--casing` or `--with`, `init` first asks for a preset; None
+keeps the steps above out. To apply a preset to a project that already has
+a config, use [`apply`](/docs/cli/presets#apply).
+
 ## Supabase Lite
 
 ```bash
@@ -98,13 +128,27 @@ packages.
 ## add
 
 ```bash
-pnpm better-supabase add hono mcp
+pnpm better-supabase add comments tags
+pnpm better-supabase add --framework hono,mcp
 ```
 
-`add` without an argument sets up every integration in the config's
+`add` with block names adds blocks. It lists them in `blocks` of the
+config and writes their module files and the modules they require, as
+[`sql add`](/docs/blocks/sql) does (`--force` and `--dry-run` work the same
+way). It also wires the blocks that have a TypeScript client into
+`lib/blocks.ts`: an import and an entry in the object passed to
+`createBlocks`. When the file is missing or doesn't call `createBlocks` with
+an object literal, `add` prints the lines to add instead. Last, it prints the
+`npx shadcn@latest add @better-supabase/...` command for the registry glue
+of those blocks that fits the frameworks in the config or `package.json`.
+`better-supabase blocks list` shows the names.
+
+`--framework` adds glue for integrations instead. `add` without an argument
+or `--framework` sets up every integration in the config's
 `integrations` list whose files are missing, which is how a fresh checkout
-or a new package in a workspace gets its glue. When you name integrations
-the config doesn't list yet, `add` prints the `integrations` entry to paste.
+or a new package in a workspace gets its glue. When `--framework` names
+integrations the config doesn't list yet, `add` prints the `integrations`
+entry to paste.
 
 | Integration | Writes                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------- |
