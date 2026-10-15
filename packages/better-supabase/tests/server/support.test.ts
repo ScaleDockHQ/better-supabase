@@ -651,4 +651,55 @@ describe("support sessions on the server", () => {
     expect(pg.sessions.at(-1)).toMatchObject({ readOnly: true });
     expect(pg.fake.calls.at(-1)?.values).toEqual(["docs", "o1/a.pdf"]);
   });
+
+  it("writes Storage as the target in a writable support session", async () => {
+    const { server, pg } = setup(
+      {
+        env: { ...env, secretKey: "sb_secret_test" },
+        support: supportSessions({
+          store: memorySupportStore({
+            [TARGET]: { role: "authenticated", organization: "o1" },
+          }),
+          policy: { readOnly: "default" },
+        }),
+      },
+      [
+        [
+          "insert into storage.objects",
+          { throws: pgError("42501", "new row violates row-level security") },
+        ],
+      ],
+    );
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "fix", readOnly: false })
+      .orThrow();
+    const ctx = await server.context(
+      await request(`bs-support=${started.session.id}`),
+    );
+    const docs = ctx.storage!.from("docs");
+    expect((await docs.upload("o1/a.pdf", "x")).error).toMatchObject({
+      status: 403,
+      code: "AccessDenied",
+    });
+    expect(pg.fake.transactions).toBeGreaterThan(0);
+    expect(pg.fake.texts().slice(-3)).toEqual([
+      "savepoint better_supabase_support_write",
+      expect.stringContaining("insert into storage.objects"),
+      "rollback to savepoint better_supabase_support_write",
+    ]);
+    expect(pg.fake.calls.at(-2)?.values).toEqual([
+      "docs",
+      "o1/a.pdf",
+      TARGET,
+      TARGET,
+      JSON.stringify({
+        supportSessionId: started.session.id,
+        supportAdminId: ADMIN,
+      }),
+    ]);
+    expect(pg.sessions.at(-1)).not.toMatchObject({ readOnly: true });
+    expect((await docs.createSignedUploadUrl("o1/b.pdf")).error?.code).toBe(
+      "SUPPORT_STORAGE_WRITES",
+    );
+  });
 });
