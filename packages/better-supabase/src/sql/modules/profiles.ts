@@ -692,7 +692,7 @@ grant execute on function ${ctx.fn("allocate_username")}(text, uuid) to authenti
   return `${allocate}
 
 -- Creates the user's profile from auth.users when it has none: metadata
--- keys (modules.profiles.options.metadata), the email and a username. The
+-- keys (blocks.profiles.options.metadata), the email and a username. The
 -- after_profile_sync hook runs only for a profile it created.
 create or replace function ${ctx.fn("sync_profile")}(user_id uuid)
 returns boolean

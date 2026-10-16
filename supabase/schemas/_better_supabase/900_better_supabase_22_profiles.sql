@@ -153,7 +153,7 @@ revoke execute on function "better_supabase"."allocate_username"(text, uuid) fro
 grant execute on function "better_supabase"."allocate_username"(text, uuid) to authenticated, service_role;
 
 -- Creates the user's profile from auth.users when it has none: metadata
--- keys (modules.profiles.options.metadata), the email and a username. The
+-- keys (blocks.profiles.options.metadata), the email and a username. The
 -- after_profile_sync hook runs only for a profile it created.
 create or replace function "better_supabase"."sync_profile"(user_id uuid)
 returns boolean

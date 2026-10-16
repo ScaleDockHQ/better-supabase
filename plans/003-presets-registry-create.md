@@ -377,9 +377,15 @@ better-supabase is greenfield: there are no external users to migrate. Every pha
   - `sql upgrade` steps are only needed once there are released installs to upgrade.
 - **Versions.** Changesets are `minor` bumps for `better-supabase`, which is pre-1.0, and say what changed.
 
-## Open decisions
+## Decisions
 
-1. **Preset code format.** The plan uses base62 over a BigInt, which is short and matches shadcn. Named presets cover the readable case.
-2. **Default tenant name.** "organization" is the proposed default because it is the most common term; nothing ties us to it.
-3. **The native UI library the recipes name.** This needs a check of which shadcn-style React Native library has a working registry before the recipes reference it. Until then, the native recipes use plain React Native primitives.
-4. **Whether `everything` is a public preset.** It installs about 90 modules.
+Settled on 2026-10-16:
+
+1. **Preset code format.** Base62 over a BigInt, as built.
+2. **Default tenant name.** "organization", as built. `sql.naming.tenant` renames it.
+3. **The native UI library the recipes name.** None for now. The native recipes use plain React Native primitives.
+4. **The `everything` preset.** Public, alongside the other named presets.
+
+## Follow-up
+
+The conformance allowlists in `packages/better-supabase/tests/blocks/conformance.test.ts` and the planned recipes in `scripts/build-recipes.ts` shrink in follow-up PRs. Listing `@better-supabase` in the shadcn registry index is a manual submission once `https://bettersupabase.com/r/registry.json` is live.
