@@ -160,7 +160,8 @@ export function createJobs<const Q extends QueueSchemas>(
   options: JobsOptions<Q>,
 ): Jobs<Q> {
   applyTemporal(options);
-  const { queues } = options;
+  // SAFETY: without `queues` Q is the default, which `{}` satisfies.
+  const queues = options.queues ?? ({} as Q);
   const now = options.now ?? nowInstant;
   for (const name of Object.keys(queues)) {
     if (!QUEUE_NAME.test(name)) {

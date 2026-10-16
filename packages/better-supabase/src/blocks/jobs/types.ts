@@ -477,8 +477,12 @@ export interface Jobs<Q extends QueueSchemas> {
 export interface JobsOptions<
   Q extends QueueSchemas = QueueSchemas,
 > extends BlockTemporalOptions {
-  /** A Standard Schema for each queue's payload, keyed by queue name. */
-  readonly queues: Q;
+  /**
+   * A Standard Schema for each queue's payload, keyed by queue name. Without
+   * it the client knows no queue: `createBlocks` builds the block that way
+   * unless `jobsBlock.with({ queues })` sets them.
+   */
+  readonly queues?: Q;
   /** Any `QueueBackend`. */
   readonly backend?: QueueBackend;
   /** A service SQL connection (`postgres.admin`, `ctx.sql`), for the full feature set. */

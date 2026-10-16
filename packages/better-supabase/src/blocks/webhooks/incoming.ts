@@ -359,7 +359,7 @@ export function createIncomingWebhooks(
         {
           endpoint: id,
           name: input.name ?? null,
-          metadata: input.metadata === undefined ? null : input.metadata,
+          metadata: input.metadata ?? null,
           verify: input.verify ?? null,
           signature_header: input.signatureHeader ?? null,
         },
