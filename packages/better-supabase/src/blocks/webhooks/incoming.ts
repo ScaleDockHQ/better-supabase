@@ -1,4 +1,3 @@
-import type { SqlClient } from "../../postgres/executor.ts";
 import type {
   EndpointRow,
   IncomingVerify,
@@ -7,10 +6,15 @@ import type {
   IncomingWebhooksOptions,
 } from "./incoming-types.ts";
 
-import { asDbError, DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
+import {
+  asDbError,
+  blockCall,
+  DEFAULT_BLOCK_SCHEMA,
+} from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import { sqlTransport } from "../../core/block-transport.ts";
 import { dbError, type DbError } from "../../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../../core/problem.ts";
-import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   hmacHex,
   timingSafeEqual,
@@ -22,6 +26,8 @@ import {
   isRecord,
   optionalText,
   readBodyCapped,
+  recordOf,
+  recordsOf,
   toInstant,
 } from "../shared.ts";
 import { inboxDestination } from "./destinations.ts";
@@ -46,15 +52,6 @@ function verifyOf(value: unknown): IncomingVerify {
   return mode;
 }
 
-const attempt = <T>(fn: () => Promise<T>): AsyncResult<T> =>
-  AsyncResult.from(async () => {
-    try {
-      return ok(await fn());
-    } catch (cause) {
-      return err(asDbError(cause));
-    }
-  });
-
 /**
  * Tenant-owned trigger URLs over the `webhooks-in` SQL module: create
  * endpoints, then route `/hooks/<token>` to `receive`. Deliveries land in
@@ -62,10 +59,10 @@ const attempt = <T>(fn: () => Promise<T>): AsyncResult<T> =>
  * or in `options.destination`.
  */
 export function createIncomingWebhooks(
-  sql: SqlClient,
-  options: IncomingWebhooksOptions = {},
+  options: IncomingWebhooksOptions,
 ): IncomingWebhooks {
   applyTemporal(options);
+  const { sql } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   if (!IDENT.test(schema)) {
     throw new TypeError(
@@ -75,13 +72,13 @@ export function createIncomingWebhooks(
   const source = options.source ?? "webhook-in";
   const destination = options.destination ?? inboxDestination(sql);
   const fn = (name: string) => `"${schema}"."${name}"`;
+  const call = blockCall(
+    options.transport ?? sqlTransport(sql),
+    schema,
+    options.mappers,
+  );
 
-  const value = async <T>(text: string, params: unknown[]): Promise<T> => {
-    const [row] = await sql.queryRaw<{ value: T }>(text, params);
-    return row!.value;
-  };
-
-  return {
+  const client: IncomingWebhooks = {
     async receive(request, token) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {
@@ -260,130 +257,140 @@ export function createIncomingWebhooks(
       }
     },
     create: (input) =>
-      attempt(async () => {
-        const created = await value<{
-          id: string;
-          tenant: string | number;
-          name: string;
-          verify: IncomingVerify;
-          token: string;
-          secret: string | null;
-          signatureHeader: string | null;
-          subjectType: string | null;
-          subjectId: string | null;
-        }>(
-          `select ${fn("create_incoming_webhook")}($1, $2, $3, $4, $5, $6, $7) as value`,
-          [
-            input.tenant,
-            input.name,
-            input.verify ?? "none",
-            JSON.stringify(input.metadata ?? {}),
-            input.signatureHeader ?? null,
-            input.subject?.type ?? null,
-            input.subject?.id ?? null,
-          ],
-        );
-        const { subjectType, subjectId, ...rest } = created;
-        return {
-          ...rest,
-          tenant: String(created.tenant),
-          subject:
-            subjectType && subjectId
-              ? { type: subjectType, id: subjectId }
-              : null,
-        };
-      }),
+      call(
+        "create_incoming_webhook",
+        {
+          tenant: input.tenant,
+          name: input.name,
+          verify: input.verify ?? "none",
+          metadata: input.metadata ?? {},
+          signature_header: input.signatureHeader ?? null,
+          subject_type: input.subject?.type ?? null,
+          subject_id: input.subject?.id ?? null,
+        },
+        (value) => {
+          const created = recordOf(value, "create_incoming_webhook");
+          const subjectType = optionalText(created["subjectType"]);
+          const subjectId = optionalText(created["subjectId"]);
+          return {
+            id: String(created["id"]),
+            tenant: String(created["tenant"]),
+            name: String(created["name"]),
+            verify: verifyOf(created["verify"]),
+            token: String(created["token"]),
+            secret: optionalText(created["secret"]) ?? null,
+            signatureHeader: optionalText(created["signatureHeader"]) ?? null,
+            subject:
+              subjectType && subjectId
+                ? { type: subjectType, id: subjectId }
+                : null,
+          };
+        },
+      ),
     list: (tenant, subject) =>
-      attempt(async () => {
-        const rows = await value<readonly Record<string, unknown>[]>(
-          `select ${fn("list_incoming_webhooks")}($1, $2, $3) as value`,
-          [tenant, subject?.type ?? null, subject?.id ?? null],
-        );
-        return rows.map((row): IncomingWebhook => ({
-          id: String(row["id"]),
-          tenant: String(row["tenant"]),
-          name: String(row["name"]),
-          // SAFETY: the table's check constraint limits verify to IncomingVerify.
-          verify: row["verify"] as IncomingVerify,
-          signatureHeader: optionalText(row["signature_header"]) ?? null,
-          enabled: row["enabled"] === true,
-          maxBodyBytes: Number(row["max_body_bytes"]),
-          receiveCount: Number(row["receive_count"]),
-          lastReceivedAt: optionalText(row["last_received_at"]) ?? null,
-          lastStatus:
-            row["last_status"] === null ? null : Number(row["last_status"]),
-          metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
-          subject:
-            typeof row["subject_type"] === "string" &&
-            typeof row["subject_id"] === "string"
-              ? { type: row["subject_type"], id: row["subject_id"] }
-              : null,
-          createdBy: optionalText(row["created_by"]) ?? null,
-          createdAt: String(row["created_at"]),
-        }));
-      }),
+      call(
+        "list_incoming_webhooks",
+        {
+          tenant,
+          subject_type: subject?.type ?? null,
+          subject_id: subject?.id ?? null,
+        },
+        (value) =>
+          recordsOf(value, "list_incoming_webhooks").map(
+            (row): IncomingWebhook => ({
+              id: String(row["id"]),
+              tenant: String(row["tenant"]),
+              name: String(row["name"]),
+              // SAFETY: the table's check constraint limits verify to IncomingVerify.
+              verify: row["verify"] as IncomingVerify,
+              signatureHeader: optionalText(row["signature_header"]) ?? null,
+              enabled: row["enabled"] === true,
+              maxBodyBytes: Number(row["max_body_bytes"]),
+              receiveCount: Number(row["receive_count"]),
+              lastReceivedAt: optionalText(row["last_received_at"]) ?? null,
+              lastStatus:
+                row["last_status"] === null ? null : Number(row["last_status"]),
+              metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
+              subject:
+                typeof row["subject_type"] === "string" &&
+                typeof row["subject_id"] === "string"
+                  ? { type: row["subject_type"], id: row["subject_id"] }
+                  : null,
+              createdBy: optionalText(row["created_by"]) ?? null,
+              createdAt: String(row["created_at"]),
+            }),
+          ),
+      ),
     rotate: (id, rotateOptions = {}) =>
-      attempt(async () => {
-        const rotated = await value<{ token: string; secret: string | null }>(
-          `select ${fn("rotate_incoming_webhook")}($1, $2) as value`,
-          [id, rotateOptions.rotateSecret ?? false],
-        );
-        return { token: rotated.token, secret: rotated.secret };
-      }),
+      call(
+        "rotate_incoming_webhook",
+        { endpoint: id, rotate_secret: rotateOptions.rotateSecret ?? false },
+        (value) => {
+          const rotated = recordOf(value, "rotate_incoming_webhook");
+          return {
+            token: String(rotated["token"]),
+            secret: optionalText(rotated["secret"]) ?? null,
+          };
+        },
+      ),
     rotateSecret: (id, rotateOptions = {}) =>
-      attempt(async () => {
-        const rotated = await value<Record<string, unknown>>(
-          `select ${fn("rotate_incoming_webhook_secret")}($1, $2::interval) as value`,
-          [
-            id,
+      call(
+        "rotate_incoming_webhook_secret",
+        {
+          endpoint: id,
+          grace:
             rotateOptions.grace === undefined
               ? null
               : String(rotateOptions.grace),
-          ],
-        );
-        const expires = optionalText(rotated["previousSecretExpiresAt"]);
-        return {
-          secret: String(rotated["secret"]),
-          previousSecretExpiresAt:
-            expires === undefined ? null : toInstant(expires),
-        };
-      }),
+        },
+        (value) => {
+          const rotated = recordOf(value, "rotate_incoming_webhook_secret");
+          const expires = optionalText(rotated["previousSecretExpiresAt"]);
+          return {
+            secret: String(rotated["secret"]),
+            previousSecretExpiresAt:
+              expires === undefined ? null : toInstant(expires),
+          };
+        },
+      ),
     update: (id, input) =>
-      attempt(async () => {
-        const updated = await value<Record<string, unknown>>(
-          `select ${fn("update_incoming_webhook")}($1, $2, $3, $4, $5) as value`,
-          [
-            id,
-            input.name ?? null,
-            input.metadata === undefined
-              ? null
-              : JSON.stringify(input.metadata),
-            input.verify ?? null,
-            input.signatureHeader ?? null,
-          ],
-        );
-        return {
-          id: String(updated["id"]),
-          tenant: String(updated["tenant"]),
-          name: String(updated["name"]),
-          verify: verifyOf(updated["verify"]),
-          secret: optionalText(updated["secret"]) ?? null,
-          signatureHeader: optionalText(updated["signatureHeader"]) ?? null,
-          metadata: isRecord(updated["metadata"]) ? updated["metadata"] : {},
-        };
-      }),
+      call(
+        "update_incoming_webhook",
+        {
+          endpoint: id,
+          name: input.name ?? null,
+          metadata: input.metadata === undefined ? null : input.metadata,
+          verify: input.verify ?? null,
+          signature_header: input.signatureHeader ?? null,
+        },
+        (value) => {
+          const updated = recordOf(value, "update_incoming_webhook");
+          return {
+            id: String(updated["id"]),
+            tenant: String(updated["tenant"]),
+            name: String(updated["name"]),
+            verify: verifyOf(updated["verify"]),
+            secret: optionalText(updated["secret"]) ?? null,
+            signatureHeader: optionalText(updated["signatureHeader"]) ?? null,
+            metadata: isRecord(updated["metadata"]) ? updated["metadata"] : {},
+          };
+        },
+      ),
     setEnabled: (id, enabled) =>
-      attempt(() =>
-        value<boolean>(
-          `select ${fn("set_incoming_webhook_enabled")}($1, $2) as value`,
-          [id, enabled],
-        ),
+      call(
+        "set_incoming_webhook_enabled",
+        { endpoint: id, enabled },
+        (value) => value === true,
       ),
     remove: (id) =>
-      attempt(() =>
-        value<boolean>(`select ${fn("delete_incoming_webhook")}($1) as value`, [
-          id,
-        ]),
+      call(
+        "delete_incoming_webhook",
+        { endpoint: id },
+        (value) => value === true,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "incoming-webhooks",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

@@ -139,7 +139,8 @@ describe("incoming destinations", () => {
       ],
     ]);
     const delivered: unknown[] = [];
-    const hooks = createIncomingWebhooks(fake.sql, {
+    const hooks = createIncomingWebhooks({
+      sql: fake.sql,
       source: "forms",
       destination: {
         apiVersion: 1,

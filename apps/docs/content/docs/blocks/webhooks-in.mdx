@@ -27,7 +27,7 @@ an endpoint, or rotating its secret, deletes the old Vault secret.
 ```ts
 import { createIncomingWebhooks } from "better-supabase/blocks/webhooks";
 
-const hooks = createIncomingWebhooks(ctx.postgres);
+const hooks = createIncomingWebhooks({ sql: ctx.postgres });
 const endpoint = await hooks
   .create({
     tenant: organizationId,
@@ -171,7 +171,7 @@ delivery as before, so the inbox handler finds the subject on the endpoint.
 Route the public URL to `receive` on a service connection:
 
 ```ts title="app/hooks/[token]/route.ts"
-const hooks = createIncomingWebhooks(postgres.admin, {
+const hooks = createIncomingWebhooks({ sql: postgres.admin,
   rateLimit: { max: 60, period: 60 },
 });
 
@@ -252,7 +252,7 @@ const jobs = createJobs(postgres.admin, {
   leads: v.object({ route: v.string(), body: v.unknown() }),
 });
 
-export const hooks = createIncomingWebhooks(postgres.admin, {
+export const hooks = createIncomingWebhooks({ sql: postgres.admin,
   destination: jobsDestination(jobs, {
     queue: "leads",
     payload: (delivery) => ({

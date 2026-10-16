@@ -49,7 +49,6 @@ const NO_HOOKS: readonly string[] = [
   "comments",
   "connectors",
   "custom-fields",
-  "incoming-webhooks",
   "number-sequences",
   "push",
   "rank",
@@ -74,7 +73,6 @@ const NO_HOOKS: readonly string[] = [
 const NO_BLOCK_CALL: readonly string[] = [
   "audit",
   "comments",
-  "incoming-webhooks",
   "notifications",
   "usage",
   "webhooks",
