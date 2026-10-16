@@ -7,14 +7,9 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import {
-  fail,
-  lockTable,
-  schemaPreamble,
-  sha256Hex,
-  userGrant,
-} from "../shared.ts";
+import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { liveShareLink } from "./share-links.ts";
 
 const EVENTS: ModuleEvents<CalendarEvents> = {
   "calendar.created": {
@@ -241,10 +236,7 @@ begin
   end if;
   select ${l("subjectId")}, ${l("tenant")}::text into v_subject, v_tenant
   from ${links} l
-  where ${l("tokenHash")} = ${sha256Hex("convert_to(calendar_feed.token, 'utf8')")}
-    and ${l("subjectType")} = 'calendar'
-    and ${l("revokedAt")} is null
-    and (${l("expiresAt")} is null or ${l("expiresAt")} > now());
+  where ${liveShareLink(s, "l", "calendar_feed.token", "'calendar'")};
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;

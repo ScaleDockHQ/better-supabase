@@ -31,6 +31,7 @@ ai-tasks
 ai-cache
 ai-providers
 teams
+share-links
 approvals
 access-requests
 drive
