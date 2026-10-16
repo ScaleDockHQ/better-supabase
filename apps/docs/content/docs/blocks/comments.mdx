@@ -364,6 +364,53 @@ comment.id, emoji)` reacts to a comment the caller can read, and
 `reactions.summary(organizationId, "comment", ids)` counts a thread's
 reactions in one call.
 
+## Your own columns
+
+Add columns to the `comments` table with
+`blocks.comments.options.extraColumns` (column name to SQL type), then pass
+a Standard Schema for them as `fields`. `create` and `edit` validate the
+`fields` you pass and write them after the insert or the update, so a
+column you leave out keeps its default or its value, and an edit that sets
+only `fields` still needs the `body`. `create`, `edit` and `list` return the
+columns parsed under `fields`, keyed by column name, and `copy` copies them
+to the new thread. Members write them with the same policies as the rest
+of the comment: the author, or a member with `comments.moderate`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  comments: {
+    options: {
+      extraColumns: { visibility: "text not null default 'internal'" },
+    },
+  },
+},
+```
+
+```ts title="lib/comments.ts"
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+import { z } from "zod";
+
+const comments = createComments({
+  transport: rpcTransport(supabase),
+  fields: z.object({ visibility: z.enum(["internal", "customer"]) }),
+});
+
+const comment = await comments
+  .create({
+    organizationId,
+    subjectType: "project",
+    subjectId: projectId,
+    body: "Shipped",
+    fields: { visibility: "customer" },
+  })
+  .orThrow();
+comment.fields.visibility; // "internal" | "customer"
+```
+
+Without `extraColumns`, `create_comment` and `edit_comment` keep their
+default signatures and stay `language sql`. The block also takes `hooks`
+around its methods; see [extending blocks](/docs/extending/blocks).
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as

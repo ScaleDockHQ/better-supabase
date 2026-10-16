@@ -1,10 +1,9 @@
 import type { ModuleContext } from "../context.ts";
 
 import {
-  fail,
-  fieldsArg,
+  extraFieldsArg,
   extraFieldsJson,
-  fieldsParam,
+  fail,
   serviceGrant,
   userGrant,
   writeExtraColumns,
@@ -219,7 +218,8 @@ export function checkoutFunctions(
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
-create or replace function ${fn("place_order")}(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null${fieldsParam(names.extras)})
+${extraFieldsArg(names.extras).drop(fn("place_order"), "uuid, jsonb, bigint, uuid")}
+create or replace function ${fn("place_order")}(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null${extraFieldsArg(names.extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -330,7 +330,7 @@ begin
   return ${fn("order_json")}(v_order.id) || jsonb_build_object('created', true);
 end;
 $$;
-${serviceGrant(`${fn("place_order")}(uuid, jsonb, bigint, uuid${fieldsArg(names.extras)})`)}
+${serviceGrant(`${fn("place_order")}(uuid, jsonb, bigint, uuid${extraFieldsArg(names.extras).type})`)}
 
 -- Records what a payment provider reports for an order's payment, keyed on
 -- provider and reference, so a redelivered webhook changes nothing. A late

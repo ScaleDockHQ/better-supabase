@@ -10,6 +10,8 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
   jsonSchemaChecks,
   quotedTable,
   SERVICE_CALLER,
@@ -17,6 +19,7 @@ import {
   pageSize,
   revokeTable,
   fail,
+  withExtraFields,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import {
@@ -30,6 +33,7 @@ import {
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
 import { hasColumn } from "./audit-columns.ts";
+import { commentWrites } from "./comments-writes.ts";
 
 const EVENTS: ModuleEvents<CommentsEvents> = {
   "comment.deleted": {
@@ -76,6 +80,7 @@ const NAMES: ModuleNames = {
     "notify",
     "follow",
     "mentionGroups",
+    "extraColumns",
   ],
   tables: {
     comments: {
@@ -114,6 +119,9 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** The keys a comment read returns next to the extra columns. */
+const RESERVED = ["fields"] as const;
 
 /** One commentable subject type: its table, and who may read it. */
 export type CommentSubject = Omit<Subject, "extra">;
@@ -351,6 +359,12 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const c = (logical: string): string => ctx.col("comments", logical);
   const a = (logical: string): string => ctx.col("activity", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const extras = ctx.extraColumns("comments", RESERVED);
+  const extra = extraFieldsArg(extras);
+  const extraIdents = extras.map((column) => column.ident);
+  // A comment row as JSON, with the extra columns under fields.
+  const commentJson = (row: string, json: string): string =>
+    withExtraFields(json, row, extras);
   const reads = activityReads(ctx);
   const permissions = moduleOperations("comments");
   const permission = (action: keyof typeof permissions): string =>
@@ -584,15 +598,15 @@ create table if not exists ${comments} (
   ${c("deletedAt")} timestamptz,
   check (${c("deletedAt")} is not null or length(btrim(${c("body")})) > 0)
 );
-alter table ${comments} add column if not exists ${c("document")} jsonb;
+alter table ${comments} add column if not exists ${c("document")} jsonb;${addExtraColumns(comments, extras)}
 create index if not exists comments_subject_idx on ${comments} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("createdAt")});
 create index if not exists comments_author_idx on ${comments} (${c("author")});
 create index if not exists comments_parent_idx on ${comments} (${c("parent")});
 alter table ${comments} enable row level security;
 ${revokeTable(comments)}
 grant select on ${comments} to authenticated;
-grant insert (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent")].join(", ")}) on ${comments} to authenticated;
-grant update (${[c("body"), c("document"), c("mentions"), c("deletedAt")].join(", ")}) on ${comments} to authenticated;
+grant insert (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent"), ...extraIdents].join(", ")}) on ${comments} to authenticated;
+grant update (${[c("body"), c("document"), c("mentions"), c("deletedAt"), ...extraIdents].join(", ")}) on ${comments} to authenticated;
 grant all on ${comments} to service_role;
 
 -- Whether the caller may read a subject: its row is visible to them (the
@@ -708,45 +722,7 @@ drop trigger if exists ${ctx.trigger("comments_after_write")} on ${comments};
 drop function if exists ${fn("comments_after_write")}();`
 }
 
--- The functions run as the caller, so the policies above decide.
-drop function if exists ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid);
-drop function if exists ${fn("edit_comment")}(uuid, text, uuid[]);
-create or replace function ${fn("create_comment")}(
-  tenant ${id},
-  subject_type text,
-  subject_id text,
-  body text,
-  mentions uuid[] default '{}',
-  parent uuid default null,
-  document jsonb default null
-)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$
-  insert into ${comments} as x (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent")].join(", ")})
-  values (${ctx.scope.value("create_comment.tenant")}, create_comment.subject_type, create_comment.subject_id, create_comment.body, create_comment.document, coalesce(create_comment.mentions, '{}'), create_comment.parent)
-  returning to_jsonb(x.*)
-$$;
-
--- An edit keeps the document unless one is passed or clear_document is true.
-create or replace function ${fn("edit_comment")}(id uuid, body text, mentions uuid[] default null, document jsonb default null, clear_document boolean default false)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$
-  update ${comments} x
-  set ${c("body")} = edit_comment.body,
-      ${c("document")} = case
-        when coalesce(edit_comment.clear_document, false) then null
-        else coalesce(edit_comment.document, x.${c("document")})
-      end,
-      ${c("mentions")} = coalesce(edit_comment.mentions, x.${c("mentions")})
-  where x.${c("id")} = edit_comment.id
-  returning to_jsonb(x.*)
-$$;
+${commentWrites(ctx, extras)}
 
 -- Copies a subject's thread to another subject in the same tenant (a quote
 -- duplicated into an invoice, say), keeping authors, times and replies.
@@ -777,9 +753,9 @@ begin
       and y.${c("subjectType")} = copy_comments.from_type
       and y.${c("subjectId")} = copy_comments.from_id
   ), inserted as (
-    insert into ${comments} (${[c("id"), c("tenant"), c("subjectType"), c("subjectId"), c("author"), c("body"), c("document"), c("mentions"), c("parent"), c("createdAt"), c("editedAt"), c("deletedAt")].join(", ")})
+    insert into ${comments} (${[c("id"), c("tenant"), c("subjectType"), c("subjectId"), c("author"), c("body"), c("document"), c("mentions"), c("parent"), c("createdAt"), c("editedAt"), c("deletedAt"), ...extraIdents].join(", ")})
     select m.new_id, y.${c("tenant")}, copy_comments.to_type, copy_comments.to_id, y.${c("author")},
-      y.${c("body")}, y.${c("document")}, '{}', p.new_id, y.${c("createdAt")}, y.${c("editedAt")}, y.${c("deletedAt")}
+      y.${c("body")}, y.${c("document")}, '{}', p.new_id, y.${c("createdAt")}, y.${c("editedAt")}, y.${c("deletedAt")}${extraIdents.map((ident) => `, y.${ident}`).join("")}
     from ${comments} y
     join copies m on m.old_id = y.${c("id")}
     left join copies p on p.old_id = y.${c("parent")}
@@ -822,7 +798,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${c("createdAt")}, x.${c("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${commentJson("x", "to_jsonb(x.*)")} order by x.${c("createdAt")}, x.${c("id")}), '[]'::jsonb)
   from (
     select * from ${comments} y
     where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("list_comments.tenant"))}
@@ -950,8 +926,8 @@ end;
 $$;
 ${cascades}${documentCheck}
 revoke execute on function ${fn("comment_subject_readable")}(text, text, ${id}) from public, anon;
-revoke execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb) from public, anon;
-revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean) from public, anon;
+revoke execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) from public, anon;
+revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) from public, anon;
 revoke execute on function ${fn("copy_comments")}(${id}, text, text, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) from public, anon;
 revoke execute on function ${fn("delete_comment")}(uuid) from public, anon;
@@ -959,8 +935,8 @@ revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz
 revoke execute on function ${fn("comment_counts")}(${id}, text, text[]) from public, anon;
 revoke execute on function ${fn("record_activity")}(jsonb) from public, anon, authenticated;
 grant execute on function ${fn("comment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
-grant execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
-grant execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
+grant execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) to authenticated, service_role;
+grant execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) to authenticated, service_role;
 grant execute on function ${fn("copy_comments")}(${id}, text, text, text, text) to service_role;
 grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) to authenticated, service_role;
 grant execute on function ${fn("delete_comment")}(uuid) to authenticated, service_role;
@@ -969,7 +945,8 @@ grant execute on function ${fn("comment_counts")}(${id}, text, text[]) to authen
 grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("comments", RESERVED)).contract;
   return [
     {
       name: "comment_subject_readable",
@@ -978,12 +955,21 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "create_comment",
-      args: ["{id}", "text", "text", "text", "uuid[]", "uuid", "jsonb"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "uuid[]",
+        "uuid",
+        "jsonb",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     {
       name: "edit_comment",
-      args: ["uuid", "text", "uuid[]", "jsonb", "boolean"],
+      args: ["uuid", "text", "uuid[]", "jsonb", "boolean", ...extra],
       returns: "jsonb",
     },
     {

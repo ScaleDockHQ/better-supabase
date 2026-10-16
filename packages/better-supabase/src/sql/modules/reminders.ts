@@ -10,10 +10,8 @@ import type { ModuleDefinition } from "../module-types.ts";
 import {
   addExtraColumns,
   columnsObject,
+  extraFieldsArg,
   fail,
-  fieldsArg,
-  fieldsArgs,
-  fieldsParam,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -146,7 +144,8 @@ ${lockTable(deliveries, { read: true })}
     : "";
   return `${schemaPreamble(ctx)}
 ${tables}
-create or replace function ${ctx.fn("save_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${fieldsParam(extras)})
+${extraFieldsArg(extras).drop(ctx.fn("save_reminder"), `${ctx.idType}, text, text, integer`)}
+create or replace function ${ctx.fn("save_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -171,7 +170,7 @@ begin
   });
 end;
 $$;
-${userGrant(`${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer${fieldsArg(extras)})`)}
+${userGrant(`${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer${extraFieldsArg(extras).type})`)}
 
 create or replace function ${ctx.fn("mark_reminder_sent")}(reminder uuid, occurrence_at timestamptz)
 returns boolean
@@ -251,7 +250,13 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_reminder",
-      args: ["{id}", "text", "text", "integer", ...fieldsArgs(extrasOf(ctx))],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "integer",
+        ...extraFieldsArg(extrasOf(ctx)).contract,
+      ],
       returns: "jsonb",
     },
     {

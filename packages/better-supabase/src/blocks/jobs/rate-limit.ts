@@ -58,7 +58,26 @@ export interface RateLimit {
   purgeJob(options?: { readonly batch?: number }): JobHandler<unknown>;
 }
 
-export interface RateLimitOptions extends BlockTemporalOptions {
+/** Where `createRateLimit` keeps its counters: a transport or a SQL connection. */
+export type RateLimitSource =
+  | {
+      /**
+       * A service-role transport, such as `rpcTransport(adminClient)`, over
+       * the `rate-limit` module's functions.
+       */
+      readonly transport: BlockTransport;
+      readonly sql?: never;
+    }
+  | {
+      /** A service SQL connection: `postgres.admin` or `ctx.postgresAdmin`. */
+      readonly sql: SqlClient;
+      readonly transport?: never;
+    };
+
+export interface RateLimitSettings extends BlockTemporalOptions {
+  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  readonly schema?: string;
+  /** Error mappers that run before the built-in ones. */
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<RateLimit>;
@@ -66,29 +85,24 @@ export interface RateLimitOptions extends BlockTemporalOptions {
   readonly logger?: Logger;
 }
 
-const isTransport = (
-  source: SqlClient | BlockTransport,
-): source is BlockTransport => "call" in source;
+export type RateLimitOptions = RateLimitSource & RateLimitSettings;
 
 /**
  * Fixed-window limits for keys that aren't claims, over the `rate-limit`
- * module's counters. Pass a service SQL connection (`ctx.postgresAdmin`,
- * `postgres.admin`), or a service-role `BlockTransport` such as
- * `rpcTransport(adminClient)`.
+ * module's counters. Pass `sql`, a service SQL connection
+ * (`ctx.postgresAdmin`, `postgres.admin`), or `transport`, a service-role
+ * `BlockTransport` such as `rpcTransport(adminClient)`.
  */
-export function createRateLimit(
-  source: SqlClient | BlockTransport,
-  options: RateLimitOptions = {},
-): RateLimit {
+export function createRateLimit(options: RateLimitOptions): RateLimit {
   applyTemporal(options);
-  const hit = isTransport(source)
-    ? overTransport(blockCall(source, undefined, options.mappers))
-    : overSql(source);
-  const call = blockCall(
-    isTransport(source) ? source : sqlTransport(source),
-    undefined,
-    options.mappers,
-  );
+  const call =
+    options.transport === undefined
+      ? blockCall(sqlTransport(options.sql), undefined, options.mappers)
+      : blockCall(options.transport, options.schema, options.mappers);
+  const hit =
+    options.transport === undefined
+      ? overSql(options.sql)
+      : overTransport(call);
   const client: RateLimit = {
     purge: (purgeOptions = {}) =>
       call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>

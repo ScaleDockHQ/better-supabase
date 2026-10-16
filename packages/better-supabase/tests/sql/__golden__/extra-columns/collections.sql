@@ -125,7 +125,7 @@ using ("user_id" = (select auth.uid())
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
 drop function if exists "better_supabase"."create_collection"(uuid, text, text, text, text, text);
-create or replace function "better_supabase"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text, extra_fields jsonb default null)
+create or replace function "better_supabase"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -180,8 +180,8 @@ begin
     case when v_scope = 'team' then create_collection.team end,
     v_name, nullif(trim(create_collection.description), ''), auth.uid())
   returning "id" into v_id;
-  update "better_supabase"."subject_collections" x set "app_note" = case when create_collection.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_collection.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."subject_collections" x set "app_note" = case when create_collection.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_collection.fields) e where e.key in ('app_note'))) r
   where x."id" = v_id;
   null;
   declare
@@ -212,7 +212,7 @@ grant execute on function "better_supabase"."create_collection"(uuid, text, text
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
 drop function if exists "better_supabase"."rename_collection"(uuid, text, text);
-create or replace function "better_supabase"."rename_collection"(collection uuid, name text, description text, extra_fields jsonb default null)
+create or replace function "better_supabase"."rename_collection"(collection uuid, name text, description text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -246,8 +246,8 @@ begin
       else nullif(trim(rename_collection.description), '') end,
     "updated_at" = now()
   where x."id" = v_row."id";
-  update "better_supabase"."subject_collections" x set "app_note" = case when rename_collection.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(rename_collection.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."subject_collections" x set "app_note" = case when rename_collection.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(rename_collection.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id";
   return (select jsonb_build_object(
     'id', x."id",

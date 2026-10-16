@@ -11,14 +11,13 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   ensureCheck,
-  withExtraFields,
-  extraFieldsParam,
-  extraFieldsType,
-  SERVICE_CALLER,
-  schemaPreamble,
-  revokeTable,
-  lockTable,
+  extraFieldsArg,
   fail,
+  lockTable,
+  revokeTable,
+  schemaPreamble,
+  SERVICE_CALLER,
+  withExtraFields,
 } from "../shared.ts";
 import {
   type Subject,
@@ -52,6 +51,9 @@ const EVENTS: ModuleEvents<AttachmentsEvents> = {
     retries: true,
   },
 };
+
+/** The keys the attachment reads return next to the extra columns. */
+const RESERVED = ["fields"] as const;
 
 const NAMES: ModuleNames = {
   events: EVENTS,
@@ -282,7 +284,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
   ];
   const bucketList = buckets.map(sqlString).join(", ");
-  const extras = ctx.extraColumns("attachments", ["fields"]);
+  const extras = ctx.extraColumns("attachments", RESERVED);
   const json = (row: string): string =>
     withExtraFields(`to_jsonb(${row})`, row, extras);
   const bucketFor = perSubject.some((entry) => entry.bucket !== bucket)
@@ -313,7 +315,7 @@ declare
 begin
   v_row := jsonb_populate_record(null::${t}, (
     select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-    from jsonb_each(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as e (field_key, field_value)
+    from jsonb_each(coalesce(create_attachment.fields, '{}'::jsonb)) as e (field_key, field_value)
     where e.field_key = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}])
   ));
   v_row.${c("tenant")} := create_attachment.tenant;
@@ -326,7 +328,7 @@ begin
   select string_agg(column_name, ', ')
   into v_columns
   from unnest(array[${insertColumns.map((column) => sqlString(column)).join(", ")}]
-    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as k
+    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.fields, '{}'::jsonb)) as k
       where k = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}]))) as column_name;
   execute format('insert into ${t.replaceAll("'", "''")} as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
   into v_row
@@ -553,12 +555,8 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
   using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'delete'));
 
 -- The caller's new record, for a signed upload URL to its object_path.
-drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);${
-    extras.length === 0
-      ? ""
-      : `
-drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb);`
-  }
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
+${extraFieldsArg(extras).drop(fn("create_attachment"), `${id}, text, text, bigint, text, text, jsonb`)}
 create or replace function ${fn("create_attachment")}(
   tenant ${id},
   name text,
@@ -566,7 +564,7 @@ create or replace function ${fn("create_attachment")}(
   size bigint,
   subject_type text default null,
   subject_id text default null,
-  metadata jsonb default null${extraFieldsParam(extras)}
+  metadata jsonb default null${extraFieldsArg(extras).param}
 )
 returns jsonb
 language ${extras.length === 0 ? "sql" : "plpgsql"}
@@ -796,13 +794,13 @@ revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from
 grant execute on function ${fn("object_clean")}(text, text) to authenticated, service_role;
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
-revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsType(extras)}) from public, anon;
+revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
-grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsType(extras)}) to authenticated, service_role;
+grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
@@ -860,7 +858,10 @@ values ${values.join(",\n  ")}
 on conflict (id) do nothing;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("attachments", RESERVED),
+  ).contract;
   return [
     {
       name: "attachment_object_allowed",
@@ -875,7 +876,16 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "create_attachment",
-      args: ["{id}", "text", "text", "bigint", "text", "text", "jsonb"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "bigint",
+        "text",
+        "text",
+        "jsonb",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "confirm_attachment", args: ["uuid"], returns: "jsonb" },

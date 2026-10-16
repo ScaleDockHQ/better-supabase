@@ -123,6 +123,7 @@ using ("user_id" = (select auth.uid())
 
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
+drop function if exists "better_supabase"."create_collection"(uuid, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb
 language plpgsql
@@ -206,6 +207,7 @@ revoke execute on function "better_supabase"."create_collection"(uuid, text, tex
 grant execute on function "better_supabase"."create_collection"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
+drop function if exists "better_supabase"."rename_collection"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."rename_collection"(collection uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -862,6 +864,7 @@ using ("user_id" = (select auth.uid())
 
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
+drop function if exists "better_supabase"."create_collection"(uuid, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb
 language plpgsql
@@ -945,6 +948,7 @@ revoke execute on function "better_supabase"."create_collection"(uuid, text, tex
 grant execute on function "better_supabase"."create_collection"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
+drop function if exists "better_supabase"."rename_collection"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."rename_collection"(collection uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -1603,6 +1607,7 @@ using ("user_id" = (select auth.uid())
 
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
+drop function if exists "app_private"."create_collection"(uuid, text, text, text, text, text, jsonb);
 create or replace function "app_private"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb
 language plpgsql
@@ -1686,6 +1691,7 @@ revoke execute on function "app_private"."create_collection"(uuid, text, text, t
 grant execute on function "app_private"."create_collection"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
+drop function if exists "app_private"."rename_collection"(uuid, text, text, jsonb);
 create or replace function "app_private"."rename_collection"(collection uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -2342,6 +2348,7 @@ using ("user_id" = (select auth.uid())
 
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
+drop function if exists "better_supabase"."create_collection"(uuid, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb
 language plpgsql
@@ -2425,6 +2432,7 @@ revoke execute on function "better_supabase"."create_collection"(uuid, text, tex
 grant execute on function "better_supabase"."create_collection"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
+drop function if exists "better_supabase"."rename_collection"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."rename_collection"(collection uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -2934,6 +2942,9 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 -- blocks.collections.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."create_collection"(uuid, text, text, text, text, text, jsonb);
+drop function if exists "api"."rename_collection"(uuid, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

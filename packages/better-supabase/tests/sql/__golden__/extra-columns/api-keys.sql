@@ -88,7 +88,7 @@ create or replace function "better_supabase"."create_api_key"(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs', extra_fields jsonb default null
+  prefix text default 'bs', fields jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -128,8 +128,8 @@ begin
   insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
-  update "better_supabase"."api_keys" x set "app_note" = case when create_api_key.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."api_keys", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_api_key.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."api_keys" x set "app_note" = case when create_api_key.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."api_keys", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_api_key.fields) e where e.key in ('app_note'))) r
   where x."id" = created."id"
   returning x.* into created;
   null;

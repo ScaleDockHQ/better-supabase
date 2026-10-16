@@ -173,6 +173,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
+drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -1237,6 +1238,7 @@ for each row execute function better_supabase.bs_pipeline_status_application();
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
+drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -2049,6 +2051,7 @@ grant execute on function "app_private"."default_pipeline"(uuid, text, text) to 
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
+drop function if exists "app_private"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
 create or replace function "app_private"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -2671,6 +2674,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
+drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -3096,6 +3100,8 @@ grant execute on function "better_supabase"."list_pipelines"(uuid, text) to auth
 -- blocks.pipelines.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

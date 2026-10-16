@@ -271,7 +271,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, extra_fields jsonb default null)
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -316,8 +316,8 @@ begin
   exception when unique_violation then
     raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
   end;
-  update "better_supabase"."products" x set "app_note" = case when save_product.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."products", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_product.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."products" x set "app_note" = case when save_product.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."products", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_product.fields) e where e.key in ('app_note'))) r
   where x."id" = v_id;
   if v_created then
     null;

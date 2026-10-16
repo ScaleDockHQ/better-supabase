@@ -52,6 +52,8 @@ export type {
   RateLimitDecision,
   RateLimitOptions,
   RateLimitRule,
+  RateLimitSettings,
+  RateLimitSource,
 } from "./rate-limit.ts";
 export type {
   ClaimOptions,

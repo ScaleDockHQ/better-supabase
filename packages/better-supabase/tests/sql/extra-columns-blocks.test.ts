@@ -88,6 +88,20 @@ const CASES = [
     write: "invite_member.fields",
     read: "my_invitations",
   },
+  {
+    module: "comments",
+    needs: [],
+    table: "comments",
+    write: "edit_comment.fields",
+    read: "list_comments",
+  },
+  {
+    module: "connectors",
+    needs: [],
+    table: "connector_servers",
+    write: "save_connector_server.fields",
+    read: "list_connector_servers",
+  },
 ] as const;
 
 const sqlOf = (

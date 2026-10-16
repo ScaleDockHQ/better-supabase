@@ -67,6 +67,7 @@ create policy "access_requests_read" on "better_supabase"."access_requests" for 
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
+drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -431,6 +432,7 @@ create policy "access_requests_read" on "better_supabase"."access_requests" for 
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
+drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -829,6 +831,7 @@ create policy "access_requests_read" on "app_private"."access_requests" for sele
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
+drop function if exists "app_private"."request_access"(uuid, text, text, interval, jsonb);
 create or replace function "app_private"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -1193,6 +1196,7 @@ create policy "access_requests_read" on "better_supabase"."access_requests" for 
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
+drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -1466,6 +1470,8 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- blocks.access-requests.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."request_access"(uuid, text, text, interval, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

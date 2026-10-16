@@ -203,7 +203,7 @@ create or replace function "better_supabase"."reserve_ai_file"(
   media_type text,
   byte_size bigint,
   chat_id uuid default null,
-  project_id uuid default null, extra_fields jsonb default null
+  project_id uuid default null, fields jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -225,8 +225,8 @@ begin
   insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "project_id", "bucket", "filename", "media_type", "byte_size")
   values (reserve_ai_file.tenant, auth.uid(), reserve_ai_file.chat_id, reserve_ai_file.project_id, 'ai-files', reserve_ai_file.filename, lower(reserve_ai_file.media_type), reserve_ai_file.byte_size)
   returning * into v_row;
-  update "better_supabase"."ai_files" x set "app_note" = case when reserve_ai_file.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."ai_files", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(reserve_ai_file.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."ai_files" x set "app_note" = case when reserve_ai_file.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."ai_files", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(reserve_ai_file.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
@@ -350,7 +350,7 @@ create or replace function "better_supabase"."store_ai_file"(
   byte_size bigint,
   chat_id uuid default null,
   source text default 'generated',
-  sha256 text default null, extra_fields jsonb default null
+  sha256 text default null, fields jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -362,8 +362,8 @@ begin
   insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "bucket", "filename", "media_type", "byte_size", "status", "source", "sha256", "uploaded_at")
   values (store_ai_file.tenant, store_ai_file.owner, store_ai_file.chat_id, 'ai-files', store_ai_file.filename, lower(store_ai_file.media_type), store_ai_file.byte_size, 'ready', coalesce(store_ai_file.source, 'generated'), lower(store_ai_file.sha256), now())
   returning * into v_row;
-  update "better_supabase"."ai_files" x set "app_note" = case when store_ai_file.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."ai_files", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(store_ai_file.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."ai_files" x set "app_note" = case when store_ai_file.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."ai_files", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(store_ai_file.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));

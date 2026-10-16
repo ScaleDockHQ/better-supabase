@@ -8,7 +8,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   type Names,
@@ -507,7 +512,15 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "currency_minor_units", args: ["text"], returns: "integer" },
     {
       name: "save_product",
-      args: ["{id}", "uuid", "text", "text", "text", "text"],
+      args: [
+        "{id}",
+        "uuid",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...extraFieldsArg(productExtras(ctx)).contract,
+      ],
       returns: "jsonb",
     },
     { name: "set_product_status", args: ["uuid", "text"], returns: "jsonb" },

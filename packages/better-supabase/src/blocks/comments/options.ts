@@ -8,6 +8,7 @@ export type CommentsSqlOptions = {
   readonly notify?: boolean;
   readonly follow?: boolean;
   readonly mentionGroups?: unknown;
+  readonly extraColumns?: unknown;
 };
 
 export const commentsSqlOptions: BlockOptionsSchema<CommentsSqlOptions> =
@@ -18,4 +19,5 @@ export const commentsSqlOptions: BlockOptionsSchema<CommentsSqlOptions> =
     notify: option.boolean({ default: true }),
     follow: option.boolean({ default: true }),
     mentionGroups: option.unknown(),
+    extraColumns: option.unknown(),
   });

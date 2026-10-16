@@ -206,6 +206,7 @@ create policy "bs_attachments_delete" on storage.objects for delete to authentic
 
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text);
+drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."create_attachment"(
   tenant uuid,
   name text,

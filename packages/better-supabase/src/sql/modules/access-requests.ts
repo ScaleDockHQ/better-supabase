@@ -10,10 +10,8 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  dropWithoutExtraFields,
+  extraFieldsArg,
   extraFieldsJson,
-  extraFieldsParam,
-  extraFieldsType,
   fail,
   lockTable,
   pageSize,
@@ -258,7 +256,8 @@ create policy "access_requests_read" on ${requests} for select to authenticated
 ${tables}
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-${dropWithoutExtraFields(extras, `${fn("request_access")}(${ctx.idType}, text, text, interval)`)}create or replace function ${fn("request_access")}(tenant ${ctx.idType}, role text, reason text default null, duration interval default null${extraFieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("request_access"), `${ctx.idType}, text, text, interval`)}
+create or replace function ${fn("request_access")}(tenant ${ctx.idType}, role text, reason text default null, duration interval default null${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -308,7 +307,7 @@ begin
   ])}
   insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("role")}, ${c("reason")}, ${c("duration")})
   values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
-  returning * into v_row;${writeExtraColumns(requests, extras, "request_access.extra_fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(requests, extras, "request_access.fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   v_approval := ${approvals.fn("open_approval")}(
     request_access.tenant, ${sqlString(ACCESS_REQUEST_SUBJECT)}, v_row.${c("id")}::text, 'grant',
     ${sqlString(policy)}::jsonb, request_access.reason,
@@ -322,7 +321,7 @@ begin
   return ${json("v_row", "'pending'")};
 end;
 $$;
-${userGrant(`${fn("request_access")}(${ctx.idType}, text, text, interval${extraFieldsType(extras)})`)}
+${userGrant(`${fn("request_access")}(${ctx.idType}, text, text, interval${extraFieldsArg(extras).type})`)}
 
 -- Grants the role once the approval is final. Approvals calls it; it
 -- isn't granted to anyone.
@@ -457,11 +456,14 @@ ${userGrant(`${fn("list_access_requests")}(${ctx.idType}, text, boolean, integer
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("requests", REQUEST_KEYS),
+  ).contract;
   return [
     {
       name: "request_access",
-      args: ["{id}", "text", "text", "interval"],
+      args: ["{id}", "text", "text", "interval", ...extra],
       returns: "jsonb",
     },
     { name: "end_access", args: ["uuid"], returns: "jsonb" },

@@ -2893,7 +2893,8 @@
                 "type": "boolean",
                 "default": true
               },
-              "mentionGroups": {}
+              "mentionGroups": {},
+              "extraColumns": {}
             }
           }
         }
@@ -2917,7 +2918,8 @@
               "sessionTtl": {
                 "type": "string",
                 "default": "1 hour"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }

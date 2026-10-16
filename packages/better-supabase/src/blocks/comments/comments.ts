@@ -3,6 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type {
@@ -12,9 +13,15 @@ import type {
   TableMeta,
 } from "../../schema/types.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { type AsyncResult, err, ok } from "../../core/result.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
@@ -34,9 +41,18 @@ import {
   pageOf,
 } from "../shared.ts";
 
-export interface CommentsOptions extends BlockTemporalOptions {
+export interface CommentsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the comment's extra columns
+   * (`blocks.comments.options.extraColumns`), keyed by database name. It
+   * types and parses them on reads, and validates them on `create` and
+   * `edit`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Comments>>;
+  readonly hooks?: NoInfer<BlockHooks<Comments<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly transport: BlockTransport;
@@ -54,7 +70,8 @@ export interface CommentsOptions extends BlockTemporalOptions {
   }) => readonly string[];
 }
 
-export interface Comment {
+/** A comment. `F` types the extra columns the `fields` schema describes. */
+export interface Comment<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly subjectType: string;
@@ -70,9 +87,11 @@ export interface Comment {
   readonly createdAt: Temporal.Instant;
   readonly editedAt: Temporal.Instant | undefined;
   readonly deletedAt: Temporal.Instant | undefined;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface NewComment {
+export interface NewComment<F extends object = Record<never, never>> {
   readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
@@ -83,14 +102,18 @@ export interface NewComment {
   readonly mentions?: readonly string[];
   /** A reply: the parent must be on the same subject. */
   readonly parentId?: string;
+  /** The extra columns to set, keyed by database name. */
+  readonly fields?: Partial<F>;
 }
 
-export interface CommentEdit {
+export interface CommentEdit<F extends object = Record<never, never>> {
   readonly body: string;
   /** A new document; `null` removes it, and leaving it out keeps the current one. */
   readonly document?: unknown;
   /** Default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
   readonly mentions?: readonly string[];
+  /** The extra columns to set, keyed by database name; others keep their value. */
+  readonly fields?: Partial<F>;
 }
 
 /**
@@ -130,10 +153,11 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
   readonly offset?: number;
 }
 
-export interface Comments {
-  create(comment: NewComment): AsyncResult<Comment>;
+/** `F` is the extra fields `options.fields` describes. */
+export interface Comments<F extends object = Record<never, never>> {
+  create(comment: NewComment<F>): AsyncResult<Comment<F>>;
   /** Only the author edits; `not_found` when the caller can't see it. */
-  edit(id: string, edit: CommentEdit): AsyncResult<Comment>;
+  edit(id: string, edit: CommentEdit<F>): AsyncResult<Comment<F>>;
   /** Soft-deletes (the author, or a member with `comments.moderate`). */
   remove(id: string): AsyncResult<boolean>;
   /** A subject's thread, oldest first, deleted comments as placeholders. */
@@ -142,7 +166,7 @@ export interface Comments {
     subjectType: string,
     subjectId: string,
     options?: ListCommentsOptions,
-  ): AsyncResult<readonly Comment[]>;
+  ): AsyncResult<readonly Comment<F>[]>;
   /**
    * How many comments each subject has that the caller can read, deleted
    * ones left out, such as for a counter on each row of a list. Subjects
@@ -209,6 +233,7 @@ function commentOf(value: unknown): Comment {
     createdAt: toInstant(textOf(row["created_at"])),
     editedAt: optionalInstant(row["edited_at"]),
     deletedAt: optionalInstant(row["deleted_at"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -229,49 +254,57 @@ function activityOf(value: unknown): ActivityEntry {
 }
 
 /** Comments over the `comments` module's functions, as the caller. */
-export function createComments(options: CommentsOptions): Comments {
+export function createComments<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: CommentsOptions<S>): Comments<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "comment fields");
   const mentionsOf = (body: string, rich: unknown): readonly string[] =>
     options.mentionsOf
       ? options.mentionsOf({ body, document: rich })
       : mentionsIn(body);
-  const client: Comments = {
+  const client: Comments<F> = {
     create: (comment) =>
-      call(
-        "create_comment",
-        {
-          tenant: comment.organizationId,
-          subject_type: comment.subjectType,
-          subject_id: comment.subjectId,
-          body: comment.body,
-          mentions:
-            comment.mentions ?? mentionsOf(comment.body, comment.document),
-          parent: comment.parentId,
-          document: comment.document,
-        },
-        commentOf,
+      fields.args(comment.fields).andThen((checked) =>
+        call(
+          "create_comment",
+          {
+            tenant: comment.organizationId,
+            subject_type: comment.subjectType,
+            subject_id: comment.subjectId,
+            body: comment.body,
+            mentions:
+              comment.mentions ?? mentionsOf(comment.body, comment.document),
+            parent: comment.parentId,
+            document: comment.document,
+            fields: checked,
+          },
+          commentOf,
+        ).andThen(fields.row),
       ),
     edit: (id, edit) =>
-      call(
-        "edit_comment",
-        {
-          id,
-          body: edit.body,
-          mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
-          document: edit.document ?? undefined,
-          ...(edit.document === null ? { clear_document: true } : {}),
-        },
-        (value) => value,
-      ).andThen((value) =>
-        Promise.resolve(
+      fields.args(edit.fields).andThen((checked) =>
+        call(
+          "edit_comment",
+          {
+            id,
+            body: edit.body,
+            mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
+            document: edit.document ?? undefined,
+            ...(edit.document === null ? { clear_document: true } : {}),
+            fields: checked,
+          },
+          (value) => value,
+        ).andThen((value) =>
           value === null || value === undefined
-            ? err(
+            ? AsyncResult.err(
                 dbError("not_found", "No comment you can edit has this id", {
                   hint: "COMMENT_NOT_FOUND",
                 }),
               )
-            : ok(commentOf(value)),
+            : fields.row(commentOf(value)),
         ),
       ),
     remove: (id) => call("delete_comment", { id }, (value) => value === true),
@@ -287,7 +320,7 @@ export function createComments(options: CommentsOptions): Comments {
           skip: list.offset,
         },
         (value) => recordsOf(value, "list_comments").map(commentOf),
-      ),
+      ).andThen(fields.rows),
     counts: (organizationId, subjectType, subjectIds) =>
       call(
         "comment_counts",

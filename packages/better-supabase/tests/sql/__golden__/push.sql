@@ -69,6 +69,7 @@ create policy "push_devices_own_delete" on "better_supabase"."push_devices" for 
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
@@ -312,6 +313,7 @@ create policy "push_devices_own_delete" on "better_supabase"."push_devices" for 
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
@@ -571,6 +573,7 @@ create policy "push_devices_own_delete" on "app_private"."push_devices" for dele
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+drop function if exists "app_private"."register_push_device"(text, text, text, text, text, jsonb);
 create or replace function "app_private"."register_push_device"(
   token text,
   platform text,
@@ -814,6 +817,7 @@ create policy "push_devices_own_delete" on "better_supabase"."push_devices" for 
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
@@ -964,6 +968,8 @@ grant execute on function "better_supabase"."prune_push_tokens"(text[]) to servi
 -- blocks.push.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."register_push_device"(text, text, text, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

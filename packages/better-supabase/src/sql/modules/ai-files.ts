@@ -8,18 +8,16 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  dropWithoutExtraFields,
+  extraFieldsArg,
   extraFieldsJson,
-  extraFieldsParam,
-  extraFieldsType,
-  writeExtraColumns,
+  lockTable,
   raise,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  revokeTable,
-  lockTable,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
@@ -227,7 +225,7 @@ function build(ctx: ModuleContext): string {
     writeExtraColumns(
       files,
       extras,
-      `${name}.extra_fields`,
+      `${name}.fields`,
       `x.${f.id} = v_row.${f.id}`,
       "v_row",
     );
@@ -410,13 +408,14 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-${dropWithoutExtraFields(extras, `${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid)`)}create or replace function ${fn("reserve_ai_file")}(
+${extraFieldsArg(extras).drop(fn("reserve_ai_file"), `${id}, text, text, bigint, uuid, uuid`)}
+create or replace function ${fn("reserve_ai_file")}(
   tenant ${id},
   filename text,
   media_type text,
   byte_size bigint,
   chat_id uuid default null,
-  project_id uuid default null${extraFieldsParam(extras)}
+  project_id uuid default null${extraFieldsArg(extras).param}
 )
 returns jsonb
 language plpgsql
@@ -438,7 +437,7 @@ begin
   return ${fileJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid${extraFieldsType(extras)})`)}
+${userGrant(`${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid${extraFieldsArg(extras).type})`)}
 
 -- Marks an upload done once its object exists, taking the stored size.
 create or replace function ${fn("confirm_ai_file")}(file_id uuid, sha256 text default null)
@@ -535,7 +534,8 @@ ${userGrant(`${fn("delete_ai_file")}(uuid)`)}
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-${dropWithoutExtraFields(extras, `${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text)`)}create or replace function ${fn("store_ai_file")}(
+${extraFieldsArg(extras).drop(fn("store_ai_file"), `${id}, uuid, text, text, bigint, uuid, text, text`)}
+create or replace function ${fn("store_ai_file")}(
   tenant ${id},
   owner uuid,
   filename text,
@@ -543,7 +543,7 @@ ${dropWithoutExtraFields(extras, `${fn("store_ai_file")}(${id}, uuid, text, text
   byte_size bigint,
   chat_id uuid default null,
   source text default 'generated',
-  sha256 text default null${extraFieldsParam(extras)}
+  sha256 text default null${extraFieldsArg(extras).param}
 )
 returns jsonb
 language plpgsql
@@ -558,7 +558,7 @@ begin
   return ${fileJson("v_row")};
 end;
 $$;
-${serviceGrant(`${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text${extraFieldsType(extras)})`)}
+${serviceGrant(`${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text${extraFieldsArg(extras).type})`)}
 
 create or replace function ${fn("set_ai_provider_file")}(file_id uuid, provider text, reference text, expires_at timestamptz default null)
 returns boolean
@@ -863,11 +863,12 @@ values (${sqlString(bucket)}, ${sqlString(bucket)}, false, ${String(maxSize)}, $
 on conflict (id) do nothing;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("files", FILE_KEYS)).contract;
   return [
     {
       name: "reserve_ai_file",
-      args: ["{id}", "text", "text", "bigint", "uuid", "uuid"],
+      args: ["{id}", "text", "text", "bigint", "uuid", "uuid", ...extra],
       returns: "jsonb",
     },
     { name: "confirm_ai_file", args: ["uuid", "text"], returns: "jsonb" },
@@ -877,7 +878,17 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "delete_ai_file", args: ["uuid"], returns: "jsonb" },
     {
       name: "store_ai_file",
-      args: ["{id}", "uuid", "text", "text", "bigint", "uuid", "text", "text"],
+      args: [
+        "{id}",
+        "uuid",
+        "text",
+        "text",
+        "bigint",
+        "uuid",
+        "text",
+        "text",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     {

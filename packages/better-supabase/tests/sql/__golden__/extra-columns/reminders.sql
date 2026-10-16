@@ -80,8 +80,8 @@ revoke all on "better_supabase"."reminder_deliveries" from anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer,
-  fields jsonb default null)
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

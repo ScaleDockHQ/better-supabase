@@ -215,7 +215,7 @@ create or replace function "better_supabase"."create_attachment"(
   size bigint,
   subject_type text default null,
   subject_id text default null,
-  metadata jsonb default null, extra_fields jsonb default null
+  metadata jsonb default null, fields jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -228,7 +228,7 @@ declare
 begin
   v_row := jsonb_populate_record(null::"better_supabase"."attachments", (
     select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-    from jsonb_each(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as e (field_key, field_value)
+    from jsonb_each(coalesce(create_attachment.fields, '{}'::jsonb)) as e (field_key, field_value)
     where e.field_key = any (array['app_note'])
   ));
   v_row."organization_id" := create_attachment.tenant;
@@ -242,7 +242,7 @@ begin
   select string_agg(column_name, ', ')
   into v_columns
   from unnest(array['"organization_id"', '"bucket"', '"name"', '"mime_type"', '"size"', '"subject_type"', '"subject_id"', '"metadata"']
-    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as k
+    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.fields, '{}'::jsonb)) as k
       where k = any (array['app_note']))) as column_name;
   execute format('insert into "better_supabase"."attachments" as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
   into v_row

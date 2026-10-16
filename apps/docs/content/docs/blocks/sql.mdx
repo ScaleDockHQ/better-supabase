@@ -1062,7 +1062,7 @@ answers a refused hit with a `problem+json` 429 and `Retry-After`:
 ```ts
 import { createRateLimit, rateLimited } from "better-supabase/blocks/jobs";
 
-const limits = createRateLimit(postgres.admin);
+const limits = createRateLimit({ sql: postgres.admin });
 
 export async function POST(
   request: Request,
@@ -1077,12 +1077,13 @@ export async function POST(
 
 Apps that reach the database over the Data API instead of a direct
 connection pass a service-role `BlockTransport`, like the other blocks:
-`createRateLimit(rpcTransport(adminClient))`. It calls
+`createRateLimit({ transport: rpcTransport(adminClient) })`. It calls
 `check_rate_limit(scope, key, max_requests, period)`, which returns the same
 decision as JSON; with `blocks.rate-limit.api` set, pass the API schema
 as `rpcTransport(adminClient, { schema: "api" })`. The `hooks` option runs
 around `check` and `purge`, and the `purgeJob` handler calls `purge` through
-them.
+them. `createBlocks` builds it from its shared `transport`, like the other
+blocks.
 
 The limit is the scope's rule from `set_rate_limit`, or one given per call
 (`check("chat", threadId, { max: 20, period: "1 minute" })`). A scope with

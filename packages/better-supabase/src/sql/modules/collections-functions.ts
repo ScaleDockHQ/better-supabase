@@ -3,10 +3,8 @@ import type { ModuleScope } from "../scope.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
-  dropWithoutExtraFields,
+  extraFieldsArg,
   extraFieldsJson,
-  extraFieldsParam,
-  extraFieldsType,
   fail,
   pageSize,
   userGrant,
@@ -116,7 +114,8 @@ export function collectionFunctions(
   return `
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
-${dropWithoutExtraFields(extras, `${fn("create_collection")}(${createArgs})`)}create or replace function ${fn("create_collection")}(tenant ${ctx.idType}, subject_type text, name text, scope text, team text, description text${extraFieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("create_collection"), createArgs)}
+create or replace function ${fn("create_collection")}(tenant ${ctx.idType}, subject_type text, name text, scope text, team text, description text${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -164,7 +163,7 @@ begin
     case when v_scope = 'user' then auth.uid() end,
     case when v_scope = 'team' then create_collection.team end,
     v_name, nullif(trim(create_collection.description), ''), auth.uid())
-  returning ${co("id")} into v_id;${setExtras("create_collection.extra_fields", "v_id")}
+  returning ${co("id")} into v_id;${setExtras("create_collection.fields", "v_id")}
   ${ctx.record({
     type: "collection.created",
     payload: `jsonb_build_object('organizationId', create_collection.tenant, 'collectionId', v_id, 'subjectType', create_collection.subject_type, 'name', v_name, 'scope', v_scope)`,
@@ -176,10 +175,11 @@ begin
   return (select ${json("x")} from ${t("collections")} x where x.${co("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("create_collection")}(${createArgs}${extraFieldsType(extras)})`)}
+${userGrant(`${fn("create_collection")}(${createArgs}${extraFieldsArg(extras).type})`)}
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
-${dropWithoutExtraFields(extras, `${fn("rename_collection")}(uuid, text, text)`)}create or replace function ${fn("rename_collection")}(collection uuid, name text, description text${extraFieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("rename_collection"), "uuid, text, text")}
+create or replace function ${fn("rename_collection")}(collection uuid, name text, description text${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -200,11 +200,11 @@ begin
     ${co("description")} = case when rename_collection.description is null then x.${co("description")}
       else nullif(trim(rename_collection.description), '') end,
     ${co("updatedAt")} = now()
-  where x.${co("id")} = v_row.${co("id")};${setExtras("rename_collection.extra_fields", `v_row.${co("id")}`)}
+  where x.${co("id")} = v_row.${co("id")};${setExtras("rename_collection.fields", `v_row.${co("id")}`)}
   return (select ${json("x")} from ${t("collections")} x where x.${co("id")} = v_row.${co("id")});
 end;
 $$;
-${userGrant(`${fn("rename_collection")}(uuid, text, text${extraFieldsType(extras)})`)}
+${userGrant(`${fn("rename_collection")}(uuid, text, text${extraFieldsArg(extras).type})`)}
 
 -- Archives a collection (archived true) or restores it. An archived
 -- collection keeps its entries but takes no changes to them.

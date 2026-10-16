@@ -232,7 +232,7 @@ $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
 
 drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb, extra_fields jsonb default null)
+create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -253,8 +253,8 @@ begin
     raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
   v_result := "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
-  update "better_supabase"."approval_requests" x set "app_note" = case when request_approval.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."approval_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_approval.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."approval_requests" x set "app_note" = case when request_approval.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."approval_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_approval.fields) e where e.key in ('app_note'))) r
   where x."id" = (v_result ->> 'id')::uuid
   returning x.* into v_req;
   if v_req."id" is not null then

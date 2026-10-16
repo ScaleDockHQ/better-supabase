@@ -91,39 +91,10 @@ export const withExtraFields = (
 
 /**
  * The `fields jsonb` parameter of a function that writes extra columns,
- * after the others; empty without extra columns. Add `fieldsArg` to the
- * signature in its grants and its contract entry.
+ * after its other parameters. Every module that takes `extraColumns` on a
+ * write uses it: `param` in the parameter list, `type` in the grants,
+ * `contract` in the contract entry, and `drop` before the function.
  */
-export const fieldsParam = (columns: readonly ExtraColumn[]): string =>
-  columns.length === 0 ? "" : ",\n  fields jsonb default null";
-
-/** `, jsonb` for a signature with `fieldsParam`; empty without extra columns. */
-export const fieldsArg = (columns: readonly ExtraColumn[]): string =>
-  columns.length === 0 ? "" : ", jsonb";
-
-/** The `jsonb` contract argument for `fieldsParam`; none without extra columns. */
-export const fieldsArgs = (columns: readonly ExtraColumn[]): string[] =>
-  columns.length === 0 ? [] : ["jsonb"];
-
-/** The `extra_fields` parameter a write takes when the table has extra columns. */
-export const extraFieldsParam = (columns: readonly ExtraColumn[]): string =>
-  columns.length === 0 ? "" : ", extra_fields jsonb default null";
-
-/**
- * `drop function if exists` for a write's signature without `extra_fields`,
- * so adding extra columns replaces the function instead of overloading it.
- * Empty without extra columns.
- */
-export const dropWithoutExtraFields = (
-  columns: readonly ExtraColumn[],
-  signature: string,
-): string =>
-  columns.length === 0 ? "" : `drop function if exists ${signature};\n`;
-
-/** The `extra_fields` type in a signature, as `extraFieldsParam` adds it. */
-export const extraFieldsType = (columns: readonly ExtraColumn[]): string =>
-  columns.length === 0 ? "" : ", jsonb";
-/** The `fields jsonb` parameter of a function that writes extra columns. */
 export interface ExtraFieldsArg {
   /** `, fields jsonb default null`, or nothing without extra columns. */
   readonly param: string;

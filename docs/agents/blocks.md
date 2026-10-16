@@ -93,6 +93,10 @@ found;` returns the record's `found`. Check `found` before the record.
 - A managed table that accepts app columns takes `options.extraColumns`
   through `ctx.extraColumns(table, reserved)`, which refuses names the
   module uses, and writes them with `addExtraColumns` from `shared.ts`.
+  A write that takes them as a separate argument uses `extraFieldsArg`
+  from `shared.ts` for it: the parameter is always `fields jsonb default
+null`, and `drop` goes before the function so turning `extraColumns` on
+  or off never leaves two overloads (`tests/sql/extra-fields-overloads.test.ts`).
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into
   `better_supabase`, and the pg-delta round trip diffs them.

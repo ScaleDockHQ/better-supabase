@@ -74,6 +74,49 @@ export const connectorsFor = (
 credential, and revokes the grant it replaces. `grants.expiring(before)`
 lists grants to renew.
 
+## Your own columns
+
+Add columns to `connector_servers` with
+`blocks.connectors.options.extraColumns` (column name to SQL type), then
+pass a Standard Schema for them as `fields`. `servers.create` and
+`servers.update` validate the `fields` you pass and write them in the same
+`save_connector_server` call as the server's own columns; a column you
+leave out keeps its value. `servers.list`, `servers.get`, `create` and
+`update` return the columns parsed under `fields`, keyed by column name.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  connectors: {
+    options: { extraColumns: { region: "text not null default 'eu'" } },
+  },
+},
+```
+
+```ts title="lib/connectors.ts"
+import {
+  createConnectors,
+  rpcTransport,
+} from "better-supabase/blocks/connectors";
+import { z } from "zod";
+
+const connectors = createConnectors({
+  transport: rpcTransport(supabase),
+  fields: z.object({ region: z.enum(["eu", "us"]) }),
+});
+
+const server = await connectors.servers
+  .create(organizationId, {
+    name: "GitHub",
+    url: "https://mcp.example.com/mcp",
+    fields: { region: "us" },
+  })
+  .orThrow();
+server.fields.region; // "eu" | "us"
+```
+
+The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
 ## Tool list changes
 
 A server can change its tools at any time. `fingerprints.check` records the

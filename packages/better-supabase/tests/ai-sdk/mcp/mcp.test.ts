@@ -59,6 +59,7 @@ const server = (over: Partial<ConnectorServer> = {}): ConnectorServer => ({
   grant: undefined,
   createdAt: AT,
   updatedAt: AT,
+  fields: {},
   ...over,
 });
 

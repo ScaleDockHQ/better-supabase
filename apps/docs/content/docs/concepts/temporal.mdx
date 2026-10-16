@@ -73,7 +73,7 @@ const audit = createAudit({ transport, temporal: Temporal });
 ```
 
 That covers the `create*` functions, `createJobs({ sql, queues, temporal })`,
-`createRateLimit(sql, { temporal })`, `exportAuditLog`, `purgeAuditLog`,
+`createRateLimit({ sql, temporal })`, `exportAuditLog`, `purgeAuditLog`,
 `scimHandler`, and the options of `createSettings` and `createOnboarding`.
 Like `defineSupabase`, the option sets the process-wide
 namespace.

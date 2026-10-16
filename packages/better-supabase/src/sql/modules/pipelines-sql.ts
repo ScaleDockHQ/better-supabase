@@ -5,9 +5,8 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   columnsObject,
+  extraFieldsArg,
   fail,
-  fieldsArg,
-  fieldsParam,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -402,7 +401,8 @@ ${userGrant(`${fn("set_pipeline_transitions")}(uuid, jsonb)`)}
   return `
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-create or replace function ${fn("save_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean${fieldsParam(names.extras)})
+${extraFieldsArg(names.extras).drop(fn("save_pipeline"), `${ctx.idType}, uuid, text, text, text, text, boolean`)}
+create or replace function ${fn("save_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean${extraFieldsArg(names.extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -461,7 +461,7 @@ begin
   return (select to_jsonb(x)${pipelineFields(names, "x")} from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
 end;
 $$;
-${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${fieldsArg(names.extras)})`)}
+${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${extraFieldsArg(names.extras).type})`)}
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function ${fn("archive_pipeline")}(pipeline uuid)

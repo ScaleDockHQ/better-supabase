@@ -9,7 +9,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  fieldsArgs,
+  extraFieldsArg,
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
@@ -283,7 +283,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "text",
         "boolean",
-        ...fieldsArgs(extrasOf(ctx)),
+        ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",
     },

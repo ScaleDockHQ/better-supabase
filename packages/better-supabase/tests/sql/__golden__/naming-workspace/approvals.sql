@@ -230,6 +230,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
 
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql

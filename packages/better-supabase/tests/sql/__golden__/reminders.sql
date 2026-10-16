@@ -79,6 +79,7 @@ revoke all on "better_supabase"."reminder_deliveries" from anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
 returns jsonb
 language plpgsql
@@ -275,6 +276,7 @@ revoke all on "better_supabase"."reminder_deliveries" from anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
 returns jsonb
 language plpgsql
@@ -473,6 +475,7 @@ revoke all on "app_private"."reminder_deliveries" from anon, authenticated;
 grant select on "app_private"."reminder_deliveries" to authenticated;
 grant all on "app_private"."reminder_deliveries" to service_role;
 
+drop function if exists "app_private"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "app_private"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
 returns jsonb
 language plpgsql
@@ -669,6 +672,7 @@ revoke all on "better_supabase"."reminder_deliveries" from anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
 returns jsonb
 language plpgsql
@@ -762,6 +766,8 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_reminder"(uuid, text, text, integer, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -885,6 +891,7 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
 returns jsonb
 language plpgsql

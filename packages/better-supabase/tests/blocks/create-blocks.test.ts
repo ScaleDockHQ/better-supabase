@@ -14,6 +14,7 @@ import {
   event,
   rpcTransport,
 } from "../../src/blocks/index.ts";
+import { rateLimitBlock } from "../../src/blocks/jobs/index.ts";
 import { metricsBlock } from "../../src/blocks/metrics/index.ts";
 import {
   organizationsBlock,
@@ -170,6 +171,39 @@ describe("createBlocks", () => {
     expectTypeOf(blocks.organizations).toEqualTypeOf<
       ReturnType<NonNullable<(typeof organizationsBlock)["create"]>>
     >();
+    blocks.close();
+  });
+
+  it("builds rate-limit over the shared transport", async () => {
+    const calls: [string, string, Record<string, unknown>][] = [];
+    const blocks = createBlocks(
+      {
+        transport: {
+          async call(schema, fn, args) {
+            calls.push([schema, fn, { ...args }]);
+            return { allowed: true, remaining: 4, retry_after: 0 };
+          },
+        },
+      },
+      { "rate-limit": rateLimitBlock },
+    );
+    expect(await blocks["rate-limit"].check("api", "key-1").orThrow()).toEqual({
+      allowed: true,
+      remaining: 4,
+      retryAfter: 0,
+    });
+    expect(calls).toEqual([
+      [
+        "better_supabase",
+        "check_rate_limit",
+        {
+          scope: "api",
+          key: "key-1",
+          max_requests: undefined,
+          period: undefined,
+        },
+      ],
+    ]);
     blocks.close();
   });
 

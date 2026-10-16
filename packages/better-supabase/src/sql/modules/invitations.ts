@@ -5,17 +5,15 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  fieldsArg,
-  fieldsArgs,
-  fieldsParam,
-  writeExtraColumns,
+  extraFieldsArg,
   memberAddedRecord,
   organizationMissing,
   renameSql,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   updatedAt,
-  revokeTable,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   accessModel,
@@ -349,12 +347,13 @@ function invite(ctx: ModuleContext): string {
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+${extraFieldsArg(t.extras).drop(ctx.fn("invite_member"), `${id}, text, text, interval, jsonb`)}
 create or replace function ${ctx.fn("invite_member")}(
   tenant ${id},
   invitee_email text,
   invitee_role text,
   valid_for interval default ${validFor},
-  prefill jsonb default '{}'${fieldsParam(t.extras)}
+  prefill jsonb default '{}'${extraFieldsArg(t.extras).param}
 )
 returns jsonb
 language plpgsql
@@ -817,7 +816,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
 ${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
-${grant("invite_member", `${id}, text, text, interval, jsonb${fieldsArg(tenantTable(ctx).extras)}`, "authenticated, service_role")}
+${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
 ${grant("update_invitation", "uuid, text, text, jsonb", "authenticated, service_role")}
@@ -853,7 +852,7 @@ export const INVITATIONS: ModuleDefinition = {
         "text",
         "interval",
         "jsonb",
-        ...fieldsArgs(tenantTable(ctx).extras),
+        ...extraFieldsArg(tenantTable(ctx).extras).contract,
       ],
       returns: "jsonb",
     },

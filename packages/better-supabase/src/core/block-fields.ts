@@ -246,17 +246,15 @@ export async function allWithFields<R extends object, T extends object>(
 }
 
 /**
- * Validates the extra fields of a write: `{ extra_fields }` to spread into
+ * Validates the extra fields of a write: `{ fields }` to spread into
  * the call's arguments, or `{}` when the write sets none, so a module
  * without extra columns is called as before.
  */
 export async function extraFieldsArg(
   fields: BlockFields<object>,
   extra: Readonly<Record<string, unknown>>,
-): Promise<
-  Result<{ readonly extra_fields?: Readonly<Record<string, unknown>> }>
-> {
+): Promise<Result<{ readonly fields?: Readonly<Record<string, unknown>> }>> {
   if (Object.keys(extra).length === 0) return ok({});
   const valid = await fields.write(extra);
-  return valid.ok ? ok({ extra_fields: valid.data }) : valid;
+  return valid.ok ? ok({ fields: valid.data }) : valid;
 }

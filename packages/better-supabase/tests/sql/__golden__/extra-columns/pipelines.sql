@@ -174,8 +174,8 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean,
-  fields jsonb default null)
+drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean);
+create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

@@ -41,6 +41,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
+drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -261,6 +262,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
+drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -513,6 +515,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
+drop function if exists "app_private"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 create or replace function "app_private"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -733,6 +736,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
+drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -889,6 +893,8 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "api"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language sql
@@ -983,6 +989,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
+drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql

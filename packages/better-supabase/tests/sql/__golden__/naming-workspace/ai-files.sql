@@ -195,6 +195,7 @@ create policy bs_ai_files_delete on storage.objects for delete to authenticated
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
+drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -335,6 +336,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
+drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,

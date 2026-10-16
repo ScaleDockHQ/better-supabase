@@ -28,6 +28,7 @@ const comment = (id: string, body = id): Comment => ({
   createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
   editedAt: undefined,
   deletedAt: undefined,
+  fields: {},
 });
 
 function setup(
