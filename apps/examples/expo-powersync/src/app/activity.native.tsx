@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -21,6 +22,10 @@ export default function ActivityScreen() {
         />
       </View>
       <OrganizationSwitcher />
+      <View style={{ flexDirection: "row", gap: 16 }}>
+        <Link href="/billing">Plans and usage</Link>
+        <Link href="/settings">Preferences</Link>
+      </View>
       <OnboardingChecklist />
       {showList ? <NotificationList /> : null}
     </View>

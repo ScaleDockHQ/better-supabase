@@ -1416,9 +1416,9 @@ begin
   join "better_supabase"."forms" x on x."id"::text = k."subject_id" and x."tenant_id" = k."tenant_id"
   where k."token_hash" = encode(extensions.digest(convert_to(get_public_form.token, 'utf8'), 'sha256'), 'hex')
     and k."subject_type" = 'form'
-    and k."role" = 'respond'
     and k."revoked_at" is null
-    and (k."expires_at" is null or k."expires_at" > now());
+    and (k."expires_at" is null or k."expires_at" > now())
+    and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
   end if;
@@ -1456,9 +1456,9 @@ begin
   join "better_supabase"."forms" x on x."id"::text = k."subject_id" and x."tenant_id" = k."tenant_id"
   where k."token_hash" = encode(extensions.digest(convert_to(submit_public_form.token, 'utf8'), 'sha256'), 'hex')
     and k."subject_type" = 'form'
-    and k."role" = 'respond'
     and k."revoked_at" is null
-    and (k."expires_at" is null or k."expires_at" > now());
+    and (k."expires_at" is null or k."expires_at" > now())
+    and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
   end if;

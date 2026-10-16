@@ -93,6 +93,27 @@ const NAMES: ModuleNames = {
 const RESERVED = ["fields", "token"] as const;
 
 /**
+ * The conditions a live link meets, for the functions that open a link of
+ * one subject type: `links` is the share-links context, `alias` the table
+ * alias, `token` the presented token (a text expression) and `subjectType`
+ * a SQL expression. Every consumer checks the hash, the type, revocation and
+ * expiry through this, so none of them can drop one.
+ */
+export function liveShareLink(
+  links: ModuleContext,
+  alias: string,
+  token: string,
+  subjectType: string,
+): string {
+  const l = (column: string): string =>
+    `${alias}.${links.col("links", column)}`;
+  return `${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
+    and ${l("subjectType")} = ${subjectType}
+    and ${l("revokedAt")} is null
+    and (${l("expiresAt")} is null or ${l("expiresAt")} > now())`;
+}
+
+/**
  * A link pinned to a version names one of the subject's versions; without
  * the versions module there is nothing to pin.
  */
@@ -122,6 +143,7 @@ function build(ctx: ModuleContext): string {
   const views = ctx.table("views");
   const state = ctx.table("state");
   const create = ctx.permission("create", OPERATIONS["share-links.create"]);
+  const read = ctx.permission("read", OPERATIONS["share-links.read"]);
   const pinned = ctx.has("links", "versionId");
   const extras = ctx.extraColumns("links", RESERVED);
   const extra = extraFieldsArg(extras);
@@ -234,12 +256,10 @@ begin
   if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
     return null;
   end if;
-  select ${ctx.col("links", "subjectId")}, ${ctx.has("links", "leaf") ? ctx.col("links", "leaf") : "null"}
+  select l.${ctx.col("links", "subjectId")}, ${ctx.has("links", "leaf") ? `l.${ctx.col("links", "leaf")}` : "null"}
     into v_subject, v_leaf
-  from ${links}
-  where ${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(get_shared_ai_chat.token, 'utf8')")}
-    and ${ctx.col("links", "revokedAt")} is null
-    and ${ctx.col("links", "subjectType")} = 'ai-chat';
+  from ${links} l
+  where ${liveShareLink(ctx, "l", "get_shared_ai_chat.token", "'ai-chat'")};
   if not found then
     return null;
   end if;
@@ -256,9 +276,10 @@ $$;
   return `${schemaPreamble(ctx)}
 ${tables}
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text);
+drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid);
 -- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
-${extra.drop(ctx.fn("create_share_link"), `${ctx.idType}, text, text, text, uuid`)}
-create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null${extra.param})
+${extra.drop(ctx.fn("create_share_link"), `${ctx.idType}, text, text, text, uuid, timestamptz`)}
+create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -271,9 +292,12 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("create_share_link.tenant", create)}) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    ${fail("SHARE_EXPIRY_INVALID", "expires_at must be in the future", "22023")}
+  end if;
   ${versionCheck(ctx)}
-  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), auth.uid()${pinned ? ", create_share_link.version_id" : ""})
+  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
   returning ${ctx.col("links", "id")} into v_id;${setExtraFields(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",
@@ -285,8 +309,10 @@ begin
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'token', v_token)" : `(select jsonb_build_object('id', v_id, 'token', v_token)${extraFieldsJson("x", extras)} from ${links} x where x.${linkId} = v_id)`};
 end;
 $$;
-${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid${extra.type})`)}
+${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz${extra.type})`)}
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function ${ctx.fn("revoke_share_link")}(id uuid)
 returns boolean
 language plpgsql
@@ -296,13 +322,21 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant ${ctx.idType};
+  v_creator uuid;
 begin
-  update ${links} set ${ctx.col("links", "revokedAt")} = now()
+  select ${ctx.col("links", "tenant")}, ${ctx.col("links", "createdBy")} into v_tenant, v_creator
+  from ${links}
   where ${ctx.col("links", "id")} = revoke_share_link.id and ${ctx.col("links", "revokedAt")} is null
-  returning ${ctx.col("links", "tenant")} into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or ${ctx.scope.can("v_tenant", create)}
+  ) then
     ${fail("SHARE_NOT_FOUND", "share link not found", "P0002")}
   end if;
+  update ${links} set ${ctx.col("links", "revokedAt")} = now()
+  where ${ctx.col("links", "id")} = revoke_share_link.id;
   ${ctx.record({
     type: "share_link.revoked",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', revoke_share_link.id)`,
@@ -322,7 +356,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ${ctx.col("links", "id")}, 'subjectType', ${ctx.col("links", "subjectType")}, 'subjectId', ${ctx.col("links", "subjectId")}, 'role', ${ctx.col("links", "role")}, 'versionId', ${pinned ? ctx.col("links", "versionId") : "null"})
+  select jsonb_build_object('id', ${ctx.col("links", "id")}, 'organizationId', ${ctx.col("links", "tenant")}, 'subjectType', ${ctx.col("links", "subjectType")}, 'subjectId', ${ctx.col("links", "subjectId")}, 'role', ${ctx.col("links", "role")}, 'versionId', ${pinned ? ctx.col("links", "versionId") : "null"}, 'expiresAt', ${ctx.col("links", "expiresAt")})
   from ${links}
   where ${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(resolve_share_link.token, 'utf8')")}
     and ${ctx.col("links", "revokedAt")} is null
@@ -337,7 +371,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
+  if not (auth.role() = 'service_role' or record_view.tenant in (select ${ctx.scope.members()})) then
+    ${fail("SHARE_FORBIDDEN", "not a member of this organization")}
+  end if;
   ${
     ctx.hasTable("views")
       ? `insert into ${views} (${ctx.col("views", "tenant")}, ${ctx.col("views", "subjectType")}, ${ctx.col("views", "subjectId")}, ${ctx.col("views", "viewerKind")}, ${ctx.col("views", "viewer")})
@@ -365,10 +403,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', l.${ctx.col("links", "id")}, 'role', l.${ctx.col("links", "role")}, 'revokedAt', l.${ctx.col("links", "revokedAt")})${extraFieldsJson("l", extras)}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', l.${ctx.col("links", "id")}, 'role', l.${ctx.col("links", "role")}, 'expiresAt', l.${ctx.col("links", "expiresAt")}, 'revokedAt', l.${ctx.col("links", "revokedAt")})${extraFieldsJson("l", extras)}), '[]'::jsonb)
   from ${links} l
   where l.${ctx.col("links", "subjectType")} = list_share_links.subject_type
     and l.${ctx.col("links", "subjectId")} = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or l.${ctx.col("links", "createdBy")} = (select auth.uid())
+      or ${ctx.scope.check(`l.${ctx.col("links", "tenant")}`, read)}
+    )
 $$;
 ${userGrant(`${ctx.fn("list_share_links")}(text, text)`)}
 
@@ -400,7 +443,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_share_link",
-      args: ["{id}", "text", "text", "text", "uuid", ...extra],
+      args: ["{id}", "text", "text", "text", "uuid", "timestamptz", ...extra],
       returns: "jsonb",
     },
     { name: "revoke_share_link", args: ["uuid"], returns: "boolean" },

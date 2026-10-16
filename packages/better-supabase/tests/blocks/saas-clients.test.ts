@@ -173,10 +173,12 @@ describe("saas block clients", () => {
         revoke_share_link: true,
         resolve_share_link: {
           id: "s1",
+          organizationId: "org",
           subjectType: "files",
           subjectId: "f1",
           role: "edit",
           versionId: "v1",
+          expiresAt: "2026-11-01T00:00:00Z",
         },
         record_view: true,
         list_share_links: [],
@@ -187,13 +189,16 @@ describe("saas block clients", () => {
       (await links.create("org", "files", "f1", "edit").orThrow()).token,
     ).toBe("once");
     expect(await links.revoke("s1").orThrow()).toBe(true);
-    expect(await links.resolve("once").orThrow()).toEqual({
+    const resolved = await links.resolve("once").orThrow();
+    expect(resolved).toMatchObject({
       id: "s1",
+      organizationId: "org",
       subjectType: "files",
       subjectId: "f1",
       role: "edit",
       versionId: "v1",
     });
+    expect(resolved?.expiresAt?.toString()).toBe("2026-11-01T00:00:00Z");
     expect(
       (await links.create("org", "files", "f1", { versionId: "v1" }).orThrow())
         .id,
@@ -203,6 +208,29 @@ describe("saas block clients", () => {
     ).toBe(true);
     expect(await links.list("files", "f1").orThrow()).toEqual([]);
     expect(await links.setState("files", "f1", true).orThrow()).toBe(true);
+  });
+
+  it("sends a share link's expiry", async () => {
+    const calls: unknown[] = [];
+    const links = createShareLinks({
+      schema: "app",
+      transport: {
+        call(_schema: string, _fn: string, args?: unknown) {
+          calls.push(args);
+          return Promise.resolve({ id: "s1", token: "once" });
+        },
+      },
+    });
+    await links
+      .create("org", "files", "f1", {
+        expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      })
+      .orThrow();
+    await links.create("org", "files", "f1").orThrow();
+    expect(calls).toEqual([
+      expect.objectContaining({ expires_at: "2026-11-01T00:00:00Z" }),
+      expect.objectContaining({ expires_at: null, role: "view" }),
+    ]);
   });
 
   it("saves a field definition and a value", async () => {

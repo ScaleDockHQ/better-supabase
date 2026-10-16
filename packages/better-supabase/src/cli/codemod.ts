@@ -256,7 +256,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\bcreate_share_link\b/,
         message:
-          "`create_share_link` takes a fifth argument, `version_id`; grants and revokes on the four-argument signature must name `(uuid, text, text, text, uuid)`",
+          "`create_share_link` takes `version_id` and `expires_at` after `role`; grants and revokes on the four-argument signature must name `(uuid, text, text, text, uuid, timestamptz)`",
       },
       {
         pattern: /\bbefore_promotion_activate\b/,

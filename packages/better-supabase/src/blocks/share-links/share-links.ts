@@ -14,8 +14,10 @@ import {
   applyTemporal,
   blockCall,
   type BlockOptions,
+  instantArg,
   isRecord,
   nullableInstant,
+  optionalInstant,
   optionalText,
   recordOf,
   recordsOf,
@@ -50,6 +52,7 @@ export interface CreatedShareLink<F extends object = Record<never, never>> {
 export interface ShareLink<F extends object = Record<never, never>> {
   readonly id: string;
   readonly role: string;
+  readonly expiresAt: Temporal.Instant | null;
   readonly revokedAt: Temporal.Instant | null;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
@@ -67,16 +70,25 @@ export interface CreateShareLinkOptions<
    * which `versions.getShared(token)` reads for anon.
    */
   readonly versionId?: string;
+  /**
+   * When the link stops resolving. It must be in the future
+   * (`SHARE_EXPIRY_INVALID`); without it the link lives until revoked.
+   */
+  readonly expiresAt?: Temporal.Instant;
 }
 
 /** What a live token points at. */
 export interface ResolvedShareLink {
   readonly id: string;
+  /** The organization the link was created in. */
+  readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
   readonly role: string;
   /** The version the link is pinned to, when it has one. */
   readonly versionId?: string;
+  /** When the link stops resolving, when it has an expiry. */
+  readonly expiresAt?: Temporal.Instant;
 }
 
 export interface ShareLinks<F extends object = Record<never, never>> {
@@ -87,9 +99,11 @@ export interface ShareLinks<F extends object = Record<never, never>> {
     subjectId: string,
     options?: string | CreateShareLinkOptions<F>,
   ): AsyncResult<CreatedShareLink<F>>;
+  /** The link's creator, or a member with `share_links.create`. */
   revoke(id: string): AsyncResult<boolean>;
   /** `null` for an unknown, revoked or expired token. */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
+  /** A member of the organization records a view. */
   recordView(
     organizationId: string,
     subjectType: string,
@@ -97,7 +111,7 @@ export interface ShareLinks<F extends object = Record<never, never>> {
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
-  /** The subject's links, revoked ones included. */
+  /** The links the caller created or may read (`share_links.read`), revoked ones included. */
   list(
     subjectType: string,
     subjectId: string,
@@ -128,6 +142,7 @@ export function createShareLinks<
       const {
         role,
         versionId,
+        expiresAt,
         fields: extra,
       }: CreateShareLinkOptions<F> = typeof link === "string"
         ? { role: link }
@@ -141,6 +156,7 @@ export function createShareLinks<
             subject_id: subjectId,
             role: role ?? "view",
             version_id: versionId ?? null,
+            expires_at: instantArg(expiresAt) ?? null,
             fields: checked,
           },
           (value) => {
@@ -161,12 +177,15 @@ export function createShareLinks<
         if (value === null || value === undefined) return null;
         const row = recordOf(value, "resolve_share_link");
         const versionId = optionalText(row["versionId"]);
+        const expiresAt = optionalInstant(row["expiresAt"]);
         return {
           id: textOf(row["id"]),
+          organizationId: textOf(row["organizationId"]),
           subjectType: textOf(row["subjectType"]),
           subjectId: textOf(row["subjectId"]),
           role: textOf(row["role"]),
           ...(versionId === undefined ? {} : { versionId }),
+          ...(expiresAt === undefined ? {} : { expiresAt }),
         };
       }),
     recordView: (organizationId, subjectType, subjectId, viewerKind, viewer) =>
@@ -189,6 +208,7 @@ export function createShareLinks<
           recordsOf(value, "list_share_links").map((row) => ({
             id: textOf(row["id"]),
             role: textOf(row["role"]),
+            expiresAt: nullableInstant(row["expiresAt"]),
             revokedAt: nullableInstant(row["revokedAt"]),
             fields: fieldsOf(row),
           })),

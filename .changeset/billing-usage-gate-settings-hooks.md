@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+Add client controllers and hooks for the `billing`, `usage`, `entitlements` and `settings` blocks, each with `/react`, `/vue`, `/svelte` and `/solid` entries. `usePlanPicker()` (`better-supabase/blocks/billing/react`) lists your plans with the current one and starts Checkout through a server action you pass, so Stripe is only called on the server. `useUsageMeter()` (`better-supabase/blocks/usage/react`) reads this period's usage per meter with its fraction of the quota. `useFeatureGate()` (`better-supabase/blocks/entitlements/react`) tells whether the active organization's plan includes a feature from the session's features claim, and `hasEntitlement()` now also takes the client's `useAuth()` snapshot. `useSettings()` (`better-supabase/blocks/settings/react`) edits one scope of a `defineSettings()` definition with `fields` generated from each key's Standard JSON Schema, and `setField()` for generated forms. The plan picker, usage meter, feature gate and settings layout recipes show them in the Next.js and Expo examples.

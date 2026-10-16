@@ -1079,6 +1079,849 @@ export function OrganizationSwitcher() {
 }
 ```
 
+## Plan picker
+
+The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns. Both sides call `usePlanPicker` from `better-supabase/blocks/billing/react`; the [billing block](https://bettersupabase.com/blocks/billing) must be installed (`npx better-supabase sql add billing`). Page: https://bettersupabase.com/recipes/plan-picker.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button card
+```
+
+```tsx title="apps/examples/nextjs/src/features/billing/components/plan-picker.tsx"
+"use client";
+
+import type { PlanCatalog } from "better-supabase/blocks/billing/react";
+
+import { DbException } from "better-supabase";
+import { usePlanPicker } from "better-supabase/blocks/billing/react";
+import { useExtracted, useFormatter } from "next-intl";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import type { PlanOption } from "../billing-queries";
+
+import { loadPlanCatalog, startCheckout } from "../billing-actions";
+
+async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
+  const result = await loadPlanCatalog({});
+  if (!result.ok) throw new DbException(result.error);
+  return result.data;
+}
+
+/**
+ * The plans with a checkout button each. The server renders the catalog;
+ * `choose` runs the `startCheckout` server action, which talks to Stripe,
+ * and sends the browser to the Checkout URL it returns.
+ */
+export function PlanPicker({
+  initial,
+  canManage,
+}: {
+  initial: PlanCatalog<PlanOption>;
+  canManage: boolean;
+}) {
+  const t = useExtracted("billing");
+  const format = useFormatter();
+  const errorMessage = useErrorMessage();
+  const { plans, current, pending, choose } = usePlanPicker({
+    load: loadCatalog,
+    initial,
+    checkout: (plan) => startCheckout({ plan }),
+    open: (url) => {
+      window.location.assign(url);
+    },
+  });
+  const price = (cents: number) =>
+    cents === 0
+      ? t("Free")
+      : t("{price} per month", {
+          price: format.number(cents / 100, {
+            style: "currency",
+            currency: "USD",
+          }),
+        });
+  const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
+    switch (key) {
+      case "seats":
+        return t("{seats} seats", { seats: String(value) });
+      case "exports":
+        return t("CSV exports");
+      case "audit":
+        return t("Audit log");
+      case "sso":
+        return t("Single sign-on");
+      default:
+        return key;
+    }
+  };
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {(plans ?? initial.plans).map((plan) => {
+        const active = plan.key === current;
+        return (
+          <Card key={plan.key} size="sm" data-testid="plan">
+            <CardHeader>
+              <CardTitle>{plan.name}</CardTitle>
+              <CardDescription>{price(plan.priceCents)}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="text-muted-foreground space-y-1 text-sm">
+                {plan.features.map((feature) => (
+                  <li key={feature.key}>{featureLabel(feature)}</li>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                variant={active ? "secondary" : "default"}
+                data-testid={active ? "active-plan" : undefined}
+                disabled={active || !canManage || pending !== undefined}
+                onClick={() => {
+                  void choose(plan.key).then((started) => {
+                    if (!started.ok) toast.error(errorMessage(started.error));
+                  });
+                }}
+              >
+                {active
+                  ? t("Current plan")
+                  : pending === plan.key
+                    ? t("Opening checkout")
+                    : t("Switch")}
+              </Button>
+            </CardFooter>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+React Native, with `ActivityIndicator`, `Pressable`, `Text`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/plan-picker.tsx"
+import { usePlanPicker } from "better-supabase/blocks/billing/react";
+import { tenantOf, useAuth } from "better-supabase/react";
+import * as WebBrowser from "expo-web-browser";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+
+import { loadPlanCatalog, startCheckout } from "../lib/billing";
+
+const price = (cents: number) =>
+  cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)} per month`;
+
+/**
+ * The plans with a checkout button each. `choose` posts to the app's own
+ * API route, which talks to Stripe, and opens the Checkout URL it returns
+ * in the system browser.
+ */
+export function PlanPicker() {
+  const organizationId = tenantOf(useAuth());
+  const { plans, current, pending, error, choose } = usePlanPicker({
+    load: () =>
+      organizationId
+        ? loadPlanCatalog(organizationId)
+        : Promise.resolve({ plans: [], current: undefined }),
+    checkout: startCheckout,
+    open: async (url) => {
+      await WebBrowser.openBrowserAsync(url);
+    },
+  });
+  if (plans === undefined) return <ActivityIndicator />;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>
+      {plans.map((plan) => {
+        const active = plan.key === current;
+        return (
+          <Pressable
+            key={plan.key}
+            accessibilityRole="button"
+            accessibilityState={{
+              selected: active,
+              busy: pending === plan.key,
+            }}
+            disabled={active || pending !== undefined}
+            onPress={() => void choose(plan.key)}
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              padding: 12,
+              borderWidth: 1,
+              borderRadius: 12,
+              borderColor: active ? "#111" : "#e5e5e5",
+            }}
+          >
+            <Text style={{ flex: 1, fontWeight: "600" }}>{plan.name}</Text>
+            <Text style={{ color: "#737373" }}>{price(plan.priceCents)}</Text>
+            <Text>
+              {active ? "Current" : pending === plan.key ? "Opening" : "Switch"}
+            </Text>
+          </Pressable>
+        );
+      })}
+      {error ? <Text style={{ color: "#b91c1c" }}>{error.message}</Text> : null}
+    </View>
+  );
+}
+```
+
+## Usage meter
+
+This period's usage per meter against the plan's quota, with the reset date. Both sides call `useUsageMeter` from `better-supabase/blocks/usage/react`; the [usage block](https://bettersupabase.com/blocks/usage) must be installed (`npx better-supabase sql add usage`). Page: https://bettersupabase.com/recipes/usage-meter.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add card progress skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/dashboard/components/usage-card.tsx"
+"use client";
+
+import { useUsageMeter } from "better-supabase/blocks/usage/react";
+import { tenantOf } from "better-supabase/react";
+import { useExtracted, useFormatter } from "next-intl";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/lib/hooks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
+/** The API schema `gen` wrote for the usage block. */
+const API_SCHEMA = blockConfig.usage.api;
+
+/** This period's usage per meter against the plan's quota. */
+export function UsageCard() {
+  const t = useExtracted("dashboard");
+  const format = useFormatter();
+  const organizationId = tenantOf(useAuth()) ?? null;
+  const { meters } = useUsageMeter({
+    organizationId,
+    meters: ["api.calls", "customers.created"],
+    schema: API_SCHEMA,
+  });
+  if (!organizationId) return null;
+  if (meters === undefined) return <UsageCardSkeleton />;
+  const labels = new Map([
+    ["api.calls", t("API calls")],
+    ["customers.created", t("Customers added")],
+  ]);
+  return (
+    <Card data-testid="usage">
+      <CardHeader>
+        <CardTitle>{t("Usage this period")}</CardTitle>
+        <CardDescription>
+          {t("Counted by the usage module, limited by your plan.")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {meters.map((meter) => (
+          <div key={meter.meter} className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="font-medium">
+                {labels.get(meter.meter) ?? meter.meter}
+              </span>
+              <span
+                className={
+                  meter.exceeded
+                    ? "text-destructive tabular-nums"
+                    : "text-muted-foreground tabular-nums"
+                }
+              >
+                {meter.limit === undefined
+                  ? t("{used} used, no limit", {
+                      used: format.number(meter.used),
+                    })
+                  : t("{used} of {limit}", {
+                      used: format.number(meter.used),
+                      limit: format.number(meter.limit),
+                    })}
+              </span>
+            </div>
+            <Progress value={(meter.fraction ?? 0) * 100} />
+            <p className="text-muted-foreground text-xs">
+              {t("Resets {date}", {
+                date: format.dateTime(
+                  new Date(meter.resetsAt.epochMilliseconds),
+                  { dateStyle: "medium" },
+                ),
+              })}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function UsageCardSkeleton() {
+  return <Skeleton className="h-64 rounded-xl" aria-busy="true" />;
+}
+```
+
+React Native, with `ActivityIndicator`, `Text`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/usage-meter.tsx"
+import { useUsageMeter } from "better-supabase/blocks/usage/react";
+import { tenantOf, useAuth } from "better-supabase/react";
+import { ActivityIndicator, Text, View } from "react-native";
+
+import { API_SCHEMA } from "../lib/blocks";
+
+const labels = new Map([
+  ["api.calls", "API calls"],
+  ["customers.created", "Customers added"],
+]);
+
+/** This period's usage per meter against the plan's quota. */
+export function UsageMeter() {
+  const organizationId = tenantOf(useAuth()) ?? null;
+  const { meters } = useUsageMeter({
+    organizationId,
+    meters: ["api.calls", "customers.created"],
+    schema: API_SCHEMA,
+  });
+  if (!organizationId) return null;
+  if (meters === undefined) return <ActivityIndicator />;
+  return (
+    <View style={{ gap: 12, padding: 16, borderWidth: 1, borderRadius: 12 }}>
+      <Text style={{ fontSize: 17, fontWeight: "600" }}>Usage this period</Text>
+      {meters.map((meter) => (
+        <View key={meter.meter} style={{ gap: 4 }}>
+          <View style={{ flexDirection: "row" }}>
+            <Text style={{ flex: 1 }}>
+              {labels.get(meter.meter) ?? meter.meter}
+            </Text>
+            <Text style={{ color: meter.exceeded ? "#b91c1c" : "#737373" }}>
+              {meter.limit === undefined
+                ? `${meter.used} used, no limit`
+                : `${meter.used} of ${meter.limit}`}
+            </Text>
+          </View>
+          <View
+            style={{ height: 6, borderRadius: 3, backgroundColor: "#e5e5e5" }}
+          >
+            <View
+              style={{
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: meter.exceeded ? "#b91c1c" : "#111",
+                width: `${(meter.fraction ?? 0) * 100}%`,
+              }}
+            />
+          </View>
+          <Text style={{ color: "#737373", fontSize: 12 }}>
+            Resets{" "}
+            {meter.resetsAt.toLocaleString(undefined, { dateStyle: "medium" })}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+```
+
+## Feature gate
+
+Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes. Both sides call `useFeatureGate` from `better-supabase/blocks/entitlements/react`; the [entitlements block](https://bettersupabase.com/blocks/entitlements) must be installed (`npx better-supabase sql add entitlements`). Page: https://bettersupabase.com/recipes/feature-gate.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/billing/components/feature-gate.tsx"
+"use client";
+
+import type { ReactNode } from "react";
+
+import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
+import { LockIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+
+import type { Entitlement } from "@/lib/claims";
+
+import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+/**
+ * Renders `children` only when the active organization's plan includes
+ * `feature`, read from the session's `features` claim; otherwise a link to
+ * the plans. UX only: RLS and the route behind it check the feature too.
+ */
+export function FeatureGate({
+  feature,
+  children,
+}: {
+  feature: Entitlement;
+  children: ReactNode;
+}) {
+  const t = useExtracted("billing");
+  const { allowed } = useFeatureGate(feature);
+  if (allowed === undefined)
+    return <Skeleton className="h-8 w-28" aria-busy="true" />;
+  if (allowed) return children;
+  return (
+    <Link
+      href="/settings/billing"
+      className={buttonVariants({ variant: "outline", size: "sm" })}
+      data-testid={`upgrade-${feature}`}
+    >
+      <LockIcon />
+      {t("Upgrade to unlock")}
+    </Link>
+  );
+}
+```
+
+React Native, with `ActivityIndicator`, `Text`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/feature-gate.tsx"
+import type { ReactNode } from "react";
+
+import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
+import { ActivityIndicator, Text, View } from "react-native";
+
+/**
+ * Renders `children` only when the active organization's plan includes
+ * `feature`, read from the session's `features` claim. UX only: RLS checks
+ * the feature too.
+ */
+export function FeatureGate({
+  feature,
+  children,
+}: {
+  readonly feature: string;
+  readonly children: ReactNode;
+}) {
+  const { allowed } = useFeatureGate(feature);
+  if (allowed === undefined) return <ActivityIndicator />;
+  if (allowed) return children;
+  return (
+    <View style={{ padding: 12, borderWidth: 1, borderRadius: 12 }}>
+      <Text style={{ fontWeight: "600" }}>Not in your plan</Text>
+      <Text style={{ color: "#737373" }}>
+        Upgrade to a plan with {feature} to use this.
+      </Text>
+    </View>
+  );
+}
+```
+
+## Settings layout
+
+Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares. Both sides call `useSettings` from `better-supabase/blocks/settings/react`; the [settings block](https://bettersupabase.com/blocks/settings) must be installed (`npx better-supabase sql add settings`). Page: https://bettersupabase.com/recipes/settings-layout.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add card field input select skeleton switch
+```
+
+```tsx title="apps/examples/nextjs/src/features/settings/components/settings-layout.tsx"
+"use client";
+
+import type { SettingEntries } from "better-supabase/blocks/settings";
+import type {
+  SettingField,
+  SettingsState,
+} from "better-supabase/blocks/settings/react";
+
+import { useSettings } from "better-supabase/blocks/settings/react";
+import { tenantOf } from "better-supabase/react";
+import { useExtracted } from "next-intl";
+import { useId } from "react";
+import { toast } from "sonner";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/lib/hooks";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { settings } from "../settings-definition";
+
+/** The API schema `gen` wrote for the settings block. */
+const API_SCHEMA = blockConfig.settings.api;
+
+/** What a control produces; the key's schema validates it before it is stored. */
+type ControlValue = string | number | boolean;
+
+/** The control for one field, picked by the kind its schema declares. */
+function SettingControl({
+  id,
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  field: SettingField;
+  value: unknown;
+  disabled: boolean;
+  onChange: (value: ControlValue) => void;
+}) {
+  switch (field.kind) {
+    case "boolean":
+      return (
+        <Switch
+          id={id}
+          checked={value === true}
+          disabled={disabled}
+          onCheckedChange={(checked: boolean) => {
+            onChange(checked);
+          }}
+        />
+      );
+    case "choice": {
+      const items = field.choices.map((choice) => ({
+        value: String(choice),
+        label: String(choice),
+      }));
+      return (
+        <Select
+          value={String(value)}
+          items={items}
+          disabled={disabled}
+          onValueChange={(next) => {
+            const choice = field.choices.find((each) => String(each) === next);
+            if (choice !== undefined) onChange(choice);
+          }}
+        >
+          <SelectTrigger id={id} className="w-48 capitalize">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((item) => (
+              <SelectItem
+                key={item.value}
+                value={item.value}
+                className="capitalize"
+              >
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    case "number":
+    case "text":
+    case "json":
+      return (
+        <Input
+          id={id}
+          className="w-48"
+          type={field.kind === "number" ? "number" : "text"}
+          defaultValue={field.kind === "json" ? "" : String(value ?? "")}
+          disabled={disabled || field.kind === "json"}
+          onBlur={(event) => {
+            const next = event.currentTarget.value;
+            onChange(field.kind === "number" ? Number(next) : next);
+          }}
+        />
+      );
+    default: {
+      const unknown: never = field.kind;
+      return unknown;
+    }
+  }
+}
+
+/** One scope of the definition as a card: a row per key, saved on change. */
+function SettingsSection<E extends SettingEntries>({
+  title,
+  description,
+  editable,
+  state,
+}: {
+  title: string;
+  description: string;
+  editable: boolean;
+  state: SettingsState<E>;
+}) {
+  const t = useExtracted("settings");
+  const errorMessage = useErrorMessage();
+  const baseId = useId();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {state.values === undefined ? (
+          <Skeleton className="h-16" aria-busy="true" />
+        ) : (
+          <FieldGroup>
+            {state.fields.map((field) => (
+              <Field key={field.key} orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel htmlFor={`${baseId}-${field.key}`}>
+                    {field.title ?? field.key}
+                  </FieldLabel>
+                  {field.description ? (
+                    <FieldDescription>{field.description}</FieldDescription>
+                  ) : null}
+                  {editable ? null : (
+                    <FieldDescription>
+                      {t("Only admins can change this.")}
+                    </FieldDescription>
+                  )}
+                </FieldContent>
+                <SettingControl
+                  id={`${baseId}-${field.key}`}
+                  field={field}
+                  value={state.values?.[field.key]}
+                  disabled={!editable || state.saving === field.key}
+                  onChange={(value) => {
+                    void state.setField(field.key, value).then((saved) => {
+                      if (!saved.ok) toast.error(errorMessage(saved.error));
+                    });
+                  }}
+                />
+              </Field>
+            ))}
+          </FieldGroup>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The preferences page, generated from `settings-definition.ts`: a card per
+ * scope and a control per key, each saved through the settings module.
+ */
+export function SettingsLayout({
+  canEditOrganization,
+}: {
+  canEditOrganization: boolean;
+}) {
+  const t = useExtracted("settings");
+  const organizationId = tenantOf(useAuth()) ?? null;
+  const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+  const organization = useSettings(settings, {
+    scope: "organization",
+    organizationId,
+    schema: API_SCHEMA,
+  });
+  return (
+    <div className="space-y-6" data-testid="settings-layout">
+      <SettingsSection
+        title={t("Your preferences")}
+        description={t("Only you see these.")}
+        editable
+        state={user}
+      />
+      {organizationId ? (
+        <SettingsSection
+          title={t("Organization defaults")}
+          description={t("Shared by everyone in the organization.")}
+          editable={canEditOrganization}
+          state={organization}
+        />
+      ) : null}
+    </div>
+  );
+}
+```
+
+React Native, with `ActivityIndicator`, `Pressable`, `ScrollView`, `Switch`, `Text`, `TextInput`, `View` from `react-native`:
+
+```tsx title="apps/examples/expo-powersync/src/components/settings-layout.tsx"
+import type { SettingEntries } from "better-supabase/blocks/settings";
+import type {
+  SettingField,
+  SettingsState,
+} from "better-supabase/blocks/settings/react";
+
+import { useSettings } from "better-supabase/blocks/settings/react";
+import { tenantOf, useAuth } from "better-supabase/react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { API_SCHEMA } from "../lib/blocks";
+import { settings } from "../lib/settings";
+
+/** What a control produces; the key's schema validates it before it is stored. */
+type ControlValue = string | number | boolean;
+
+/** The control for one field, picked by the kind its schema declares. */
+function SettingControl({
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  readonly field: SettingField;
+  readonly value: unknown;
+  readonly disabled: boolean;
+  readonly onChange: (value: ControlValue) => void;
+}) {
+  switch (field.kind) {
+    case "boolean":
+      return (
+        <Switch
+          value={value === true}
+          disabled={disabled}
+          onValueChange={onChange}
+        />
+      );
+    case "choice":
+      return (
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {field.choices.map((choice) => (
+            <Pressable
+              key={String(choice)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: choice === value, disabled }}
+              disabled={disabled}
+              onPress={() => {
+                onChange(choice);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderWidth: 1,
+                borderRadius: 8,
+                borderColor: choice === value ? "#111" : "#e5e5e5",
+              }}
+            >
+              <Text>{String(choice)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      );
+    case "number":
+    case "text":
+    case "json":
+      return (
+        <TextInput
+          defaultValue={field.kind === "json" ? "" : String(value ?? "")}
+          editable={!disabled && field.kind !== "json"}
+          keyboardType={field.kind === "number" ? "numeric" : "default"}
+          onEndEditing={(event) => {
+            const next = event.nativeEvent.text;
+            onChange(field.kind === "number" ? Number(next) : next);
+          }}
+          style={{ minWidth: 120, borderWidth: 1, borderRadius: 8, padding: 6 }}
+        />
+      );
+    default: {
+      const unknown: never = field.kind;
+      return unknown;
+    }
+  }
+}
+
+/** One scope of the definition: a row per key, saved on change. */
+function SettingsSection<E extends SettingEntries>({
+  title,
+  state,
+}: {
+  readonly title: string;
+  readonly state: SettingsState<E>;
+}) {
+  if (state.values === undefined) return <ActivityIndicator />;
+  return (
+    <View style={{ gap: 12 }}>
+      <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
+      {state.fields.map((field) => (
+        <View key={field.key} style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text>{field.title ?? field.key}</Text>
+            {field.description ? (
+              <Text style={{ color: "#737373" }}>{field.description}</Text>
+            ) : null}
+          </View>
+          <SettingControl
+            field={field}
+            value={state.values?.[field.key]}
+            disabled={state.saving === field.key}
+            onChange={(value) => void state.setField(field.key, value)}
+          />
+        </View>
+      ))}
+      {state.error ? (
+        <Text style={{ color: "#b91c1c" }}>{state.error.message}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** The preferences screen, generated from the settings definition. */
+export function SettingsLayout() {
+  const organizationId = tenantOf(useAuth()) ?? null;
+  const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+  const organization = useSettings(settings, {
+    scope: "organization",
+    organizationId,
+    schema: API_SCHEMA,
+  });
+  return (
+    <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
+      <SettingsSection title="Your preferences" state={user} />
+      {organizationId ? (
+        <SettingsSection title="Organization defaults" state={organization} />
+      ) : null}
+    </ScrollView>
+  );
+}
+```
+
 ## Planned
 
 These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.
@@ -1087,10 +1930,6 @@ These have no hook yet. Build them from the block's TypeScript client in a serve
 | --------------- | --------------- | --------------------------------------------------------------------------------------- |
 | Members table   | `organizations` | a client controller and React hook for the organizations block (plan 003, workstream 4) |
 | Invite dialog   | `invitations`   | a client controller and React hook for the invitations block (plan 003, workstream 4)   |
-| Plan picker     | `billing`       | a client controller and React hook for the billing block (plan 003, workstream 4)       |
-| Usage meter     | `usage`         | a client controller and React hook for the usage block (plan 003, workstream 4)         |
-| Feature gate    | `entitlements`  | a client controller and React hook for the entitlements block (plan 003, workstream 4)  |
 | API keys table  | `api-keys`      | a client controller and React hook for the api-keys block (plan 003, workstream 4)      |
 | Audit log table | `audit`         | a client controller and React hook for the audit block (plan 003, workstream 4)         |
 | Tag input       | `tags`          | a client controller and React hook for the tags block (plan 003, workstream 4)          |
-| Settings layout | `settings`      | a client controller and React hook for the settings block (plan 003, workstream 4)      |

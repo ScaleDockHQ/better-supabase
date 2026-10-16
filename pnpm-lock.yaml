@@ -959,6 +959,9 @@ importers:
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.3(@opentelemetry/api@1.9.1)
+      '@valibot/to-json-schema':
+        specifier: 'catalog:'
+        version: 1.8.0(valibot@1.5.0(typescript@7.0.2))
       better-supabase:
         specifier: workspace:*
         version: link:../../../packages/better-supabase
@@ -1241,6 +1244,9 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.104.2(react@19.3.0)
+      '@valibot/to-json-schema':
+        specifier: 'catalog:'
+        version: 1.8.0(valibot@1.5.0(typescript@7.0.2))
       '@workflow/world':
         specifier: 'catalog:'
         version: 5.0.4

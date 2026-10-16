@@ -13,9 +13,44 @@ better-supabase sql add share-links
 import { createShareLinks } from "better-supabase/blocks/share-links";
 ```
 
-Creating a link needs `share_links.create`. When the rate-limit module is installed, resolve is a place to apply it.
+When the rate-limit module is installed, resolve is a place to apply it.
 
-`create(organizationId, subjectType, subjectId, { role, versionId })` takes the role (`view` by default) and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. `resolve(token)` returns the link's id, subject, role and `versionId`, or `null` when the token is unknown, revoked or expired.
+`create(organizationId, subjectType, subjectId, { role, versionId, expiresAt })` takes the role (`view` by default), an optional `Temporal.Instant` after which the link stops resolving and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. An `expiresAt` that is not in the future fails with `SHARE_EXPIRY_INVALID`. `resolve(token)` returns the link's id, `organizationId`, subject, role, `versionId` and `expiresAt`, or `null` when the token is unknown, revoked or expired.
+
+```ts
+const link = await shareLinks
+  .create(orgId, "calendar", calendarId, {
+    expiresAt: Temporal.Now.instant().add({ hours: 24 * 30 }),
+  })
+  .orThrow();
+```
+
+## Permissions
+
+| Call         | Who may call it                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| `create`     | a member with `share_links.create` in the organization                                                   |
+| `revoke`     | the link's creator, or a member with `share_links.create`; anyone else gets `SHARE_NOT_FOUND`            |
+| `list`       | the links the caller created, plus every link in organizations where the caller holds `share_links.read` |
+| `recordView` | a member of the organization (`SHARE_FORBIDDEN` otherwise)                                               |
+| `resolve`    | anyone, including `anon`                                                                                 |
+
+The service role may make every call.
+
+## Events
+
+| Event                | When                        |
+| -------------------- | --------------------------- |
+| `share_link.created` | `create` stored a link      |
+| `share_link.revoked` | `revoke` revoked one        |
+| `subject.viewed`     | `recordView` counted a view |
+
+## Guest pages
+
+Every module that reads a subject through a link (calendar feeds, booking pages, public forms, drive links, shared AI chats, shared versions) checks the same four things: the token's hash, the subject type, that the link is not revoked and that it has not expired. A guest page has two ways to read the subject:
+
+- Call the module's own function (`calendar_feed(token)`, `get_public_form(token)`, `get_shared_version(token)`). It is `security definer`, returns only what the link grants and needs no session.
+- Exchange the token for a short-lived anonymous session whose claims name the link, then query under row-level security. An authorization provider can do this from the row `resolve` returns; see [Authorization providers](/docs/extending/authorization-providers#share-links-as-guests). Keep the token's lifetime capped by the row's `expiresAt`, and revoke the row to end every session minted from it.
 
 ## AI chat
 
