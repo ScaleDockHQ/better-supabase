@@ -21,7 +21,7 @@ const RECIPES = join(
 );
 
 /** Blocks whose creator is not `create<Name>(options)`. */
-const CREATOR_NAME: readonly string[] = ["audit", "flags"];
+const CREATOR_NAME: readonly string[] = ["audit"];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
   "entitlements",
@@ -51,8 +51,6 @@ const NO_HOOKS: readonly string[] = [
   "connectors",
   "custom-fields",
   "data-lifecycle",
-  "flags",
-  "idempotency",
   "identities",
   "imports",
   "inbox",
@@ -83,8 +81,6 @@ const NO_HOOKS: readonly string[] = [
 const NO_BLOCK_CALL: readonly string[] = [
   "audit",
   "comments",
-  "flags",
-  "idempotency",
   "incoming-webhooks",
   "notifications",
   "usage",
@@ -119,7 +115,6 @@ const NO_FIELDS: readonly string[] = [
   "drive",
   "employees",
   "engagements",
-  "flags",
   "forms",
   "hiring",
   "identities",

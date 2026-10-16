@@ -2062,7 +2062,7 @@ describe("createIdempotency", () => {
         ],
       ],
     ]);
-    const idempotency = createIdempotency(fake.sql);
+    const idempotency = createIdempotency({ sql: fake.sql });
     expect(await idempotency.begin("k1", "fp").orThrow()).toEqual({
       state: "replay",
       status: 201,
@@ -2098,7 +2098,7 @@ describe("createIdempotency", () => {
         () => [{ state: "started", status_code: null, response: null }],
       ],
     ]);
-    const idempotency = createIdempotency(fake.sql);
+    const idempotency = createIdempotency({ sql: fake.sql });
     const send = (headers: Record<string, string>) =>
       idempotency.handle(
         new Request("https://api.test/payments", {
@@ -2134,7 +2134,7 @@ describe("createIdempotency", () => {
         [{ state: "started", status_code: null, response: null, holder: "h1" }],
       ],
     ]);
-    const idempotency = createIdempotency(fake.sql, { scope: "acme" });
+    const idempotency = createIdempotency({ sql: fake.sql, scope: "acme" });
     const response = await idempotency.handle(
       new Request("https://api.test/payments?x=1", {
         method: "POST",
@@ -2178,7 +2178,7 @@ describe("createIdempotency", () => {
       ],
     ]);
     const handler = vi.fn();
-    const response = await createIdempotency(fake.sql).handle(
+    const response = await createIdempotency({ sql: fake.sql }).handle(
       new Request("https://api.test/x", {
         method: "POST",
         headers: { "idempotency-key": "k" },
@@ -2196,7 +2196,7 @@ describe("createIdempotency", () => {
       ["begin_idempotent", { throws: pgError("42501", "permission denied") }],
     ]);
     const handler = vi.fn();
-    const response = await createIdempotency(fake.sql).handle(
+    const response = await createIdempotency({ sql: fake.sql }).handle(
       new Request("https://api.test/x", {
         method: "POST",
         headers: { "idempotency-key": "k" },

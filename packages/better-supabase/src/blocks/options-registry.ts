@@ -81,6 +81,7 @@ import {
   type EngagementsSqlOptions,
   engagementsSqlOptions,
 } from "./engagements/options.ts";
+import { type FlagsSqlOptions, flagsSqlOptions } from "./flags/options.ts";
 import {
   type FormsSqlOptions,
   formsSqlOptions,
@@ -268,7 +269,7 @@ export interface BlockOptionsRegistry {
   readonly engagements: EngagementsSqlOptions;
   readonly "ensure-rls": None;
   readonly entitlements: None;
-  readonly flags: None;
+  readonly flags: FlagsSqlOptions;
   readonly forms: FormsSqlOptions;
   readonly grants: GrantsSqlOptions;
   readonly hiring: HiringSqlOptions;
@@ -380,7 +381,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   engagements: engagementsSqlOptions,
   "ensure-rls": NO_OPTIONS,
   entitlements: NO_OPTIONS,
-  flags: NO_OPTIONS,
+  flags: flagsSqlOptions,
   forms: formsSqlOptions,
   grants: grantsSqlOptions,
   hiring: hiringSqlOptions,

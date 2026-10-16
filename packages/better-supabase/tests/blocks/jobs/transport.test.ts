@@ -252,7 +252,8 @@ describe("idempotency and leases over a transport", () => {
       complete_idempotent: true,
       release_idempotent: true,
     });
-    const idempotency = createIdempotency(transport, {
+    const idempotency = createIdempotency({
+      transport,
       schema: "api",
       ttl: 60,
     });
@@ -275,7 +276,9 @@ describe("idempotency and leases over a transport", () => {
     expect(calls[1]!.args).toMatchObject({ holder: "h-1", status_code: 201 });
 
     const { transport: none } = fakeTransport({ begin_idempotent: [] });
-    expect((await createIdempotency(none).begin("k", "f")).ok).toBe(false);
+    expect(
+      (await createIdempotency({ transport: none }).begin("k", "f")).ok,
+    ).toBe(false);
     expectWrapped("idempotency", calls);
   });
 
@@ -369,7 +372,7 @@ describe("purge", () => {
       purge_webhooks: 1,
     });
     expect(
-      await createIdempotency(transport, { schema: "api" }).purge().orThrow(),
+      await createIdempotency({ transport, schema: "api" }).purge().orThrow(),
     ).toBe(4);
     expect(
       await createRateLimit(transport).purge({ batch: 100 }).orThrow(),
@@ -406,7 +409,9 @@ describe("purge", () => {
       ["purge_idempotency_keys", [{ purged: 2 }]],
       ["purge_rate_limits", [{ value: 7 }]],
     ]);
-    expect(await createIdempotency(fake.sql).purge().orThrow()).toBe(2);
+    expect(await createIdempotency({ sql: fake.sql }).purge().orThrow()).toBe(
+      2,
+    );
     expect(await createRateLimit(fake.sql).purge().orThrow()).toBe(7);
   });
 });

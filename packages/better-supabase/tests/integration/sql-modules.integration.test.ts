@@ -1956,7 +1956,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         await jobs.purge({ olderThan: 0, deadOlderThan: 0 }).orThrow(),
       ).toBeGreaterThanOrEqual(0);
 
-      const idempotency = createIdempotency(transport, {
+      const idempotency = createIdempotency({
+        transport,
         schema: api,
         scope: RUN,
       });
@@ -2543,7 +2544,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("replays idempotent requests and rejects reuse", async () => {
-    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
     let runs = 0;
     const handler = async () => {
       runs += 1;
@@ -2576,7 +2577,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("refuses a former holder's complete and release after a takeover", async () => {
-    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
     const first = await idempotency.begin("takeover", "fp", RUN).orThrow();
     expect(first.state).toBe("started");
     expect(
@@ -2674,7 +2675,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         withBlock(
           "idempotency",
           (ctx: { readonly postgresAdmin: PostgresApi }) =>
-            createIdempotency(ctx.postgresAdmin, { scope: `server-${RUN}` }),
+            createIdempotency({
+              sql: ctx.postgresAdmin,
+              scope: `server-${RUN}`,
+            }),
         ),
       ],
       async (request, ctx) =>

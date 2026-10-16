@@ -22,7 +22,7 @@ describe("blocks on @supabase/server's Postgres clients", () => {
     expectTypeOf(postgres).toExtend<SqlClient>();
     sqlTransport(postgres);
     createJobs(postgresAdmin, {});
-    createIdempotency(postgresAdmin);
+    createIdempotency({ sql: postgresAdmin });
     createWebhookInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
     purgeAuditLog(postgresAdmin);
     createOutbox(postgresAdmin, { source: "app" });

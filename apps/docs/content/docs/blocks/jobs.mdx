@@ -583,7 +583,7 @@ import {
 
 const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
 const jobs = createJobs(transport, { send_email: schema });
-const idempotency = createIdempotency(transport, { schema: "api" });
+const idempotency = createIdempotency({ transport, schema: "api" });
 await withLease(transport, "nightly-report", run, { schema: "api" });
 ```
 
@@ -602,7 +602,7 @@ its first row, so pass the SQL client itself there.
 ```ts
 import { createIdempotency } from "better-supabase/blocks/jobs";
 
-const idempotency = createIdempotency(postgres.admin, { ttl: "24 hours" });
+const idempotency = createIdempotency({ sql: postgres.admin, ttl: "24 hours" });
 
 export const POST = (request: Request) =>
   idempotency.handle(request, async () =>
@@ -617,6 +617,12 @@ export const POST = (request: Request) =>
 | Same key while the first request is still running | `409` with `Retry-After`                               |
 | Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`               |
 | Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
+
+Pass a service SQL connection as `sql`, or a service-role `transport` such
+as the `rpcTransport` above. `hooks` runs your code around `begin`,
+`complete`, `release` and `purge` (see
+[extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
+through the hooks.
 
 The fingerprint is a SHA-256 of the method, path and body. Set
 `required: true` to reject requests that have no key. The error responses
