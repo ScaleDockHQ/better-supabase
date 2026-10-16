@@ -909,7 +909,34 @@ export const MODULE_RULES: readonly Rule[] = [
       "A table in `config.subjects` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
     check: subjectsWithoutRls,
   },
+  {
+    code: "BS335",
+    severity: "warning",
+    title: "Audit log not partitioned",
+    description:
+      "`blocks.audit.options.partitioned` is on, but `better_supabase.audit_events` was created before it: its primary key is `id` alone, so the table isn't partitioned by month and `purge_audit_log` deletes row by row. Postgres can't convert a table in place. Create a partitioned table, copy the entries over and swap the names in a maintenance window, or turn the option off.",
+    check: unpartitionedAuditLog,
+  },
 ];
+
+function unpartitionedAuditLog(context: DoctorContext): FindingInput[] {
+  if (!context.config.blockNames.includes("audit")) return [];
+  if (context.config.blocks["audit"]?.options?.["partitioned"] !== true)
+    return [];
+  const table = catalogOf(context).tables.find(
+    (candidate) =>
+      candidate.schema === "better_supabase" &&
+      candidate.name === "audit_events",
+  );
+  if (table?.primaryKey.length !== 1) return [];
+  return [
+    {
+      message:
+        "better_supabase.audit_events isn't partitioned, so options.partitioned has no effect on it. Postgres can't convert it in place: copy the entries into a partitioned table in a maintenance window, or turn the option off.",
+      target: "better_supabase.audit_events",
+    },
+  ];
+}
 
 function subjectTables(context: DoctorContext) {
   const catalog = catalogOf(context);

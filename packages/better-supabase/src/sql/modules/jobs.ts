@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA, serviceOnly, revokeTable } from "../shared.ts";
-import { TABLE } from "./jobs-table.ts";
+import { table } from "./jobs-table.ts";
 
 export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
@@ -46,7 +46,23 @@ drop function if exists better_supabase.schedule_job(text, text, text, jsonb, te
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
 drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
 
-const PGMQ = `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
+/**
+ * Opens purge_job_archive: nothing goes while a legal hold covers the
+ * archive, and a data-lifecycle retention policy replaces both intervals.
+ */
+function archiveGuard(ctx: ModuleContext): string {
+  const held = ctx.held("job_archive", "null");
+  if (held === "false") return "null;";
+  return `if ${held} then
+    return 0;
+  end if;
+  older_than := ${ctx.retention("job_archive", "null", "older_than")};
+  dead_older_than := ${ctx.retention("job_archive", "null", "dead_older_than")};`;
+}
+
+const pgmq = (
+  guard: string,
+): string => `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
@@ -282,6 +298,7 @@ as $$
 declare
   purged integer;
 begin
+  ${guard}
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue
@@ -710,7 +727,7 @@ function jobsSql(ctx: ModuleContext): string {
   return [
     SCHEMA,
     LEGACY,
-    backend === "pgmq" ? PGMQ : TABLE,
+    backend === "pgmq" ? pgmq(archiveGuard(ctx)) : table(archiveGuard(ctx)),
     scheduler === "pg_cron" ? PG_CRON(backend) : DRAIN,
     GRANTS(backend),
   ].join("\n\n");
@@ -722,8 +739,9 @@ export const JOBS: ModuleDefinition = {
   description:
     "Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
   requires: [],
+  integrates: ["data-lifecycle"],
   target: "schema",
-  version: 7,
+  version: 8,
   names: { tables: {}, options: ["backend", "scheduler"] },
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
@@ -768,6 +786,12 @@ export const JOBS: ModuleDefinition = {
       from: 6,
       description:
         "enqueue_job_once enqueues once per dedupe key, including archived messages, and reports a duplicate.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "purge_job_archive keeps the archive for the data-lifecycle retention policy and purges nothing under a legal hold.",
       sql: () => "",
     },
   ],

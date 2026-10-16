@@ -51,3 +51,13 @@ export {
 export { auditBlock } from "./manifest.ts";
 export { auditEvents } from "./events.ts";
 export type { AuditEvents } from "./events.ts";
+export {
+  createAuditChain,
+  type AuditChain,
+  type AuditChainBreak,
+  type AuditChainHead,
+  type AuditChainOptions,
+  type AuditChainVerdict,
+  type AuditCheckpoint,
+  type AuditCheckpointSigner,
+} from "./chain.ts";

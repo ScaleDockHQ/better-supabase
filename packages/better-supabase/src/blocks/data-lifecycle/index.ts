@@ -24,6 +24,15 @@ export {
   type PurgeBucket,
   type UnrevokedCredential,
 } from "./purger.ts";
+export {
+  createRetention,
+  type LegalHold,
+  type Retention,
+  type RetentionKind,
+  type RetentionOptions,
+  type RetentionPolicy,
+  type RetentionScope,
+} from "./retention.ts";
 export type { LifecycleTable } from "../../sql/modules/data-lifecycle-entries.ts";
 export {
   dbTransport,

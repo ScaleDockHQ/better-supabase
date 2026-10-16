@@ -2713,6 +2713,10 @@
               "appendOnly": {
                 "type": "boolean"
               },
+              "chain": {
+                "type": "boolean",
+                "default": false
+              },
               "correlationIdHeader": {
                 "type": "string",
                 "default": "x-correlation-id"
@@ -2749,6 +2753,10 @@
                 "default": false
               },
               "metadataColumns": {},
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
               "readPolicy": {
                 "type": "boolean",
                 "default": false

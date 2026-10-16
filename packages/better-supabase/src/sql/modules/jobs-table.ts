@@ -1,6 +1,9 @@
 import { revokeTable } from "../shared.ts";
 
-export const TABLE: string = `-- Jobs in a plain table, for projects without pgmq. Messages have the same
+/** The table backend; `guard` opens `purge_job_archive` (see `archiveGuard`). */
+export const table = (
+  guard: string,
+): string => `-- Jobs in a plain table, for projects without pgmq. Messages have the same
 -- {payload, max_attempts, dedupe_key?, last_error?} body as on pgmq; claims
 -- take rows with for update skip locked, and attempts is the lease token.
 create table if not exists better_supabase.job_messages (
@@ -237,10 +240,14 @@ create or replace function better_supabase.purge_job_archive(
   dead_older_than interval default '30 days'
 )
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
+  ${guard}
   with purged as (
     delete from better_supabase.job_messages
     where id in (
@@ -253,7 +260,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged;
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 -- Enqueues a dead letter again with its payload, attempts and dedupe key,

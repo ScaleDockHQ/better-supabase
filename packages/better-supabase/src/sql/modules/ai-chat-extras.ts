@@ -734,6 +734,7 @@ begin
   with doomed as (
     select x.${ch.id} from ${t.chats} x
     where x.${ch.temporary} and x.${ch.expiresAt} <= now()
+      and not ${ctx.held("ai_chats", `x.${ch.tenant}`)}
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from ${t.chats} c using doomed where c.${ch.id} = doomed.${ch.id};

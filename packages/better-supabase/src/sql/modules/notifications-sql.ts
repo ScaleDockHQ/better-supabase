@@ -995,26 +995,26 @@ function purge(ctx: ModuleContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");
   return `
--- Deletes up to batch notifications older than older_than, with their
--- recipients and deliveries, and returns how many. Run it until it returns
--- less than batch.
+-- Deletes up to batch notifications past their retention, with their recipients
+-- and deliveries, and returns how many. Run it until it returns less than batch.
 create or replace function ${fn}(older_than interval default '90 days', batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
-  with gone as (
-    delete from ${n.table("events")}
-    where ${e("id")} in (
-      select ev.${e("id")} from ${n.table("events")} ev
-      where ev.${e("createdAt")} < now() - coalesce(older_than, '90 days')
-      order by ev.${e("createdAt")}
-      limit coalesce(batch, 10000)
-    )
-    returning 1
-  )
-  select count(*)::integer from gone
+declare v_purged integer;
+begin
+  delete from ${n.table("events")}
+  where ${e("id")} in (
+    select ev.${e("id")} from ${n.table("events")} ev
+    where ${ctx.expired("notifications", { at: `ev.${e("createdAt")}`, tenant: n.has("events", "tenant") ? `ev.${e("tenant")}` : "null", fallback: "coalesce(older_than, '90 days')" })}
+    order by ev.${e("createdAt")}
+    limit coalesce(batch, 10000)
+  );
+  get diagnostics v_purged = row_count;
+  return v_purged;
+end;
 $$;
 revoke execute on function ${fn}(interval, integer) from public, anon, authenticated;
 grant execute on function ${fn}(interval, integer) to service_role;`;

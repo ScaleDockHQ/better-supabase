@@ -1021,10 +1021,10 @@ export const AI_CHAT: ModuleDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["tenant", "access", "streams"],
-  integrates: ["entitlements", "ai-providers", "approvals"],
+  integrates: ["entitlements", "ai-providers", "approvals", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   upgrades: [
     {
@@ -1033,6 +1033,12 @@ export const AI_CHAT: ModuleDefinition = {
         "Runs end completed, failed or cancelled instead of done, error or stopped, and harness sessions keep their sandbox in ai_sandboxes, which ai-chat now owns, so one idle-stop claim covers every sandbox.",
       sql: (ctx) =>
         `${upgradeRunStates(ctx)}\n${upgradeSandboxes(ctx, namesOf(ctx))}\ndrop function if exists ${ctx.fn("idle_ai_harness_sessions")}(integer, integer);`,
+    },
+    {
+      from: 2,
+      description:
+        "purge_ai_chats skips temporary chats under a data-lifecycle legal hold.",
+      sql: () => "",
     },
   ],
   contract,

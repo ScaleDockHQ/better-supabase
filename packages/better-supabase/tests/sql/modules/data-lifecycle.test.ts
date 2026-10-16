@@ -199,7 +199,7 @@ describe("data-lifecycle module", () => {
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
     expect(sql).toContain(
-      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'app.notes')",
+      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'better_supabase.retention_policies', 'app.notes')",
     );
     expect(sql).toContain("like 'public.%\\_log'");
     expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);

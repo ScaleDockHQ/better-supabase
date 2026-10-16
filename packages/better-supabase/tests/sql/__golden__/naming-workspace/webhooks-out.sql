@@ -450,10 +450,13 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
@@ -467,7 +470,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;

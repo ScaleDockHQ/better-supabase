@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_75_trash.sql
 -- better-supabase module: trash
--- @bs-module trash@1 managed
+-- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -295,6 +295,7 @@ begin
   for v_batch in
     select "batch_id" from "better_supabase"."trash_items"
     where "depth" = 0 and "purge_after" <= now()
+      and not false
     order by "purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -344,13 +345,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('trash', 1, 'managed')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_75_trash.sql
 -- better-supabase module: trash
--- @bs-module trash@1 managed
+-- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,6 +673,7 @@ begin
   for v_batch in
     select "batch_id" from "better_supabase"."trash_items"
     where "depth" = 0 and "purge_after" <= now()
+      and not "better_supabase"."is_held"('trash', ("tenant_id")::text)
     order by "purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -721,13 +723,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('trash', 1, 'managed')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_75_trash.sql
 -- better-supabase module: trash
--- @bs-module trash@1 managed
+-- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1024,6 +1026,7 @@ begin
   for v_batch in
     select "batch_id" from "app_private"."trash_items"
     where "depth" = 0 and "purge_after" <= now()
+      and not false
     order by "purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -1073,13 +1076,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('trash', 1, 'managed')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_75_trash.sql
 -- better-supabase module: trash
--- @bs-module trash@1 managed
+-- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1374,6 +1377,7 @@ begin
   for v_batch in
     select "batch_id" from "better_supabase"."trash_items"
     where "depth" = 0 and "purge_after" <= now()
+      and not false
     order by "purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -1501,13 +1505,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('trash', 1, 'managed')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_75_trash.sql
 -- better-supabase module: trash
--- @bs-module trash@1 adopt
+-- @bs-module trash@2 adopt
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1780,6 +1784,7 @@ begin
   for v_batch in
     select "batch_id" from "better_supabase"."trash_items"
     where "depth" = 0 and "purge_after" <= now()
+      and not false
     order by "purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -1829,6 +1834,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('trash', 1, 'adopt')
+values ('trash', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

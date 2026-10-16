@@ -450,10 +450,13 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
@@ -467,7 +470,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;
@@ -1041,15 +1046,20 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
       select v."id" from "better_supabase"."webhook_deliveries" v
-      where v."created_at" < now() - purge_webhook_deliveries.older_than
+      where (v."created_at" < now() - least(purge_webhook_deliveries.older_than, "better_supabase"."retention_floor"('webhook_deliveries'))
+      and v."created_at" < now() - coalesce("better_supabase"."retention_for"('webhook_deliveries', (v."organization_id")::text), purge_webhook_deliveries.older_than)
+      and not "better_supabase"."is_held"('webhook_deliveries', (v."organization_id")::text))
         and (
           v."status" in ('succeeded', 'canceled')
           or (purge_webhook_deliveries.include_dead and v."status" = 'dead')
@@ -1058,7 +1068,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;
@@ -1620,10 +1632,13 @@ grant execute on function "app_private"."redeliver_webhook"(uuid) to authenticat
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "app_private"."purge_webhook_deliveries"()');
 create or replace function "app_private"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "app_private"."webhook_deliveries"
     where "id" in (
@@ -1637,7 +1652,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "app_private"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "app_private"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;
@@ -2189,10 +2206,13 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
@@ -2206,7 +2226,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;
@@ -2776,10 +2798,13 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
@@ -2793,7 +2818,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;

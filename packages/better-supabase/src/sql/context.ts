@@ -331,6 +331,34 @@ export interface ModuleContext {
   entitlements(tenant: string): string | undefined;
   entitlements(tenant: string, fallback: string): string;
   /**
+   * How long rows of `kind` are kept for `tenant` (SQL expressions): the
+   * data-lifecycle policy for the tenant, its plan or every tenant, else
+   * `fallback`; just `fallback` without the `data-lifecycle` module.
+   */
+  retention(kind: string, tenant: string, fallback: string): string;
+  /** Whether a legal hold covers `kind` for `tenant`; `false` without the `data-lifecycle` module. */
+  held(kind: string, tenant: string): string;
+  /**
+   * The condition a purge deletes on: the row's timestamp `at` is past
+   * `retention` and no hold covers it. With data-lifecycle it first bounds
+   * `at` by the shortest policy, so the timestamp index still serves.
+   */
+  expired(
+    kind: string,
+    row: {
+      readonly at: string;
+      readonly tenant: string;
+      readonly fallback: string;
+    },
+  ): string;
+  /**
+   * Before when every tenant's rows of `kind` may go (a timestamptz
+   * expression), for dropping whole partitions: null under any hold on the
+   * kind, else the longest policy or `fallback`; `now() - fallback` without
+   * the `data-lifecycle` module.
+   */
+  cutoff(kind: string, fallback: string): string;
+  /**
    * PL/pgSQL that broadcasts on a Realtime topic when `realtime.send`
    * exists: projects without Realtime skip it.
    */
@@ -728,6 +756,26 @@ export function createModuleContext(
       : fallback;
   }
 
+  const lifecycle = (name: string, args: string): string | undefined => {
+    declares("data-lifecycle");
+    return installed.has("data-lifecycle")
+      ? `${createModuleContext("data-lifecycle", namesOf, source).fn(name)}(${args})`
+      : undefined;
+  };
+  const retention = (
+    kind: string,
+    tenant: string,
+    fallback: string,
+  ): string => {
+    const policy = lifecycle(
+      "retention_for",
+      `${sqlString(kind)}, (${tenant})::text`,
+    );
+    return policy ? `coalesce(${policy}, ${fallback})` : fallback;
+  };
+  const held = (kind: string, tenant: string): string =>
+    lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
+
   return {
     module,
     mode: config.mode,
@@ -877,6 +925,21 @@ export function createModuleContext(
       return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
     entitlements,
+    retention,
+    held,
+    expired(kind, row) {
+      const floor = lifecycle("retention_floor", sqlString(kind));
+      if (!floor) return `${row.at} < now() - ${row.fallback}`;
+      return `(${row.at} < now() - least(${row.fallback}, ${floor})
+      and ${row.at} < now() - ${retention(kind, row.tenant, row.fallback)}
+      and not ${held(kind, row.tenant)})`;
+    },
+    cutoff(kind, fallback) {
+      return (
+        lifecycle("retention_cutoff", `${sqlString(kind)}, ${fallback}`) ??
+        `now() - ${fallback}`
+      );
+    },
     broadcast(topic, event, payload, options = {}) {
       const indent = options.indent ?? "  ";
       return `if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then

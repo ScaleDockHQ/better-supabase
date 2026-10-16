@@ -3,6 +3,7 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 /** `blocks.audit.options`. */
 export type AuditSqlOptions = {
   readonly appendOnly?: boolean;
+  readonly chain?: boolean;
   readonly correlationIdHeader?: string;
   readonly eventCategory?: string;
   readonly eventRoles?: readonly string[];
@@ -12,6 +13,7 @@ export type AuditSqlOptions = {
   readonly impersonators?: string;
   readonly keepMappedMetadata?: boolean;
   readonly metadataColumns?: unknown;
+  readonly partitioned?: boolean;
   readonly readPolicy?: boolean;
   readonly requestIdHeader?: string;
   readonly restricted?: boolean;
@@ -24,6 +26,7 @@ export type AuditSqlOptions = {
 export const auditSqlOptions: BlockOptionsSchema<AuditSqlOptions> =
   blockOptions<AuditSqlOptions>({
     appendOnly: option.boolean(),
+    chain: option.boolean({ default: false }),
     correlationIdHeader: option.string({ default: "x-correlation-id" }),
     eventCategory: option.string({ default: "system" }),
     eventRoles: option.strings({ default: ["service_role"] }),
@@ -33,6 +36,7 @@ export const auditSqlOptions: BlockOptionsSchema<AuditSqlOptions> =
     impersonators: option.string({ default: "show" }),
     keepMappedMetadata: option.boolean({ default: false }),
     metadataColumns: option.unknown(),
+    partitioned: option.boolean({ default: false }),
     readPolicy: option.boolean({ default: false }),
     requestIdHeader: option.string({ default: "x-request-id" }),
     restricted: option.boolean({ default: false }),

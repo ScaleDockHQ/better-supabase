@@ -1198,6 +1198,51 @@ describe("subject registry (BS331, BS332)", () => {
   });
 });
 
+describe("unpartitioned audit log (BS335)", () => {
+  const withLog = (primaryKey: string[]) =>
+    snapshot((tables) => {
+      const log = tables.find(
+        (entry) =>
+          entry.schema === "better_supabase" && entry.name === "audit_events",
+      );
+      if (log) log.primaryKey = primaryKey;
+    });
+  const partitioned = {
+    blocks: { audit: { options: { partitioned: true } } },
+  };
+
+  it("reports a log whose key is id alone", async () => {
+    expect(
+      await run("BS335", context(withLog(["id"]), {}, partitioned)),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "better_supabase.audit_events",
+      }),
+    ]);
+  });
+
+  it("passes a partitioned log, the option off and a missing table", async () => {
+    expect(
+      await run(
+        "BS335",
+        context(withLog(["id", "occurred_at"]), {}, partitioned),
+      ),
+    ).toEqual([]);
+    expect(
+      await run("BS335", context(withLog(["id"]), {}, { blocks: ["audit"] })),
+    ).toEqual([]);
+    const missing = snapshot((tables) => {
+      tables.splice(
+        tables.findIndex((entry) => entry.name === "audit_events"),
+        1,
+      );
+    });
+    expect(await run("BS335", context(missing, {}, partitioned))).toEqual([]);
+    expect(await run("BS335", context(withLog(["id"])))).toEqual([]);
+  });
+});
+
 describe("module event triggers (BS323)", () => {
   const modules = { blocks: ["audit", "ensure-rls", "tenant"] };
   const live = (rows: Record<string, unknown>[] | Error) => ({

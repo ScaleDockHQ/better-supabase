@@ -691,15 +691,18 @@ function purge(ctx: ModuleContext, n: HookNames): string {
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select ${fn}()');
 create or replace function ${fn}(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from ${n.table("deliveries")}
     where ${v("id")} in (
       select v.${v("id")} from ${n.table("deliveries")} v
-      where v.${v("createdAt")} < now() - purge_webhook_deliveries.older_than
+      where ${ctx.expired("webhook_deliveries", { at: `v.${v("createdAt")}`, tenant: n.has("deliveries", "tenant") ? `v.${v("tenant")}` : "null", fallback: "purge_webhook_deliveries.older_than" })}
         and (
           v.${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")})
           or (purge_webhook_deliveries.include_dead and v.${v("status")} = ${n.status("dead")})
@@ -708,7 +711,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 ${grants(fn, "interval, boolean, integer", false)}`;
 }

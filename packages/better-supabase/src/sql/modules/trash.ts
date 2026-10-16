@@ -538,6 +538,7 @@ begin
   for v_batch in
     select ${c("batch")} from ${items}
     where ${c("depth")} = 0 and ${c("purgeAfter")} <= now()
+      and not ${ctx.held("trash", c("tenant"))}
     order by ${c("purgeAfter")}
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
@@ -589,10 +590,18 @@ export const TRASH: ModuleDefinition = {
   description:
     "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "purge_expired_trash skips batches under a data-lifecycle legal hold.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

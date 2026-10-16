@@ -39,3 +39,4 @@ add one, and link it from the code or config it explains.
 | [0031](0031-presets-registry-recipes.md)        | Presets install blocks, a shadcn registry ships glue only, and UI is a recipe                            |
 | [0032](0032-fixture-on-the-stack-engine.md)     | The fixture runs on the CLI's stack engine with per-checkout ports and the native runtime in CI          |
 | [0033](0033-signing-keys-in-vault.md)           | Signing keys live in Vault; signing runs in TypeScript with WebCrypto                                    |
+| [0034](0034-retention-holds-and-audit-chain.md) | Retention policies and legal holds in data-lifecycle; a hash-chained, partitionable audit log            |

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_30_usage.sql
 -- better-supabase module: usage
--- @bs-module usage@4 managed
+-- @bs-module usage@5 managed
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -660,13 +660,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('usage', 4, 'managed')
+values ('usage', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_30_usage.sql
 -- better-supabase module: usage
--- @bs-module usage@4 managed
+-- @bs-module usage@5 managed
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1298,7 +1298,9 @@ begin
   with gone as (
     delete from "better_supabase"."usage_history" where "id" in (
       select h."id" from "better_supabase"."usage_history" h
-      where h."recorded_at" < now() - older_than
+      where (h."recorded_at" < now() - least(older_than, "better_supabase"."retention_floor"('usage'))
+      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for"('usage', (h."organization_id")::text), older_than)
+      and not "better_supabase"."is_held"('usage', (h."organization_id")::text))
       order by h."id" limit batch
     )
     returning 1
@@ -1385,13 +1387,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('usage', 4, 'managed')
+values ('usage', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_30_usage.sql
 -- better-supabase module: usage
--- @bs-module usage@4 managed
+-- @bs-module usage@5 managed
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2053,13 +2055,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('usage', 4, 'managed')
+values ('usage', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_30_usage.sql
 -- better-supabase module: usage
--- @bs-module usage@4 managed
+-- @bs-module usage@5 managed
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2903,6 +2905,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('usage', 4, 'managed')
+values ('usage', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

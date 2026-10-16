@@ -407,7 +407,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   description:
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
   requires: ["updated-at"],
-  integrates: ["access", "service-principals"],
+  integrates: ["access", "service-principals", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
@@ -436,7 +436,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
     {
       from: 3,
       description:
-        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (the credential whose token authenticates the request), and claim_webhook_deliveries returns them.",
+        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (the credential whose token authenticates the request), and claim_webhook_deliveries returns them. purge_webhook_deliveries keeps deliveries for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
     },
   ],

@@ -709,11 +709,11 @@ export const NOTIFICATIONS: ModuleDefinition = {
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   requires: ["updated-at"],
-  integrates: ["access", "profiles", "tenant"],
+  integrates: ["access", "profiles", "tenant", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 6,
+  version: 7,
   names: NAMES,
   contract,
   upgrades: [
@@ -751,6 +751,12 @@ export const NOTIFICATIONS: ModuleDefinition = {
       from: 5,
       description:
         "notification_delivery_events stores what a provider reports about a sent message; deliveries gain provider_status, provider_status_at and template_key; record_delivery_event and list_subject_deliveries are new, complete_notification_delivery takes template_key, and notification.delivered, opened, clicked, bounced, complained and delayed carry the subject.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "purge_notifications keeps notifications for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
     },
   ],

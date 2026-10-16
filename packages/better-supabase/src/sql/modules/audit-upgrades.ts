@@ -72,4 +72,10 @@ export const AUDIT_UPGRADES: readonly ModuleUpgrade[] = [
       "revert_audit_entries(entries) writes the old values of row changes back as the caller and returns the entries it wrote, for an undo token; members need audit.revert.",
     sql: () => "",
   },
+  {
+    from: 7,
+    description:
+      "purge_audit_log keeps entries for the data-lifecycle retention policies and skips entries under a legal hold; with options.chain the log gains chain_seq, prev_hash and row_hash (new entries only), verify_audit_chain and audit_checkpoints. options.partitioned applies to new logs only.",
+    sql: () => "",
+  },
 ];

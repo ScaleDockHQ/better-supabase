@@ -129,6 +129,12 @@ function webhookInboxSql(ctx: ModuleContext): string {
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`)
       .join(separator);
+  const expired = (at: string): string =>
+    ctx.expired("webhooks", {
+      at,
+      tenant: has("tenant") ? `w.${c("tenant")}` : "null",
+      fallback: "older_than",
+    });
   // An adopted tenant column can be uuid or bigint; the functions take text.
   const tenantText = (alias: string) =>
     managed ? `${alias}.${c("tenant")}` : `${alias}.${c("tenant")}::text`;
@@ -429,22 +435,27 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from ${t}
     where ${c("id")} in (
       select w.${c("id")} from ${t} w
-      where ((w.${c("status")} = 'processed' and ${has("processedAt") ? `w.${c("processedAt")}` : `w.${c("receivedAt")}`} < now() - older_than)
-        or (include_dead and w.${c("status")} = 'dead' and w.${c("receivedAt")} < now() - older_than))
+      where ((w.${c("status")} = 'processed' and ${expired(has("processedAt") ? `w.${c("processedAt")}` : `w.${c("receivedAt")}`)})
+        or (include_dead and w.${c("status")} = 'dead' and ${expired(`w.${c("receivedAt")}`)}))
         and (for_tenant is null or ${tenantFilter("w", "for_tenant")})
       order by w.${c("id")}
       limit batch
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 ${serviceOnly([
@@ -465,6 +476,7 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
   description:
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.",
   requires: [],
+  integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed", "adopt"],
   names: {
@@ -485,7 +497,7 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
       },
     },
   },
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -528,6 +540,12 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
       from: 6,
       description:
         "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; options.extraColumns adds columns to the messages.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "purge_webhooks keeps messages for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
     },
   ],

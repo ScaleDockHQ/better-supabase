@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@7 managed
+-- @bs-module webhook-inbox@8 managed
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -261,9 +261,12 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from better_supabase.webhook_inbox
     where id in (
@@ -276,7 +279,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
@@ -317,13 +322,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 7, 'managed')
+values ('webhook-inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@7 managed
+-- @bs-module webhook-inbox@8 managed
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -584,22 +589,31 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from better_supabase.webhook_inbox
     where id in (
       select w.id from better_supabase.webhook_inbox w
-      where ((w.status = 'processed' and w.processed_at < now() - older_than)
-        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than))
+      where ((w.status = 'processed' and (w.processed_at < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
+      and w.processed_at < now() - coalesce("better_supabase"."retention_for"('webhooks', (w.tenant)::text), older_than)
+      and not "better_supabase"."is_held"('webhooks', (w.tenant)::text)))
+        or (include_dead and w.status = 'dead' and (w.received_at < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
+      and w.received_at < now() - coalesce("better_supabase"."retention_for"('webhooks', (w.tenant)::text), older_than)
+      and not "better_supabase"."is_held"('webhooks', (w.tenant)::text))))
         and (for_tenant is null or w.tenant = for_tenant)
       order by w.id
       limit batch
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
@@ -640,13 +654,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 7, 'managed')
+values ('webhook-inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@7 managed
+-- @bs-module webhook-inbox@8 managed
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -907,9 +921,12 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from better_supabase.webhook_inbox
     where id in (
@@ -922,7 +939,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
@@ -963,13 +982,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 7, 'managed')
+values ('webhook-inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@7 managed
+-- @bs-module webhook-inbox@8 managed
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1230,9 +1249,12 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from better_supabase.webhook_inbox
     where id in (
@@ -1245,7 +1267,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
@@ -1373,13 +1397,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 7, 'managed')
+values ('webhook-inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bs-module webhook-inbox@7 adopt
+-- @bs-module webhook-inbox@8 adopt
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1595,9 +1619,12 @@ create or replace function better_supabase.purge_webhooks(
   for_tenant text default null
 )
 returns integer
-language sql
+language plpgsql
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_inbox"
     where "id" in (
@@ -1610,7 +1637,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
@@ -1651,6 +1680,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhook-inbox', 7, 'adopt')
+values ('webhook-inbox', 8, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

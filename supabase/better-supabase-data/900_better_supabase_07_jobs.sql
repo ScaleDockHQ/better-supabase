@@ -11,6 +11,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.modules (name, version, mode)
-values ('jobs', 7, 'managed')
+values ('jobs', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

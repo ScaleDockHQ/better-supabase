@@ -10,6 +10,6 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 1, 'managed')
+values ('inbox', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

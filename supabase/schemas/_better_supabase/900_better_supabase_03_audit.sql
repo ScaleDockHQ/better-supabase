@@ -1,5 +1,5 @@
 -- better-supabase module: audit (0.8.0)
--- @bs-module audit@7 managed
+-- @bs-module audit@8 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -749,6 +749,8 @@ drop trigger if exists "bs_audit_no_truncate" on "better_supabase"."audit_events
 create trigger "bs_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
+drop trigger if exists "bs_audit_chain" on "better_supabase"."audit_events";
+
 -- Members read their tenant's entries with the audit.read permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
@@ -786,7 +788,8 @@ grant select on "better_supabase"."audit_events" to authenticated;
 
 -- Deletes up to batch entries older than older_than and returns how many.
 -- With an audit_retention(tenant) function, each tenant keeps its own
--- interval (a plan's days, say); null falls back to older_than. With
+-- interval (a plan's days, say); null falls back to the data-lifecycle
+-- retention policy, then older_than. Entries under a legal hold stay. With
 -- for_tenant, only entries of tenant (null: entries without one).
 -- Nightly with pg_cron or the jobs drain route:
 --   select better_supabase.purge_audit_log();
@@ -823,6 +826,7 @@ begin
       select t.v from t where t.v is not null
     loop
       exit when purged >= batch;
+      continue when false;
       -- Not a literal name, so plpgsql_check passes without the hook.
       execute format('select %s($1)', to_regprocedure('"public"."audit_retention"(uuid)')::oid::regproc)
         into v_older using v_tenant;
@@ -862,11 +866,11 @@ begin
         where l."occurred_at" < now() - older_than
           and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
-        limit batch
+        limit greatest(batch - purged, 0)
       )
       returning 1
     )
-    select count(*)::integer into purged from deleted;
+    select purged + count(*)::integer into purged from deleted;
   end if;
   perform set_config('better_supabase.audit_purge', 'off', true);
   return purged;

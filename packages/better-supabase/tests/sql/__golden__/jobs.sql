@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_07_jobs.sql
 -- better-supabase module: jobs
--- @bs-module jobs@7 managed
+-- @bs-module jobs@8 managed
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -261,6 +261,7 @@ as $$
 declare
   purged integer;
 begin
+  null;
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue
@@ -547,13 +548,13 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.modules (name, version, mode)
-values ('jobs', 7, 'managed')
+values ('jobs', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_07_jobs.sql
 -- better-supabase module: jobs
--- @bs-module jobs@7 managed
+-- @bs-module jobs@8 managed
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -814,6 +815,11 @@ as $$
 declare
   purged integer;
 begin
+  if "better_supabase"."is_held"('job_archive', (null)::text) then
+    return 0;
+  end if;
+  older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), older_than);
+  dead_older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), dead_older_than);
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue
@@ -1100,7 +1106,7 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.modules (name, version, mode)
-values ('jobs', 7, 'managed')
+values ('jobs', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1109,7 +1115,7 @@ on conflict (name) do update
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_07_jobs.sql
 -- better-supabase module: jobs
--- @bs-module jobs@7 managed
+-- @bs-module jobs@8 managed
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1370,6 +1376,7 @@ as $$
 declare
   purged integer;
 begin
+  null;
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue
@@ -1842,6 +1849,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.modules (name, version, mode)
-values ('jobs', 7, 'managed')
+values ('jobs', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

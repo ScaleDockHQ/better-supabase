@@ -762,7 +762,7 @@ begin
   with gone as (
     delete from ${history} where ${hc("id")} in (
       select h.${hc("id")} from ${history} h
-      where h.${hc("recordedAt")} < now() - older_than
+      where ${ctx.expired("usage", { at: `h.${hc("recordedAt")}`, tenant: `h.${hc("tenant")}`, fallback: "older_than" })}
       order by h.${hc("id")} limit batch
     )
     returning 1
@@ -890,11 +890,11 @@ export const USAGE: ModuleDefinition = {
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
   requires: ["tenant", "access"],
-  integrates: ["entitlements"],
+  integrates: ["entitlements", "data-lifecycle"],
   providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -918,6 +918,12 @@ export const USAGE: ModuleDefinition = {
       from: 3,
       description:
         "Recording usage needs usage.record (or the service role) instead of any membership, record_usage returns used for the quota's period and today for the UTC day, and purge_usage_events deletes old idempotency keys.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "purge_usage_history keeps history for the data-lifecycle retention policy and skips rows under a legal hold.",
       sql: () => "",
     },
   ],
