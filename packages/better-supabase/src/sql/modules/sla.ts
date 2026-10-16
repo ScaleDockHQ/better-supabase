@@ -10,13 +10,13 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
   serviceGrant,
-  setExtraFields,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import {
@@ -431,8 +431,8 @@ begin
     ${fail("SLA_POLICY_TAKEN", "another active policy covers this record type and priority", "23505")}
   when check_violation or not_null_violation or invalid_text_representation then
     ${fail("SLA_POLICY_INVALID", "a policy needs a name, a record type and positive minutes", "22023")}
-  end;${setExtraFields(t("policies"), extras, "(save_sla_policy.attrs -> 'fields')", `x.${p("id")} = v_id`)}
-  return (select to_jsonb(x)${extraFieldsJson("x", extras)} from ${t("policies")} x where x.${p("id")} = v_id);
+  end;${writeExtraColumns(t("policies"), extras, "(save_sla_policy.attrs -> 'fields')", `x.${p("id")} = v_id`)}
+  return (select ${withExtraFields("to_jsonb(x)", "x", extras)} from ${t("policies")} x where x.${p("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_sla_policy")}(${ctx.idType}, uuid, jsonb)`)}

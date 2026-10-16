@@ -304,3 +304,10 @@ sheet in the header where a signed-in user opens a conversation with the
 `useInboxWidget` hook. The assistant answers in the Help sheet until a
 staff member replies. See `apps/examples/nextjs/src/features/inbox` and
 [Build a unibox inbox](/docs/build/unibox-inbox).
+
+## Hooks
+
+`createInbox` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)). Methods in a group take their hooks under the group's name,
+such as `hooks: { conversations: { resolve: { before } } }`.

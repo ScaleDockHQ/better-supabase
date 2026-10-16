@@ -6,17 +6,24 @@ import type {
 } from "../../core/contracts/form-definition.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FormAnswers } from "./validate.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { isFormDefinition } from "../../core/contracts/form-definition.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
   enumOrThrow,
   instantArg,
+  isRecord,
   optionalInstant,
   optionalText,
   recordOf,
@@ -26,12 +33,20 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface FormsOptions extends BlockTemporalOptions {
+export interface FormsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the forms' extra columns
+   * (`blocks.forms.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on reads and validates them on `create` and `update`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Forms>;
+  readonly hooks?: NoInfer<BlockHooks<Forms<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -45,7 +60,8 @@ export type FormSubmissionStatus =
   | "rejected";
 export type FormSubmissionSource = "member" | "public" | "service";
 
-export interface Form {
+/** A form. `F` types the extra columns the `fields` schema describes. */
+export interface Form<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly key: string;
@@ -56,6 +72,8 @@ export interface Form {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
 /** One published definition and the JSON Schema generated from it. */
@@ -71,7 +89,9 @@ export interface FormVersion {
 }
 
 /** A form with its current version, from `get`. */
-export interface FormDetail extends Form {
+export interface FormDetail<
+  F extends object = Record<never, never>,
+> extends Form<F> {
   readonly version?: FormVersion;
 }
 
@@ -108,18 +128,22 @@ export interface PublicSubmission {
   readonly submittedAt?: Temporal.Instant;
 }
 
-export interface FormInput {
+export interface FormInput<F extends object = Record<never, never>> {
   readonly organizationId: string;
   /** Unique in the organization; lowercase letters, digits, `_` and `-`. */
   readonly key: string;
   readonly title: string;
   readonly description?: string;
+  /** Values for the extra columns, by column name. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface FormUpdate {
+export interface FormUpdate<F extends object = Record<never, never>> {
   readonly title?: string;
   readonly description?: string;
   readonly status?: FormStatus;
+  /** Values for the extra columns, by column name; the ones left out keep their value. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 export interface SubmitOptions {
@@ -145,17 +169,18 @@ export interface SubmissionListOptions {
   readonly before?: Temporal.Instant;
 }
 
-export interface Forms {
-  create(input: FormInput): AsyncResult<Form>;
-  update(id: string, update: FormUpdate): AsyncResult<Form>;
+/** `F` types the forms' extra columns, from the `fields` schema. */
+export interface Forms<F extends object = Record<never, never>> {
+  create(input: FormInput<F>): AsyncResult<Form<F>>;
+  update(id: string, update: FormUpdate<F>): AsyncResult<Form<F>>;
   /** Publishes a definition as the form's next version and makes it current. */
   publish(formId: string, definition: FormDefinition): AsyncResult<FormVersion>;
-  get(id: string): AsyncResult<FormDetail>;
+  get(id: string): AsyncResult<FormDetail<F>>;
   getVersion(versionId: string): AsyncResult<FormVersion>;
   list(
     organizationId: string,
     options?: { readonly status?: FormStatus },
-  ): AsyncResult<readonly Form[]>;
+  ): AsyncResult<readonly Form<F>[]>;
   /** Submits answers to the form's current version; Postgres validates them. */
   submit(
     formId: string,
@@ -223,6 +248,7 @@ function formOf(value: unknown, fn: string): Form {
     ...optional("description", optionalText(row["description"])),
     ...optional("currentVersionId", optionalText(row["currentVersionId"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -274,32 +300,60 @@ function submissionOf(value: unknown, fn: string): FormSubmission {
 }
 
 /** The `forms` SQL module as typed calls. */
-export function createForms(options: FormsOptions): Forms {
+export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
+  options: FormsOptions<S>,
+): Forms<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Forms = {
+  const fields: BlockFields<F> = blockFields(options.fields, "form fields");
+  const parsed = <T extends Form>(form: T): AsyncResult<T & Form<F>> =>
+    AsyncResult.from(() => fields.read(form.fields)).map((value) => ({
+      ...form,
+      fields: value,
+    }));
+  /** `{ fields }` for a write that sets extra columns, checked first; `{}` otherwise. */
+  const extra = (
+    input: Readonly<Record<string, unknown>> | undefined,
+  ): AsyncResult<{ readonly fields?: Readonly<Record<string, unknown>> }> =>
+    input === undefined
+      ? AsyncResult.ok({})
+      : AsyncResult.from(() => fields.write({ ...input })).map((valid) => ({
+          fields: valid,
+        }));
+  const client: Forms<F> = {
     create: (input) =>
-      call(
-        "create_form",
-        {
-          tenant: input.organizationId,
-          key: input.key,
-          title: input.title,
-          description: input.description ?? null,
-        },
-        (value) => formOf(value, "create_form"),
-      ),
+      extra(input.fields)
+        .andThen((set) =>
+          call(
+            "create_form",
+            {
+              tenant: input.organizationId,
+              key: input.key,
+              title: input.title,
+              description: input.description ?? null,
+              ...set,
+            },
+            (value) => formOf(value, "create_form"),
+          ),
+        )
+        .andThen(parsed),
     update: (id, update) =>
-      call(
-        "update_form",
-        {
-          form_id: id,
-          title: update.title ?? null,
-          description: update.description ?? null,
-          status: update.status ?? null,
-        },
-        (value) => formOf(value, "update_form"),
-      ),
+      extra(update.fields)
+        .andThen((set) =>
+          call(
+            "update_form",
+            {
+              form_id: id,
+              title: update.title ?? null,
+              description: update.description ?? null,
+              status: update.status ?? null,
+              ...set,
+            },
+            (value) => formOf(value, "update_form"),
+          ),
+        )
+        .andThen(parsed),
     publish: (formId, definition) =>
       call("publish_form_version", { form_id: formId, definition }, (value) =>
         versionOf(value, "publish_form_version"),
@@ -316,7 +370,7 @@ export function createForms(options: FormsOptions): Forms {
               : versionOf(row["version"], "get_form"),
           ),
         };
-      }),
+      }).andThen(parsed),
     getVersion: (versionId) =>
       call("get_form_version", { version_id: versionId }, (value) =>
         versionOf(value, "get_form_version"),
@@ -329,6 +383,16 @@ export function createForms(options: FormsOptions): Forms {
           recordsOf(value, "list_forms").map((row) =>
             formOf(row, "list_forms"),
           ),
+      ).andThen((forms) =>
+        AsyncResult.from(async () => {
+          const out: Form<F>[] = [];
+          for (const form of forms) {
+            const read = await parsed(form);
+            if (!read.ok) return read;
+            out.push(read.data);
+          }
+          return ok(out);
+        }),
       ),
     submit: (formId, answers, submit = {}) =>
       call(

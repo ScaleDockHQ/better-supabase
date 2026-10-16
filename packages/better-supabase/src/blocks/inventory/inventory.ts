@@ -1,12 +1,18 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { type Money } from "../../commerce/money.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -41,14 +47,23 @@ export const PURCHASE_ORDER_STATUSES = [
 ] as const;
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
 
-export interface InventoryOptions extends BlockOptions {
+export interface InventoryOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the locations' extra columns
+   * (`blocks.inventory.options.extraColumns`), keyed by column name. It
+   * types and parses `fields` on `saveLocation` and validates the ones it
+   * writes.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around any inventory method. */
-  readonly hooks?: NoInfer<BlockHooks<Inventory>>;
+  readonly hooks?: NoInfer<BlockHooks<Inventory<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
-export interface LocationInput {
+export interface LocationInput<F extends object = Record<never, never>> {
   /** Updates this location; creates one when left out. */
   readonly id?: string;
   /** Unique within the organization, such as `WH-AMS`. */
@@ -56,12 +71,16 @@ export interface LocationInput {
   readonly name: string;
   /** Default `warehouse`. */
   readonly kind?: LocationKind;
+  /** Values for the extra columns, by column name; the ones left out keep their value. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface SavedLocation {
+export interface SavedLocation<F extends object = Record<never, never>> {
   readonly id: string;
   readonly code: string;
   readonly active: boolean;
+  /** The app's extra columns (`options.extraColumns`), by column name; absent without any. */
+  readonly fields?: Readonly<Record<string, unknown>> & F;
 }
 
 export interface StockChange {
@@ -133,11 +152,12 @@ export interface Receipt {
   readonly backordered: number;
 }
 
-export interface Inventory {
+/** `F` types the locations' extra columns, from the `fields` schema. */
+export interface Inventory<F extends object = Record<never, never>> {
   saveLocation(
     organizationId: string,
-    input: LocationInput,
-  ): AsyncResult<SavedLocation>;
+    input: LocationInput<F>,
+  ): AsyncResult<SavedLocation<F>>;
   /** An inactive location takes no new reservations or transfers. */
   setLocationActive(locationId: string, active: boolean): AsyncResult<boolean>;
   /** Refused with `INVENTORY_LOCATION_IN_USE` once it has stock history. */
@@ -243,8 +263,12 @@ function purchaseLines(
 }
 
 /** Locations, a stock ledger, reservations, transfers and purchase orders over the `inventory` SQL module. */
-export function createInventory(options: InventoryOptions): Inventory {
+export function createInventory<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: InventoryOptions<S>): Inventory<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(options.fields, "location fields");
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,
@@ -253,26 +277,44 @@ export function createInventory(options: InventoryOptions): Inventory {
   );
   const expireReservations: Inventory["expireReservations"] = (maxRows) =>
     service("expire_reservations", { max_rows: maxRows ?? null }, Number);
-  const inventory: Inventory = {
+  const inventory: Inventory<F> = {
     saveLocation: (organizationId, input) =>
-      call(
-        "save_location",
-        {
-          tenant: organizationId,
-          location: input.id ?? null,
-          code: input.code,
-          name: input.name,
-          kind: input.kind ?? null,
-        },
-        (value) => {
-          const row = recordOf(value, "save_location");
-          return {
-            id: textOf(row["id"]),
-            code: textOf(row["code"]),
-            active: row["active"] === true,
-          };
-        },
-      ),
+      AsyncResult.from(() =>
+        input.fields === undefined
+          ? Promise.resolve(ok(undefined))
+          : fields.write({ ...input.fields }),
+      )
+        .andThen((valid) =>
+          call(
+            "save_location",
+            {
+              tenant: organizationId,
+              location: input.id ?? null,
+              code: input.code,
+              name: input.name,
+              kind: input.kind ?? null,
+              ...(valid === undefined ? {} : { fields: valid }),
+            },
+            (value) => {
+              const row = recordOf(value, "save_location");
+              return {
+                id: textOf(row["id"]),
+                code: textOf(row["code"]),
+                active: row["active"] === true,
+                ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
+              };
+            },
+          ),
+        )
+        .andThen((saved): AsyncResult<SavedLocation<F>> => {
+          const { fields: extra, ...rest } = saved;
+          return extra === undefined
+            ? AsyncResult.ok(rest)
+            : AsyncResult.from(() => fields.read(extra)).map((value) => ({
+                ...rest,
+                fields: value,
+              }));
+        }),
     setLocationActive: (locationId, active) =>
       call("set_location_active", { location: locationId, active }, isTrue),
     deleteLocation: (locationId) =>

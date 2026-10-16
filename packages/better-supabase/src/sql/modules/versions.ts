@@ -11,16 +11,16 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
-  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  setExtraFields,
   sha256Hex,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
 import {
@@ -324,7 +324,11 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("versions", ["fields", "content"]);
   const extra = extraFieldsArg(extras);
   const summary = (row: string, withFields = true): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})${withFields ? extraFieldsJson(row, extras) : ""}`;
+    withExtraFields(
+      `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`,
+      row,
+      withFields ? extras : [],
+    );
   const tables = ctx.manages
     ? `create table if not exists ${versions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -449,7 +453,7 @@ begin
     ["text", "snapshot_version.subject_type"],
     ["text", "snapshot_version.subject_id"],
   ])}
-  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());${setExtraFields(versions, extras, "snapshot_version.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`)}
+  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());${writeExtraColumns(versions, extras, "snapshot_version.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`)}
   ${ctx.hook("after_version_snapshot", [
     ["uuid", "(v_result ->> 'id')::uuid"],
     ["text", "snapshot_version.subject_type"],

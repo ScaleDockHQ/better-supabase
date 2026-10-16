@@ -10,15 +10,15 @@ import type { ModuleDefinition } from "../module-types.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
-  extraFieldsJson,
   fail,
   lockTable,
-  SERVICE_CALLER,
-  setExtraFields,
   schemaPreamble,
+  SERVICE_CALLER,
   serviceGrant,
   sha256Hex,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { workflowParts } from "./templates-workflows.ts";
@@ -152,7 +152,9 @@ function build(ctx: ModuleContext): string {
   const published = (template: string): string =>
     `(select y.${cv("version")} from ${ver} y where y.${cv("template")} = ${template} and y.${cv("publishedAt")} is not null order by y.${cv("version")} desc limit 1)`;
 
-  const templateJson = (alias: string): string => `jsonb_build_object(
+  const templateJson = (alias: string): string =>
+    withExtraFields(
+      `jsonb_build_object(
     'id', ${alias}.${ct("id")},
     'tenant', ${alias}.${ct("tenant")},
     'scope', ${alias}.${ct("scope")},
@@ -169,7 +171,10 @@ function build(ctx: ModuleContext): string {
     'createdBy', ${alias}.${ct("createdBy")},
     'createdAt', ${alias}.${ct("createdAt")},
     'updatedAt', ${alias}.${ct("updatedAt")}
-  )${extraFieldsJson(alias, extras)}`;
+  )`,
+      alias,
+      extras,
+    );
   const versionJson = (alias: string, full: boolean): string =>
     `jsonb_build_object(
     'id', ${alias}.${cv("id")},
@@ -342,7 +347,7 @@ begin
   end if;${
     extras.length === 0
       ? ""
-      : `${setExtraFields(t, extras, "save_template.fields", `x.${ct("id")} = v_row.${ct("id")}`)}
+      : `${writeExtraColumns(t, extras, "save_template.fields", `x.${ct("id")} = v_row.${ct("id")}`)}
   select * into v_row from ${t} x where x.${ct("id")} = v_row.${ct("id")};`
   }
   ${ctx.hook("after_template_save", [["uuid", `v_row.${ct("id")}`]])}

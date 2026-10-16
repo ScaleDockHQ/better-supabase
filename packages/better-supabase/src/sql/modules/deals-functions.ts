@@ -1,9 +1,9 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 
@@ -26,6 +26,8 @@ export interface DealNames {
   readonly prefix: string;
   /** SQL that is true for the service role. */
   readonly service: string;
+  /** `options.extraColumns`, which `create_deal` and `update_deals` write by name. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 interface Field {
@@ -129,12 +131,16 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
   if ${alias}.${d("priority")} is not null and not (${alias}.${d("priority")} = any (${n.priorities})) then
     ${fail("DEAL_PRIORITY_INVALID", "unknown priority", "22023")}
   end if;`;
-  const writes = fields(d)
-    .map(
+  const writes = [
+    ...fields(d).map(
       (field) => `      when ${sqlString(field.field)} then
         update ${t("deals")} x set ${field.set("v_change -> 'value'")} where x.${d("id")} = v_deal returning * into v_row;`,
-    )
-    .join("\n");
+    ),
+    ...n.extras.map(
+      (extra) => `      when ${sqlString(extra.name)} then
+        update ${t("deals")} x set ${extra.ident} = (jsonb_populate_record(null::${t("deals")}, jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value'))).${extra.ident} where x.${d("id")} = v_deal returning * into v_row;`,
+    ),
+  ].join("\n");
   const watchMember = watchSql(ctx, {
     tenant: "v_tenant",
     user: "v_user",
@@ -172,8 +178,8 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function ${fn("create_deal")}(tenant ${ctx.idType}, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql
@@ -230,7 +236,7 @@ begin
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("DEAL_ATTRS_INVALID", "a deal field has an invalid value", "22023")}
   end;
-  v_deal := v_row.${d("id")};${checkValues("v_row")}
+  v_deal := v_row.${d("id")};${writeExtraColumns(t("deals"), n.extras, "create_deal.attrs", `x.${d("id")} = v_deal`)}${checkValues("v_row")}
   if create_deal.contacts is not null then
     perform ${fn("set_deal_contacts")}(v_deal, create_deal.contacts);
   end if;

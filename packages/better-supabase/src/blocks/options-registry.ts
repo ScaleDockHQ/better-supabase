@@ -81,6 +81,7 @@ import {
   type EngagementsSqlOptions,
   engagementsSqlOptions,
 } from "./engagements/options.ts";
+import { type FlagsSqlOptions, flagsSqlOptions } from "./flags/options.ts";
 import {
   type FormsSqlOptions,
   formsSqlOptions,
@@ -94,6 +95,10 @@ import {
   identitiesSqlOptions,
 } from "./identities/options.ts";
 import { type InboxSqlOptions, inboxSqlOptions } from "./inbox/options.ts";
+import {
+  type InventorySqlOptions,
+  inventorySqlOptions,
+} from "./inventory/options.ts";
 import {
   type InvoicesSqlOptions,
   invoicesSqlOptions,
@@ -282,7 +287,7 @@ export interface BlockOptionsRegistry {
   readonly engagements: EngagementsSqlOptions;
   readonly "ensure-rls": None;
   readonly entitlements: None;
-  readonly flags: None;
+  readonly flags: FlagsSqlOptions;
   readonly forms: FormsSqlOptions;
   readonly grants: GrantsSqlOptions;
   readonly hiring: HiringSqlOptions;
@@ -290,7 +295,7 @@ export interface BlockOptionsRegistry {
   readonly identities: IdentitiesSqlOptions;
   readonly imports: None;
   readonly inbox: InboxSqlOptions;
-  readonly inventory: None;
+  readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
   readonly jobs: JobsSqlOptions;
@@ -394,7 +399,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   engagements: engagementsSqlOptions,
   "ensure-rls": NO_OPTIONS,
   entitlements: NO_OPTIONS,
-  flags: NO_OPTIONS,
+  flags: flagsSqlOptions,
   forms: formsSqlOptions,
   grants: grantsSqlOptions,
   hiring: hiringSqlOptions,
@@ -402,7 +407,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   identities: identitiesSqlOptions,
   imports: NO_OPTIONS,
   inbox: inboxSqlOptions,
-  inventory: NO_OPTIONS,
+  inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,
   invoices: invoicesSqlOptions,
   jobs: jobsSqlOptions,

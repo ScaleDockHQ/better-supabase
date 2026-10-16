@@ -8,12 +8,12 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
-  setExtraFields,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
@@ -112,7 +112,7 @@ ${Object.entries(known)
   const progressRow =
     extras.length === 0
       ? "to_jsonb(p)"
-      : `(to_jsonb(p)${extraFieldsJson("p", extras)})`;
+      : withExtraFields("to_jsonb(p)", "p", extras);
   return `${schemaPreamble(ctx)}
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
@@ -181,8 +181,8 @@ begin
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("TARGET_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
-  end;${setExtraFields(t, extras, "(save_target.attrs -> 'fields')", `x.${c("id")} = v_id`)}
-  return (select to_jsonb(x)${extraFieldsJson("x", extras)} from ${t} x where x.${c("id")} = v_id);
+  end;${writeExtraColumns(t, extras, "(save_target.attrs -> 'fields')", `x.${c("id")} = v_id`)}
+  return (select ${withExtraFields("to_jsonb(x)", "x", extras)} from ${t} x where x.${c("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_target")}(${ctx.idType}, uuid, jsonb)`)}

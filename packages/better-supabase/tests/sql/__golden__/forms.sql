@@ -294,7 +294,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
+create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -322,12 +324,13 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."create_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists "better_supabase"."update_form"(uuid, text, text, text);
+create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -362,8 +365,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."update_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.
@@ -1065,7 +1068,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
+create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1102,12 +1107,13 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."create_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists "better_supabase"."update_form"(uuid, text, text, text);
+create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1142,8 +1148,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."update_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.
@@ -1959,7 +1965,9 @@ end;
 $$;
 revoke execute on function "app_private"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "app_private"."create_form"(tenant uuid, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists "app_private"."create_form"(uuid, text, text, text);
+create or replace function "app_private"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1987,12 +1995,13 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."create_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function "app_private"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists "app_private"."update_form"(uuid, text, text, text);
+create or replace function "app_private"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2027,8 +2036,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."update_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.
@@ -2718,7 +2727,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
+create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2746,12 +2757,13 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."create_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists "better_supabase"."update_form"(uuid, text, text, text);
+create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2786,8 +2798,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."update_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.
@@ -3160,6 +3172,9 @@ grant execute on function "better_supabase"."delete_form_submission"(uuid) to au
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."create_form"(uuid, text, text, text);
+drop function if exists "api"."update_form"(uuid, text, text, text);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -3178,23 +3193,23 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."create_form"(tenant uuid, key text, title text, description text default null)
+create or replace function "api"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_form"($1, $2, $3, $4) $$;
-revoke execute on function "api"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "api"."create_form"(uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_form"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "api"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+create or replace function "api"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."update_form"($1, $2, $3, $4) $$;
-revoke execute on function "api"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "api"."update_form"(uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."update_form"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."publish_form_version"(form_id uuid, definition jsonb)
 returns jsonb
@@ -3529,7 +3544,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
+create or replace function "better_supabase"."create_form"(tenant uuid, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3557,12 +3574,13 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."create_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."create_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists "better_supabase"."update_form"(uuid, text, text, text);
+create or replace function "better_supabase"."update_form"(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3597,8 +3615,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."update_form"(uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."update_form"(uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_form"(uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.

@@ -17,9 +17,9 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  setExtraFieldsRow,
   sha256Hex,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
@@ -163,7 +163,7 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("requests", ["fields"]);
   const extra = extraFieldsArg(extras);
   const requestJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")})${extraFieldsJson(row, extras)}`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")}${extraFieldsJson(row, extras)})`;
   const signatureJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'requestId', ${row}.${s("request")}, 'signer', ${row}.${s("signer")}, 'method', ${row}.${s("method")}, 'typedName', ${row}.${s("typedName")}, 'imageAttachmentId', ${row}.${s("image")}, 'signedHash', ${row}.${s("signedHash")}, 'ip', ${row}.${s("ip")}, 'userAgent', ${row}.${s("userAgent")}, 'signedAt', ${row}.${s("signedAt")})`;
   const requestRecord = (
@@ -357,7 +357,7 @@ begin
   update ${vt} x set ${v("frozen")} = true where x.${v("id")} = v_version and not x.${v("frozen")};
   insert into ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("version")}, ${r("contentHash")}, ${r("signers")}, ${r("order")}, ${r("approval")}, ${r("message")}, ${r("requestedBy")})
   values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), auth.uid())
-  returning * into v_row;${setExtraFieldsRow(requests, extras, "create_signature_request.fields", r("id"), "v_row")}
+  returning * into v_row;${writeExtraColumns(requests, extras, "create_signature_request.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   ${requestRecord("signature.requested", "v_row", `, 'versionId', v_row.${r("version")}`, `'requested signatures on ' || v_row.${r("subjectType")} || ' ' || v_row.${r("subjectId")}`)}
   ${ctx.hook("after_signature_request", [["uuid", `v_row.${r("id")}`]])}
   return ${requestJson("v_row")};

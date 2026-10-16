@@ -17,8 +17,8 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  setExtraFieldsRow,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
@@ -193,11 +193,17 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("entries", RESERVED);
   const extra = extraFieldsArg(extras);
   const setExtras = (source: string): string =>
-    setExtraFieldsRow(entries, extras, source, e("id"), "v_row");
+    writeExtraColumns(
+      entries,
+      extras,
+      source,
+      `x.${e("id")} = v_row.${e("id")}`,
+      "v_row",
+    );
   const seconds = (row: string): string =>
     `case when ${row}.${e("endedAt")} is null then null else extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})::bigint end`;
   const entryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")})${extraFieldsJson(row, extras)}`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
   const status = (row: string, approval: string): string =>
     `case when ${row}.${t("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} = 'rejected' then 'rejected' else 'open' end`;
   const timesheetJson = (row: string, approval: string): string =>

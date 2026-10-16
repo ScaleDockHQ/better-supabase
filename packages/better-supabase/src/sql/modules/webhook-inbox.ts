@@ -5,11 +5,11 @@ import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
-  extraFieldsJson,
+  lockTable,
   SCHEMA,
   serviceOnly,
-  lockTable,
-  setExtraFields,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 
 const MESSAGE_COLUMNS = {
@@ -148,16 +148,20 @@ function webhookInboxSql(ctx: ModuleContext): string {
   };
   // A message as jsonb, keyed by the managed table's column names.
   const rowOf = (alias: string) =>
-    `jsonb_build_object(${ROW.map(
-      ([logical, name, type]) =>
-        `'${name}', ${
-          has(logical)
-            ? logical === "tenant"
-              ? tenantText(alias)
-              : `${alias}.${c(logical)}`
-            : (missing[logical] ?? `null::${type}`)
-        }`,
-    ).join(", ")})${extraFieldsJson(alias, extras)}`;
+    withExtraFields(
+      `jsonb_build_object(${ROW.map(
+        ([logical, name, type]) =>
+          `'${name}', ${
+            has(logical)
+              ? logical === "tenant"
+                ? tenantText(alias)
+                : `${alias}.${c(logical)}`
+              : (missing[logical] ?? `null::${type}`)
+          }`,
+      ).join(", ")})`,
+      alias,
+      extras,
+    );
   const maxAttempts = (alias: string) =>
     has("maxAttempts") ? `${alias}${c("maxAttempts")}` : "8";
   const inserted = (
@@ -178,7 +182,7 @@ function webhookInboxSql(ctx: ModuleContext): string {
   ).filter(([logical]) => has(logical));
   const insert = `insert into ${t} (${inserted.map(([logical]) => c(logical)).join(", ")})
   values (${inserted.map(([, value]) => value).join(", ")})`;
-  const stored = `${setExtraFields(t, extras, "receive_webhook.fields", `x.${c("id")} = inbox_id`)}
+  const stored = `${writeExtraColumns(t, extras, "receive_webhook.fields", `x.${c("id")} = inbox_id`)}
   return jsonb_build_object('id', inbox_id, 'duplicate', false);`;
   const receive = managed
     ? `  ${insert}

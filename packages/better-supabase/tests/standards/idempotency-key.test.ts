@@ -75,7 +75,7 @@ const post = (
 
 describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header)", () => {
   it("runs the handler once per key and replays the stored response", async () => {
-    const idempotency = createIdempotency(store().sql);
+    const idempotency = createIdempotency({ sql: store().sql });
     let calls = 0;
     const handler = () => {
       calls += 1;
@@ -92,7 +92,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("answers 422 when a key is reused with a different payload (section 2.7)", async () => {
-    const idempotency = createIdempotency(store().sql);
+    const idempotency = createIdempotency({ sql: store().sql });
     await idempotency.handle(post("k2"), () => new Response("ok"));
     const reused = await idempotency.handle(
       post("k2", '{"amount":99}'),
@@ -106,7 +106,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("answers 409 with Retry-After while the first request is still running (section 2.7)", async () => {
-    const idempotency = createIdempotency(store().sql);
+    const idempotency = createIdempotency({ sql: store().sql });
     let release!: () => void;
     let started!: () => void;
     const running = new Promise<void>((resolve) => {
@@ -134,7 +134,8 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("answers in the app's error format with the problem option", async () => {
-    const idempotency = createIdempotency(store().sql, {
+    const idempotency = createIdempotency({
+      sql: store().sql,
       required: true,
       problem: (problem, error) => ({
         type: `https://errors.example.com/${error.code ?? "unknown"}`,
@@ -160,7 +161,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("answers 400 when the header is required and missing (section 2.7)", async () => {
-    const idempotency = createIdempotency(store().sql, { required: true });
+    const idempotency = createIdempotency({ sql: store().sql, required: true });
     const missing = await idempotency.handle(
       post(undefined),
       () => new Response("ok"),
@@ -169,7 +170,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
     expect(await missing.json()).toMatchObject({
       code: "IDEMPOTENCY_KEY_MISSING",
     });
-    const optional = createIdempotency(store().sql);
+    const optional = createIdempotency({ sql: store().sql });
     expect(
       await (
         await optional.handle(post(undefined), () => new Response("ran"))
@@ -178,7 +179,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("rejects keys longer than 255 characters", async () => {
-    const response = await createIdempotency(store().sql).handle(
+    const response = await createIdempotency({ sql: store().sql }).handle(
       post("k".repeat(256)),
       () => new Response("ok"),
     );
@@ -189,7 +190,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("releases the key when the handler fails, so a retry can run (server errors are not stored)", async () => {
-    const idempotency = createIdempotency(store().sql);
+    const idempotency = createIdempotency({ sql: store().sql });
     expect(
       (
         await idempotency.handle(
@@ -216,7 +217,8 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   });
 
   it("scopes keys, so the same key on another endpoint or tenant is independent", async () => {
-    const idempotency = createIdempotency(store().sql, {
+    const idempotency = createIdempotency({
+      sql: store().sql,
       scope: (request) => new URL(request.url).pathname,
     });
     await idempotency.handle(post("k6", "{}", "/a"), () => new Response("a"));
@@ -232,7 +234,8 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
 
   it("uses a custom header name and passes TTL and lock as intervals", async () => {
     const sql = store();
-    const idempotency = createIdempotency(sql.sql, {
+    const idempotency = createIdempotency({
+      sql: sql.sql,
       header: "x-request-id",
       ttl: 60,
       lock: "5 seconds",

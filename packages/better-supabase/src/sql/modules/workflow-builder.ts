@@ -9,14 +9,14 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import {
   addExtraColumns,
+  ensureCheck,
   extraFieldsArg,
+  fail,
+  lockTable,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
-  ensureCheck,
-  revokeTable,
-  lockTable,
-  fail,
-  setExtraFieldsRow,
+  writeExtraColumns,
 } from "../shared.ts";
 import { builderPublisherSql } from "./workflow-builder-publisher.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
@@ -625,7 +625,7 @@ begin
     insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}, ${cd("subjectTypes")}, ${cd("scope")}, ${cd("restricted")}, ${cd("createdBy")})
     values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
     returning * into v_row;
-  end if;${setExtraFieldsRow(d, extras, "save_workflow_definition.fields", cd("id"), "v_row")}
+  end if;${writeExtraColumns(d, extras, "save_workflow_definition.fields", `x.${cd("id")} = v_row.${cd("id")}`, "v_row")}
   return ${definitionJson("v_row")};
 end;
 $$;

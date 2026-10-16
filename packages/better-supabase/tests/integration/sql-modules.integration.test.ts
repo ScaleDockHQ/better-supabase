@@ -1671,8 +1671,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `block_${RUN}`;
-    const jobs = createJobs(postgres.admin, {
-      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+      },
     });
     const invalid = await jobs.enqueue(queue, { to: "nope" });
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -1696,8 +1699,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       .enqueue(queue, { to: "later@example.com" }, { delay: 3600 })
       .orThrow();
 
-    const other = createJobs(postgres.admin, {
-      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+    const other = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+      },
     });
     const [mine, theirs] = await Promise.all([
       jobs.claim(queue, { batch: 1 }).orThrow(),
@@ -1762,7 +1768,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("dead-letters a pgmq job whose worker died on the last attempt", async () => {
     const queue = `block_${RUN}_lost`;
-    const jobs = createJobs(postgres.admin, { [queue]: v.object({}) });
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: { [queue]: v.object({}) },
+    });
     await jobs.enqueue(queue, {}, { maxAttempts: 1 }).orThrow();
     expect(await jobs.claim(queue, { lease: 1 }).orThrow()).toHaveLength(1);
     await pool.query(
@@ -1780,8 +1789,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("carries the enqueuing actor and tenant through pgmq", async () => {
     const queue = `block_${RUN}_ctx`;
-    const jobs = createJobs(postgres.admin, {
-      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+      },
     });
     const context = {
       actor: { id: "u1", kind: "user" as const },
@@ -1807,8 +1819,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("schedules recurring jobs with pg_cron", async () => {
     const queue = `block_${RUN}_cron`;
-    const jobs = createJobs(postgres.admin, {
-      [queue]: v.object({ kind: v.string() }),
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ kind: v.string() }),
+      },
     });
     const name = `bs-module-${RUN}`;
     await pool.query(
@@ -1825,8 +1840,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("works a queue until the signal aborts", async () => {
     const queue = `block_${RUN}_work`;
-    const jobs = createJobs(postgres.admin, {
-      [queue]: v.object({ n: v.number() }),
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ n: v.number() }),
+      },
     });
     for (const n of [1, 2, 3, 4]) await jobs.enqueue(queue, { n }).orThrow();
     const controller = new AbortController();
@@ -1846,8 +1864,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("coalesces only onto waiting jobs with dedupe waiting, on both backends", async () => {
     const check = async (queue: string) => {
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ id: v.string() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ id: v.string() }),
+        },
       });
       const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
       const first = await jobs.enqueue(queue, { id: "1" }, waiting).orThrow();
@@ -1900,8 +1921,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("enqueues once per key, after the first job completed too", async () => {
     const queue = `block_${RUN}_once`;
-    const jobs = createJobs(postgres.admin, {
-      [queue]: v.object({ n: v.number() }),
+    const jobs = createJobs({
+      sql: postgres.admin,
+      queues: {
+        [queue]: v.object({ n: v.number() }),
+      },
     });
     const first = await jobs
       .enqueueOnce(queue, { n: 1 }, { dedupeKey: "k" })
@@ -1942,8 +1966,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       );
       const queue = `block_${RUN}_rpc_jobs`;
-      const jobs = createJobs(transport, {
-        [queue]: v.object({ n: v.number() }),
+      const jobs = createJobs({
+        transport,
+        queues: {
+          [queue]: v.object({ n: v.number() }),
+        },
       });
       await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
       const [job] = await jobs.claim(queue).orThrow();
@@ -1956,7 +1983,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         await jobs.purge({ olderThan: 0, deadOlderThan: 0 }).orThrow(),
       ).toBeGreaterThanOrEqual(0);
 
-      const idempotency = createIdempotency(transport, {
+      const idempotency = createIdempotency({
+        transport,
         schema: api,
         scope: RUN,
       });
@@ -2003,8 +2031,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await testQueueBackend(sqlQueueBackend(postgres.admin), {
         queue: `${queue}_conf`,
       });
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ to: v.string() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ to: v.string() }),
+        },
       });
       const first = await jobs
         .enqueue(queue, { to: "a" }, { dedupeKey: "a" })
@@ -2014,8 +2045,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).toBe(first);
       await jobs.enqueue(queue, { to: "b" }, { maxAttempts: 1 }).orThrow();
 
-      const other = createJobs(postgres.admin, {
-        [queue]: v.object({ to: v.string() }),
+      const other = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ to: v.string() }),
+        },
       });
       const [mine, theirs] = await Promise.all([
         jobs.claim(queue).orThrow(),
@@ -2138,8 +2172,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       })!,
     );
     try {
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ report: v.string() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ report: v.string() }),
+        },
       });
       await jobs
         .schedule(
@@ -2243,8 +2280,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       })!,
     );
     try {
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ report: v.string() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ report: v.string() }),
+        },
       });
       const set = (reports: readonly string[]) =>
         reports.map((report) => ({
@@ -2326,8 +2366,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [name],
       );
       expect(pending.rows[0]!.next_run).toBeNull();
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ n: v.number() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ n: v.number() }),
+        },
       });
       expect(await jobs.runSchedules().orThrow()).toBe(0);
       const first = await pool.query<{ minute: number; ahead: boolean }>(
@@ -2413,8 +2456,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [`reminder:${RUN}`],
       );
 
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ id: v.string() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ id: v.string() }),
+        },
       });
       const seen: string[] = [];
       const route = jobs.drainRoute({
@@ -2476,8 +2522,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("reports queue health and retries dead letters on both backends", async () => {
     const check = async (queue: string) => {
-      const jobs = createJobs(postgres.admin, {
-        [queue]: v.object({ n: v.number() }),
+      const jobs = createJobs({
+        sql: postgres.admin,
+        queues: {
+          [queue]: v.object({ n: v.number() }),
+        },
       });
       expect((await jobs.stats().orThrow())[queue]).toEqual({
         ready: 0,
@@ -2543,7 +2592,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("replays idempotent requests and rejects reuse", async () => {
-    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
     let runs = 0;
     const handler = async () => {
       runs += 1;
@@ -2576,7 +2625,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("refuses a former holder's complete and release after a takeover", async () => {
-    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
     const first = await idempotency.begin("takeover", "fp", RUN).orThrow();
     expect(first.state).toBe("started");
     expect(
@@ -2667,14 +2716,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       [
         withPostgresAdminClient({ connectionString: dbUrl }),
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs(ctx.postgresAdmin, {
-            [queue]: v.object({ n: v.number() }),
+          createJobs({
+            sql: ctx.postgresAdmin,
+            queues: {
+              [queue]: v.object({ n: v.number() }),
+            },
           }),
         ),
         withBlock(
           "idempotency",
           (ctx: { readonly postgresAdmin: PostgresApi }) =>
-            createIdempotency(ctx.postgresAdmin, { scope: `server-${RUN}` }),
+            createIdempotency({
+              sql: ctx.postgresAdmin,
+              scope: `server-${RUN}`,
+            }),
         ),
       ],
       async (request, ctx) =>

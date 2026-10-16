@@ -55,7 +55,10 @@ function onceBackend(withOnce = true) {
 describe("incoming destinations", () => {
   it("queues a delivery once per endpoint and message id with its tenant", async () => {
     const { backend, sent } = onceBackend();
-    const jobs = createJobs(backend, { leads: v.object({ type: v.string() }) });
+    const jobs = createJobs({
+      backend,
+      queues: { leads: v.object({ type: v.string() }) },
+    });
     const destination = jobsDestination(jobs, {
       queue: "leads",
       payload: (delivery) => ({ type: delivery.type ?? "unknown" }),
@@ -106,8 +109,11 @@ describe("incoming destinations", () => {
   });
 
   it("refuses a queue backend without sendOnce", async () => {
-    const jobs = createJobs(onceBackend(false).backend, {
-      leads: v.object({}),
+    const jobs = createJobs({
+      backend: onceBackend(false).backend,
+      queues: {
+        leads: v.object({}),
+      },
     });
     await expect(
       jobsDestination(jobs, { queue: "leads", payload: () => ({}) }).deliver({
@@ -140,7 +146,8 @@ describe("incoming destinations", () => {
       ],
     ]);
     const delivered: unknown[] = [];
-    const hooks = createIncomingWebhooks(fake.sql, {
+    const hooks = createIncomingWebhooks({
+      sql: fake.sql,
       source: "forms",
       destination: {
         apiVersion: 1,

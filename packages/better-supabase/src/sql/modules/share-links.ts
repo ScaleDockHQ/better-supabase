@@ -14,9 +14,10 @@ import {
   fail,
   lockTable,
   schemaPreamble,
-  setExtraFields,
   sha256Hex,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -298,7 +299,7 @@ begin
   ${versionCheck(ctx)}
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
   values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
-  returning ${ctx.col("links", "id")} into v_id;${setExtraFields(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
+  returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",
     payload: `jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id)`,
@@ -306,7 +307,7 @@ begin
     tenant: "create_share_link.tenant",
     audit: false,
   })}
-  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'token', v_token)" : `(select jsonb_build_object('id', v_id, 'token', v_token)${extraFieldsJson("x", extras)} from ${links} x where x.${linkId} = v_id)`};
+  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'token', v_token)" : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'token', v_token)", "x", extras)} from ${links} x where x.${linkId} = v_id)`};
 end;
 $$;
 ${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz${extra.type})`)}
@@ -403,7 +404,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', l.${ctx.col("links", "id")}, 'role', l.${ctx.col("links", "role")}, 'expiresAt', l.${ctx.col("links", "expiresAt")}, 'revokedAt', l.${ctx.col("links", "revokedAt")})${extraFieldsJson("l", extras)}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', l.${ctx.col("links", "id")}, 'role', l.${ctx.col("links", "role")}, 'expiresAt', l.${ctx.col("links", "expiresAt")}, 'revokedAt', l.${ctx.col("links", "revokedAt")}${extraFieldsJson("l", extras)})), '[]'::jsonb)
   from ${links} l
   where l.${ctx.col("links", "subjectType")} = list_share_links.subject_type
     and l.${ctx.col("links", "subjectId")} = list_share_links.subject_id

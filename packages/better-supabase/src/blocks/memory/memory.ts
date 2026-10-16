@@ -10,6 +10,7 @@ import type {
   MemoryView,
 } from "./types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral } from "../../core/search.ts";
@@ -32,6 +33,7 @@ export type {
   MemoryHit,
   MemoryKind,
   MemoryNamespace,
+  MemoryHooks,
   MemoryOptions,
   MemoryRecord,
   MemoryScope,
@@ -290,7 +292,7 @@ export function createMemory(options: MemoryOptions): Memory {
     }
   };
 
-  return {
+  const client: Memory = {
     core,
     run: runCommand,
     archival: {
@@ -472,4 +474,35 @@ export function createMemory(options: MemoryOptions): Memory {
       purge: (batch) => service("purge_memory_documents", { batch }, Number),
     },
   };
+  const {
+    core: coreHooks,
+    archival,
+    recall,
+    documents,
+    ...hooks
+  } = options.hooks ?? {};
+  const logger = options.logger ? { logger: options.logger } : {};
+  return withBlockHooks(
+    {
+      ...client,
+      core: withBlockHooks(client.core, coreHooks, {
+        block: "memory.core",
+        ...logger,
+      }),
+      archival: withBlockHooks(client.archival, archival, {
+        block: "memory.archival",
+        ...logger,
+      }),
+      recall: withBlockHooks(client.recall, recall, {
+        block: "memory.recall",
+        ...logger,
+      }),
+      documents: withBlockHooks(client.documents, documents, {
+        block: "memory.documents",
+        ...logger,
+      }),
+    },
+    hooks,
+    { block: "memory", ...logger },
+  );
 }

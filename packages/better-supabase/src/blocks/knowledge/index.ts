@@ -7,6 +7,7 @@ export {
   type KnowledgeChunk,
   type KnowledgeDocument,
   type KnowledgeHit,
+  type KnowledgeHooks,
   type KnowledgeOptions,
   type KnowledgeQuery,
   type KnowledgeScope,

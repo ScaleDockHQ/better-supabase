@@ -31,20 +31,63 @@ export const columnsObject = (
     .join(", ")})`;
 
 /**
- * ` || jsonb_build_object('fields', ...)`: the extra columns of row `alias`
- * under `fields`, keyed by column name, for a read built with
- * `jsonb_build_object`. Nothing without extra columns.
+ * `, 'fields', jsonb_build_object(...)` of the extra columns of row
+ * `alias`, for a read built with `jsonb_build_object`; empty without any.
  */
 export const extraFieldsJson = (
   alias: string,
-  columns: readonly ExtraColumn[],
+  extras: readonly ExtraColumn[],
 ): string =>
-  columns.length === 0
+  extras.length === 0
     ? ""
-    : ` || jsonb_build_object('fields', ${columnsObject(
+    : `, 'fields', ${columnsObject(
         alias,
-        columns.map((column) => column.name),
-      )})`;
+        extras.map((extra) => extra.name),
+      )}`;
+
+/**
+ * PL/pgSQL that copies the extra columns from `source`, a `jsonb` object
+ * keyed by column name, onto the rows of `table` (alias `x`) that `where`
+ * matches. A key `source` leaves out keeps the column's value, so it runs
+ * after an insert (the defaults stay) and on a partial update. Empty
+ * without extra columns.
+ */
+export const writeExtraColumns = (
+  table: string,
+  extras: readonly ExtraColumn[],
+  source: string,
+  where: string,
+  into?: string,
+): string =>
+  extras.length === 0
+    ? ""
+    : `
+  update ${table} x set ${extras
+    .map(
+      (extra) =>
+        `${extra.ident} = case when ${source} ? ${sqlString(extra.name)} then r.${extra.ident} else x.${extra.ident} end`,
+    )
+    .join(", ")}
+  from jsonb_populate_record(null::${table}, (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(${source}) e where e.key in (${extras
+    .map((extra) => sqlString(extra.name))
+    .join(", ")}))) r
+  where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
+
+/**
+ * `json` (a `jsonb` expression of row `alias`) with the extra columns
+ * under `fields`, or `json` itself without any.
+ */
+export const withExtraFields = (
+  json: string,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string =>
+  extras.length === 0
+    ? json
+    : `(${json} || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )}))`;
 
 /** The `fields jsonb` parameter of a function that writes extra columns. */
 export interface ExtraFieldsArg {
@@ -75,48 +118,6 @@ export function extraFieldsArg(
       `drop function if exists ${fn}(${on ? types : [types, "jsonb"].filter((type) => type !== "").join(", ")});`,
   };
 }
-
-/**
- * PL/pgSQL that copies the extra columns `source` (a jsonb object keyed by
- * column name) names onto the row of `table` aliased `x` that `where`
- * matches. A column the object leaves out keeps its value, so a row created
- * just before keeps its column defaults. Nothing without extra columns.
- */
-export const setExtraFields = (
-  table: string,
-  columns: readonly ExtraColumn[],
-  source: string,
-  where: string,
-): string =>
-  columns.length === 0
-    ? ""
-    : `
-  if ${source} is not null and ${source} <> '{}'::jsonb then
-    update ${table} x set ${columns
-      .map(
-        (column) =>
-          `${column.ident} = case when ${source} ? ${sqlString(column.name)} then (jsonb_populate_record(null::${table}, ${source})).${column.ident} else x.${column.ident} end`,
-      )
-      .join(",\n      ")}
-    where ${where};
-  end if;`;
-
-/**
- * `setExtraFields` on the row held in the PL/pgSQL variable `row` (a
- * `%rowtype` of `table`), then reads the row back into it. Nothing without
- * extra columns.
- */
-export const setExtraFieldsRow = (
-  table: string,
-  columns: readonly ExtraColumn[],
-  source: string,
-  id: string,
-  row: string,
-): string =>
-  columns.length === 0
-    ? ""
-    : `${setExtraFields(table, columns, source, `x.${id} = ${row}.${id}`)}
-  select * into ${row} from ${table} x where x.${id} = ${row}.${id};`;
 
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;

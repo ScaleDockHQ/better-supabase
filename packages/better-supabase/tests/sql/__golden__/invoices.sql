@@ -117,7 +117,8 @@ create policy invoice_payments_read on "better_supabase"."invoice_payments" for 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function "better_supabase"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -753,7 +754,8 @@ create policy invoice_payments_read on "better_supabase"."invoice_payments" for 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function "better_supabase"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -1480,7 +1482,8 @@ create policy invoice_payments_read on "app_private"."invoice_payments" for sele
 using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function "app_private"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -2116,7 +2119,8 @@ create policy invoice_payments_read on "better_supabase"."invoice_payments" for 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function "better_supabase"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql

@@ -1,7 +1,13 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  serviceGrant,
+  userGrant,
+  withExtraFields,
+  writeExtraColumns,
+} from "../shared.ts";
 
 export interface InventoryNames {
   /** The block's scope checks. */
@@ -11,6 +17,8 @@ export interface InventoryNames {
   readonly read: string;
   readonly reserve: string;
   readonly purchase: string;
+  /** `options.extraColumns` on the locations table, which `save_location` writes from `fields`. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 /** The reasons `adjust_stock` accepts; the other functions write their own. */
@@ -122,8 +130,10 @@ export function locationFunctions(
   const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
   return `
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function ${fn("save_location")}(tenant ${ctx.idType}, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists ${fn("save_location")}(${ctx.idType}, uuid, text, text, text);
+create or replace function ${fn("save_location")}(tenant ${ctx.idType}, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -156,11 +166,15 @@ begin
     end if;
   exception when unique_violation then
     ${fail("INVENTORY_LOCATION_CODE_TAKEN", "another location has this code", "23505")}
-  end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  end;${writeExtraColumns(locations, names.extras, "save_location.fields", `x.${l("id")} = v_id`)}
+  return ${
+    names.extras.length === 0
+      ? "jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active)"
+      : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active)", "x", names.extras)} from ${locations} x where x.${l("id")} = v_id)`
+  };
 end;
 $$;
-${userGrant(`${fn("save_location")}(${ctx.idType}, uuid, text, text, text)`)}
+${userGrant(`${fn("save_location")}(${ctx.idType}, uuid, text, text, text, jsonb)`)}
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function ${fn("set_location_active")}(location uuid, active boolean)

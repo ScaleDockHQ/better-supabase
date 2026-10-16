@@ -1,9 +1,12 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral as pgVector } from "../../core/search.ts";
@@ -141,7 +144,17 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   readonly chunking?: ChunkOptions;
   /** Chunks per embedding call. Default 64. */
   readonly batchSize?: number;
+  /** `withBlockHooks` hooks around the methods, and around each group's under its name (ADR 0015). */
+  readonly hooks?: KnowledgeHooks;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
+
+/** Hooks for `Knowledge`: the top-level methods, and `documents` and `ingest` by group. */
+export type KnowledgeHooks = BlockHooks<Knowledge> & {
+  readonly documents?: BlockHooks<Knowledge["documents"]>;
+  readonly ingest?: BlockHooks<Knowledge["ingest"]>;
+};
 
 export interface Knowledge {
   readonly documents: {
@@ -496,7 +509,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       }
     });
 
-  return {
+  const client: Knowledge = {
     documents: {
       create,
       get: (documentId) =>
@@ -642,4 +655,21 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         Number,
       ),
   };
+  const { documents, ingest, ...hooks } = options.hooks ?? {};
+  const logger = options.logger ? { logger: options.logger } : {};
+  return withBlockHooks(
+    {
+      ...client,
+      documents: withBlockHooks(client.documents, documents, {
+        block: "knowledge.documents",
+        ...logger,
+      }),
+      ingest: withBlockHooks(client.ingest, ingest, {
+        block: "knowledge.ingest",
+        ...logger,
+      }),
+    },
+    hooks,
+    { block: "knowledge", ...logger },
+  );
 }

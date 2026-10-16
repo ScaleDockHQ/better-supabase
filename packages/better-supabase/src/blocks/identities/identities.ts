@@ -1,3 +1,4 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   IdentityRef,
@@ -5,8 +6,10 @@ import type {
   PrincipalByIdentity,
 } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
@@ -30,6 +33,10 @@ export interface IdentitiesOptions extends BlockTemporalOptions {
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the methods (ADR 0015). */
+  readonly hooks?: NoInfer<BlockHooks<Identities>>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
 
 /** A one-time code from `beginLink`. Only its SHA-256 is stored. */
@@ -110,7 +117,7 @@ const identityArgs = (
 export function createIdentities(options: IdentitiesOptions): Identities {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const client: Identities = {
     beginLink: (kind, provider) =>
       call(
         "begin_identity_link",
@@ -152,6 +159,10 @@ export function createIdentities(options: IdentitiesOptions): Identities {
         typeof value === "number" ? value : Number(value),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "identities",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /**

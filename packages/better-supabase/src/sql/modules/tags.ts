@@ -16,8 +16,8 @@ import {
   fail,
   lockTable,
   schemaPreamble,
-  setExtraFields,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   type SubjectTableBinding,
@@ -251,7 +251,7 @@ ${
     : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
   values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
 }
-  returning ${id} into v_id;${setExtraFields(tags, extras, "create_tag.fields", `x.${id} = v_id`)}
+  returning ${id} into v_id;${writeExtraColumns(tags, extras, "create_tag.fields", `x.${id} = v_id`)}
   ${ctx.record({
     type: "tag.created",
     payload: `jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name)`,
@@ -259,7 +259,7 @@ ${
     tenant: "create_tag.tenant",
     audit: false,
   })}
-  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)" : `(select jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)${extraFieldsJson("x", extras)} from ${tags} x where x.${id} = v_id)`};
+  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)" : `(select jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank${extraFieldsJson("x", extras)}) from ${tags} x where x.${id} = v_id)`};
 end;
 $$;
 ${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text${extra.type})`)}
@@ -341,7 +341,7 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;${setExtraFields(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
+  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
   ${ctx.record({
     type: "tag.updated",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name)`,

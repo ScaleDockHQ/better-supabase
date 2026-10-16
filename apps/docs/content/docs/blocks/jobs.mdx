@@ -60,11 +60,14 @@ lowercase letters, digits and underscores.
 import { createJobs } from "better-supabase/blocks/jobs";
 import * as v from "valibot";
 
-export const jobs = createJobs(postgres.admin, {
-  send_email: v.object({
-    to: v.pipe(v.string(), v.email()),
-    template: v.string(),
-  }),
+export const jobs = createJobs({
+  sql: postgres.admin,
+  queues: {
+    send_email: v.object({
+      to: v.pipe(v.string(), v.email()),
+      template: v.string(),
+    }),
+  },
 });
 
 await jobs.enqueue(
@@ -537,7 +540,7 @@ put jobs somewhere else, and prove it with `testQueueBackend` from
 import { createJobs, type QueueBackend } from "better-supabase/blocks/jobs";
 
 const backend: QueueBackend = myQueue;
-const jobs = createJobs(backend, { send_email: schema });
+const jobs = createJobs({ backend, queues: { send_email: schema } });
 ```
 
 ### Without a database connection
@@ -548,7 +551,10 @@ URL, pass a service-role Supabase client instead. Jobs then go through the
 Queues via PostgREST".
 
 ```ts
-const jobs = createJobs(createClient(url, secretKey), { send_email: schema });
+const jobs = createJobs({
+  client: createClient(url, secretKey),
+  queues: { send_email: schema },
+});
 ```
 
 Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
@@ -582,8 +588,8 @@ import {
 } from "better-supabase/blocks/jobs";
 
 const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
-const jobs = createJobs(transport, { send_email: schema });
-const idempotency = createIdempotency(transport, { schema: "api" });
+const jobs = createJobs({ transport, queues: { send_email: schema } });
+const idempotency = createIdempotency({ transport, schema: "api" });
 await withLease(transport, "nightly-report", run, { schema: "api" });
 ```
 
@@ -602,7 +608,7 @@ its first row, so pass the SQL client itself there.
 ```ts
 import { createIdempotency } from "better-supabase/blocks/jobs";
 
-const idempotency = createIdempotency(postgres.admin, { ttl: "24 hours" });
+const idempotency = createIdempotency({ sql: postgres.admin, ttl: "24 hours" });
 
 export const POST = (request: Request) =>
   idempotency.handle(request, async () =>
@@ -617,6 +623,12 @@ export const POST = (request: Request) =>
 | Same key while the first request is still running | `409` with `Retry-After`                               |
 | Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`               |
 | Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
+
+Pass a service SQL connection as `sql`, or a service-role `transport` such
+as the `rpcTransport` above. `hooks` runs your code around `begin`,
+`complete`, `release` and `purge` (see
+[extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
+through the hooks.
 
 The fingerprint is a SHA-256 of the method, path and body. Set
 `required: true` to reject requests that have no key. The error responses

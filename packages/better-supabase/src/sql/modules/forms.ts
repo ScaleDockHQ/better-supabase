@@ -9,12 +9,15 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
@@ -62,7 +65,7 @@ const NAMES: ModuleNames = {
     "after_form_submission",
     "before_public_form_submission",
   ],
-  options: ["subjects", "handlers", "publicLimit"],
+  options: ["subjects", "handlers", "publicLimit", "extraColumns"],
   tables: {
     forms: {
       name: "forms",
@@ -204,6 +207,7 @@ function build(ctx: ModuleContext): string {
   const handlers = handlersOf(ctx);
   const limit = publicLimitOf(ctx);
   const shares = ctx.installed("share-links");
+  const extras = ctx.extraColumns("forms", ["version"]);
   const notFound = fail("FORM_NOT_FOUND", "form not found", "P0002");
   const submissionNotFound = fail(
     "FORM_SUBMISSION_NOT_FOUND",
@@ -211,7 +215,7 @@ function build(ctx: ModuleContext): string {
     "P0002",
   );
   const formJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'title', ${row}.${f("title")}, 'description', ${row}.${f("description")}, 'status', ${row}.${f("status")}, 'currentVersionId', ${row}.${f("currentVersion")}, 'createdBy', ${row}.${f("createdBy")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'title', ${row}.${f("title")}, 'description', ${row}.${f("description")}, 'status', ${row}.${f("status")}, 'currentVersionId', ${row}.${f("currentVersion")}, 'createdBy', ${row}.${f("createdBy")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")}${extraFieldsJson(row, extras)})`;
   const versionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${v("id")}, 'formId', ${row}.${v("form")}, 'number', ${row}.${v("number")}, 'definition', ${row}.${v("definition")}, 'schema', ${row}.${v("schema")}, 'createdBy', ${row}.${v("createdBy")}, 'createdAt', ${row}.${v("createdAt")})`;
   const submissionJson = (row: string): string =>
@@ -301,7 +305,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   ${f("createdAt")} timestamptz not null default now(),
   ${f("updatedAt")} timestamptz not null default now(),
   unique (${f("tenant")}, ${f("key")})
-);
+);${addExtraColumns(forms, extras)}
 ${lockTable(forms, { read: true })}
 drop policy if exists "forms_read" on ${forms};
 create policy "forms_read" on ${forms} for select to authenticated
@@ -354,7 +358,9 @@ create policy "form_submissions_read" on ${submissions} for select to authentica
   return `${schemaPreamble(ctx)}
 ${tables}
 ${formSchemaFunctions(ctx)}
-create or replace function ${fn("create_form")}(tenant ${ctx.idType}, key text, title text, description text default null)
+-- Creates a draft form. fields sets the extra columns by name.
+drop function if exists ${fn("create_form")}(${ctx.idType}, text, text, text);
+create or replace function ${fn("create_form")}(tenant ${ctx.idType}, key text, title text, description text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -374,7 +380,7 @@ begin
   end if;
   insert into ${forms} (${f("tenant")}, ${f("key")}, ${f("title")}, ${f("description")}, ${f("createdBy")})
   values (create_form.tenant, create_form.key, create_form.title, create_form.description, auth.uid())
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(forms, extras, "create_form.fields", `x.${f("id")} = v_row.${f("id")}`, "v_row")}
   ${ctx.record({
     type: "form.created",
     payload: `jsonb_build_object('organizationId', v_row.${f("tenant")}, 'id', v_row.${f("id")}, 'key', v_row.${f("key")})`,
@@ -390,11 +396,12 @@ begin
   return ${formJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_form")}(${ctx.idType}, text, text, text)`)}
+${userGrant(`${fn("create_form")}(${ctx.idType}, text, text, text, jsonb)`)}
 
--- Changes the title, description or status. A form opens for submissions
--- once it has a published version.
-create or replace function ${fn("update_form")}(form_id uuid, title text default null, description text default null, status text default null)
+-- Changes the title, description, status or the extra columns in fields.
+-- A form opens for submissions once it has a published version.
+drop function if exists ${fn("update_form")}(uuid, text, text, text);
+create or replace function ${fn("update_form")}(form_id uuid, title text default null, description text default null, status text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -422,11 +429,11 @@ begin
     ${f("status")} = coalesce(update_form.status, x.${f("status")}),
     ${f("updatedAt")} = now()
   where x.${f("id")} = update_form.form_id
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(forms, extras, "update_form.fields", `x.${f("id")} = v_row.${f("id")}`, "v_row")}
   return ${formJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("update_form")}(uuid, text, text, text)`)}
+${userGrant(`${fn("update_form")}(uuid, text, text, text, jsonb)`)}
 
 -- Publishes a new version: checks the definition, copies custom fields in,
 -- builds the version's JSON Schema and makes it current. A draft form opens.
@@ -833,7 +840,7 @@ function contract(): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_form",
-      args: ["{id}", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     { name: "publish_form_version", args: ["uuid", "jsonb"], returns: "jsonb" },

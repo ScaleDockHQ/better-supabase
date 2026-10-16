@@ -15,8 +15,8 @@ import {
   fail,
   lockTable,
   schemaPreamble,
-  setExtraFields,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -121,7 +121,7 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("teams", RESERVED);
   const extra = extraFieldsArg(extras);
   const teamJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug})${extraFieldsJson(alias, extras)}`;
+    `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug}${extraFieldsJson(alias, extras)})`;
   const idDefault =
     idType === "uuid"
       ? " default gen_random_uuid()"
@@ -200,7 +200,7 @@ begin
   ])}
   insert into ${teams} (${tenant}, ${name}, ${slug}, ${description}, ${createdBy})
   values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid())
-  returning ${id} into v_id;${setExtraFields(teams, extras, "create_team.fields", `x.${id} = v_id`)}
+  returning ${id} into v_id;${writeExtraColumns(teams, extras, "create_team.fields", `x.${id} = v_id`)}
   ${record(ctx, "team.created", "v_id", "create_team.tenant", "create_team.name")}
   ${ctx.hook("after_team_create", [
     [idType, "v_id"],
@@ -232,7 +232,7 @@ begin
   set ${name} = coalesce(update_team.name, t.${name}),
       ${description} = coalesce(update_team.description, t.${description}),
       ${updatedAt} = now()
-  where t.${id} = update_team.team;${setExtraFields(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
+  where t.${id} = update_team.team;${writeExtraColumns(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
   return ${extras.length === 0 ? "jsonb_build_object('id', update_team.team)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team)`};
 end;
@@ -346,8 +346,8 @@ as $$
     'id', t.${id},
     'name', t.${name},
     'slug', t.${slug},
-    'status', t.${status}
-  )${extraFieldsJson("t", extras)}), '[]'::jsonb)
+    'status', t.${status}${extraFieldsJson("t", extras)}
+  )), '[]'::jsonb)
   from ${teams} t
   where t.${tenant} = list_teams.tenant
     and (

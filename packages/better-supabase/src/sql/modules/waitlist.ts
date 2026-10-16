@@ -11,16 +11,16 @@ import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
-  extraFieldsJson,
+  fail,
+  lockTable,
   memberAddedRecord,
   pageSize,
-  setExtraFields,
+  raise,
   schemaPreamble,
   SERVICE_CALLER,
   sha256Hex,
-  lockTable,
-  fail,
-  raise,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   accessModel,
@@ -276,7 +276,7 @@ begin
   insert into ${e} as x (${ce("email")}, ${ce("referrer")}, ${ce("metadata")})
   values (v_email, join_waitlist.referrer, coalesce(join_waitlist.metadata, '{}'::jsonb))
   on conflict (${ce("email")}) do update set ${ce("email")} = x.${ce("email")}
-  returning * into v_row;${setExtraFields(e, extras, "join_waitlist.fields", `x.${ce("id")} = v_row.${ce("id")} and x.${ce("createdAt")} = now()`)}
+  returning * into v_row;${writeExtraColumns(e, extras, "join_waitlist.fields", `x.${ce("id")} = v_row.${ce("id")} and x.${ce("createdAt")} = now()`)}
   if ${SERVICE_CALLER} then
     return jsonb_build_object(
       'position', case when v_row.${ce("status")} = 'waiting' then (
@@ -308,7 +308,7 @@ begin
     ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x)${extraFieldsJson("x", extras)} order by x.${ce("position")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ce("position")}), '[]'::jsonb)
     from (
       select * from ${e} w
       where (list_waitlist.status is null or w.${ce("status")} = list_waitlist.status)
@@ -348,7 +348,7 @@ begin
   else
     ${decided("waitlist.rejected")}
   end if;
-  return to_jsonb(v_row)${extraFieldsJson("v_row", extras)};
+  return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;
 

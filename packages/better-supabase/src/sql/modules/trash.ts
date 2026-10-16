@@ -18,8 +18,8 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  setExtraFields,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
 import {
@@ -385,7 +385,7 @@ begin
     ${fail("TRASH_NOT_FOUND", "no live record to trash", "P0002")}
   end if;
   select i.${c("id")} into v_id from ${items} i
-    where i.${c("subjectType")} = trash.subject_type and i.${c("subjectId")} = trash.subject_id;${setExtraFields(items, extras, "trash.fields", `x.${c("id")} = v_id`)}
+    where i.${c("subjectType")} = trash.subject_type and i.${c("subjectId")} = trash.subject_id;${writeExtraColumns(items, extras, "trash.fields", `x.${c("id")} = v_id`)}
   ${ctx.hook("after_trash", [
     ["uuid", "v_id"],
     ["uuid", "v_batch"],
@@ -461,7 +461,7 @@ begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "list_trash.tenant", read)}) then
     ${fail("TRASH_FORBIDDEN", "not allowed to read this organization's trash")}
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t.${c("id")}, 'subjectType', t.${c("subjectType")}, 'subjectId', t.${c("subjectId")}, 'title', t.${c("title")}, 'batchId', t.${c("batch")}, 'count', t.n, 'trashedBy', t.${c("trashedBy")}, 'trashedAt', t.${c("trashedAt")}, 'purgeAfter', t.${c("purgeAfter")})${extraFieldsJson("t", extras)} order by t.${c("trashedAt")} desc, t.${c("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t.${c("id")}, 'subjectType', t.${c("subjectType")}, 'subjectId', t.${c("subjectId")}, 'title', t.${c("title")}, 'batchId', t.${c("batch")}, 'count', t.n, 'trashedBy', t.${c("trashedBy")}, 'trashedAt', t.${c("trashedAt")}, 'purgeAfter', t.${c("purgeAfter")}${extraFieldsJson("t", extras)}) order by t.${c("trashedAt")} desc, t.${c("id")}), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from ${items} b where b.${c("batch")} = x.${c("batch")})::integer as n

@@ -1,5 +1,8 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { Logger } from "../../core/logger.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError, type ErrorMapper } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -96,6 +99,10 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** Lifetime of a signed download URL in seconds. Default 300. */
   readonly downloadTtl?: number;
+  /** `withBlockHooks` hooks around the methods (ADR 0015). */
+  readonly hooks?: NoInfer<BlockHooks<DataLifecycle>>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
 
 export interface DataLifecycle {
@@ -202,7 +209,7 @@ export function createDataLifecycle(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const ttl = options.downloadTtl ?? 300;
-  return {
+  const client: DataLifecycle = {
     requestExport: (request = {}) =>
       call(
         "request_data_export",
@@ -276,4 +283,8 @@ export function createDataLifecycle(
         optionalDeletion,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "data-lifecycle",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

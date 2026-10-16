@@ -77,6 +77,26 @@ A definition is a list of steps, and each step a list of fields. `publish(formId
 
 `publish` checks the definition against `FORM_DEFINITION_SCHEMA`, then for what the shape can't say (a key used twice, a condition on a later field, a choice field without options), and fails with `FORM_DEFINITION_INVALID` and the problems in `issues`. `formDefinitionProblems(definition)` runs the second check in the app, and `formSchema(definition)` returns the same schema Postgres stores.
 
+## Your own fields
+
+`blocks.forms.options.extraColumns` adds columns to the `forms` table,
+keyed by column name with their SQL type. `create` and `update` write them from `fields`, and `create`, `update`, `get` and `list` return them under `fields`. Pass a
+[Standard Schema](https://standardschema.dev) as `fields` to type them,
+parse them on reads and validate them on writes; a bad value is a
+`validation` error before anything reaches the database (see
+[extending blocks](/docs/extending/blocks#your-own-fields)):
+
+```ts
+import { z } from "zod";
+
+const forms = createForms({
+  transport,
+  fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
+});
+
+await forms.update(formId, { fields: { region: "emea" } });
+```
+
 ## Submissions
 
 A submission that doesn't match the version's schema fails with a `validation` error (hint `JSON_SCHEMA_INVALID`) whose `issues` name the fields. `validateAnswers(schema, answers)` checks the same keywords in the browser, and `answersSchema(schema)` wraps it as a [Standard Schema](https://standardschema.dev) for form libraries.

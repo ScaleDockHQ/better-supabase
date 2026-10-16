@@ -2,7 +2,7 @@ import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, pageSize, setExtraFields, userGrant } from "../shared.ts";
+import { fail, pageSize, userGrant, writeExtraColumns } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface WorkItemNames {
@@ -256,7 +256,7 @@ begin
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     ${fail("WORK_ITEM_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
-  end;${setExtraFields(t("items"), n.extras, "(create_work_item.attrs -> 'fields')", `x.${w("id")} = v_id`)}
+  end;${writeExtraColumns(t("items"), n.extras, "(create_work_item.attrs -> 'fields')", `x.${w("id")} = v_id`)}
   if cardinality(coalesce(create_work_item.assignees, '{}')) > 0 then
     perform ${fn("set_work_item_assignees")}(v_id, create_work_item.assignees);
   end if;
