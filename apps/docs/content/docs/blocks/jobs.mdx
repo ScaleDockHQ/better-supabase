@@ -60,11 +60,14 @@ lowercase letters, digits and underscores.
 import { createJobs } from "better-supabase/blocks/jobs";
 import * as v from "valibot";
 
-export const jobs = createJobs(postgres.admin, {
-  send_email: v.object({
-    to: v.pipe(v.string(), v.email()),
-    template: v.string(),
-  }),
+export const jobs = createJobs({
+  sql: postgres.admin,
+  queues: {
+    send_email: v.object({
+      to: v.pipe(v.string(), v.email()),
+      template: v.string(),
+    }),
+  },
 });
 
 await jobs.enqueue(
@@ -537,7 +540,7 @@ put jobs somewhere else, and prove it with `testQueueBackend` from
 import { createJobs, type QueueBackend } from "better-supabase/blocks/jobs";
 
 const backend: QueueBackend = myQueue;
-const jobs = createJobs(backend, { send_email: schema });
+const jobs = createJobs({ backend, queues: { send_email: schema } });
 ```
 
 ### Without a database connection
@@ -548,7 +551,10 @@ URL, pass a service-role Supabase client instead. Jobs then go through the
 Queues via PostgREST".
 
 ```ts
-const jobs = createJobs(createClient(url, secretKey), { send_email: schema });
+const jobs = createJobs({
+  client: createClient(url, secretKey),
+  queues: { send_email: schema },
+});
 ```
 
 Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
@@ -582,7 +588,7 @@ import {
 } from "better-supabase/blocks/jobs";
 
 const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
-const jobs = createJobs(transport, { send_email: schema });
+const jobs = createJobs({ transport, queues: { send_email: schema } });
 const idempotency = createIdempotency({ transport, schema: "api" });
 await withLease(transport, "nightly-report", run, { schema: "api" });
 ```

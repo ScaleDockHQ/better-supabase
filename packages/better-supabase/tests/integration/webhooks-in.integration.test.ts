@@ -770,8 +770,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         source,
       });
 
-      const jobs = createJobs(sql, {
-        [queue]: v.object({ route: v.string() }),
+      const jobs = createJobs({
+        sql,
+        queues: {
+          [queue]: v.object({ route: v.string() }),
+        },
       });
       const queued = createIncomingWebhooks({
         sql,

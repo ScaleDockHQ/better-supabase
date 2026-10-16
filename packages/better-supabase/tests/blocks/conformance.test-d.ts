@@ -19,6 +19,9 @@ type NotBlockOptions = {
 type Allowed =
   | "idempotency"
   | "incomingWebhooks"
+  // Moved off NO_CREATOR: jobs run over `sql`, a `pgmq_public` client or a
+  // backend as often as over a transport, so `transport` stays optional.
+  | "jobs"
   | "organizations"
   | "rateLimit";
 

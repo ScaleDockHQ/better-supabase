@@ -16,7 +16,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`AuthResolver`](#authresolver)                         | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                            |
 | [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`, `standardSchema()`    | `generators` in the config                                                         |
 | [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                               |
-| [`QueueBackend`](#queuebackend)                         | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs(backend, queues)`                                                      |
+| [`QueueBackend`](#queuebackend)                         | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs({ backend, queues })`                                                  |
 | [`SupportSessionStore`](#supportsessionstore)           | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store, authorize }) })` |
 | [`NotificationChannel`](#notificationchannel)           | none (bring your email or push provider)                    | `createNotifications({ channels })`                                                |
 | [`DeliveryTransport`](#deliverytransport)               | `resendTransport(options)`                                  | `emailChannel({ transport })`                                                      |

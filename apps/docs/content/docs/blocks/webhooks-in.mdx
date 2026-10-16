@@ -171,7 +171,8 @@ delivery as before, so the inbox handler finds the subject on the endpoint.
 Route the public URL to `receive` on a service connection:
 
 ```ts title="app/hooks/[token]/route.ts"
-const hooks = createIncomingWebhooks({ sql: postgres.admin,
+const hooks = createIncomingWebhooks({
+  sql: postgres.admin,
   rateLimit: { max: 60, period: 60 },
 });
 
@@ -248,11 +249,15 @@ import {
   jobsDestination,
 } from "better-supabase/blocks/webhooks";
 
-const jobs = createJobs(postgres.admin, {
-  leads: v.object({ route: v.string(), body: v.unknown() }),
+const jobs = createJobs({
+  sql: postgres.admin,
+  queues: {
+    leads: v.object({ route: v.string(), body: v.unknown() }),
+  },
 });
 
-export const hooks = createIncomingWebhooks({ sql: postgres.admin,
+export const hooks = createIncomingWebhooks({
+  sql: postgres.admin,
   destination: jobsDestination(jobs, {
     queue: "leads",
     payload: (delivery) => ({

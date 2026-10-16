@@ -117,8 +117,11 @@ describe("createJobs over pgmq_public", () => {
       }
       return true;
     });
-    const jobs = createJobs(client, {
-      emails: v.object({ to: v.pipe(v.string(), v.email()) }),
+    const jobs = createJobs({
+      client,
+      queues: {
+        emails: v.object({ to: v.pipe(v.string(), v.email()) }),
+      },
     });
 
     expect(
@@ -173,7 +176,7 @@ describe("createJobs over pgmq_public", () => {
           ]
         : true,
     );
-    const jobs = createJobs(client, { emails: v.object({}) });
+    const jobs = createJobs({ client, queues: { emails: v.object({}) } });
     expect(await jobs.claim("emails").orThrow()).toEqual([]);
     expect(calls.at(-1)).toEqual({
       schema: "pgmq_public",
@@ -188,7 +191,7 @@ describe("createJobs over pgmq_public", () => {
 
   it("refuses SQL-only features and invalid queue names", async () => {
     const { client } = fakeClient(() => [1]);
-    const jobs = createJobs(client, { emails: v.object({}) });
+    const jobs = createJobs({ client, queues: { emails: v.object({}) } });
     const deduped = await jobs.enqueue("emails", {}, { dedupeKey: "x" });
     expect(deduped.error).toMatchObject({
       kind: "invalid_request",
@@ -201,11 +204,11 @@ describe("createJobs over pgmq_public", () => {
       kind: "invalid_request",
       message: expect.stringContaining("unschedule needs a SQL connection"),
     });
-    expect(() => createJobs(client, { "send-emails": v.object({}) })).toThrow(
-      "pgmq queue names",
-    );
     expect(() =>
-      createJobs(client, { ["a".repeat(48)]: v.object({}) }),
+      createJobs({ client, queues: { "send-emails": v.object({}) } }),
+    ).toThrow("pgmq queue names");
+    expect(() =>
+      createJobs({ client, queues: { ["a".repeat(48)]: v.object({}) } }),
     ).toThrow("at most 47");
   });
 
@@ -213,7 +216,7 @@ describe("createJobs over pgmq_public", () => {
     const { client, requests } = capturingClient(({ path }) =>
       path.endsWith("/send") ? { body: ["41"] } : { body: true },
     );
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     expect(
       await jobs.enqueue("emails", { to: "a@example.com" }).orThrow(),
     ).toBe(41);
@@ -235,7 +238,7 @@ describe("createJobs over pgmq_public", () => {
       status: 400,
       body: { code: "P0001", message: "queue emails does not exist" },
     }));
-    const result = await createJobs(client, queues).claim("emails");
+    const result = await createJobs({ client, queues }).claim("emails");
     expect(result.error).toMatchObject({
       kind: "unexpected",
       message: "pgmq_public.read: queue emails does not exist",
@@ -247,7 +250,7 @@ describe("createJobs over pgmq_public", () => {
       () => null,
       () => "permission denied",
     );
-    const result = await createJobs(client, queues).enqueue("emails", {
+    const result = await createJobs({ client, queues }).enqueue("emails", {
       to: "a@example.com",
     });
     expect(result.error?.message).toBe("pgmq_public.send: permission denied");
@@ -255,7 +258,7 @@ describe("createJobs over pgmq_public", () => {
 
   it("leaves a failed job queued until its last attempt, and cannot extend a lease", async () => {
     const { client, calls } = fakeClient(() => true);
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     expect(
       await jobs
         .fail(sampleJob({ attempts: 2, maxAttempts: 5 }), "x")
@@ -284,7 +287,7 @@ describe("createJobs over pgmq_public", () => {
         [],
       ),
     );
-    const draining = createJobs(client, queues).drain(
+    const draining = createJobs({ client, queues }).drain(
       "emails",
       () =>
         new Promise<void>((resolve) => {
@@ -325,7 +328,7 @@ describe("job context", () => {
 
   it("records the actor and tenant next to the payload, and restores them on claim", async () => {
     const { client, sent } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     await jobs
       .enqueue(
         "emails",
@@ -350,7 +353,7 @@ describe("job context", () => {
 
   it("records a support session's act claim, so the job stays read-only", async () => {
     const { client, sent } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     const act = {
       kind: "support",
       sub: "admin-1",
@@ -391,7 +394,9 @@ describe("job context", () => {
         payload: { to: "a@example.com" },
       },
     });
-    const [job] = await createJobs(client, queues).claim("emails").orThrow();
+    const [job] = await createJobs({ client, queues })
+      .claim("emails")
+      .orThrow();
     expect(job?.context).toEqual({
       actor: ACTOR,
       claims: { act: { sub: "client-1" }, scope: "a" },
@@ -400,7 +405,7 @@ describe("job context", () => {
 
   it("records a delegated client's claims and the ticket at enqueue", async () => {
     const { client, sent } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     await jobs
       .enqueue(
         "emails",
@@ -437,7 +442,7 @@ describe("job context", () => {
 
   it("refuses an invalid act chain, a bad ticket and a fractional delay", async () => {
     const { client, sent } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     const refused = await jobs.enqueue(
       "emails",
       { to: "a@example.com" },
@@ -473,7 +478,7 @@ describe("job context", () => {
 
   it("prefers context.tenant, and stores bare payloads without an actor or tenant", async () => {
     const { client, sent } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     await jobs
       .enqueue(
         "emails",
@@ -499,7 +504,7 @@ describe("job context", () => {
       .connect(echoExecutor, {
         claims: { tenant_id: "o1", app_metadata: { organization: "o9" } },
       });
-    await createJobs(client, queues)
+    await createJobs({ client, queues })
       .enqueue("emails", { to: "a@example.com" }, { context: db.$context })
       .orThrow();
     expect(
@@ -518,7 +523,9 @@ describe("job context", () => {
         payload: { to: "a@example.com" },
       },
     });
-    const [job] = await createJobs(client, queues).claim("emails").orThrow();
+    const [job] = await createJobs({ client, queues })
+      .claim("emails")
+      .orThrow();
     expect(job).toMatchObject({
       payload: { to: "a@example.com" },
       context: {},
@@ -527,7 +534,7 @@ describe("job context", () => {
 
   it("hands the handler the recorded context, marking tenantless jobs only with allTenants", async () => {
     const { client } = memoryQueue();
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     const context = { actor: ACTOR };
     await jobs
       .enqueue("emails", { to: "a@example.com" }, { context })
@@ -565,7 +572,7 @@ describe("job context", () => {
 
   it("records the context on schedules", async () => {
     const fake = fakeSql();
-    await createJobs(fake.sql, queues)
+    await createJobs({ sql: fake.sql, queues })
       .schedule(
         "nightly",
         "0 3 * * *",
@@ -585,7 +592,7 @@ describe("job context", () => {
 describe("createJobs over SQL", () => {
   it("enqueues through enqueue_job with the validated payload and defaults", async () => {
     const fake = fakeSql([["enqueue_job", [{ id: "17" }]]]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     expect(await jobs.enqueue("reports", { day: "mon" }).orThrow()).toBe(17);
     expect(fake.calls).toEqual([
       {
@@ -597,7 +604,7 @@ describe("createJobs over SQL", () => {
 
   it("passes delay, max attempts and the dedupe key", async () => {
     const fake = fakeSql([["enqueue_job", [{ id: 3 }]]]);
-    await createJobs(fake.sql, queues)
+    await createJobs({ sql: fake.sql, queues })
       .enqueue(
         "emails",
         { to: "a@example.com" },
@@ -612,7 +619,7 @@ describe("createJobs over SQL", () => {
       "welcome:u1",
       true,
     ]);
-    await createJobs(fake.sql, queues)
+    await createJobs({ sql: fake.sql, queues })
       .enqueue(
         "emails",
         { to: "a@example.com" },
@@ -627,7 +634,7 @@ describe("createJobs over SQL", () => {
       now: Temporal.Instant.from("2026-10-01T12:00:00Z").epochMilliseconds,
     });
     const fake = fakeSql([["enqueue_job", [{ id: 1 }]]]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     await jobs
       .enqueue(
         "emails",
@@ -664,7 +671,7 @@ describe("createJobs over SQL", () => {
         ],
       ],
     ]);
-    const jobs = createJobs(fake.sql, queues, { now });
+    const jobs = createJobs({ sql: fake.sql, queues, now });
     await jobs
       .enqueue(
         "emails",
@@ -690,7 +697,7 @@ describe("createJobs over SQL", () => {
       ["claim_jobs", sequence([messageRow(1, { day: "mon" })])],
       ["complete_job", [{ done: true }]],
     ]);
-    const jobs = createJobs(fake.sql, queues, { temporal: Polyfill });
+    const jobs = createJobs({ sql: fake.sql, queues, temporal: Polyfill });
     const seen: Job[] = [];
     expect(
       await jobs.drain("reports", (_payload, job) => {
@@ -710,7 +717,10 @@ describe("createJobs over SQL", () => {
 
   it("enqueues an empty object when the schema output is undefined", async () => {
     const fake = fakeSql([["enqueue_job", [{ id: 1 }]]]);
-    await createJobs(fake.sql, { ping: v.optional(v.object({})) })
+    await createJobs({
+      sql: fake.sql,
+      queues: { ping: v.optional(v.object({})) },
+    })
       .enqueue("ping", undefined)
       .orThrow();
     expect(fake.calls[0]!.values[1]).toBe("{}");
@@ -718,7 +728,7 @@ describe("createJobs over SQL", () => {
 
   it("rejects an invalid payload without a query", async () => {
     const fake = fakeSql();
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const result = await jobs.enqueue("emails", { to: "not an email" });
     expect(result.error?.kind).toBe("validation");
     const scheduled = await jobs.schedule("nightly", "0 3 * * *", "emails", {
@@ -739,9 +749,12 @@ describe("createJobs over SQL", () => {
         },
       ],
     ]);
-    const result = await createJobs(fake.sql, queues).enqueue("emails", {
-      to: "a@example.com",
-    });
+    const result = await createJobs({ sql: fake.sql, queues }).enqueue(
+      "emails",
+      {
+        to: "a@example.com",
+      },
+    );
     expect(result.error).toMatchObject({
       kind: "conflict",
       message: "duplicate key value",
@@ -770,7 +783,7 @@ describe("createJobs over SQL", () => {
         ],
       ],
     ]);
-    const jobs = await createJobs(fake.sql, queues)
+    const jobs = await createJobs({ sql: fake.sql, queues })
       .claim("emails", { batch: 2, lease: 60 })
       .orThrow();
     expect(fake.calls[0]).toEqual({
@@ -805,7 +818,7 @@ describe("createJobs over SQL", () => {
 
   it("claims one job for 300 seconds by default, and rejects unknown queues", async () => {
     const fake = fakeSql();
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     expect(await jobs.claim("emails").orThrow()).toEqual([]);
     expect(fake.calls[0]!.values).toEqual(["emails", 300, 1]);
     const unknown = await jobs.claim("sms" as never);
@@ -820,7 +833,7 @@ describe("createJobs over SQL", () => {
       ["fail_job", [{ status: "dead" }]],
       ["extend_job_lease", [{ extended: true }]],
     ]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const job = sampleJob();
     expect(await jobs.complete(job).orThrow()).toBe(true);
     expect(
@@ -847,7 +860,7 @@ describe("createJobs over SQL", () => {
     const fake = fakeSql([
       ["replay_dead_job", sequence([{ id: "41" }], [{ id: null }])],
     ]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     expect(await jobs.replay("emails", 12).orThrow()).toBe(41);
     expect(await jobs.replay("emails", 13).orThrow()).toBeNull();
     expect(fake.calls[0]).toEqual({
@@ -858,7 +871,7 @@ describe("createJobs over SQL", () => {
 
   it("reports a lost lease when the block functions return no row", async () => {
     const fake = fakeSql();
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const job = sampleJob();
     expect(await jobs.complete(job).orThrow()).toBe(false);
     expect(await jobs.fail(job, "x").orThrow()).toBeNull();
@@ -869,7 +882,7 @@ describe("createJobs over SQL", () => {
 
   it("stores the message of any error value", async () => {
     const fake = fakeSql([["fail_job", [{ status: "queued" }]]]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     await jobs.fail(sampleJob(), { message: "from a DbError" }).orThrow();
     await jobs.fail(sampleJob(), 404).orThrow();
     await jobs.fail(sampleJob(), null).orThrow();
@@ -882,7 +895,7 @@ describe("createJobs over SQL", () => {
 
   it("schedules and unschedules through pg_cron", async () => {
     const fake = fakeSql([["unschedule_job", [{ done: true }]]]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     await jobs
       .schedule("nightly", "0 3 * * *", "reports", { day: "sun" })
       .orThrow();
@@ -911,7 +924,7 @@ describe("createJobs over SQL", () => {
 describe("schedules with the drain scheduler", () => {
   it("passes the time zone and the next run in that zone", async () => {
     const fake = fakeSql([]);
-    await createJobs(fake.sql, queues)
+    await createJobs({ sql: fake.sql, queues })
       .schedule(
         "digest",
         "0 9 * * 1-5",
@@ -933,7 +946,7 @@ describe("schedules with the drain scheduler", () => {
 
   it("rejects an invalid cron before calling the database", async () => {
     const fake = fakeSql([]);
-    const result = await createJobs(fake.sql, queues).schedule(
+    const result = await createJobs({ sql: fake.sql, queues }).schedule(
       "bad",
       "61 * * * *",
       "reports",
@@ -961,7 +974,9 @@ describe("schedules with the drain scheduler", () => {
       ["enqueue_job", [{ id: 7 }]],
       ["advance_schedule", [{ advanced: true }]],
     ]);
-    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(1);
+    expect(
+      await createJobs({ sql: fake.sql, queues }).runSchedules().orThrow(),
+    ).toBe(1);
     const [, enqueue, advance] = fake.calls;
     expect(enqueue!.values).toEqual([
       "reports",
@@ -1002,7 +1017,9 @@ describe("schedules with the drain scheduler", () => {
       ["enqueue_job", [{ id: 1 }]],
       ["advance_schedule", [{ advanced: true }]],
     ]);
-    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(1);
+    expect(
+      await createJobs({ sql: fake.sql, queues }).runSchedules().orThrow(),
+    ).toBe(1);
     const calls = fake.calls.map((call) => [
       /\.(\w+)\(/.exec(call.text)![1],
       call.values,
@@ -1045,12 +1062,14 @@ describe("schedules with the drain scheduler", () => {
       ["enqueue_job", [{ id: 1 }]],
       ["advance_schedule", [{ advanced: false }]],
     ]);
-    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(0);
+    expect(
+      await createJobs({ sql: fake.sql, queues }).runSchedules().orThrow(),
+    ).toBe(0);
   });
 
   it("records the schedule's tenant from the options or the context", async () => {
     const fake = fakeSql([]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     await jobs
       .schedule("a", "@daily", "reports", { day: "mon" }, { tenant: "t1" })
       .orThrow();
@@ -1091,7 +1110,7 @@ describe("schedules with the drain scheduler", () => {
       ],
       ["unschedule_tenant", [{ removed: 2 }]],
     ]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const [first] = await jobs
       .listSchedules({ prefix: "workflow:", tenant: "t1" })
       .orThrow();
@@ -1107,7 +1126,7 @@ describe("schedules with the drain scheduler", () => {
     expect(fake.calls[1]!.values).toEqual([null, null]);
     expect(await jobs.unscheduleAll({ tenant: "t1" }).orThrow()).toBe(2);
     expect(
-      await createJobs(fakeSql([]).sql, queues)
+      await createJobs({ sql: fakeSql([]).sql, queues })
         .unscheduleAll({ tenant: "t1" })
         .orThrow(),
     ).toBe(0);
@@ -1129,7 +1148,7 @@ describe("schedules with the drain scheduler", () => {
       ["list_schedules", [listed("wf:keep"), listed("wf:stale")]],
       ["unschedule_job", [{ done: true }]],
     ]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const result = await jobs
       .ensureSchedules(
         [
@@ -1176,7 +1195,7 @@ describe("schedules with the drain scheduler", () => {
 
   it("checks the whole set before ensureSchedules writes anything", async () => {
     const fake = fakeSql([]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     const ensure = (
       definitions: Parameters<typeof jobs.ensureSchedules>[0],
       prefix = "wf:",
@@ -1213,7 +1232,7 @@ describe("schedules with the drain scheduler", () => {
     });
     const { client } = fakeClient(() => []);
     expect(
-      await createJobs(client, queues).ensureSchedules([good], {
+      await createJobs({ client, queues }).ensureSchedules([good], {
         prefix: "wf:",
       }),
     ).toMatchObject({ error: { kind: "invalid_request" } });
@@ -1221,7 +1240,7 @@ describe("schedules with the drain scheduler", () => {
 
   it("can't list schedules over pgmq_public", async () => {
     const { client } = fakeClient(() => []);
-    const jobs = createJobs(client, queues);
+    const jobs = createJobs({ client, queues });
     expect(await jobs.listSchedules()).toMatchObject({
       ok: false,
       error: { kind: "invalid_request" },
@@ -1233,7 +1252,9 @@ describe("schedules with the drain scheduler", () => {
 
   it("runs no schedules over pgmq_public", async () => {
     const { client } = fakeClient(() => []);
-    expect(await createJobs(client, queues).runSchedules().orThrow()).toBe(0);
+    expect(await createJobs({ client, queues }).runSchedules().orThrow()).toBe(
+      0,
+    );
   });
 });
 
@@ -1246,7 +1267,7 @@ describe("drainRoute", () => {
 
   it("needs a secret", () => {
     expect(() =>
-      createJobs(fakeSql([]).sql, queues).drainRoute({
+      createJobs({ sql: fakeSql([]).sql, queues }).drainRoute({
         secret: undefined,
         handlers: {},
       }),
@@ -1255,7 +1276,7 @@ describe("drainRoute", () => {
 
   it("rejects an unknown queue", () => {
     expect(() =>
-      createJobs(fakeSql([]).sql, queues).drainRoute({
+      createJobs({ sql: fakeSql([]).sql, queues }).drainRoute({
         secret: "s3cret",
         // @ts-expect-error not a queue
         handlers: { nope: () => undefined },
@@ -1264,7 +1285,7 @@ describe("drainRoute", () => {
   });
 
   it("answers 401 without the bearer secret and 405 for other methods", async () => {
-    const route = createJobs(fakeSql([]).sql, queues).drainRoute({
+    const route = createJobs({ sql: fakeSql([]).sql, queues }).drainRoute({
       secret: "s3cret",
       handlers: {},
     });
@@ -1280,7 +1301,7 @@ describe("drainRoute", () => {
       ["complete_job", [{ done: true }]],
     ]);
     const handled: unknown[] = [];
-    const route = createJobs(fake.sql, queues).drainRoute({
+    const route = createJobs({ sql: fake.sql, queues }).drainRoute({
       secret: "s3cret",
       handlers: {
         reports: (payload) => {
@@ -1305,7 +1326,7 @@ describe("drainRoute", () => {
       ["claim_jobs", { throws: pgError("42P01", "no table") }],
     ]);
     const errors: DbError[] = [];
-    const route = createJobs(fake.sql, queues).drainRoute({
+    const route = createJobs({ sql: fake.sql, queues }).drainRoute({
       secret: "s3cret",
       schedules: true,
       handlers: { emails: () => undefined, reports: () => undefined },
@@ -1326,7 +1347,7 @@ describe("drainRoute", () => {
     const fake = fakeSql([["claim_due_schedules", []]]);
     const seen: unknown[] = [];
     const errors: DbError[] = [];
-    const route = createJobs(fake.sql, queues).drainRoute({
+    const route = createJobs({ sql: fake.sql, queues }).drainRoute({
       secret: "s3cret",
       handlers: {},
       onError: (error) => errors.push(error),
@@ -1349,7 +1370,7 @@ describe("drainRoute", () => {
       ["finish", 0, "check-in-1"],
     ]);
     expect(errors.map((error) => error.message)).toEqual(["monitor down"]);
-    const quiet = createJobs(fake.sql, queues).drainRoute({
+    const quiet = createJobs({ sql: fake.sql, queues }).drainRoute({
       secret: "s3cret",
       handlers: {},
       monitor: {},
@@ -1359,7 +1380,7 @@ describe("drainRoute", () => {
 
   it("stops claiming once the budget is spent", async () => {
     const fake = fakeSql([["claim_jobs", [messageRow(1, { day: "mon" })]]]);
-    const route = createJobs(fake.sql, queues).drainRoute({
+    const route = createJobs({ sql: fake.sql, queues }).drainRoute({
       secret: "s3cret",
       budgetMs: 0,
       schedules: false,
@@ -1420,7 +1441,7 @@ describe("queue health", () => {
       ],
       ["retry_dead_jobs", [{ retried: 2 }]],
     ]);
-    const jobs = createJobs(fake.sql, queues);
+    const jobs = createJobs({ sql: fake.sql, queues });
     expect(await jobs.stats().orThrow()).toEqual({
       emails: {
         ready: 2,
@@ -1490,7 +1511,8 @@ describe("queue health", () => {
       ],
     ]);
     expect(
-      (await createJobs(fake.sql, queues).stats(["emails"]).orThrow()).emails,
+      (await createJobs({ sql: fake.sql, queues }).stats(["emails"]).orThrow())
+        .emails,
     ).toEqual({
       ready: 0,
       inFlight: 0,
@@ -1499,10 +1521,12 @@ describe("queue health", () => {
       oldestAgeSeconds: null,
     });
     expect(
-      await createJobs(fakeSql([]).sql, queues).retryDead("emails").orThrow(),
+      await createJobs({ sql: fakeSql([]).sql, queues })
+        .retryDead("emails")
+        .orThrow(),
     ).toBe(0);
     const { client } = fakeClient(() => []);
-    const remote = createJobs(client, queues);
+    const remote = createJobs({ client, queues });
     for (const result of [
       await remote.stats(),
       await remote.listDead("emails"),
@@ -1519,7 +1543,7 @@ describe("drain budget", () => {
       ["claim_jobs", [messageRow(1, { day: "mon" })]],
       ["complete_job", [{ done: true }]],
     ]);
-    const result = await createJobs(fake.sql, queues).drain(
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
       "reports",
       () => undefined,
       { budgetMs: 0 },
@@ -1546,7 +1570,7 @@ describe("custom queue backends", () => {
       schedule: () => Promise.resolve(),
       unschedule: () => Promise.resolve(true),
     };
-    const jobs = createJobs(backend, queues);
+    const jobs = createJobs({ backend, queues });
     expect(
       await jobs.enqueue("emails", { to: "a@example.com" }).orThrow(),
     ).toBe(1);
@@ -1581,7 +1605,7 @@ describe("drain and work", () => {
       ["complete_job", [{ done: true }]],
     ]);
     const seen: unknown[] = [];
-    const result = await createJobs(fake.sql, queues).drain(
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
       "reports",
       (payload, job, signal) => {
         seen.push([payload, job.payload, job.id, signal.aborted]);
@@ -1605,7 +1629,7 @@ describe("drain and work", () => {
     ]);
     const errors: [DbError, Job][] = [];
     let signal: AbortSignal | undefined;
-    const result = await createJobs(fake.sql, queues).drain(
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       (_payload, _job, received) => {
         signal = received;
@@ -1637,7 +1661,7 @@ describe("drain and work", () => {
       ok: false,
       error: { kind: "conflict", message: "already sent" },
     };
-    const result = await createJobs(fake.sql, queues).drain(
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       () => failure,
       { onError: (error) => errors.push(error) },
@@ -1661,8 +1685,9 @@ describe("drain and work", () => {
       ],
     ]);
     const outcomes: unknown[] = [{ ok: true, data: 1 }, { ok: false }, "sent"];
-    const result = await createJobs(fake.sql, queues).drain("emails", () =>
-      outcomes.shift(),
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
+      "emails",
+      () => outcomes.shift(),
     );
     expect(result).toEqual({ succeeded: 3, failed: 0 });
   });
@@ -1673,9 +1698,13 @@ describe("drain and work", () => {
     ]);
     const handler = vi.fn();
     const errors: DbError[] = [];
-    const result = await createJobs(fake.sql, queues).drain("emails", handler, {
-      onError: (error) => errors.push(error),
-    });
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
+      "emails",
+      handler,
+      {
+        onError: (error) => errors.push(error),
+      },
+    );
     expect(result).toEqual({ succeeded: 0, failed: 1 });
     expect(handler).not.toHaveBeenCalled();
     expect(errors[0]?.kind).toBe("validation");
@@ -1694,9 +1723,12 @@ describe("drain and work", () => {
         ),
       ],
     ]);
-    const result = await createJobs(fake.sql, queues).drain("emails", () => {
-      throw new Error("x");
-    });
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
+      "emails",
+      () => {
+        throw new Error("x");
+      },
+    );
     expect(result).toEqual({ succeeded: 0, failed: 2 });
   });
 
@@ -1709,7 +1741,7 @@ describe("drain and work", () => {
         },
       ],
     ]);
-    const failure = await createJobs(fake.sql, queues)
+    const failure = await createJobs({ sql: fake.sql, queues })
       .drain("emails", () => undefined)
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(TypeError);
@@ -1730,7 +1762,7 @@ describe("drain and work", () => {
       ],
     ]);
     const stop = new AbortController();
-    const result = await createJobs(fake.sql, queues).work(
+    const result = await createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => {
         stop.abort();
@@ -1751,7 +1783,7 @@ describe("drain and work", () => {
         },
       ],
     ]);
-    const failure = await createJobs(fake.sql, queues)
+    const failure = await createJobs({ sql: fake.sql, queues })
       .work("emails", () => undefined, { pollInterval: 1, concurrency: 2 })
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(TypeError);
@@ -1774,7 +1806,7 @@ describe("drain and work", () => {
     const barrier = new Promise<void>((resolve) => {
       bothStarted = resolve;
     });
-    const result = await createJobs(fake.sql, queues).drain(
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       async () => {
         started += 1;
@@ -1793,9 +1825,13 @@ describe("drain and work", () => {
 
   it("runs one lane when concurrency is below one", async () => {
     const fake = fakeSql();
-    await createJobs(fake.sql, queues).drain("emails", () => undefined, {
-      concurrency: 0,
-    });
+    await createJobs({ sql: fake.sql, queues }).drain(
+      "emails",
+      () => undefined,
+      {
+        concurrency: 0,
+      },
+    );
     expect(fake.calls).toHaveLength(1);
   });
 
@@ -1809,7 +1845,7 @@ describe("drain and work", () => {
     ]);
     const leaseExtensions = () =>
       fake.calls.filter((call) => call.text.includes("extend_job_lease"));
-    const draining = createJobs(fake.sql, queues).drain(
+    const draining = createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       () =>
         new Promise<void>((resolve) => {
@@ -1838,7 +1874,7 @@ describe("drain and work", () => {
       ["claim_jobs", sequence([messageRow(9, { to: "a@example.com" })])],
       ["extend_job_lease", { throws: new Error("connection reset") }],
     ]);
-    const draining = createJobs(fake.sql, queues).drain(
+    const draining = createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       () =>
         new Promise<void>((resolve) => {
@@ -1866,7 +1902,7 @@ describe("drain and work", () => {
     ]);
     const claims = () =>
       fake.texts().filter((text) => text.includes("claim_jobs"));
-    const working = createJobs(fake.sql, queues).work(
+    const working = createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => {
         controller.abort();
@@ -1884,7 +1920,7 @@ describe("drain and work", () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const fake = fakeSql();
-    const working = createJobs(fake.sql, queues).work(
+    const working = createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
       { signal: controller.signal, pollInterval: 100, maxPollInterval: 300 },
@@ -1919,7 +1955,7 @@ describe("drain and work", () => {
       ["complete_job", [{ done: true }]],
     ]);
     let calls = 0;
-    const draining = createJobs(fake.sql, queues).drain(
+    const draining = createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       () => {
         calls += 1;
@@ -1944,7 +1980,7 @@ describe("drain and work", () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const fake = fakeSql();
-    const working = createJobs(fake.sql, queues).work(
+    const working = createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
       {
@@ -1972,7 +2008,7 @@ describe("drain and work", () => {
         },
       ],
     ]);
-    const result = await createJobs(fake.sql, queues).work(
+    const result = await createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
       {
@@ -1985,7 +2021,7 @@ describe("drain and work", () => {
 
   it("does nothing with a signal that already aborted", async () => {
     const fake = fakeSql();
-    const result = await createJobs(fake.sql, queues).work(
+    const result = await createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
       {

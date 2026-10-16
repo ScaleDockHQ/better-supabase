@@ -21,7 +21,7 @@ describe("blocks on @supabase/server's Postgres clients", () => {
   it("take ctx.postgres and ctx.postgresAdmin wherever they take a SqlClient", () => {
     expectTypeOf(postgres).toExtend<SqlClient>();
     sqlTransport(postgres);
-    createJobs(postgresAdmin, {});
+    createJobs({ sql: postgresAdmin, queues: {} });
     createIdempotency({ sql: postgresAdmin });
     createWebhookInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
     purgeAuditLog(postgresAdmin);

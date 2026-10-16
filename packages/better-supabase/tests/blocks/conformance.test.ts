@@ -24,7 +24,6 @@ const RECIPES = join(
 const CREATOR_NAME: readonly string[] = ["audit"];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
-  "jobs",
   "onboarding",
   "outbox",
   "settings",

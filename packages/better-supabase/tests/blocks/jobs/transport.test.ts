@@ -222,7 +222,7 @@ describe("transportQueueBackend", () => {
       },
       list_dead_jobs: [],
     });
-    const jobs = createJobs(transport, { emails: v.object({}) });
+    const jobs = createJobs({ transport, queues: { emails: v.object({}) } });
     expect((await jobs.stats(["emails"]).orThrow()).emails.dead).toBe(1);
     expect(await jobs.listDead("emails").orThrow()).toEqual([]);
     expect(calls.map((call) => [call.schema, call.fn])).toEqual([
@@ -323,9 +323,12 @@ describe("purge", () => {
 
   it("purges every declared queue's archive by name", async () => {
     const { transport, calls } = fakeTransport({ purge_job_archive: 2 });
-    const jobs = createJobs(transport, {
-      emails: v.object({}),
-      reports: v.object({}),
+    const jobs = createJobs({
+      transport,
+      queues: {
+        emails: v.object({}),
+        reports: v.object({}),
+      },
     });
     expect(
       await jobs
@@ -355,7 +358,10 @@ describe("purge", () => {
 
   it("purges the archive over SQL with only the options given", async () => {
     const fake = fakeSql([["purge_job_archive", [{ purged: 3 }]]]);
-    const jobs = createJobs(fake.sql, { emails: v.object({}) });
+    const jobs = createJobs({
+      sql: fake.sql,
+      queues: { emails: v.object({}) },
+    });
     expect(await jobs.purge({ batch: 10 }).orThrow()).toBe(3);
     expect(fake.calls).toEqual([
       {
