@@ -1094,6 +1094,16 @@ instance, unlike an in-memory map on serverless functions.
 `purge_rate_limits()` removes counters without a rule after a day, so keep a
 per-call `period` under a day or define the rule.
 
+### Limits as middleware
+
+The [Hono](/docs/frameworks/hono#rate-limits) and
+[oRPC](/docs/frameworks/orpc#rate-limits) adapters wrap `check` in a
+`rateLimit()` middleware. Responses then carry the `RateLimit` field of
+draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), and
+`RateLimit-Policy` when the route gives a `rule`. A refused request gets a
+429 with `Retry-After`. Elsewhere, `rateLimitHeader()` and
+`rateLimitPolicyHeader()` from `better-supabase/server` build the two fields.
+
 ## Enforcing jsonb shapes
 
 Give a `json` entry a `schema` and `sql add jsonb-schemas` adds a

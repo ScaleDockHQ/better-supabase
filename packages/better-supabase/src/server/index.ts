@@ -178,6 +178,16 @@ export type {
   ProblemOptions,
   ProblemResponseOptions,
 } from "../core/problem.ts";
+export {
+  isRateLimitPolicyName,
+  periodSeconds,
+  rateLimitHeader,
+  rateLimitPolicyHeader,
+} from "../core/ratelimit-headers.ts";
+export type {
+  RateLimitPolicy,
+  RateLimitState,
+} from "../core/ratelimit-headers.ts";
 export { guard, isResult, respond, settle } from "./respond.ts";
 export type {
   AuthKind,

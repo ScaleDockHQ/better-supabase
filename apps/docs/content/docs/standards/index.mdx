@@ -77,6 +77,7 @@ validates the output against a vendored copy of it.
 | [RFC 9396 Rich Authorization Requests](https://www.rfc-editor.org/rfc/rfc9396)                                                                                                                           | Adopted (pinned) | `authorization_details` on delegated tokens, kept by `forContext` and job envelopes                                                               | `rfc9396.test.ts`                                          |
 | [JWS and JWK (RFC 7515, 7517, 7638, 8037, RFC 9864)](https://www.rfc-editor.org/rfc/rfc9864)                                                                                                             | Adopted (pinned) | `signer().signJwt()`, `jwks()` and `verifyCompact()` in the [signing keys block](/docs/blocks/signing-keys), and Standard Webhooks `v1a`          | `rfc9864.test.ts`                                          |
 | [OpenID Shared Signals (SSF 1.0, CAEP 1.0, RISC 1.0, RFC 8417, 8935, 8936)](https://openid.net/specs/openid-sharedsignals-framework-1_0.html)                                                            | Adopted (pinned) | `mintSet()`, `verifySet()`, the transmitter and receiver in the [shared signals block](/docs/blocks/shared-signals), and the `set` webhook format | `shared-signals.test.ts`                                   |
+| [RateLimit header fields (draft-ietf-httpapi-ratelimit-headers-11)](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-ratelimit-headers-11)                                                       | Adopted (pinned) | `rateLimitHeader()`, `rateLimitPolicyHeader()` and `rateLimit()` on the Hono and oRPC adapters                                                    | `ratelimit-headers.test.ts`                                |
 
 ## Pins
 
@@ -127,5 +128,6 @@ SPEC_PINS.rfc8936; // RFC 8936 poll delivery that the transmitter serves and the
 SPEC_PINS.ssf; // OpenID Shared Signals Framework the transmitter metadata and stream API follow
 SPEC_PINS.caep; // OpenID CAEP event types in CAEP_EVENTS
 SPEC_PINS.risc; // OpenID RISC event types in RISC_EVENTS
+SPEC_PINS.ratelimitHeaders; // draft-ietf-httpapi-ratelimit-headers revision behind RateLimit and RateLimit-Policy
 SPEC_PINS.shadcnRegistry; // shadcn release whose registry.json and registry-item.json schemas the registry items follow
 ```

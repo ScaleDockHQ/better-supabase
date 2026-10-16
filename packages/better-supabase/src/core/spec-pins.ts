@@ -64,6 +64,8 @@ export const SPEC_PINS: {
   readonly caep: "1.0";
   /** OpenID RISC event types in `RISC_EVENTS`. */
   readonly risc: "1.0";
+  /** draft-ietf-httpapi-ratelimit-headers revision behind `rateLimitHeader` and the Hono and oRPC `rateLimit()`. */
+  readonly ratelimitHeaders: "draft-11";
   /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
   readonly shadcnRegistry: "4.21.4";
 } = {
@@ -111,5 +113,6 @@ export const SPEC_PINS: {
   ssf: "1.0",
   caep: "1.0",
   risc: "1.0",
+  ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
 };
