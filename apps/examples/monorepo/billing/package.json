@@ -14,7 +14,6 @@
   },
   "devDependencies": {
     "@better-supabase/example-monorepo-runtime": "workspace:*",
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "oxlint": "catalog:",
     "typescript": "catalog:"

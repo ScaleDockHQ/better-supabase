@@ -25,7 +25,7 @@ types in `<schema>/types/`, and the `storage.objects` policies in
 1. Edit the object's file, or add one at `<schema>/<kind>/<object>.sql`.
    pg-delta orders the files by dependency, so a file never has to sort
    before the objects it uses.
-2. Run `pnpm supabase:sync <name>` and review the new migration. The stack can
+2. Run `pnpm supabase:diff <name>` and review the new migration. The stack can
    keep running: the sync diffs the files against the migration history in a
    shadow database, not against the live one.
 3. Run `pnpm supabase:reset`, `pnpm supabase:test` and `pnpm test:integration`,
@@ -70,7 +70,7 @@ writes from `apps/examples/nextjs` (its `sql.dir` points at
 `supabase/schemas/_better_supabase`). Never
 edit them by hand. When a change touches one of those modules, run
 `pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
-then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
+then `pnpm supabase:diff <name>`, and `sql data` from the same folder when the
 data files changed. The example's `gen:check` fails while they are stale.
 
 Managed block defaults follow the repo standard (hashed tokens, Vault secrets,
@@ -89,7 +89,7 @@ The fixture's own rows and role settings (RBAC role permissions, the
 are in the `_fixture_data.sql` migration. A new one goes in a new
 hand-written migration.
 
-When `pnpm supabase:sync` writes the same migration after every reset, look
+When `pnpm supabase:diff` writes the same migration after every reset, look
 for an expression Postgres rewrites. `x between a and b` inside an `and`
 chain comes back from the catalog as `x >= a and x <= b`, so the diff never
 converges; write the comparisons out (`usernameCheck` in

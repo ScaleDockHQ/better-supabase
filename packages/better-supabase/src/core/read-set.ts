@@ -115,8 +115,14 @@ const MAX_ENTRIES = 50;
  * Auth placeholders start with `@`, which no parameter name can.
  */
 const NUL = "\u0000";
-const SENTINEL = new RegExp(`${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}`, "gi");
-const EXACT = new RegExp(`^${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}$`, "i");
+const SENTINEL = /* @__PURE__ */ new RegExp(
+  `${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}`,
+  "gi",
+);
+const EXACT = /* @__PURE__ */ new RegExp(
+  `^${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}$`,
+  "i",
+);
 
 function sentinel(name: string): string {
   return `${NUL}bs:${name}${NUL}`;

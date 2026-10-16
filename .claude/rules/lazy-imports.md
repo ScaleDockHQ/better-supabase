@@ -1,0 +1,1 @@
+../../.agents/rules/lazy-imports.mdc

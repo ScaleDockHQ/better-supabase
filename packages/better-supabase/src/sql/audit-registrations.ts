@@ -140,13 +140,13 @@ function registration(args: readonly string[]): AuditedTable | undefined {
 const CALL = /\bbetter_supabase\s*\.\s*(un)?audit\s*\(/gi;
 
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
-const TRIGGER = new RegExp(
+const TRIGGER = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+(?:or\s+replace\s+)?trigger\s+"?bs_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+for\s+each\s+row\s+execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
   "gi",
 );
 
 const TABLE_NAME = String.raw`${IDENT}(?:\s*\.\s*${IDENT})?`;
-const DROP = new RegExp(
+const DROP = /* @__PURE__ */ new RegExp(
   String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${TABLE_NAME}(?:\s*,\s*${TABLE_NAME})*)`,
   "gi",
 );

@@ -21,7 +21,7 @@ import { searchDocs } from "@/lib/page-search";
 import { searchHits } from "@/lib/search";
 import { docsUrl } from "@/lib/shared";
 import { siteUrl } from "@/lib/site-url";
-import { docsLlms, getPageSummaries, source } from "@/lib/source";
+import { getPageMarkdown, getPageSummaries } from "@/lib/source";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
 const SEED_PAGES = 6;
@@ -51,10 +51,10 @@ const tools = {
     inputSchema: pageInputSchema,
     execute: async ({ url }) => {
       const target = docsUrl(url);
-      const page = source.getPageByUrl(target);
-      return page === undefined
-        ? `No page at ${target}. Use search_docs to find one.`
-        : docsLlms.page(page);
+      return (
+        (await getPageMarkdown(target)) ??
+        `No page at ${target}. Use search_docs to find one.`
+      );
     },
   }),
 };

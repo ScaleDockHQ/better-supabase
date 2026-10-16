@@ -5,10 +5,10 @@ export default defineConfig({
   test: {
     projects: [
       "packages/better-supabase",
-      "packages/ox-config",
       "packages/registry",
       "apps/docs",
       "apps/marketing",
+      "apps/examples/express",
       "tests/bundle",
       "tests/validation-centrakit",
       "tests/validation-recipes",

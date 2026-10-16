@@ -7,7 +7,6 @@
     "transit": "true"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@opentelemetry/api": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/supabase-js": "catalog:",

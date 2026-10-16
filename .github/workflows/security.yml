@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/actions/**"
+      - ".github/actionlint.yaml"
+      - "pnpm-lock.yaml"
   pull_request:
     branches: [main]
 
@@ -18,25 +20,39 @@ concurrency:
 
 jobs:
   changes:
-    name: Detect workflow changes
+    name: Detect changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       workflows: ${{ steps.filter.outputs.workflows }}
+      lockfile: ${{ steps.filter.outputs.lockfile }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
+      # A missing base (a new branch or a force push) counts as a change to everything.
       - id: filter
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null \
-            || git diff --name-only "$BASE" HEAD | grep -qE '^\.github/(workflows|actions)/'; then
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "workflows=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" HEAD)
+          if printf '%s\n' "$changed" | grep -qE '^\.github/(workflows/|actions/|actionlint\.yaml$)'; then
             echo "workflows=true" >> "$GITHUB_OUTPUT"
           else
             echo "workflows=false" >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qx 'pnpm-lock.yaml'; then
+            echo "lockfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lockfile=false" >> "$GITHUB_OUTPUT"
           fi
 
   zizmor:
@@ -44,20 +60,59 @@ jobs:
     needs: changes
     if: needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           advanced-security: false
           min-severity: medium
+
+  actionlint:
+    name: actionlint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The image bundles shellcheck; .github/actionlint.yaml lists the newer syntax it rejects.
+      - uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        with:
+          args: -color
+
+  signatures:
+    name: Registry signatures
+    needs: changes
+    if: needs.changes.outputs.lockfile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+        with:
+          cache: "false"
+          install: "false"
+
+      # Advisory: a registry outage or an unsigned legacy release must not block a merge.
+      - name: pnpm audit signatures
+        continue-on-error: true
+        run: pnpm audit signatures
 
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:

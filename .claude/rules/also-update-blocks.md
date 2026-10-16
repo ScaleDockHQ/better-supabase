@@ -1,0 +1,1 @@
+../../.agents/rules/also-update-blocks.mdc

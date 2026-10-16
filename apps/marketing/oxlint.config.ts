@@ -1,26 +1,18 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
-  node,
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, {
+  ignorePatterns,
+  next,
   react,
   shadcn,
-  test,
-  ignorePatterns,
-} from "@better-supabase/ox-config/oxlint";
+  settings,
+} from "../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, react, shadcn, test],
-  ignorePatterns: [
-    ...ignorePatterns,
-    "**/*.generated.ts",
-    "**/generated.ts",
-    "**/generated.meta.*",
-    "**/generated-*.ts",
-    "**/database.types.ts",
-    "components/ui/**",
-    "components/reui/**",
-  ],
+  extends: [root, react, next, shadcn],
+  settings,
+  ignorePatterns: [...ignorePatterns, "components/ui/**", "components/reui/**"],
   overrides: [
     {
       // env.ts is the app's only reader of process.env.

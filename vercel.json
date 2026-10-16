@@ -15,14 +15,14 @@
       "framework": "nextjs",
       "installCommand": "pnpm install --frozen-lockfile --filter '{.}...'",
       "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=docs",
-      "ignoreCommand": "npx turbo-ignore@2.11.6 docs --fallback=HEAD^1"
+      "ignoreCommand": "npx turbo-ignore@2.11.7 docs --fallback=HEAD^1"
     },
     "marketing": {
       "root": "apps/marketing",
       "framework": "nextjs",
       "installCommand": "pnpm install --frozen-lockfile --filter '{.}...'",
       "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=marketing",
-      "ignoreCommand": "npx turbo-ignore@2.11.6 marketing --fallback=HEAD^1"
+      "ignoreCommand": "npx turbo-ignore@2.11.7 marketing --fallback=HEAD^1"
     }
   },
   "rewrites": [

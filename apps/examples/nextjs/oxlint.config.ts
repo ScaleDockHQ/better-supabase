@@ -1,23 +1,19 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
-  node,
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, {
+  ignorePatterns,
+  next,
   react,
   shadcn,
-  test,
-  ignorePatterns,
-} from "@better-supabase/ox-config/oxlint";
+  settings,
+} from "../../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, react, shadcn, test],
+  extends: [root, react, next, shadcn],
+  settings,
   ignorePatterns: [
     ...ignorePatterns,
-    "**/*.generated.ts",
-    "**/generated.ts",
-    "**/generated.meta.*",
-    "**/generated-*.ts",
-    "**/database.types.ts",
     // Copied from the shadcn registry by `shadcn add`.
     "src/components/ui/**",
     "src/hooks/use-mobile.ts",

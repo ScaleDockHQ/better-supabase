@@ -2434,7 +2434,6 @@
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/workflow": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@chat-adapter/tests": "catalog:",
     "@clack/prompts": "catalog:",

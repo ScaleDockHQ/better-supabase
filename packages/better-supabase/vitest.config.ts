@@ -12,6 +12,9 @@ export default defineConfig({
           name: "unit",
           include: ["tests/**/*.test.ts"],
           exclude: ["tests/**/*.integration.test.ts"],
+          // The first test in a CLI file pays the lazy command imports; with coverage on and
+          // every workspace testing in parallel, that passes the 5 second default.
+          testTimeout: 20_000,
           typecheck: {
             enabled: true,
             include: ["tests/**/*.test-d.ts"],
@@ -39,7 +42,7 @@ export default defineConfig({
       // The top-level numbers count every file, CLI included; the src/cli set
       // also holds the CLI to its own numbers.
       thresholds: {
-        statements: 96,
+        statements: 97,
         lines: 98,
         functions: 98,
         branches: 91,

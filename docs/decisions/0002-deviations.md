@@ -48,6 +48,16 @@ backlogs too large to clear in the upgrade.
 - The CLI ships inside `better-supabase` (`src/cli` and the `better-supabase`
   bin) instead of as `@{{SCOPE}}/cli` in `packages/cli` and a Changesets
   `fixed` group, as `cli.md` describes. ADR 0007 has the reasons.
+- `packages/typescript-config/next.json` sets `jsx: "react-jsx"` instead of
+  `preserve`. Next.js 16 requires the automatic runtime and rewrites any
+  other value in the app's `tsconfig.json` on the next `next dev`.
+- There is no `supabase:pull` script, because the fixture has no hosted
+  project to pull from, and no `openapi:check`, because the repo serves no
+  API of its own; `packages/better-supabase/tests/openapi` tests the
+  documents the library renders.
+- The root `README.md` is the package README for consumers (install, usage,
+  subpaths). The development outline the standard puts there lives in
+  `CONTRIBUTING.md`.
 
 ### Docs site
 
@@ -97,8 +107,10 @@ backlogs too large to clear in the upgrade.
 ### Workflow
 
 - Dependabot targets `main` until a `develop` branch exists.
-- `actionlint` is not installed; the workflows are checked by parsing them,
-  and zizmor runs on workflow changes (`security.yml`).
+- Workflow lockfiles (`gh actions-lock`) are not committed while they are a
+  public preview. Actions stay pinned by major tag or commit SHA, which
+  zizmor and actionlint check on workflow changes (`security.yml`). It ends
+  when the lockfiles are generally available.
 - `pnpm audit` ignores GHSA-vfj7-8cjw-p6xm (`auditConfig` in
   `pnpm-workspace.yaml`). The `braces` advisory has no patched release, and
   `braces` arrives only through `shadcn` in `apps/marketing`, which is dev
@@ -124,9 +136,6 @@ backlogs too large to clear in the upgrade.
 
 ### Agent files
 
-- `AGENTS.md` is over the 12 KB limit and holds every rule itself, so
-  there is no `.agents/rules` directory with `.cursor/rules` and
-  `.claude/rules` symlinks. Splitting it is its own change.
 - The `AGENTS.md` and `CLAUDE.md` files that `next dev` writes in the
   Next.js apps are gitignored instead of committed. The root `AGENTS.md`
   is the one guide, and three copies of the Next.js block would drift
@@ -165,7 +174,8 @@ how an absent option stays absent. `promise-function-async` would turn
 synchronous throws for misuse (an unknown table, a missing pool) into
 rejections that tests assert on.
 
-These rules stay off by design, each with its reason in the preset:
+These rules stay off by design, each with its reason in the root
+`oxlint.config.ts`:
 
 | Rule                                  | Findings     | Reason                                               |
 | ------------------------------------- | ------------ | ---------------------------------------------------- |
@@ -180,24 +190,53 @@ These rules stay off by design, each with its reason in the preset:
 | `typescript/no-unsafe-type-assertion` | 402          | each assertion carries a `SAFETY:` comment instead   |
 | `typescript/no-base-to-string`        | 27           | `String(unknown)` for SQL literals and error text    |
 
-The test preset also turns off `vitest/no-conditional-in-test` (206),
+The test-files override also turns off `vitest/no-conditional-in-test` (206),
 `typescript/require-await` (89), `typescript/strict-void-return` (77),
 `eslint/max-lines` and the promise-rejection rules (10), because fakes,
 table-driven cases and rejection tests need them.
 
 `anti-slop/require-safety-comment-for-type-assertion` had 470 findings (282
 outside tests). Those were annotated and the rule is an error everywhere
-except the test preset, where fakes are handed to typed APIs on purpose.
+except the test-files override, where fakes are handed to typed APIs on purpose.
 
-The test preset turns off the `typescript/no-unsafe-*` rules, because Vitest's
+The test-files override turns off the `typescript/no-unsafe-*` rules, because Vitest's
 asymmetric matchers and `Response.json()` are typed `any` (60 findings).
 The docs table wrapper disables `jsx-a11y/no-noninteractive-tabindex` on one
 line: axe requires a scrolling region to take keyboard focus
 (`scrollable-region-focusable`), which that rule forbids.
 
+### Ultracite presets
+
+The root `oxlint.config.ts` extends Ultracite 8.0.1 (`core`, `vitest`,
+`anti-slop`, `react`, `next`, `shadcn`) and keeps every house rule above.
+On adoption, 125 of its rules fired 97,274 times on existing code. Each one
+is off in the root config, in a group with the reason and the count, so
+enforcement on new code is what it was before the migration. The largest:
+
+| Rule                                     | Findings when measured |
+| ---------------------------------------- | ---------------------- |
+| `anti-slop/require-readable-spacing`     | 36,556                 |
+| `eslint/sort-keys`                       | 21,748                 |
+| `eslint/curly`                           | 6,255                  |
+| `vitest/prefer-strict-equal`             | 5,619                  |
+| `eslint/func-style`                      | 5,465                  |
+| `vitest/prefer-expect-resolves`          | 4,118                  |
+| `vitest/max-expects`                     | 3,996                  |
+| `typescript/method-signature-style`      | 1,896                  |
+| `import/consistent-type-specifier-style` | 1,826                  |
+| `unicorn/no-await-expression-member`     | 1,472                  |
+
+`require-readable-spacing` is a whitespace autofix that touches most files, so
+it lands in its own commit. The style rules (`sort-keys`, `curly`,
+`func-style` and the rest of that group) want a different form than the repo
+writes, and their fixes are not all safe (`func-style` changes hoisting), so
+each is a decision before it is a codemod. The review group and the
+react-doctor hints need reading per site. A group's backlog ends when its
+rules are cleared and the `off` lines removed.
+
 ## Consequences
 
 Each item names what would end it: a page that needs twoslash, a typed
 `services` config in `@vercel/config`, `fumadocs-core/mcp` setting tool
-annotations, a `develop` branch, Vercel honoring `devEngines`, an
-`AGENTS.md` split into rules, or an empty backlog. When one happens, update the config and this record.
+annotations, a `develop` branch, Vercel honoring `devEngines`, or an empty
+backlog. When one happens, update the config and this record.

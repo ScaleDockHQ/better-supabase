@@ -1,5 +1,5 @@
-import { docsLlms, markdownHeaders } from "@/lib/source";
+import { getFullMarkdown, markdownHeaders } from "@/lib/source";
 
 export async function GET() {
-  return new Response(await docsLlms.full(), { headers: markdownHeaders });
+  return new Response(await getFullMarkdown(), { headers: markdownHeaders });
 }

@@ -1,5 +1,6 @@
 {
-  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-7.turborepo.dev/schema.json",
+  "agentGuidance": true,
   "futureFlags": {
     "affectedUsingTaskInputs": true,
     "filterUsingTasks": true,
@@ -29,11 +30,11 @@
     "oxfmt.config.ts",
     "pnpm-workspace.yaml",
     "packages/typescript-config/**",
-    "packages/ox-config/**",
     "!packages/*/.turbo/**",
     "!packages/*/node_modules/**"
   ],
   "remoteCache": {
+    "enabled": true,
     "teamSlug": "scaledock",
     "signature": true
   },

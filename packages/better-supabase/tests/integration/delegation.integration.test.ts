@@ -74,7 +74,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
   it("refuses a job queued with a read scope and runs one with the write scope", async () => {
     const session = await BlockSession.open(pool);
     try {
-      await session.install(["actor", "access"], {
+      await session.install(["organizations", "jobs", "actor", "access"], {
         modules: { access: { scopes: { "posts:write": ["members.invite"] } } },
       });
       const author = await session.user("author");

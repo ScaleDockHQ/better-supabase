@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "oxfmt";
 
-import { oxfmt } from "@better-supabase/ox-config/oxfmt";
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import oxfmt from "../../../../../oxfmt.config.ts";
 
 const BLOCKS = fileURLToPath(new URL("../../../src/blocks/", import.meta.url));
 
@@ -262,7 +263,7 @@ export interface RenderedFile {
 
 /** Every binding file, formatted as the repo formats it. */
 export async function renderBindings(): Promise<RenderedFile[]> {
-  const options = oxfmt();
+  const options = oxfmt;
   const files: RenderedFile[] = [];
   for (const block of await readBlocks()) {
     for (const framework of FRAMEWORKS) {

@@ -1,0 +1,23 @@
+---
+description: "How to write docs, READMEs, skills, changesets, CLI messages and code comments in this repo."
+alwaysApply: true
+---
+
+# Writing
+
+This applies to docs, READMEs, skills, changesets and CLI messages.
+`scripts/check-prose.ts` enforces the mechanical parts in `pnpm verify`.
+
+- Write plain, complete sentences. Lead with what the reader can do, then
+  the detail.
+- Use commas, colons or parentheses instead of em dashes. Write "then" or
+  "and" instead of arrow chains (`A → B`) in prose; arrows belong in code.
+- Name the concrete thing. Say what a feature does ("verifies the token
+  locally") instead of praising it (`seamless`, `robust`, `powerful`,
+  `leverage`, `effortless`, `blazing fast`, `delve`).
+- Prefer a sentence to a list of bold labels. Use a table for short,
+  enumerable facts and a list for steps.
+- No emojis, no exclamation marks, no `simply` or `just` in instructions.
+  The script flags `simply`; `just` has legitimate uses, so review it by hand.
+- A code comment states a constraint the code can't show. It never narrates
+  the next line.

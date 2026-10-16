@@ -22,7 +22,6 @@
     "express": "catalog:"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/express": "catalog:",
     "@types/node": "catalog:",

@@ -66,10 +66,6 @@ const config: KnipConfig = {
         "@effect/platform-node",
       ],
     },
-    "packages/ox-config": {
-      // JS plugins are loaded by specifier through import.meta.resolve.
-      ignoreDependencies: ["@shadcn/lint", "oxlint-plugin-react-doctor"],
-    },
     "packages/typescript-config": {},
     "packages/next-config": {},
     // Registry items are copied into apps by the shadcn CLI, so each one is

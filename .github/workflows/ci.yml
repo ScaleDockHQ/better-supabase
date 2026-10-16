@@ -32,12 +32,13 @@ jobs:
     name: PR title
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
         with:
           cache: "false"
 
@@ -46,56 +47,73 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: printf '%s\n' "$TITLE" | pnpm exec commitlint
 
+  # release.yml runs the same gate on every push to main.
   verify:
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       id-token: write
       security-events: write
-    uses: ./.github/workflows/verify.yml
+    uses: $/.github/workflows/verify.yml
     with:
-      affected: ${{ github.event_name == 'pull_request' }}
-      base: ${{ github.event.pull_request.base.sha || '' }}
+      affected: true
+      base: ${{ github.event.pull_request.base.sha }}
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
+  # Runs next to verify, not after it: Integration is the longest job, so waiting for verify would
+  # add its whole runtime to the critical path. Each shard starts its own stack.
   stack:
-    name: Integration
+    name: Integration (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
-    needs: verify
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
-      # config.toml points signing_keys_path at this gitignored file, so the
-      # stack signs and verifies ES256 tokens like a hosted project.
+      # config.toml points signing_keys_path at this gitignored file, so the stack signs and
+      # verifies ES256 tokens like a hosted project. The stack needs it before it starts, and it
+      # starts in about 15 seconds, so starting it as a background step would save nothing.
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
           pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase
-        uses: ./.github/actions/supabase-stack
+        uses: $/.github/actions/supabase-stack
 
       - name: Integration
-        run: pnpm run test:integration
-
-      - name: Validation (request context on the stack)
+        env:
+          SHARD: ${{ matrix.shard }}
         run: >-
           pnpm exec dotenv -e .env.development.local --
-          pnpm --filter @better-supabase/validation-request-context test
+          pnpm --filter better-supabase exec vitest run --project integration --shard="$SHARD/2"
+
+      - name: Validation projects on the stack
+        if: matrix.shard == 1
+        run: >-
+          pnpm exec dotenv -e .env.development.local -- sh -c
+          'pnpm --filter @better-supabase/validation-centrakit test
+          && pnpm --filter @better-supabase/validation-recipes test
+          && pnpm --filter @better-supabase/validation-presets test
+          && pnpm --filter @better-supabase/validation-request-context test'
 
   # As of CLI 2.121.0 the stack engine's Realtime denies private channel joins
   # that the Docker stack allows, so these suites also run on the legacy engine.
   realtime:
     name: Integration (Realtime on the legacy engine)
     runs-on: ubuntu-latest
-    needs: verify
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -106,7 +124,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: Create the local signing key
         run: |
@@ -114,7 +132,7 @@ jobs:
           pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase
-        uses: ./.github/actions/supabase-stack
+        uses: $/.github/actions/supabase-stack
 
       - name: Realtime suites
         run: >-

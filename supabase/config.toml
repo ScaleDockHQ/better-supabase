@@ -107,7 +107,7 @@ enabled = false
 stack = true
 
 # pg-delta orders the files in schemas/ by dependency. Generate a migration
-# after an edit with `pnpm supabase:sync <name>`.
+# after an edit with `pnpm supabase:diff <name>`.
 [experimental.pgdelta]
 enabled = true
 declarative_schema_path = "./schemas"

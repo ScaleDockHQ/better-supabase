@@ -14,10 +14,12 @@
 
 ## Scripts and hooks
 
-- `pnpm verify` is the gate. `pnpm check` runs a quick subset (format
-  check, lint and typecheck) and never replaces it.
-- Lefthook formats and lints staged files on commit, runs commitlint on the
-  message, and runs `turbo run lint typecheck test --affected` on push.
+- `pnpm verify` is the gate. `pnpm check` runs `ultracite check`, the Oxfmt
+  check and Oxlint across the repo, and never replaces it.
+- `pnpm fix` runs `ultracite fix`: Oxfmt and the Oxlint autofixes. The
+  root `oxlint.config.ts` holds every rule; workspace configs extend it.
+- Lefthook runs `ultracite fix` on staged files and lints on commit, runs commitlint on the
+  message, and runs `turbo run lint lint:root typecheck test --affected` on push.
 - Commit headers stay under 73 characters and body lines under 101.
 
 ## Tests and coverage

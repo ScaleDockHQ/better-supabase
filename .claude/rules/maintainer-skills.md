@@ -1,0 +1,1 @@
+../../.agents/rules/maintainer-skills.mdc

@@ -13,7 +13,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@supabase/supabase-js": "catalog:",
     "@types/node": "catalog:",

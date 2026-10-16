@@ -1,0 +1,13 @@
+# actionlint 1.7.12 rejects `$/` (rhysd/actionlint#711), parallel steps (#693), cache-mode, concurrency.queue and ubuntu-26.04 (#682). zizmor parses them.
+# Remove each ignore once an actionlint release parses the feature.
+self-hosted-runner:
+  labels: [ubuntu-26.04, ubuntu-26.04-arm]
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      - 'reusable workflow call "\$/.+" at "uses" is not following the format'
+      - 'specifying action "\$/.+" in invalid format because ref is missing'
+      - 'unexpected key "background" for step'
+      - 'step must run script with "run" section or run action with "uses" section'
+      - 'unexpected key "cache-mode" for "(workflow|job)" section'
+      - 'unexpected key "queue" for "concurrency" section'
