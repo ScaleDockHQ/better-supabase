@@ -9,9 +9,10 @@ import { ConformanceError } from "../../src/testing/conformance.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { openPg } from "../fixtures/pg.ts";
+import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const stack: LocalStack = {
-  url: process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421",
+  url: stackUrl(),
   publishableKey:
     process.env["SUPABASE_PUBLISHABLE_KEY"] ??
     "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
@@ -19,9 +20,7 @@ const stack: LocalStack = {
     process.env["SUPABASE_SECRET_KEY"] ??
     "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz",
 };
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 const ACME = "00000000-0000-4000-8000-000000000001";
 const GLOBEX = "00000000-0000-4000-8000-000000000002";

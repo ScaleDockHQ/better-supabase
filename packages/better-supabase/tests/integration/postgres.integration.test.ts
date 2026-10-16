@@ -11,11 +11,10 @@ import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
-const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const url = stackUrl();
+const dbUrl = stackDbUrl();
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";

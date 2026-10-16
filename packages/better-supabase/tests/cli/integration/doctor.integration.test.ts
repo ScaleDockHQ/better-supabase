@@ -18,10 +18,9 @@ import {
   stubProvider,
   withProvider,
 } from "../../fixtures/authorization-provider.ts";
+import { stackDbUrl } from "../../integration/stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 const SCHEMA = `bs_doctor_${Date.now()}`;
 const ORG = "00000000-0000-4000-8000-000000000001";
 

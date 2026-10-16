@@ -16,10 +16,9 @@ import { renderModules } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { testIncomingDestination } from "../../src/testing/index.ts";
 import { BlockSession } from "./block-session.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({

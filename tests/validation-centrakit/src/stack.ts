@@ -13,11 +13,12 @@ import config from "../better-supabase.config.ts";
 
 const { blocks, blockNames } = resolveConfig(config, process.cwd());
 
-export const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+// `pnpm env:local` writes it (the CLI picks the ports per checkout); without
+// it the suites skip, like they do when the stack is down.
+export const dbUrl: string | undefined = process.env["SUPABASE_DB_URL"];
 
 export async function reachable(): Promise<boolean> {
+  if (dbUrl === undefined) return false;
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,

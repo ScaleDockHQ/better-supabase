@@ -5,10 +5,9 @@ import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts"
 import { catalogFingerprint } from "../../../src/cli/introspect/fingerprint.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
+import { stackDbUrl } from "../../integration/stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 const SCHEMA = `bs_caps_${Date.now()}`;
 

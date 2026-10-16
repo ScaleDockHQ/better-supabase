@@ -12,10 +12,9 @@ import {
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
 import { renderModules } from "../../src/sql/render.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -574,7 +573,7 @@ describe.skipIf(!live)("notifications", () => {
       transport: sqlTransport(sql),
       types: { "task.assigned": anything },
       render: (item) => ({ title: `Assigned: ${item.subject?.label ?? ""}` }),
-      avatars: { url: "http://127.0.0.1:55421", bucket: "users" },
+      avatars: { url: "https://storage.test", bucket: "users" },
       channels: [
         {
           apiVersion: 1,
@@ -654,7 +653,7 @@ describe.skipIf(!live)("notifications", () => {
         id: USERS.owner,
         username: expect.any(String),
         avatarPath: `${USERS.owner}/avatar.webp`,
-        avatarUrl: `http://127.0.0.1:55421/storage/v1/object/public/users/${USERS.owner}/avatar.webp`,
+        avatarUrl: `https://storage.test/storage/v1/object/public/users/${USERS.owner}/avatar.webp`,
       });
       expect(
         await notifications.counts({ tenant: organization }).orThrow(),

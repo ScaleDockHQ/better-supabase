@@ -3,10 +3,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import { readExtras } from "../../src/cli/introspect/extras.ts";
 import { catalogFingerprint } from "../../src/cli/introspect/fingerprint.ts";
 import { openPg } from "../fixtures/pg.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 const source = await openPg(dbUrl);
 

@@ -6,10 +6,9 @@ import {
   avatarBucket,
   organizationLogoBucket,
 } from "../../src/storage/index.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({

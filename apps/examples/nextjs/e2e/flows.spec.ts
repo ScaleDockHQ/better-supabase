@@ -11,11 +11,12 @@ import {
   visibleTestId,
   visibleText,
 } from "./nav";
+import { stackStatus } from "./stack";
 import { totp, totpStep } from "./totp";
 import { password, users } from "./users";
 
-/** The local stack's Mailpit (`[local_smtp]` in supabase/config.toml). */
-const MAILPIT = "http://127.0.0.1:55424/api/v1";
+/** The local stack's Mailpit; the CLI picks its port for each checkout. */
+const MAILPIT = `${stackStatus()["MAILPIT_URL"] ?? ""}/api/v1`;
 
 async function latestLink(page: Page, to: string): Promise<string> {
   let body = "";

@@ -6,10 +6,9 @@ import { createPostgres } from "../../src/postgres/pool.ts";
 import { renderModules } from "../../src/sql/render.ts";
 import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({

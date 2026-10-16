@@ -1,32 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 import { latencyURL, baseURL } from "./e2e/server";
+import { stackStatus } from "./e2e/stack";
+
+const stack = stackStatus();
 
 /**
- * The running stack's secret key, for account deletion; never written to a
- * file. Empty when no stack runs (Knip loads this config), so only the
- * account-deletion spec fails then.
+ * The running stack for the build and the servers. The secret key is for
+ * account deletion and is never written to a file.
  */
-function stackSecretKey(): string {
-  const fromEnv = process.env["SUPABASE_SECRET_KEY"];
-  if (fromEnv) return fromEnv;
-  try {
-    const status = execFileSync(
-      "pnpm",
-      ["exec", "supabase", "status", "--output", "env"],
-      {
-        cwd: fileURLToPath(new URL("../../..", import.meta.url)),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      },
-    );
-    return /^SECRET_KEY="?([^"\n]+)"?$/m.exec(status)?.[1] ?? "";
-  } catch {
-    return "";
-  }
-}
+const stackEnv = {
+  NEXT_PUBLIC_SUPABASE_URL:
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? stack["API_URL"] ?? "",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    stack["PUBLISHABLE_KEY"] ??
+    "",
+  SUPABASE_SECRET_KEY:
+    process.env["SUPABASE_SECRET_KEY"] ?? stack["SECRET_KEY"] ?? "",
+};
 
 /**
  * `instant()` checks against a production build. The build must expose the
@@ -62,7 +54,7 @@ export default defineConfig({
   webServer: {
     command: "node e2e/serve.ts",
     url: `${latencyURL}/en/login`,
-    env: { EXPOSE_TESTING_API: "1", SUPABASE_SECRET_KEY: stackSecretKey() },
+    env: { EXPOSE_TESTING_API: "1", ...stackEnv },
     reuseExistingServer: false,
     timeout: 300_000,
   },
