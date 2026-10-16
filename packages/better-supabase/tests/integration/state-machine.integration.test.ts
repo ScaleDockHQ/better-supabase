@@ -10,7 +10,9 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const TABLES = `create schema sm_it;
+// role_in reads memberships, which the organizations module creates after this runs.
+const TABLES = `set local check_function_bodies = off;
+create schema sm_it;
 create table sm_it.quotes (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,

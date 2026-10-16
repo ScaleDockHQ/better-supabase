@@ -137,19 +137,24 @@ describe("apps/marketing/public/r", () => {
     rmSync(out, { recursive: true, force: true });
   });
 
-  it("matches a fresh `shadcn build` (run `pnpm registry:build`)", () => {
-    execFileSync(
-      join(ROOT, "node_modules/.bin/shadcn"),
-      ["build", "./registry.json", "--output", out],
-      { cwd: ROOT, stdio: "pipe" },
-    );
-    const built = readdirSync(out).toSorted();
-    expect(readdirSync(PUBLIC).toSorted()).toEqual(built);
-    for (const file of built) {
-      expect({
-        file,
-        contents: readFileSync(join(PUBLIC, file), "utf8"),
-      }).toEqual({ file, contents: readFileSync(join(out, file), "utf8") });
-    }
-  });
+  // Spawning the shadcn CLI takes several seconds on a loaded CI runner.
+  it(
+    "matches a fresh `shadcn build` (run `pnpm registry:build`)",
+    { timeout: 60_000 },
+    () => {
+      execFileSync(
+        join(ROOT, "node_modules/.bin/shadcn"),
+        ["build", "./registry.json", "--output", out],
+        { cwd: ROOT, stdio: "pipe" },
+      );
+      const built = readdirSync(out).toSorted();
+      expect(readdirSync(PUBLIC).toSorted()).toEqual(built);
+      for (const file of built) {
+        expect({
+          file,
+          contents: readFileSync(join(PUBLIC, file), "utf8"),
+        }).toEqual({ file, contents: readFileSync(join(out, file), "utf8") });
+      }
+    },
+  );
 });
