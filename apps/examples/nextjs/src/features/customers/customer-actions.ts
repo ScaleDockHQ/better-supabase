@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { blocks } from "@/lib/blocks";
@@ -48,7 +49,7 @@ export const createCustomer = bs.action(
         targetLabel: name,
       }),
     );
-    await onboarding.complete("customer", organizationId);
+    await onboarding.complete(gettingStarted, "customer", organizationId);
     return created;
   },
 );

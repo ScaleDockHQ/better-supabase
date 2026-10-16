@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from "./standard.ts";
 
 import { dbError, type ValidationIssue } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
+import { AsyncResult, err, ok, type Result } from "./result.ts";
 import { toIssues } from "./standard.ts";
 
 /** The fields a `fields` schema adds, or none when the block has no schema. */
@@ -34,6 +34,62 @@ export interface BlockFields<T extends object> {
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The extra columns a block row carries, by column name, typed by its `fields` schema. */
+export type RowFields<F extends object> = Readonly<Record<string, unknown>> & F;
+
+/** A row the block read, with its `fields` parsed. */
+export type WithFields<
+  R extends { readonly fields: object },
+  F extends object,
+> = Omit<R, "fields"> & { readonly fields: R["fields"] & F };
+
+/** Parses the `fields` of one row with `fields.read`. */
+export function readFields<
+  R extends { readonly fields: object },
+  F extends object,
+>(fields: BlockFields<F>, row: R): AsyncResult<WithFields<R, F>> {
+  return AsyncResult.from(() => fields.read(row.fields)).map((parsed) => ({
+    ...row,
+    fields: parsed,
+  }));
+}
+
+/** Parses the `fields` of each row; the first rejected row fails the read. */
+export function readAllFields<
+  R extends { readonly fields: object },
+  F extends object,
+>(fields: BlockFields<F>, rows: readonly R[]): AsyncResult<WithFields<R, F>[]> {
+  return AsyncResult.from(async () => {
+    const out: WithFields<R, F>[] = [];
+    for (const row of rows) {
+      const parsed = await fields.read(row.fields);
+      if (!parsed.ok) return parsed;
+      out.push({ ...row, fields: parsed.data });
+    }
+    return ok(out);
+  });
+}
+
+/**
+ * Validates the `fields` a write sets with `fields.write`, then builds the
+ * call. A write without fields skips the check and passes none.
+ */
+export function writeFields<F extends object, T>(
+  fields: BlockFields<F>,
+  values: Readonly<Record<string, unknown>> | undefined,
+  then: (
+    checked: Readonly<Record<string, unknown>> | undefined,
+  ) => AsyncResult<T>,
+): AsyncResult<T> {
+  if (values === undefined) return then(undefined);
+  return AsyncResult.from(() => fields.write({ ...values })).andThen(then);
+}
+
+/** The `fields` object of a row a block function returned, or none. */
+export function rowFields(value: unknown): Readonly<Record<string, unknown>> {
+  return isObject(value) ? value : {};
+}
 
 async function run(
   schema: StandardSchemaV1,

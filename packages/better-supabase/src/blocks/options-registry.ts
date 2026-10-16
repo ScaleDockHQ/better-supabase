@@ -146,6 +146,11 @@ import {
   type ProfilesSqlOptions,
   profilesSqlOptions,
 } from "./profiles/options.ts";
+import {
+  type PromotionsSqlOptions,
+  promotionsSqlOptions,
+} from "./promotions/options.ts";
+import { type PushSqlOptions, pushSqlOptions } from "./push/options.ts";
 import { type QuotesSqlOptions, quotesSqlOptions } from "./quotes/options.ts";
 import {
   type ReactionsSqlOptions,
@@ -163,7 +168,15 @@ import {
   type ReservedSlugsSqlOptions,
   reservedSlugsSqlOptions,
 } from "./reserved-slugs/options.ts";
+import {
+  type SavedViewsSqlOptions,
+  savedViewsSqlOptions,
+} from "./saved-views/options.ts";
 import { type SearchSqlOptions, searchSqlOptions } from "./search/options.ts";
+import {
+  type ServicePrincipalsSqlOptions,
+  servicePrincipalsSqlOptions,
+} from "./service-principals/options.ts";
 import {
   type SessionsSqlOptions,
   sessionsSqlOptions,
@@ -295,8 +308,8 @@ export interface BlockOptionsRegistry {
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
-  readonly promotions: None;
-  readonly push: None;
+  readonly promotions: PromotionsSqlOptions;
+  readonly push: PushSqlOptions;
   readonly quotes: QuotesSqlOptions;
   readonly rank: None;
   readonly "rate-limit": RateLimitSqlOptions;
@@ -306,9 +319,9 @@ export interface BlockOptionsRegistry {
   readonly relations: RelationsSqlOptions;
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
-  readonly "saved-views": None;
+  readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
-  readonly "service-principals": None;
+  readonly "service-principals": ServicePrincipalsSqlOptions;
   readonly sessions: SessionsSqlOptions;
   readonly settings: SettingsSqlOptions;
   readonly "share-links": ShareLinksSqlOptions;
@@ -407,8 +420,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,
-  promotions: NO_OPTIONS,
-  push: NO_OPTIONS,
+  promotions: promotionsSqlOptions,
+  push: pushSqlOptions,
   quotes: quotesSqlOptions,
   rank: NO_OPTIONS,
   "rate-limit": rateLimitSqlOptions,
@@ -418,9 +431,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   relations: relationsSqlOptions,
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,
-  "saved-views": NO_OPTIONS,
+  "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
-  "service-principals": NO_OPTIONS,
+  "service-principals": servicePrincipalsSqlOptions,
   sessions: sessionsSqlOptions,
   settings: settingsSqlOptions,
   "share-links": shareLinksSqlOptions,

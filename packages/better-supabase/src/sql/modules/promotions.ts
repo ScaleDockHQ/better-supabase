@@ -7,13 +7,19 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fieldsArgs,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { columns } from "./orders-shared.ts";
 import {
   type PromotionsNames,
   codeFunctions,
   discountFunctions,
+  promotionExtras,
   promotionFunctions,
 } from "./promotions-functions.ts";
 
@@ -41,6 +47,7 @@ const NAMES: ModuleNames = {
     "after_promotion_save",
     "before_promotion_activate",
   ],
+  options: ["extraColumns"],
   tables: {
     promotions: {
       name: "promotions",
@@ -162,7 +169,7 @@ create table if not exists ${t("promotions")} (
   check ((${p("amount")} is null and ${p("minSubtotal")} is null) or ${p("currency")} is not null),
   check (${p("endsAt")} is null or ${p("startsAt")} is null or ${p("endsAt")} > ${p("startsAt")})
 );
-create index if not exists promotions_tenant_idx on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});
+create index if not exists promotions_tenant_idx on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});${addExtraColumns(t("promotions"), promotionExtras(ctx))}
 ${lockTable(t("promotions"), { read: true })}
 ${policy("promotions", tenantRead("promotions"))}
 
@@ -232,11 +239,11 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${promotionFunctions(ctx, names)}${codeFunctions(ctx, names)}${discountFunctions(ctx, names)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_promotion",
-      args: ["{id}", "uuid", "jsonb"],
+      args: ["{id}", "uuid", "jsonb", ...fieldsArgs(promotionExtras(ctx))],
       returns: "jsonb",
     },
     {

@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ChecklistProgress } from "../../../src/blocks/onboarding/onboarding.ts";
+import type {
+  Checklist,
+  ChecklistProgress,
+} from "../../../src/blocks/onboarding/onboarding.ts";
 
 import { createOnboardingController } from "../../../src/blocks/onboarding/client.ts";
+import { defineChecklist } from "../../../src/blocks/onboarding/onboarding.ts";
 import {
   failed,
   fakeAuth,
@@ -22,11 +26,32 @@ const progress = (completed: number): ChecklistProgress<Step> => ({
   next: undefined,
 });
 
+const steps = [{ id: "invite" }, { id: "connect" }] as const;
+const team = defineChecklist({ id: "team", scope: "organization", steps });
+const profile = defineChecklist({ id: "profile", scope: "user", steps });
+
 function client() {
   return {
-    progress: vi.fn((..._subject: string[]) => resolved(progress(0))),
-    complete: vi.fn((_step: Step, ..._subject: string[]) => resolved(true)),
-    reset: vi.fn((_step: Step, ..._subject: string[]) => resolved(true)),
+    progress: vi.fn(
+      (
+        _checklist: Checklist<Step, "user" | "organization">,
+        ..._subject: string[]
+      ) => resolved(progress(0)),
+    ),
+    complete: vi.fn(
+      (
+        _checklist: Checklist<Step, "user" | "organization">,
+        _step: Step,
+        ..._subject: string[]
+      ) => resolved(true),
+    ),
+    reset: vi.fn(
+      (
+        _checklist: Checklist<Step, "user" | "organization">,
+        _step: Step,
+        ..._subject: string[]
+      ) => resolved(true),
+    ),
   };
 }
 
@@ -36,17 +61,17 @@ describe("createOnboardingController", () => {
     const { view, unmount } = mount(
       createOnboardingController({
         client: calls,
-        scope: "organization",
+        checklist: team,
         auth: fakeAuth(),
         organizationId: "org-1",
       }),
     );
     await flush();
-    expect(calls.progress).toHaveBeenCalledWith("org-1");
+    expect(calls.progress).toHaveBeenCalledWith(team, "org-1");
     expect(view().progress?.completed).toBe(0);
     calls.progress.mockReturnValue(resolved(progress(1)));
     await view().complete("invite");
-    expect(calls.complete).toHaveBeenCalledWith("invite", "org-1");
+    expect(calls.complete).toHaveBeenCalledWith(team, "invite", "org-1");
     expect(view().progress?.completed).toBe(1);
     calls.reset.mockReturnValue(failed("denied"));
     await view().reset("invite");
@@ -62,17 +87,17 @@ describe("createOnboardingController", () => {
     mount(
       createOnboardingController({
         client: user,
-        scope: "user",
+        checklist: profile,
         auth: fakeAuth(),
       }),
     ).unmount();
-    expect(user.progress).toHaveBeenCalledWith();
+    expect(user.progress).toHaveBeenCalledWith(profile);
 
     const waiting = client();
     mount(
       createOnboardingController({
         client: waiting,
-        scope: "organization",
+        checklist: team,
         auth: fakeAuth(),
         organizationId: null,
       }),
@@ -84,7 +109,7 @@ describe("createOnboardingController", () => {
     slow.progress.mockReturnValue(answer.result);
     const controller = createOnboardingController({
       client: slow,
-      scope: "user",
+      checklist: profile,
       auth: fakeAuth(),
     });
     const mounted = mount(controller);

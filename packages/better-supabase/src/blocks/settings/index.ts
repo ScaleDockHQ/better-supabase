@@ -1,16 +1,14 @@
 export {
+  createSettings,
   defineSettings,
-  type OrganizationSettings,
-  type PlatformSettings,
   type SettingEntries,
   type SettingEntry,
   type SettingInputs,
-  type SettingsClient,
-  type SettingsConnectOptions,
+  type Settings,
   type SettingsDefinition,
+  type SettingsOptions,
   type SettingsSpec,
   type SettingValues,
-  type UserSettings,
 } from "./settings.ts";
 export {
   dbTransport,

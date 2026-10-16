@@ -8,11 +8,17 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  fieldsArg,
+  fieldsArgs,
+  fieldsEntry,
+  fieldsParam,
   schemaPreamble,
   SERVICE_CALLER,
   revokeTable,
   fail,
   raise,
+  writeFields,
 } from "../shared.ts";
 
 const EVENTS: ModuleEvents<PushEvents> = {
@@ -28,6 +34,7 @@ const EVENTS: ModuleEvents<PushEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  options: ["extraColumns"],
   tables: {
     devices: {
       name: "push_devices",
@@ -47,6 +54,9 @@ const NAMES: ModuleNames = {
   },
 };
 
+/** `options.extraColumns`, added to the devices table. */
+const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("devices");
+
 const PLATFORMS = ["ios", "android", "web"];
 const PROVIDERS = ["expo", "fcm", "apns", "webpush"];
 
@@ -55,6 +65,7 @@ function build(ctx: ModuleContext): string {
   const d = ctx.table("devices");
   const c = (logical: string): string => ctx.col("devices", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const extras = extrasOf(ctx);
   const list = (values: readonly string[]): string =>
     values.map((value) => `'${value}'`).join(", ");
   const registered = ctx.record({
@@ -102,7 +113,7 @@ create table if not exists ${d} (
   ${c("createdAt")} timestamptz not null default now(),
   ${c("lastSeenAt")} timestamptz not null default now()
 );
-create index if not exists push_devices_user_idx on ${d} (${c("user")});
+create index if not exists push_devices_user_idx on ${d} (${c("user")});${addExtraColumns(d, extras)}
 alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
@@ -120,7 +131,7 @@ create or replace function ${fn("register_push_device")}(
   platform text,
   provider text default 'expo',
   device_name text default null,
-  app_version text default null
+  app_version text default null${fieldsParam(extras)}
 )
 returns uuid
 language plpgsql
@@ -161,7 +172,7 @@ begin
     ${c("deviceName")} = coalesce(excluded.${c("deviceName")}, x.${c("deviceName")}),
     ${c("appVersion")} = coalesce(excluded.${c("appVersion")}, x.${c("appVersion")}),
     ${c("lastSeenAt")} = now()
-  returning x.${c("id")}, (x.xmax = 0) into v_id, v_new;
+  returning x.${c("id")}, (x.xmax = 0) into v_id, v_new;${writeFields("register_push_device.fields", d, c("id"), "v_id", extras)}
   if v_new then
     ${registered}
   end if;
@@ -211,7 +222,7 @@ begin${serviceOnly("push_tokens_for.users")}
       'userId', x.${c("user")},
       'token', x.${c("token")},
       'platform', x.${c("platform")},
-      'provider', x.${c("provider")}
+      'provider', x.${c("provider")}${fieldsEntry("x", extras)}
     ) order by x.${c("user")}, x.${c("lastSeenAt")} desc), '[]'::jsonb)
     from ${d} x
     where x.${c("user")} = any (push_tokens_for.users)
@@ -235,21 +246,28 @@ begin${serviceOnly("prune_push_tokens.tokens")}
 end;
 $$;
 
-revoke execute on function ${fn("register_push_device")}(text, text, text, text, text) from public, anon;
+revoke execute on function ${fn("register_push_device")}(text, text, text, text, text${fieldsArg(extras)}) from public, anon;
 revoke execute on function ${fn("unregister_push_device")}(text) from public, anon;
 revoke execute on function ${fn("push_tokens_for")}(uuid[]) from public, anon, authenticated;
 revoke execute on function ${fn("prune_push_tokens")}(text[]) from public, anon, authenticated;
-grant execute on function ${fn("register_push_device")}(text, text, text, text, text) to authenticated, service_role;
+grant execute on function ${fn("register_push_device")}(text, text, text, text, text${fieldsArg(extras)}) to authenticated, service_role;
 grant execute on function ${fn("unregister_push_device")}(text) to authenticated, service_role;
 grant execute on function ${fn("push_tokens_for")}(uuid[]) to service_role;
 grant execute on function ${fn("prune_push_tokens")}(text[]) to service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "register_push_device",
-      args: ["text", "text", "text", "text", "text"],
+      args: [
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...fieldsArgs(extrasOf(ctx)),
+      ],
       returns: "uuid",
     },
     { name: "unregister_push_device", args: ["text"], returns: "boolean" },

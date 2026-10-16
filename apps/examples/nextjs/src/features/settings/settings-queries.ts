@@ -6,12 +6,12 @@ import { bs } from "@/lib/supabase/server";
 export async function getUserSettings() {
   "use cache: private";
   const { supabase } = await bs.cached();
-  return blocks(supabase).settings.user.get().orThrow();
+  return blocks(supabase).settings.getUser().orThrow();
 }
 
 /** Takes the organization as an argument: the private cache keys on it. */
 export async function getOrganizationSettings(organizationId: string) {
   "use cache: private";
   const { supabase } = await bs.cached();
-  return blocks(supabase).settings.organization.get(organizationId).orThrow();
+  return blocks(supabase).settings.getOrganization(organizationId).orThrow();
 }

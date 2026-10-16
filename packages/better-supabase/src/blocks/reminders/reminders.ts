@@ -1,13 +1,26 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   AuthorizationHooks,
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
@@ -44,7 +57,9 @@ function notifyThrough(
 /** The queue `reminders.job` handles. */
 export const REMINDER_DELIVERY_QUEUE = "reminders.deliver";
 
-export interface RemindersOptions {
+export interface RemindersOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -71,15 +86,34 @@ export interface RemindersOptions {
   readonly audience?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.audience` policy. */
   readonly authorization?: Pick<AuthorizationHooks, "delivery">;
+  /**
+   * A Standard Schema for the extra columns of the reminders table
+   * (`blocks.reminders.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Reminders<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface Reminders {
+/** A saved reminder: its id and the app's extra columns. */
+export interface SavedReminder<F extends object = Record<never, never>> {
+  readonly id: string;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
+}
+
+export interface Reminders<F extends object = Record<never, never>> {
+  /** Sets a reminder on a subject; `fields` fills the app's extra columns. */
   save(
     organizationId: string,
     subjectType: string,
     subjectId: string,
     offsetMinutes?: number,
-  ): AsyncResult<{ readonly id: string }>;
+    fields?: Partial<F> & Readonly<Record<string, unknown>>,
+  ): AsyncResult<SavedReminder<F>>;
   /**
    * Service role. Records one delivery and the reminder.sent event.
    * Resolves to `false` when the occurrence was already delivered.
@@ -111,8 +145,12 @@ function deliveryOf(value: unknown): DeliveryPayload {
   };
 }
 
-export function createReminders(options: RemindersOptions): Reminders {
+export function createReminders<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: RemindersOptions<S>): Reminders<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "reminder fields");
   const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
   const audience =
     options.audience ??
@@ -165,8 +203,9 @@ export function createReminders(options: RemindersOptions): Reminders {
       ? AsyncResult.ok(false)
       : permitted(delivery)
     ).andThen((allowed) =>
-      markSent(delivery.reminderId, delivery.occurrenceAt).andThen(
-        async (sent) => {
+      hooked
+        .markSent(delivery.reminderId, delivery.occurrenceAt)
+        .andThen(async (sent) => {
           if (sent && allowed && notifyDelivery !== undefined) {
             const outcome: unknown = await notifyDelivery(delivery);
             if (
@@ -178,25 +217,35 @@ export function createReminders(options: RemindersOptions): Reminders {
             }
           }
           return ok(sent);
-        },
-      ),
+        }),
     );
-  return {
-    save: (organizationId, subjectType, subjectId, offsetMinutes) =>
-      call(
-        "save_reminder",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          offset_minutes: offsetMinutes ?? 0,
-        },
-        (value) => ({ id: textOf(recordOf(value, "save_reminder")["id"]) }),
-      ),
+  const client: Reminders<F> = {
+    save: (organizationId, subjectType, subjectId, offsetMinutes, values) =>
+      writeFields(fields, values, (checked) =>
+        call(
+          "save_reminder",
+          {
+            tenant: organizationId,
+            subject_type: subjectType,
+            subject_id: subjectId,
+            offset_minutes: offsetMinutes ?? 0,
+            fields: checked,
+          },
+          (value) => {
+            const row = recordOf(value, "save_reminder");
+            return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
+          },
+        ),
+      ).andThen((saved) => readFields(fields, saved)),
     markSent,
     deliver,
     job: async (payload) => {
-      await deliver(deliveryOf(payload)).orThrow();
+      await hooked.deliver(deliveryOf(payload)).orThrow();
     },
   };
+  const hooked = withBlockHooks(client, options.hooks, {
+    block: "reminders",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  return hooked;
 }

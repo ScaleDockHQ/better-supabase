@@ -1756,10 +1756,14 @@
   "./blocks/outbox": {
     "values": [
       "createOutbox",
+      "dbTransport",
       "outboxBlock",
-      "outboxCloudEvent"
+      "outboxCloudEvent",
+      "rpcTransport",
+      "sqlTransport"
     ],
     "types": [
+      "BlockTransport",
       "EmitOptions",
       "HistoryFilter",
       "Outbox",
@@ -2432,6 +2436,7 @@
   },
   "./blocks/settings": {
     "values": [
+      "createSettings",
       "dbTransport",
       "defineSettings",
       "rpcTransport",
@@ -2441,18 +2446,15 @@
     ],
     "types": [
       "BlockTransport",
-      "OrganizationSettings",
-      "PlatformSettings",
       "SettingEntries",
       "SettingEntry",
       "SettingInputs",
-      "SettingsClient",
-      "SettingsConnectOptions",
+      "Settings",
       "SettingsDefinition",
       "SettingsEvents",
+      "SettingsOptions",
       "SettingsSpec",
-      "SettingValues",
-      "UserSettings"
+      "SettingValues"
     ]
   },
   "./blocks/usage": {
@@ -2708,6 +2710,7 @@
   },
   "./blocks/onboarding": {
     "values": [
+      "createOnboarding",
       "createOnboardingController",
       "dbTransport",
       "defineChecklist",
@@ -2718,16 +2721,17 @@
     "types": [
       "BlockTransport",
       "Checklist",
-      "ChecklistClient",
-      "ChecklistConnectOptions",
       "ChecklistProgress",
       "ChecklistScope",
       "ChecklistSpec",
       "ChecklistStep",
       "ChecklistSubject",
+      "Onboarding",
       "OnboardingActions",
       "OnboardingController",
+      "OnboardingControllerClient",
       "OnboardingControllerOptions",
+      "OnboardingOptions",
       "OnboardingSnapshot",
       "StepProgress"
     ]
@@ -4373,7 +4377,8 @@
       "ReminderPlanInput",
       "Reminders",
       "RemindersEvents",
-      "RemindersOptions"
+      "RemindersOptions",
+      "SavedReminder"
     ]
   },
   "./blocks/imports": {
@@ -4449,6 +4454,7 @@
       "SavedViewList",
       "SavedViewPreference",
       "SavedViewPreferenceInput",
+      "SavedViewRef",
       "SavedViews",
       "SavedViewsActions",
       "SavedViewsController",
@@ -6000,7 +6006,8 @@
       "PromotionScope",
       "PromotionsEvents",
       "PromotionsOptions",
-      "RpcClient"
+      "RpcClient",
+      "SavedPromotion"
     ]
   },
   "./blocks/announcements/react": {

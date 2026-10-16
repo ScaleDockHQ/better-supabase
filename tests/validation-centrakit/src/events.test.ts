@@ -177,7 +177,10 @@ describe.skipIf(!live)(
         await s.rows(
           "update centrakit.workflow_events set created_at = now() - interval '1 minute'",
         );
-        const outbox = createOutbox(s.sql, { source: "https://centrakit.app" });
+        const outbox = createOutbox({
+          transport: sqlTransport(s.sql),
+          source: "https://centrakit.app",
+        });
         await outbox
           .register("webhooks", { types: ["notification.*"], fromStart: true })
           .orThrow();

@@ -7,7 +7,12 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fieldsArgs,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { type Names, pipelineBindings } from "./pipelines-bindings.ts";
 import {
@@ -67,7 +72,7 @@ const NAMES: ModuleNames = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
-  options: ["subjects"],
+  options: ["subjects", "extraColumns"],
   tables: {
     pipelines: {
       name: "pipelines",
@@ -184,7 +189,7 @@ create table if not exists ${t("pipelines")} (
   unique nulls not distinct (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")})
 );
 create unique index if not exists pipelines_default_idx on ${t("pipelines")} (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, coalesce(${c("pipelines", "scope")}, ''))
-  where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;
+  where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;${addExtraColumns(t("pipelines"), names.extras)}
 ${lockTable(t("pipelines"), { read: true })}
 ${read("pipelines")}
 
@@ -239,11 +244,19 @@ using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjec
 `;
 }
 
+/**
+ * `options.extraColumns`, added to the pipelines table. `stages` is
+ * reserved: `list_pipelines` returns it next to the row.
+ */
+const extrasOf = (ctx: ModuleContext) =>
+  ctx.extraColumns("pipelines", ["stages", "fields"]);
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const keys = moduleOperations("pipelines");
   const names: Names = {
     fn: (name) => ctx.fn(name),
+    extras: extrasOf(ctx),
     read: ctx.permission("read", keys.read),
     manage: ctx.permission("manage", keys.manage),
     t: (table) => ctx.table(table),
@@ -262,7 +275,16 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_pipeline",
-      args: ["{id}", "uuid", "text", "text", "text", "text", "boolean"],
+      args: [
+        "{id}",
+        "uuid",
+        "text",
+        "text",
+        "text",
+        "text",
+        "boolean",
+        ...fieldsArgs(extrasOf(ctx)),
+      ],
       returns: "jsonb",
     },
     { name: "archive_pipeline", args: ["uuid"], returns: "boolean" },

@@ -92,7 +92,7 @@ export const uploadAvatar = bs.action(
 export const setWeeklyDigest = bs.action(
   { input: v.object({ enabled: v.boolean() }) },
   async ({ enabled }, { supabase }) => {
-    const saved = await blocks(supabase).settings.user.set(
+    const saved = await blocks(supabase).settings.setUser(
       "weeklyDigest",
       enabled,
     );

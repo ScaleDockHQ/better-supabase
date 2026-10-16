@@ -25,7 +25,7 @@ describe("blocks on @supabase/server's Postgres clients", () => {
     createIdempotency(postgresAdmin);
     createWebhookInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
     purgeAuditLog(postgresAdmin);
-    createOutbox(postgresAdmin, { source: "app" });
+    createOutbox({ transport: sqlTransport(postgresAdmin), source: "app" });
     void entitlementMembers(postgresAdmin, "cus_1");
   });
 });

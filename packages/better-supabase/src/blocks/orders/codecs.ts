@@ -1,5 +1,6 @@
 import type { Payment } from "../commerce/payments.ts";
 
+import { type RowFields, rowFields } from "../../core/block-fields.ts";
 import { money, type Money } from "../commerce/money.ts";
 import {
   type TaxLine,
@@ -219,7 +220,8 @@ export interface OrderRefund {
   readonly completedAt?: Temporal.Instant;
 }
 
-export interface Order {
+/** An order. `F` types the extra columns the `fields` schema describes. */
+export interface Order<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   /** Gapless per organization, from `number-sequences` when it numbers `order`. */
@@ -264,6 +266,8 @@ export interface Order {
   readonly fulfillments: readonly Fulfillment[];
   readonly returns: readonly OrderReturn[];
   readonly refunds: readonly OrderRefund[];
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 export const amountText = (value: Money): string => value.amount.toString();
@@ -549,6 +553,7 @@ export function orderOf(value: unknown): Order {
     ...when("completedAt", row["completedAt"]),
     ...when("cancelledAt", row["cancelledAt"]),
     cancelReason: nullableText(row["cancelReason"]),
+    fields: rowFields(row["fields"]),
     lines: recordsOf(row["lines"], "orders").map((line) => ({
       id: textOf(line["id"]),
       variantId: nullableText(line["variantId"]),

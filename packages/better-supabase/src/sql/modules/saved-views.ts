@@ -8,7 +8,19 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  columnsObject,
+  fail,
+  fieldsArg,
+  fieldsArgs,
+  fieldsEntry,
+  fieldsParam,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+  writeFields,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 /** The layouts a saved view can open in. */
@@ -39,6 +51,7 @@ const EVENTS: ModuleEvents<SavedViewsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_view_save", "after_view_save"],
+  options: ["extraColumns"],
   tables: {
     views: {
       name: "saved_views",
@@ -79,8 +92,16 @@ const NAMES: ModuleNames = {
 const textList = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
+/**
+ * `options.extraColumns`, added to a managed views table. The preference
+ * keys `list_views` returns next to them are reserved.
+ */
+const extrasOf = (ctx: ModuleContext) =>
+  ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
+  const extras = extrasOf(ctx);
   const views = ctx.table("views");
   const c = (column: string): string => ctx.col("views", column);
   const [id, tenant, list, scope, owner, team, name, kind, state, rank] = [
@@ -126,7 +147,7 @@ function build(ctx: ModuleContext): string {
 );
 create index if not exists saved_views_list_idx on ${views} (${tenant}, ${list});
 create index if not exists saved_views_owner_idx on ${views} (${owner}) where ${owner} is not null;
-create unique index if not exists saved_views_default_idx on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};
+create unique index if not exists saved_views_default_idx on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};${addExtraColumns(views, extras)}
 ${lockTable(views, { read: true })}
 `
     : "";
@@ -162,7 +183,7 @@ create policy saved_views_read on ${views} for select to authenticated
 using (${visible});
 ${preferences?.ddl ?? ""}
 
-create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
+create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid${fieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -238,7 +259,7 @@ begin
       ${updatedAt} = now()
     where ${id} = v_id
     returning ${rank} into v_rank;
-  end if;
+  end if;${writeFields("save_view.fields", views, id, "v_id", extras)}
   ${ctx.record({
     type: "saved_view.saved",
     payload: `jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name)`,
@@ -247,10 +268,17 @@ begin
     audit: false,
   })}
   ${ctx.hook("after_view_save", [["uuid", "v_id"]])}
-  return jsonb_build_object('id', v_id, 'rank', v_rank);
+  return jsonb_build_object('id', v_id, 'rank', v_rank${
+    extras.length === 0
+      ? ""
+      : `, 'fields', (select ${columnsObject(
+          "v",
+          extras.map((extra) => extra.name),
+        )} from ${views} v where v.${id} = v_id)`
+  });
 end;
 $$;
-${userGrant(`${fn("save_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid)`)}
+${userGrant(`${fn("save_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid${fieldsArg(extras)})`)}
 
 create or replace function ${fn("list_views")}(tenant ${ctx.idType}, list text)
 returns jsonb
@@ -270,7 +298,7 @@ as $$
     'state', v.${state},
     'rank', v.${rank},
     'isDefault', v.${isDefault},
-    'updatedAt', v.${updatedAt}${preferences?.json ?? ""}
+    'updatedAt', v.${updatedAt}${fieldsEntry("v", extras)}${preferences?.json ?? ""}
   ) order by v.${rank} collate "C", v.${id}), '[]'::jsonb)
   from ${views} v${preferences?.join ?? ""}
   where v.${tenant} = list_views.tenant and v.${list} = list_views.list
@@ -379,7 +407,14 @@ begin
   end if;
   return ${fn("save_view")}(v_row.${tenant}, v_row.${list},
     coalesce(duplicate_view.name, v_row.${name}), v_row.${kind},
-    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row.${state}, null);
+    coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row.${state}, null${
+      extras.length === 0
+        ? ""
+        : `, ${columnsObject(
+            "v_row",
+            extras.map((extra) => extra.name),
+          )}`
+    });
 end;
 $$;
 ${userGrant(`${fn("duplicate_view")}(uuid, text, text, text)`)}
@@ -516,7 +551,17 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_view",
-      args: ["{id}", "text", "text", "text", "text", "text", "jsonb", "uuid"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
+        "jsonb",
+        "uuid",
+        ...fieldsArgs(extrasOf(ctx)),
+      ],
       returns: "jsonb",
     },
     { name: "list_views", args: ["{id}", "text"], returns: "jsonb" },

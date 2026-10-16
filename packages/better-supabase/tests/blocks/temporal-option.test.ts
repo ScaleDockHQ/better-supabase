@@ -9,7 +9,10 @@ import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import { createAuditLog } from "../../src/blocks/audit/index.ts";
 import { createJobs, createRateLimit } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
-import { defineSettings } from "../../src/blocks/settings/index.ts";
+import {
+  createSettings,
+  defineSettings,
+} from "../../src/blocks/settings/index.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { applyTemporal } from "../../src/core/block-helpers.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -30,10 +33,15 @@ describe("the temporal option of block creators", () => {
     const creators = [
       () => createAnnouncements({ transport, temporal: namespace }),
       () => createAuditLog({ transport, temporal: namespace }),
-      () => createOutbox(sql, { source: "s", temporal: namespace }),
+      () => createOutbox({ transport, source: "s", temporal: namespace }),
       () => createRateLimit(sql, { temporal: namespace }),
       () => createJobs(sql, {}, { temporal: namespace }),
-      () => defineSettings({}).connect({ transport, temporal: namespace }),
+      () =>
+        createSettings({
+          settings: defineSettings({}),
+          transport,
+          temporal: namespace,
+        }),
     ];
     for (const create of creators) {
       provideTemporal(undefined);

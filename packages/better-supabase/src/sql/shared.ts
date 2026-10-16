@@ -30,6 +30,66 @@ export const columnsObject = (
     .map((name) => `${sqlString(name)}, ${alias}.${sqlIdent(name)}`)
     .join(", ")})`;
 
+/**
+ * `, 'fields', jsonb_build_object(...)` with the extra columns of row
+ * `alias`, for a read built with `jsonb_build_object`; empty without extra
+ * columns, so the default read is unchanged.
+ */
+export const fieldsEntry = (
+  alias: string,
+  columns: readonly ExtraColumn[],
+): string =>
+  columns.length === 0
+    ? ""
+    : `, 'fields', ${columnsObject(
+        alias,
+        columns.map((column) => column.name),
+      )}`;
+
+/**
+ * The `fields jsonb` parameter of a function that writes extra columns,
+ * after the others; empty without extra columns. Add `fieldsArg` to the
+ * signature in its grants and its contract entry.
+ */
+export const fieldsParam = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ",\n  fields jsonb default null";
+
+/** `, jsonb` for a signature with `fieldsParam`; empty without extra columns. */
+export const fieldsArg = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", jsonb";
+
+/** The `jsonb` contract argument for `fieldsParam`; none without extra columns. */
+export const fieldsArgs = (columns: readonly ExtraColumn[]): string[] =>
+  columns.length === 0 ? [] : ["jsonb"];
+
+/**
+ * PL/pgSQL that writes the extra columns `fields` (a `jsonb` expression,
+ * such as `register_push_device.fields`) names to the row of `table` whose
+ * `idColumn` is `id`. A column it leaves out keeps its value, or its
+ * default on a new row. Empty without extra columns.
+ */
+export const writeFields = (
+  fields: string,
+  table: string,
+  idColumn: string,
+  id: string,
+  columns: readonly ExtraColumn[],
+): string => {
+  if (columns.length === 0) return "";
+  const sets = columns
+    .map(
+      (column) =>
+        `${column.ident} = case when ${fields} ? ${sqlString(column.name)} then (jsonb_populate_record(null::${table}, ${fields})).${column.ident} else x.${column.ident} end`,
+    )
+    .join(",\n      ");
+  return `
+  if jsonb_typeof(${fields}) = 'object' then
+    update ${table} x set
+      ${sets}
+    where x.${idColumn} = ${id};
+  end if;`;
+};
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 

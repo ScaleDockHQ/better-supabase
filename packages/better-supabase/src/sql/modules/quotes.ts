@@ -129,7 +129,7 @@ create table if not exists ${t("quotes")} (
 );
 create index if not exists quotes_tenant_status_idx on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);
 create index if not exists quotes_origin_idx on ${t("quotes")} (${q("originType")}, ${q("originId")});
-create index if not exists quotes_supersedes_idx on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), ctx.extraColumns("quotes"))}
+create index if not exists quotes_supersedes_idx on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}
 ${lockTable(t("quotes"), { read: true })}
 drop policy if exists quotes_read on ${t("quotes")};
 create policy quotes_read on ${t("quotes")} for select to authenticated
@@ -158,6 +158,8 @@ function build(ctx: ModuleContext): string {
     prefix: ctx.text("prefix", "Q-"),
     validDays,
     service: "(auth.role() = 'service_role')",
+    // The keys a quote read returns next to its columns.
+    extras: ctx.extraColumns("quotes", ["lines", "token", "fields"]),
   };
   return `${schemaPreamble(ctx)}
 -- Quotes: line items and totals, a revision chain, sending with a public

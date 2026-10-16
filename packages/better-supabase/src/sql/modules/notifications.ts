@@ -9,7 +9,12 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, updatedAt, revokeTable } from "../shared.ts";
+import {
+  addExtraColumns,
+  schemaPreamble,
+  updatedAt,
+  revokeTable,
+} from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
@@ -72,6 +77,7 @@ const NAMES: ModuleNames = {
     "realtime",
     "topic",
     "updatedEvent",
+    "extraColumns",
   ],
   tables: {
     events: {
@@ -281,7 +287,7 @@ create table if not exists ${n.table("events")} (
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
-create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});
+create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${addExtraColumns(n.table("events"), n.extras)}
 alter table ${n.table("events")} enable row level security;
 ${revokeTable(n.table("events"))}
 grant select on ${n.table("events")} to authenticated;

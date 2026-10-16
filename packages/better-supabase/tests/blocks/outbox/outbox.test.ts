@@ -8,6 +8,7 @@ import {
   outboxCloudEvent,
   type OutboxEvent,
 } from "../../../src/blocks/outbox/outbox.ts";
+import { sqlTransport } from "../../../src/core/block-transport.ts";
 
 interface Call {
   readonly fn: string;
@@ -54,7 +55,11 @@ describe("createOutbox", () => {
     const { sql, calls } = fakeSql({
       emit_event: ["0199a7c4-0000-7000-8000-000000000007"],
     });
-    const outbox = createOutbox(sql, { ...OPTIONS, schema: "app" });
+    const outbox = createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+      schema: "app",
+    });
     const result = await outbox.emit(
       "invoice.paid",
       { id: 1 },
@@ -80,15 +85,16 @@ describe("createOutbox", () => {
       outbox_claim: [[row(1)]],
       outbox_ack: [true],
     };
-    const outbox = createOutbox(
-      {
+    const outbox = createOutbox({
+      transport: {
         call: async (schema, fn, args) => {
           calls.push({ schema, fn, args });
           return replies[fn]?.shift() ?? null;
         },
       },
-      { ...OPTIONS, schema: "events" },
-    );
+      ...OPTIONS,
+      schema: "events",
+    });
     expect((await outbox.emit("invoice.paid", { id: 1 })).data).toBe("e1");
     expect(calls[0]).toEqual({
       schema: "events",
@@ -129,7 +135,7 @@ describe("createOutbox", () => {
       outbox_unregister: [true],
       purge_outbox: [failure, 3],
     });
-    const outbox = createOutbox(sql, OPTIONS);
+    const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     expect(
       await outbox.register("billing", {
         types: ["invoice.*"],
@@ -154,7 +160,11 @@ describe("createOutbox", () => {
       outbox_ack: [true, true],
     });
     const sent: CloudEvent[] = [];
-    const outbox = createOutbox(sql, { ...OPTIONS, typePrefix: "com.crm" });
+    const outbox = createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+      typePrefix: "com.crm",
+    });
     const result = await outbox.relay(
       "crm",
       { send: (events) => void sent.push(...events) },
@@ -184,7 +194,7 @@ describe("createOutbox", () => {
       outbox_ack: [true, true, true],
     });
     const seen: OutboxEvent[] = [];
-    const outbox = createOutbox(sql, OPTIONS);
+    const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     const result = await outbox.consume(
       "search",
       async (events) => {
@@ -219,7 +229,7 @@ describe("createOutbox", () => {
       outbox_claim: [[row(1), row(2)]],
       outbox_fail: ["retrying"],
     });
-    const outbox = createOutbox(sql, OPTIONS);
+    const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     const result = await outbox.relay(
       "crm",
       {
@@ -244,7 +254,10 @@ describe("createOutbox", () => {
       outbox_claim: [[row(7)]],
       outbox_fail: ["dead"],
     });
-    const result = await createOutbox(sql, OPTIONS).consume(
+    const result = await createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).consume(
       "billing-seats",
       () => {
         throw new Error("No such customer");
@@ -276,7 +289,7 @@ describe("createOutbox", () => {
       ],
       purge_outbox: [4],
     });
-    const outbox = createOutbox(sql, OPTIONS);
+    const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     const letters = await outbox.deadLetters("crm");
     expect(letters.data).toHaveLength(1);
     expect(letters.data?.[0]).toMatchObject({
@@ -305,7 +318,10 @@ describe("createOutbox", () => {
         }),
       ],
     });
-    const result = await createOutbox(sql, OPTIONS).relay("crm", {
+    const result = await createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).relay("crm", {
       send: () => undefined,
     });
     expect(result.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
@@ -313,7 +329,10 @@ describe("createOutbox", () => {
 
   it("reads history", async () => {
     const { sql, calls } = fakeSql({ outbox_history: [[row(4), { bad: 1 }]] });
-    const result = await createOutbox(sql, OPTIONS).history({
+    const result = await createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).history({
       subject: "organizations/4",
     });
     expect(result.data?.map((event) => event.position)).toEqual([4]);
@@ -378,7 +397,7 @@ describe("relayRoute", () => {
   it("needs a secret", () => {
     const { sql } = fakeSql({});
     expect(() =>
-      createOutbox(sql, OPTIONS).relayRoute({
+      createOutbox({ transport: sqlTransport(sql), ...OPTIONS }).relayRoute({
         secret: undefined,
         consumers: {},
       }),
@@ -387,7 +406,10 @@ describe("relayRoute", () => {
 
   it("checks the method and the bearer secret", async () => {
     const { sql } = fakeSql({});
-    const route = createOutbox(sql, OPTIONS).relayRoute({
+    const route = createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).relayRoute({
       secret: "s",
       consumers: {},
     });
@@ -402,7 +424,10 @@ describe("relayRoute", () => {
     });
     const errors: string[] = [];
     const actors: (string | null)[] = [];
-    const route = createOutbox(sql, OPTIONS).relayRoute({
+    const route = createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).relayRoute({
       secret: "s",
       consumers: {
         good: { send: () => undefined },
@@ -439,7 +464,8 @@ describe("createOutbox subscribers", () => {
       outbox_ack: [true],
     });
     const asked: { type: string; principal: string; kind?: string }[] = [];
-    const outbox = createOutbox(sql, {
+    const outbox = createOutbox({
+      transport: sqlTransport(sql),
       ...OPTIONS,
       subscribers: (event, subscribers) => {
         for (const subscriber of subscribers)
@@ -468,7 +494,8 @@ describe("createOutbox subscribers", () => {
       outbox_ack: [true],
     });
     let handled = 0;
-    const outbox = createOutbox(sql, {
+    const outbox = createOutbox({
+      transport: sqlTransport(sql),
       ...OPTIONS,
       authorization: { delivery: { subscribers: () => [] } },
     });
@@ -485,7 +512,8 @@ describe("createOutbox subscribers", () => {
       outbox_claim: [[row(1)]],
       outbox_fail: ["dead"],
     });
-    const outbox = createOutbox(sql, {
+    const outbox = createOutbox({
+      transport: sqlTransport(sql),
       ...OPTIONS,
       subscribers: () => {
         throw new Error("provider down");

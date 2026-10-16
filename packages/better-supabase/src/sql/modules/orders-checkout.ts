@@ -1,6 +1,14 @@
 import type { ModuleContext } from "../context.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  fieldsArg,
+  fieldsEntry,
+  fieldsParam,
+  serviceGrant,
+  userGrant,
+  writeFields,
+} from "../shared.ts";
 import {
   type OrdersNames,
   amountOf,
@@ -83,7 +91,7 @@ as $$
         'id', y.${rf("id")}, 'paymentId', y.${rf("payment")}, 'returnId', y.${rf("return")}, 'amount', ${text("y", rf("amount"))},
         'status', y.${rf("status")}, 'reason', y.${rf("reason")}, 'providerReference', y.${rf("providerReference")},
         'createdAt', y.${rf("createdAt")}, 'completedAt', y.${rf("completedAt")}) order by y.${rf("createdAt")})
-      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb))
+      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${fieldsEntry("x", names.extras)})
   from ${ctx.table("orders")} x where x.${o("id")} = p_order
 $$;
 revoke execute on function ${names.fn("order_json")}(uuid) from public, anon, authenticated;
@@ -211,7 +219,7 @@ export function checkoutFunctions(
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
-create or replace function ${fn("place_order")}(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
+create or replace function ${fn("place_order")}(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null${fieldsParam(names.extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -284,7 +292,7 @@ begin
     (v_priced ->> 'subtotal')::bigint, (v_priced ->> 'discountTotal')::bigint, (v_priced ->> 'shippingTotal')::bigint,
     v_tax, v_total, v_inclusive, v_cart.shipping_address, v_cart.billing_address, v_priced -> 'shipping',
     v_priced -> 'promotions', place_order.tax)
-  returning ${o("id")} into v_id;
+  returning ${o("id")} into v_id;${writeFields("place_order.fields", orders, o("id"), "v_id", names.extras)}
   insert into ${ctx.table("orderLines")} (${ol("tenant")}, ${ol("order")}, ${ol("position")}, ${ol("variant")}, ${ol("product")}, ${ol("sku")}, ${ol("title")},
     ${ol("quantity")}, ${ol("unitAmount")}, ${ol("subtotal")}, ${ol("discount")}, ${ol("tax")}, ${ol("total")}, ${ol("requiresShipping")})
   select v_cart.tenant, v_id, e.n, (e.l ->> 'variantId')::uuid, (e.l ->> 'productId')::uuid, e.l ->> 'sku', e.l ->> 'title',
@@ -322,7 +330,7 @@ begin
   return ${fn("order_json")}(v_order.id) || jsonb_build_object('created', true);
 end;
 $$;
-${serviceGrant(`${fn("place_order")}(uuid, jsonb, bigint, uuid)`)}
+${serviceGrant(`${fn("place_order")}(uuid, jsonb, bigint, uuid${fieldsArg(names.extras)})`)}
 
 -- Records what a payment provider reports for an order's payment, keyed on
 -- provider and reference, so a redelivered webhook changes nothing. A late

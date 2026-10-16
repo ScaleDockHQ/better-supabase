@@ -1,6 +1,8 @@
 import type { ModuleContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
+import { columnsObject } from "../shared.ts";
+
 export function integerMutations(ctx: ModuleContext): string {
   return [
     `${ctx.fn("mark_notifications_unread")}(uuid[], ${ctx.idType})`,
@@ -52,6 +54,15 @@ export function itemJson(n: NotifyNames): string {
         `${table === "events" ? "ev" : "rc"}.${n.col(table, logical)}`,
       ]);
     }
+  }
+  if (n.extras.length > 0) {
+    pairs.push([
+      "fields",
+      columnsObject(
+        "ev",
+        n.extras.map((extra) => extra.name),
+      ),
+    ]);
   }
   return `jsonb_build_object(${pairs.map(([key, value]) => `'${key}', ${value}`).join(", ")})`;
 }

@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can, canAssign } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
@@ -119,7 +120,7 @@ export const inviteMember = bs.action(
         metadata: { role },
       }),
     );
-    await onboarding.complete("invite", organizationId);
+    await onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
     return ok({ token: sent.data.token });
   },
@@ -217,8 +218,8 @@ export const updateOrganizationSettings = bs.action(
   async ({ defaultRole, weekStart }, { tenant: organizationId, supabase }) => {
     const { settings } = blocks(supabase);
     const [role, week] = await Promise.all([
-      settings.organization.set(organizationId, "defaultRole", defaultRole),
-      settings.organization.set(organizationId, "weekStart", weekStart),
+      settings.setOrganization(organizationId, "defaultRole", defaultRole),
+      settings.setOrganization(organizationId, "weekStart", weekStart),
     ]);
     if (!role.ok) return role;
     if (!week.ok) return week;

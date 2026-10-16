@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  createSettings,
   defineSettings,
   sqlTransport,
 } from "../../src/blocks/settings/index.ts";
@@ -41,13 +42,14 @@ describe.skipIf(!live)("settings", () => {
         modules: { settings: { api: "bs_settings_api" } },
       });
       const member = await s.user("member");
-      const client = settings.connect({
+      const client = createSettings({
+        settings,
         transport: sqlTransport(s.sql),
         schema: "bs_settings_api",
       });
       await s.asRole(member);
-      expect(await client.user.set("theme", "dark").orThrow()).toBe("dark");
-      expect(await client.user.get("theme").orThrow()).toBe("dark");
+      expect(await client.setUser("theme", "dark").orThrow()).toBe("dark");
+      expect(await client.getUser("theme").orThrow()).toBe("dark");
       expect(
         await s.value<string>(
           "(select prosecdef::text from pg_proc where proname = 'set_user_setting' and pronamespace = 'bs_settings_api'::regnamespace)",
@@ -72,34 +74,37 @@ describe.skipIf(!live)("settings", () => {
       const member = await s.user("member");
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner, { member });
-      const client = settings.connect({ transport: sqlTransport(s.sql) });
+      const client = createSettings({
+        settings,
+        transport: sqlTransport(s.sql),
+      });
 
       await s.asRole(member);
-      expect(await client.user.get().orThrow()).toEqual({ theme: "light" });
-      expect(await client.user.set("theme", "dark").orThrow()).toBe("dark");
-      expect(await client.user.get("theme").orThrow()).toBe("dark");
+      expect(await client.getUser().orThrow()).toEqual({ theme: "light" });
+      expect(await client.setUser("theme", "dark").orThrow()).toBe("dark");
+      expect(await client.getUser("theme").orThrow()).toBe("dark");
 
       await s.asRole(owner);
-      expect(await client.user.get("theme").orThrow()).toBe("light");
+      expect(await client.getUser("theme").orThrow()).toBe("light");
       expect(
-        await client.organization.set(organization, "seats", 12).orThrow(),
+        await client.setOrganization(organization, "seats", 12).orThrow(),
       ).toBe(12);
 
       // A member reads organization settings but cannot change them.
       await s.asRole(member);
       expect(
-        await client.organization.get(organization, "seats").orThrow(),
+        await client.getOrganization(organization, "seats").orThrow(),
       ).toBe(12);
       expect(
-        await client.organization.set(organization, "seats", 3),
+        await client.setOrganization(organization, "seats", 3),
       ).toMatchObject({ ok: false });
       expect(
-        await client.organization.reset(organization, "seats").orThrow(),
+        await client.resetOrganization(organization, "seats").orThrow(),
       ).toBe(false);
 
       await s.asRole(outsider);
       expect(
-        await client.organization.get(organization, "seats").orThrow(),
+        await client.getOrganization(organization, "seats").orThrow(),
       ).toBe(5);
 
       // The pg_jsonschema check rejects what the schema rejects, and the
@@ -128,10 +133,10 @@ describe.skipIf(!live)("settings", () => {
       await s.client.query("rollback to savepoint json");
 
       await s.asRole(owner);
-      expect(await client.user.reset("theme").orThrow()).toBe(false);
+      expect(await client.resetUser("theme").orThrow()).toBe(false);
       await s.asRole(member);
-      expect(await client.user.reset("theme").orThrow()).toBe(true);
-      expect(await client.user.get("theme").orThrow()).toBe("light");
+      expect(await client.resetUser("theme").orThrow()).toBe(true);
+      expect(await client.getUser("theme").orThrow()).toBe("light");
     } finally {
       await s.close();
     }
@@ -145,9 +150,12 @@ describe.skipIf(!live)("settings", () => {
         "alter table better_supabase.user_settings alter column updated_by drop default",
       );
       const member = await s.user("member");
-      const client = settings.connect({ transport: sqlTransport(s.sql) });
+      const client = createSettings({
+        settings,
+        transport: sqlTransport(s.sql),
+      });
       await s.asRole(member);
-      await client.user.set("theme", "dark").orThrow();
+      await client.setUser("theme", "dark").orThrow();
       await s.service();
       expect(
         await s.value<string>(
@@ -184,18 +192,21 @@ describe.skipIf(!live)("settings", () => {
       });
       const staff = await s.user("staff");
       const user = await s.user("user");
-      const client = platform.connect({ transport: sqlTransport(s.sql) });
+      const client = createSettings({
+        settings: platform,
+        transport: sqlTransport(s.sql),
+      });
       const as = (who: typeof user, permissions: string[] = []) =>
         s.asRole(who, { platform_permissions: permissions });
 
       await as(staff, ["billing.platform"]);
-      expect(await client.platform.set("feePercent", 2.5).orThrow()).toBe(2.5);
-      expect((await client.platform.set("routing", "eu")).ok).toBe(false);
-      expect((await client.platform.set("banner", "Hi")).ok).toBe(false);
+      expect(await client.setPlatform("feePercent", 2.5).orThrow()).toBe(2.5);
+      expect((await client.setPlatform("routing", "eu")).ok).toBe(false);
+      expect((await client.setPlatform("banner", "Hi")).ok).toBe(false);
       await as(staff, ["routing.platform", "settings.manage"]);
-      await client.platform.set("routing", "eu").orThrow();
-      await client.platform.set("banner", "Maintenance at 6").orThrow();
-      expect(await client.platform.get().orThrow()).toEqual({
+      await client.setPlatform("routing", "eu").orThrow();
+      await client.setPlatform("banner", "Maintenance at 6").orThrow();
+      expect(await client.getPlatform().orThrow()).toEqual({
         feePercent: 2.5,
         routing: "eu",
         banner: "Maintenance at 6",
@@ -208,16 +219,16 @@ describe.skipIf(!live)("settings", () => {
       ).not.toBe("no error");
 
       await as(user);
-      expect(await client.platform.get().orThrow()).toEqual({
+      expect(await client.getPlatform().orThrow()).toEqual({
         feePercent: 2.5,
         routing: undefined,
         banner: "Maintenance at 6",
       });
-      expect((await client.platform.reset("feePercent")).ok).toBe(true);
-      expect(await client.platform.get("feePercent").orThrow()).toBe(2.5);
+      expect((await client.resetPlatform("feePercent")).ok).toBe(true);
+      expect(await client.getPlatform("feePercent").orThrow()).toBe(2.5);
 
       await s.asRole("anon");
-      expect(await client.platform.get().orThrow()).toEqual({
+      expect(await client.getPlatform().orThrow()).toEqual({
         feePercent: 2.5,
         routing: undefined,
         banner: "",

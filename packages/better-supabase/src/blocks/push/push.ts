@@ -1,7 +1,10 @@
 import type { ExpoNotificationsLike } from "../../client/native/push-token.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   NotificationChannel,
   NotificationMessage,
@@ -9,6 +12,16 @@ import type {
 } from "../notifications/channel.ts";
 
 import { expoPushToken } from "../../client/native/push-token.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
@@ -30,41 +43,57 @@ function isPlatform(value: string): value is PushPlatform {
   return PLATFORMS.has(value);
 }
 
-export interface PushDeviceInput {
+/** A device to register. `F` types the extra columns the `fields` schema describes. */
+export interface PushDeviceInput<F extends object = Record<never, never>> {
   readonly token: string;
   readonly platform: PushPlatform;
   /** Defaults to `expo`. */
   readonly provider?: PushProvider;
   readonly deviceName?: string;
   readonly appVersion?: string;
+  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 /** One device a user gets pushes on. */
-export interface PushTarget {
+export interface PushTarget<F extends object = Record<never, never>> {
   readonly userId: string;
   readonly token: string;
   readonly platform: PushPlatform;
   readonly provider: PushProvider;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
-export interface PushDevicesOptions extends BlockTemporalOptions {
+export interface PushDevicesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))`, `rpcTransport(supabase)`, or over `postgres.admin` for the sender. */
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * A Standard Schema for the extra columns of the devices table
+   * (`blocks.push.options.extraColumns`): writes are validated, reads parsed.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<PushDevices<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 /** The `push` SQL module as typed calls. */
-export interface PushDevices {
+export interface PushDevices<F extends object = Record<never, never>> {
   /** Registers the caller's device, or refreshes it; resolves with the device id. */
-  readonly register: (device: PushDeviceInput) => AsyncResult<string>;
+  readonly register: (device: PushDeviceInput<F>) => AsyncResult<string>;
   /** Removes the caller's device; `false` when the caller had none with `token`. */
   readonly unregister: (token: string) => AsyncResult<boolean>;
   /** Service role: every device of `userIds`, newest first per user. */
   readonly tokensFor: (
     userIds: readonly string[],
-  ) => AsyncResult<readonly PushTarget[]>;
+  ) => AsyncResult<readonly PushTarget<F>[]>;
   /** Service role: deletes the devices with `tokens`; resolves with how many. */
   readonly prune: (tokens: readonly string[]) => AsyncResult<number>;
 }
@@ -91,37 +120,54 @@ function targetsOf(value: unknown): readonly PushTarget[] {
             token: textOf(row["token"]),
             platform,
             provider,
+            fields: rowFields(row["fields"]),
           },
         ]
       : [];
   });
 }
 
-export function createPush(options: PushDevicesOptions): PushDevices {
+export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
+  options: PushDevicesOptions<S>,
+): PushDevices<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "push device fields",
+  );
+  const client: PushDevices<F> = {
     register: (device) =>
-      call(
-        "register_push_device",
-        {
-          token: device.token,
-          platform: device.platform,
-          provider: device.provider ?? "expo",
-          device_name: device.deviceName,
-          app_version: device.appVersion,
-        },
-        textOf,
+      writeFields(fields, device.fields, (checked) =>
+        call(
+          "register_push_device",
+          {
+            token: device.token,
+            platform: device.platform,
+            provider: device.provider ?? "expo",
+            device_name: device.deviceName,
+            app_version: device.appVersion,
+            fields: checked,
+          },
+          textOf,
+        ),
       ),
     unregister: (token) =>
       call("unregister_push_device", { token }, (value) => value === true),
     tokensFor: (userIds) =>
-      call("push_tokens_for", { users: [...userIds] }, targetsOf),
+      call("push_tokens_for", { users: [...userIds] }, targetsOf).andThen(
+        (targets) => readAllFields(fields, targets),
+      ),
     prune: (tokens) =>
       call("prune_push_tokens", { tokens: [...tokens] }, (value) =>
         typeof value === "number" ? value : Number(value ?? 0),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "push",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 export interface RegisterDeviceOptions {

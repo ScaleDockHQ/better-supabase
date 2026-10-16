@@ -1,13 +1,14 @@
 export {
   type Checklist,
-  type ChecklistClient,
-  type ChecklistConnectOptions,
   type ChecklistProgress,
   type ChecklistScope,
   type ChecklistSpec,
   type ChecklistStep,
   type ChecklistSubject,
+  createOnboarding,
   defineChecklist,
+  type Onboarding,
+  type OnboardingOptions,
   type StepProgress,
 } from "./onboarding.ts";
 export {
@@ -21,6 +22,7 @@ export { createOnboardingController } from "./client.ts";
 export type {
   OnboardingActions,
   OnboardingController,
+  OnboardingControllerClient,
   OnboardingControllerOptions,
   OnboardingSnapshot,
 } from "./client.ts";

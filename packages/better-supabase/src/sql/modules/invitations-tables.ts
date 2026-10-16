@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { raise as raiseWith, sha256Hex } from "../shared.ts";
 import { hasPlatformRoles } from "./access-model.ts";
@@ -64,6 +64,8 @@ export function tokenHash(ctx: ModuleContext, token: string): string {
 /** A table of invitations: the tenant one, or the platform one. */
 export interface InviteTable {
   readonly table: string;
+  /** `options.extraColumns`: the tenant table's app columns; none on platform invitations. */
+  readonly extras: readonly ExtraColumn[];
   col(logical: string): string;
   has(logical: string): boolean;
   /** ` and <alias>.<tenant> is [not] null` when both kinds share a table. */
@@ -79,6 +81,18 @@ function sharesTable(ctx: ModuleContext): boolean {
   );
 }
 
+/** The keys an invitation read returns next to its columns (`inviteJson`). */
+const INVITATION_KEYS = [
+  "tenant",
+  "expires_at",
+  "created_at",
+  "invited_by",
+  "organization",
+  "inviter",
+  "token",
+  "fields",
+];
+
 export function tenantTable(ctx: ModuleContext): InviteTable {
   const shared = sharesTable(ctx);
   // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
@@ -87,6 +101,7 @@ export function tenantTable(ctx: ModuleContext): InviteTable {
     (!ctx.manages || ctx.flag("prefill", false));
   return {
     table: ctx.table("invitations"),
+    extras: ctx.extraColumns("invitations", INVITATION_KEYS),
     col: (logical) => ctx.col("invitations", logical),
     has: (logical) =>
       logical === "prefill" ? prefill : ctx.has("invitations", logical),
@@ -116,6 +131,7 @@ export function platformTable(ctx: ModuleContext): InviteTable | undefined {
     (logical === "invitations" && column === "prefill");
   return {
     table: ctx.table(logical),
+    extras: [],
     col: (column) => ctx.col(logical, column),
     has: (column) => columns(column) && ctx.has(logical, column),
     only: (alias) =>
