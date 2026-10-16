@@ -135,7 +135,7 @@ function tenantTableSql(ctx: ModuleContext): string {
   const c = (logical: string) => t.col(logical);
   if (!ctx.manages) {
     return `
--- Adopted: ${t.table} belongs to the app (modules.invitations.tables.invitations).
+-- Adopted: ${t.table} belongs to the app (blocks.invitations.tables.invitations).
 `;
   }
   const add = (logical: string, type: string) =>

@@ -317,7 +317,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
         });
   return `
 -- Disabled tenants and users get no permissions and no membership claims
--- (modules.access.disabled; with the managed organizations module, its
+-- (blocks.access.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant ${id})
 returns boolean

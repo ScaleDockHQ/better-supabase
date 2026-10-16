@@ -368,7 +368,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (modules.support-sessions.options.allowWrites)")}
+    ${fail("SUPPORT_WRITES_DISABLED", 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)')}
   end if;`
   }
   insert into ${requests} (${c("admin")}, ${c("target")}, ${c("reason")}, ${c("tenant")}, ${c("readOnly")}, ${c("metadata")}, ${c("expiresAt")}, ${c("approvedBy")}, ${c("approvedAt")})
@@ -667,7 +667,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (modules.support-sessions.options.allowWrites)")}
+    ${fail("SUPPORT_WRITES_DISABLED", 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)')}
   end if;`
   }${
     requireReason
