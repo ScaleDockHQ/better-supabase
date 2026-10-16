@@ -5,7 +5,11 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
-import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -386,7 +390,7 @@ export function createEmployees<
   type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const fields = blockFields<F>(options.fields, "employee fields");
+  const fields: BlockFields<F> = blockFields(options.fields, "employee fields");
   const parsed = (employee: Employee): AsyncResult<Employee<F>> =>
     AsyncResult.from(() => fields.read(employee.fields)).map((value) => ({
       ...employee,

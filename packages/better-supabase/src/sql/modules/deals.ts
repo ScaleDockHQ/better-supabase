@@ -208,7 +208,7 @@ create table if not exists ${t("deals")} (
 create index if not exists deals_pipeline_stage_idx on ${t("deals")} (${d("pipeline")}, ${d("stage")}, ${d("rank")});
 create index if not exists deals_tenant_close_idx on ${t("deals")} (${d("tenant")}, ${d("closeOn")}) where ${d("outcome")} = 'open';
 create index if not exists deals_owner_idx on ${t("deals")} (${d("owner")});
-create index if not exists deals_company_idx on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), ctx.extraColumns("deals"))}
+create index if not exists deals_company_idx on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}
 ${lockTable(t("deals"), { read: true })}
 
 create table if not exists ${t("contacts")} (
@@ -385,6 +385,7 @@ function build(ctx: ModuleContext): string {
     contact: ctx.text("contact", "person"),
     prefix: ctx.text("prefix", "DEAL-"),
     service: "(auth.role() = 'service_role')",
+    extras: ctx.extraColumns("deals", ["contacts", "members"]),
   };
   return `${schemaPreamble(ctx)}
 -- Deals on pipelines: an amount in minor units, a company and contacts, a

@@ -57,6 +57,7 @@ export const writeExtraColumns = (
   extras: readonly ExtraColumn[],
   source: string,
   where: string,
+  into?: string,
 ): string =>
   extras.length === 0
     ? ""
@@ -67,8 +68,26 @@ export const writeExtraColumns = (
         `${extra.ident} = case when ${source} ? ${sqlString(extra.name)} then r.${extra.ident} else x.${extra.ident} end`,
     )
     .join(", ")}
-  from jsonb_populate_record(null::${table}, ${source}) r
-  where ${where};`;
+  from jsonb_populate_record(null::${table}, (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(${source}) e where e.key in (${extras
+    .map((extra) => sqlString(extra.name))
+    .join(", ")}))) r
+  where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
+
+/**
+ * `json` (a `jsonb` expression of row `alias`) with the extra columns
+ * under `fields`, or `json` itself without any.
+ */
+export const withExtraFields = (
+  json: string,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string =>
+  extras.length === 0
+    ? json
+    : `(${json} || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )}))`;
 
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
