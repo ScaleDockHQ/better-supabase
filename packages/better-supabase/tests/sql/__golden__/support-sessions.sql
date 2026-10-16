@@ -158,7 +158,7 @@ begin
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -422,7 +422,7 @@ begin
     raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
@@ -921,7 +921,7 @@ begin
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -1224,7 +1224,7 @@ begin
     raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
@@ -1725,7 +1725,7 @@ begin
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   insert into "app_private"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -1989,7 +1989,7 @@ begin
     raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
@@ -2488,7 +2488,7 @@ begin
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -2752,7 +2752,7 @@ begin
     raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
@@ -3334,7 +3334,7 @@ begin
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -3598,7 +3598,7 @@ begin
     raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (modules.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
     raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';

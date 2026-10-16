@@ -392,7 +392,7 @@ grant select on ${m} to authenticated;
 grant all on ${m} to service_role;
 `
     : `
--- Adopted: ${m} belongs to the app (modules.tenant.tables.memberships).
+-- Adopted: ${m} belongs to the app (blocks.tenant.tables.memberships).
 `;
   const policy = ctx.manages
     ? `
@@ -470,7 +470,7 @@ grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to 
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
--- Disabled users and tenants (modules.access.disabled) are left out.
+-- Disabled users and tenants (blocks.access.disabled) are left out.
 create or replace function better_supabase.membership_claims(user_id uuid)
 returns jsonb
 language sql
