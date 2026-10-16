@@ -21,6 +21,7 @@ import { getCustomer } from "../customer-queries";
 import { CommentThread } from "./comment-thread";
 import { CustomerLogoForm } from "./customer-logo-form";
 import { CustomerStatus } from "./customer-status";
+import { TagInput } from "./tag-input";
 
 /** Render inside `<Suspense>`: reads the `id` param and the session. */
 export async function CustomerDetail({
@@ -95,6 +96,17 @@ export async function CustomerDetail({
       </div>
 
       <div className="space-y-6">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>{t("Tags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TagInput
+              organizationId={organizationId}
+              customerId={customer.id}
+            />
+          </CardContent>
+        </Card>
         <Card size="sm">
           <CardHeader>
             <CardTitle>{t("Recent notes")}</CardTitle>

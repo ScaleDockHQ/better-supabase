@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import type { DbError } from "better-supabase";
+
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,23 +28,40 @@ import {
 import { Input } from "@/components/ui/input";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createApiKey } from "../api-key-actions";
-
-export function CreateApiKeyDialog() {
+/** The create form, then the new token, which is shown only this once. */
+export function CreateApiKeyDialog({
+  token,
+  creating,
+  error,
+  onCreate,
+  onClose,
+}: {
+  token: string | undefined;
+  creating: boolean;
+  error: DbError | undefined;
+  onCreate: (name: string) => Promise<void>;
+  onClose: () => void;
+}) {
   const t = useExtracted("apiKeys");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [open, setOpen] = useState(false);
-  const form = useActionForm(createApiKey);
-  const token = form.data?.token ?? null;
-  const error = form.error === undefined ? null : errorMessage(form.error);
+  const [name, setName] = useState("");
+  const message = error === undefined ? null : errorMessage(error);
+
+  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (name.trim()) await onCreate(name.trim());
+  };
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
+        setName("");
         // The key is shown once: a reopened dialog starts empty.
-        if (!next) form.reset();
+        if (!next) onClose();
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -93,7 +111,7 @@ export function CreateApiKeyDialog() {
             </DialogFooter>
           </div>
         ) : (
-          <form {...form.formProps} className="grid gap-6">
+          <form onSubmit={(event) => void submit(event)} className="grid gap-6">
             <DialogHeader>
               <DialogTitle>{t("Create an API key")}</DialogTitle>
               <DialogDescription>
@@ -101,25 +119,29 @@ export function CreateApiKeyDialog() {
               </DialogDescription>
             </DialogHeader>
             <FieldGroup>
-              <Field data-invalid={error ? true : undefined}>
+              <Field data-invalid={message ? true : undefined}>
                 <FieldLabel htmlFor={`${fieldId}-api-key-name`}>
                   {t("Name")}
                 </FieldLabel>
                 <Input
                   id={`${fieldId}-api-key-name`}
                   name="name"
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                  }}
                   required
                   maxLength={80}
                   placeholder="CI"
                 />
-                {error ? <FieldError>{error}</FieldError> : null}
+                {message ? <FieldError>{message}</FieldError> : null}
               </Field>
             </FieldGroup>
             <DialogFooter>
               <DialogClose render={<Button type="button" variant="outline" />}>
                 {t("Cancel")}
               </DialogClose>
-              <Button type="submit" disabled={form.pending}>
+              <Button type="submit" disabled={creating}>
                 {t("Create")}
               </Button>
             </DialogFooter>

@@ -18,6 +18,10 @@ export interface Tag {
   readonly slug: string;
   /** Its rank key among the tenant's tags of the same kind, when it has one. */
   readonly rank?: string;
+  /** Set on the tags `list` and `forSubject` return. */
+  readonly kind?: string;
+  readonly color?: string;
+  readonly description?: string;
 }
 
 export interface Tags {
@@ -47,18 +51,35 @@ export interface Tags {
     subjectId: string,
     tagId: string,
   ): AsyncResult<boolean>;
+  /** The tenant's tags of `kind` (every kind without it), in rank order. */
+  list(organizationId: string, kind?: string): AsyncResult<readonly Tag[]>;
+  /** The tags on one subject, in rank order; the caller must be able to read it. */
+  forSubject(
+    organizationId: string,
+    subjectType: string,
+    subjectId: string,
+  ): AsyncResult<readonly Tag[]>;
 }
 
 function tagOf(value: unknown): Tag {
   const row = recordOf(value, "tag");
-  const rank = optionalText(row["rank"]);
+  const optional = (key: "rank" | "kind" | "color" | "description") => {
+    const found = optionalText(row[key]);
+    return found === undefined ? {} : { [key]: found };
+  };
   return {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
     slug: optionalText(row["slug"]) ?? "",
-    ...(rank === undefined ? {} : { rank }),
+    ...optional("rank"),
+    ...optional("kind"),
+    ...optional("color"),
+    ...optional("description"),
   };
 }
+
+const tagsOf = (value: unknown): readonly Tag[] =>
+  (Array.isArray(value) ? value : []).map(tagOf);
 
 export function createTags(options: TagsOptions): Tags {
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -105,6 +126,18 @@ export function createTags(options: TagsOptions): Tags {
           tag_id: tagId,
         },
         (value) => value === true,
+      ),
+    list: (organizationId, kind) =>
+      call("list_tags", { tenant: organizationId, kind: kind ?? null }, tagsOf),
+    forSubject: (organizationId, subjectType, subjectId) =>
+      call(
+        "subject_tags",
+        {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_id: subjectId,
+        },
+        tagsOf,
       ),
   };
 }

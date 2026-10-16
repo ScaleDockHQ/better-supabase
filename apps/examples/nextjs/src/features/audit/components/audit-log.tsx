@@ -1,7 +1,7 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 import { tenantOf } from "better-supabase/next";
 import { DownloadIcon, ScrollTextIcon } from "lucide-react";
-import { getExtracted, getFormatter } from "next-intl/server";
+import { getExtracted } from "next-intl/server";
 import { forbidden } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -22,19 +22,11 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
-import { getAuditEvents } from "../audit-queries";
+import { AuditLogTable } from "./audit-log-table";
 
 /** Render inside `<Suspense>`. The log is a plan feature (`audit`). */
 export async function AuditLog() {
@@ -62,10 +54,6 @@ export async function AuditLog() {
       </Empty>
     );
   }
-  const [events, format] = await Promise.all([
-    getAuditEvents(organizationId),
-    getFormatter(),
-  ]);
   return (
     <Card>
       <CardHeader>
@@ -85,47 +73,7 @@ export async function AuditLog() {
         </CardAction>
       </CardHeader>
       <CardContent>
-        {events.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {t("Nothing recorded yet.")}
-          </p>
-        ) : (
-          <Table data-testid="audit-events">
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("When")}</TableHead>
-                <TableHead>{t("Event")}</TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Actor")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Target")}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {events.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">
-                    {format.dateTime(new Date(event.occurredAt), {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {event.eventType}
-                  </TableCell>
-                  <TableCell className="hidden max-w-48 truncate md:table-cell">
-                    {event.actor ?? "–"}
-                  </TableCell>
-                  <TableCell className="hidden max-w-48 truncate md:table-cell">
-                    {event.target ?? "–"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        <AuditLogTable organizationId={organizationId} />
       </CardContent>
     </Card>
   );

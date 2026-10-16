@@ -16,6 +16,14 @@ insert into public.tags (id, organization_id, name, color) values
 insert into public.customer_tags (customer_id, tag_id, organization_id) values
   ('00000000-0000-4000-8000-00000000a001', '00000000-0000-4000-8000-00000000b001', '00000000-0000-4000-8000-000000000001');
 
+-- Tags of the tags block, for the tag input on the customer page.
+insert into better_supabase.tags (id, tenant_id, kind, name, slug, rank) values
+  ('00000000-0000-4000-8000-00000000b101', '00000000-0000-4000-8000-000000000001', 'customer', 'VIP', 'vip', 'V'),
+  ('00000000-0000-4000-8000-00000000b102', '00000000-0000-4000-8000-000000000001', 'customer', 'Churn risk', 'churn-risk', 'k');
+
+insert into better_supabase.taggings (tenant_id, tag_id, subject_type, subject_id) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b101', 'customer', '00000000-0000-4000-8000-00000000a001');
+
 insert into public.locations (organization_id, customer_id, label, city, is_primary) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'HQ', 'Amsterdam', true);
 

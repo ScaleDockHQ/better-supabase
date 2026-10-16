@@ -75,6 +75,12 @@ export function CustomerList() {
                   router.push("/activity");
                 }}
               />
+              <Button
+                title="Members, API keys and audit log"
+                onPress={() => {
+                  router.push("/settings");
+                }}
+              />
               <Button title="Sign out" onPress={() => void signOut()} />
             </View>
           }

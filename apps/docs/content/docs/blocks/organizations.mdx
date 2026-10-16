@@ -364,6 +364,51 @@ export function ActiveOrganization() {
 }
 ```
 
+## Members and invitations in the browser
+
+`useMembers` and `useInvitations` from
+`better-supabase/blocks/organizations/react` call the same functions as
+`members`, `updateMemberRole`, `removeMember`, `invitations`, `invite` and
+`revokeInvitation`, through the provider's client. Each takes the
+organization and waits without one, and each write returns a `Result` and
+keeps a failure in `error`. The same hooks run in React DOM and React
+Native.
+
+```tsx title="components/members-table.tsx"
+import {
+  useInvitations,
+  useMembers,
+} from "better-supabase/blocks/organizations/react";
+
+const { members, pending, setRole, remove } = useMembers({
+  organizationId,
+  schema: "api",
+});
+const { invite, inviting, sent, clear } = useInvitations({
+  organizationId,
+  schema: "api",
+});
+```
+
+`setRole(userId, role)` shows the new role at once and puts the old one
+back when `update_member_role` refuses it; `pending` lists the members with
+a write in flight. `remove(userId)` removes a member and loads the list
+again. `invite({ email, role })` keeps the result in `sent` until `clear()`,
+so a dialog can show the accept link from `sent.token`, and `revoke(id)`
+revokes an open invitation.
+
+`load` replaces the default list, such as with a server action that adds
+names and avatars from your profiles table, and `initial` takes rows a
+server already rendered so the first load is skipped. `onChanged` runs
+after a change committed, such as a server action that refreshes the
+member's session or completes an onboarding step. Both modules audit the
+changes themselves. `createMembersController` and
+`createInvitationsController` from `better-supabase/blocks/organizations`
+are the same logic without React, and the `/vue`, `/svelte` and `/solid`
+entries export `useMembers` and `useInvitations` over them. The
+[members table and invite dialog recipes](/docs/registry/ui-recipes) show
+them in the Next.js and Expo examples.
+
 ## Options
 
 `blocks.organizations.options`:

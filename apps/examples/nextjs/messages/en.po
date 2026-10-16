@@ -531,6 +531,51 @@ msgctxt "assistant.9WRlF4"
 msgid "Send"
 msgstr "Send"
 
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.JJkC4D"
+msgid "Every actor"
+msgstr "Every actor"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.jd6CuF"
+msgid "Every action"
+msgstr "Every action"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.CHXoWz"
+msgid "Actor"
+msgstr "Actor"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.QlsDcr"
+msgid "Action"
+msgstr "Action"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.N0gXcw"
+msgid "Nothing recorded yet."
+msgstr "Nothing recorded yet."
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.m1czzY"
+msgid "Event"
+msgstr "Event"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.rzbYbE"
+msgid "Target"
+msgstr "Target"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.00LcfG"
+msgid "Load more"
+msgstr "Load more"
+
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
 msgid "The audit log is on the Pro plan"
@@ -560,31 +605,6 @@ msgstr "Database changes and app events, recorded by the audit module."
 msgctxt "audit.TE51b7"
 msgid "Export CSV"
 msgstr "Export CSV"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.N0gXcw"
-msgid "Nothing recorded yet."
-msgstr "Nothing recorded yet."
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.McnLsx"
-msgid "When"
-msgstr "When"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.m1czzY"
-msgid "Event"
-msgstr "Event"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.CHXoWz"
-msgid "Actor"
-msgstr "Actor"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.rzbYbE"
-msgid "Target"
-msgstr "Target"
 
 #: src/features/auth/components/forgot-password-form.tsx
 msgctxt "auth.p-kmJg"
@@ -955,6 +975,7 @@ msgid "Cancel"
 msgstr "Cancel"
 
 #: src/features/customers/components/create-customer-form.tsx
+#: src/features/customers/components/tag-input.tsx
 msgctxt "customers.2_2yg-"
 msgid "Add"
 msgstr "Add"
@@ -973,6 +994,11 @@ msgstr "Comments"
 msgctxt "customers.p38jo8"
 msgid "Visible to everyone in the organization."
 msgstr "Visible to everyone in the organization."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.1EYCdR"
+msgid "Tags"
+msgstr "Tags"
 
 #: src/features/customers/components/customer-detail.tsx
 msgctxt "customers.QwtMmD"
@@ -1048,6 +1074,26 @@ msgstr "Notes"
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Last note"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.qGPxh2"
+msgid "No tags yet."
+msgstr "No tags yet."
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.Sqv6iR"
+msgid "Add a tag"
+msgstr "Add a tag"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.18HJlm"
+msgid "Tag"
+msgstr "Tag"
 
 #: src/features/customers/use-status-label.ts
 msgctxt "customers.bhfSJZ"

@@ -75,6 +75,32 @@ while its grace period runs:
 
 A rotated key also has `successorId`, the id of the key that replaced it.
 
+### In the browser
+
+`useApiKeys` from `better-supabase/blocks/api-keys/react` lists an
+organization's keys newest first through the provider's client, with the
+same rules as `list`. `create({ name, personal })` keeps the new key and
+its token in `created` until `dismiss()`, the only time the token is shown,
+and `revoke(id)` revokes a key; both load the list again and return a
+`Result`. Without an organization the hook lists and creates the caller's
+personal keys. The same hook runs in React DOM and React Native.
+
+```tsx title="components/api-keys-table.tsx"
+import { useApiKeys } from "better-supabase/blocks/api-keys/react";
+
+const { keys, created, create, revoke, dismiss } = useApiKeys({
+  organizationId,
+  schema: "api",
+});
+```
+
+`onChanged` runs after a key was created or revoked, such as a server
+action that completes an onboarding step. `createApiKeysController` from
+`better-supabase/blocks/api-keys` is the same logic without React, and
+`better-supabase/blocks/api-keys/vue`, `/svelte` and `/solid` export
+`useApiKeys` over it. The [API keys table recipe](/docs/registry/ui-recipes)
+shows it in the Next.js and Expo examples.
+
 ## Accepting keys
 
 `apiKeyResolver` reads the `x-api-key` header, or a Bearer token shaped like

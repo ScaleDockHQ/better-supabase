@@ -531,6 +531,51 @@ msgctxt "assistant.9WRlF4"
 msgid "Send"
 msgstr "Versturen"
 
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.JJkC4D"
+msgid "Every actor"
+msgstr "Iedereen"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.jd6CuF"
+msgid "Every action"
+msgstr "Elke actie"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.CHXoWz"
+msgid "Actor"
+msgstr "Door"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.QlsDcr"
+msgid "Action"
+msgstr "Actie"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.N0gXcw"
+msgid "Nothing recorded yet."
+msgstr "Nog niets vastgelegd."
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.McnLsx"
+msgid "When"
+msgstr "Wanneer"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.m1czzY"
+msgid "Event"
+msgstr "Gebeurtenis"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.rzbYbE"
+msgid "Target"
+msgstr "Doel"
+
+#: src/features/audit/components/audit-log-table.tsx
+msgctxt "audit.00LcfG"
+msgid "Load more"
+msgstr "Meer laden"
+
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
 msgid "The audit log is on the Pro plan"
@@ -560,31 +605,6 @@ msgstr "Databasewijzigingen en app-gebeurtenissen, vastgelegd door de audit-modu
 msgctxt "audit.TE51b7"
 msgid "Export CSV"
 msgstr "CSV exporteren"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.N0gXcw"
-msgid "Nothing recorded yet."
-msgstr "Nog niets vastgelegd."
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.McnLsx"
-msgid "When"
-msgstr "Wanneer"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.m1czzY"
-msgid "Event"
-msgstr "Gebeurtenis"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.CHXoWz"
-msgid "Actor"
-msgstr "Door"
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.rzbYbE"
-msgid "Target"
-msgstr "Doel"
 
 #: src/features/auth/components/forgot-password-form.tsx
 msgctxt "auth.p-kmJg"
@@ -955,6 +975,7 @@ msgid "Cancel"
 msgstr "Annuleren"
 
 #: src/features/customers/components/create-customer-form.tsx
+#: src/features/customers/components/tag-input.tsx
 msgctxt "customers.2_2yg-"
 msgid "Add"
 msgstr "Toevoegen"
@@ -973,6 +994,11 @@ msgstr "Reacties"
 msgctxt "customers.p38jo8"
 msgid "Visible to everyone in the organization."
 msgstr "Zichtbaar voor iedereen in de organisatie."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.1EYCdR"
+msgid "Tags"
+msgstr "Labels"
 
 #: src/features/customers/components/customer-detail.tsx
 msgctxt "customers.QwtMmD"
@@ -1048,6 +1074,26 @@ msgstr "Notities"
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Laatste notitie"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.qGPxh2"
+msgid "No tags yet."
+msgstr "Nog geen labels."
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.T0e6Lh"
+msgid "Remove {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.Sqv6iR"
+msgid "Add a tag"
+msgstr "Label toevoegen"
+
+#: src/features/customers/components/tag-input.tsx
+msgctxt "customers.18HJlm"
+msgid "Tag"
+msgstr "Label"
 
 #: src/features/customers/use-status-label.ts
 msgctxt "customers.bhfSJZ"

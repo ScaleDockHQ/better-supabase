@@ -194,20 +194,137 @@ const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "members-table",
+    title: "Members table",
+    block: "organizations",
+    description:
+      "An organization's members with their roles, where a role change shows at once and a member can be removed.",
+    hook: {
+      name: "useMembers",
+      entry: "better-supabase/blocks/organizations/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/organization/components/member-table.tsx`,
+      components: ["avatar", "button", "select", "table"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/members-table.tsx`,
+      components: ["ActivityIndicator", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "invite-dialog",
+    title: "Invite dialog",
+    block: "invitations",
+    description:
+      "A form that invites a teammate by email with a role, then shows the token for the accept link.",
+    hook: {
+      name: "useInvitations",
+      entry: "better-supabase/blocks/organizations/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/organization/components/invite-member-dialog.tsx`,
+      components: ["button", "dialog", "field", "input", "select"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/invite-dialog.tsx`,
+      components: ["Button", "Modal", "Pressable", "Text", "TextInput", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "api-keys-table",
+    title: "API keys table",
+    block: "api-keys",
+    description:
+      "The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key.",
+    hook: {
+      name: "useApiKeys",
+      entry: "better-supabase/blocks/api-keys/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/api-keys/components/api-key-table.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/api-keys-table.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Button",
+        "Pressable",
+        "Text",
+        "TextInput",
+        "View",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "audit-log-table",
+    title: "Audit log table",
+    block: "audit",
+    description:
+      "The audit trail, newest first, with filters by actor and action and older pages on demand.",
+    hook: {
+      name: "useAuditLog",
+      entry: "better-supabase/blocks/audit/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/audit/components/audit-log-table.tsx`,
+      components: ["button", "select", "skeleton", "table"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/audit-log-table.tsx`,
+      components: ["ActivityIndicator", "Button", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "tag-input",
+    title: "Tag input",
+    block: "tags",
+    description:
+      "A record's tags with suggestions, where typing a name adds a tag or creates it.",
+    hook: {
+      name: "useTagInput",
+      entry: "better-supabase/blocks/tags/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/customers/components/tag-input.tsx`,
+      components: ["badge", "button", "input", "skeleton"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/tag-input.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Button",
+        "Pressable",
+        "Text",
+        "TextInput",
+        "View",
+      ],
+      glue: [],
+    },
+  },
   ...(
     [
-      [
-        "members-table",
-        "Members table",
-        "organizations",
-        "An organization's members with their roles and actions.",
-      ],
-      [
-        "invite-dialog",
-        "Invite dialog",
-        "invitations",
-        "A form that invites a teammate by email with a role.",
-      ],
       [
         "plan-picker",
         "Plan picker",
@@ -225,24 +342,6 @@ const RECIPES: readonly RecipeSource[] = [
         "Feature gate",
         "entitlements",
         "Content shown only when the plan includes a feature.",
-      ],
-      [
-        "api-keys-table",
-        "API keys table",
-        "api-keys",
-        "The organization's API keys, with create and revoke.",
-      ],
-      [
-        "audit-log-table",
-        "Audit log table",
-        "audit",
-        "The audit trail with filters by actor and action.",
-      ],
-      [
-        "tag-input",
-        "Tag input",
-        "tags",
-        "An input that adds and removes tags on a record.",
       ],
       [
         "settings-layout",
@@ -468,7 +567,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
   return [
     "---",
     "title: UI recipes",
-    "description: Build a notification bell, a notification list, a command search and an onboarding checklist from shadcn or React Native components and the blocks' hooks.",
+    "description: Build a notification bell, a command search, a members table, an API keys table, a tag input and other interfaces from shadcn or React Native components and the blocks' hooks.",
     "---",
     "",
     "{/* Generated by scripts/build-recipes.ts from the example apps. Edit the examples or the script, then run `pnpm recipes`. */}",

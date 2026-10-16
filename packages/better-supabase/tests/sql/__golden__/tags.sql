@@ -269,6 +269,61 @@ $$;
 revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
 
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function "better_supabase"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = list_tags.tenant
+      and (list_tags.kind is null or t."kind" = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_tags"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_tags"(uuid, text) to authenticated, service_role;
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function "better_supabase"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g
+      where g."tenant_id" = subject_tags.tenant
+        and g."subject_type" = subject_tags.subject_type
+        and g."subject_id" = subject_tags.subject_id;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = subject_tags.tenant
+      and t."id" = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -564,6 +619,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function "better_supabase"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = list_tags.tenant
+      and (list_tags.kind is null or t."kind" = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_tags"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_tags"(uuid, text) to authenticated, service_role;
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function "better_supabase"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g
+      where g."tenant_id" = subject_tags.tenant
+        and g."subject_type" = subject_tags.subject_type
+        and g."subject_id" = subject_tags.subject_id;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = subject_tags.tenant
+      and t."id" = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -863,6 +973,61 @@ $$;
 revoke execute on function "app_private"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "app_private"."untag"(uuid, text, text, uuid) to authenticated, service_role;
 
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function "app_private"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "app_private"."tags" t
+    where t."tenant_id" = list_tags.tenant
+      and (list_tags.kind is null or t."kind" = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_tags"(uuid, text) from public, anon;
+grant execute on function "app_private"."list_tags"(uuid, text) to authenticated, service_role;
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function "app_private"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select array_agg(g."tag_id") into v_ids from "app_private"."taggings" g
+      where g."tenant_id" = subject_tags.tenant
+        and g."subject_type" = subject_tags.subject_type
+        and g."subject_id" = subject_tags.subject_id;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "app_private"."tags" t
+    where t."tenant_id" = subject_tags.tenant
+      and t."id" = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1159,6 +1324,61 @@ $$;
 revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
 
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function "better_supabase"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = list_tags.tenant
+      and (list_tags.kind is null or t."kind" = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_tags"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_tags"(uuid, text) to authenticated, service_role;
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function "better_supabase"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g
+      where g."tenant_id" = subject_tags.tenant
+        and g."subject_type" = subject_tags.subject_type
+        and g."subject_id" = subject_tags.subject_id;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = subject_tags.tenant
+      and t."id" = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1234,6 +1454,24 @@ set search_path = ''
 as $$ select "better_supabase"."untag"($1, $2, $3, $4) $$;
 revoke execute on function "api"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "api"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_tags"($1, $2) $$;
+revoke execute on function "api"."list_tags"(uuid, text) from public, anon;
+grant execute on function "api"."list_tags"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_tags"($1, $2, $3) $$;
+revoke execute on function "api"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "api"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -1501,6 +1739,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."untag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."untag"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function "better_supabase"."list_tags"(tenant uuid, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', list_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = list_tags.tenant
+      and (list_tags.kind is null or t."kind" = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_tags"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_tags"(uuid, text) to authenticated, service_role;
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function "better_supabase"."subject_tags"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
+  if not (true) then
+    raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
+  end if;
+  select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g
+      where g."tenant_id" = subject_tags.tenant
+        and g."subject_type" = subject_tags.subject_type
+        and g."subject_id" = subject_tags.subject_id;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
+    from "better_supabase"."tags" t
+    where t."tenant_id" = subject_tags.tenant
+      and t."id" = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

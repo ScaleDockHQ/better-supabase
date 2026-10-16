@@ -155,6 +155,18 @@ describe("saas block clients", () => {
         delete_tag: true,
         tag: true,
         untag: false,
+        list_tags: [
+          {
+            id: "g1",
+            kind: "deal",
+            name: "Gold",
+            slug: "gold",
+            color: "#fff",
+            description: null,
+            rank: "V",
+          },
+        ],
+        subject_tags: null,
       }),
     );
     expect(
@@ -164,6 +176,17 @@ describe("saas block clients", () => {
     expect(await tags.delete("g1").orThrow()).toBe(true);
     expect(await tags.tag("org", "deals", "d1", "g1").orThrow()).toBe(true);
     expect(await tags.untag("org", "deals", "d1", "g1").orThrow()).toBe(false);
+    expect(await tags.list("org", "deal").orThrow()).toEqual([
+      {
+        id: "g1",
+        kind: "deal",
+        name: "Gold",
+        slug: "gold",
+        color: "#fff",
+        rank: "V",
+      },
+    ]);
+    expect(await tags.forSubject("org", "deals", "d1").orThrow()).toEqual([]);
   });
 
   it("creates a share link, records a view and stores user state", async () => {

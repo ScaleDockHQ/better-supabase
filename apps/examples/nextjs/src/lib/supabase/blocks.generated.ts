@@ -171,6 +171,11 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  tags: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   teams: {
     schema: "better_supabase",
     options: {},

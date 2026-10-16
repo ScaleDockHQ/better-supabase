@@ -15,4 +15,13 @@ describe("organizations react-server build", () => {
       "useOrganizations() runs in Client Components only",
     );
   });
+
+  it("throws from useMembers and useInvitations", () => {
+    expect(() => server.useMembers({ organizationId: "org" })).toThrow(
+      "useMembers() runs in Client Components only",
+    );
+    expect(() => server.useInvitations({ organizationId: "org" })).toThrow(
+      "useInvitations() runs in Client Components only",
+    );
+  });
 });

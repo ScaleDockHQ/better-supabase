@@ -24,13 +24,20 @@ import {
   useAiShare,
 } from "../../src/blocks/ai-chat/react/index.ts";
 import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
+import { useApiKeys } from "../../src/blocks/api-keys/react/index.ts";
+import { useAuditLog } from "../../src/blocks/audit/react/index.ts";
 import { useComments } from "../../src/blocks/comments/react/index.ts";
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
-import { useOrganizations } from "../../src/blocks/organizations/react/index.ts";
+import {
+  useInvitations,
+  useMembers,
+  useOrganizations,
+} from "../../src/blocks/organizations/react/index.ts";
 import { useReactions } from "../../src/blocks/reactions/react/index.ts";
 import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
+import { useTagInput } from "../../src/blocks/tags/react/index.ts";
 import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
 import { undoToken } from "../../src/blocks/undo/undo.ts";
 import {
@@ -1499,6 +1506,267 @@ describe("useOrganizations", () => {
     expect(load).toHaveBeenCalledTimes(1);
     expect(view.result.organizations).toEqual([{ id: "org-2", plan: "pro" }]);
     expect(rpc).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+});
+
+describe("useMembers", () => {
+  it("lists the members and changes a role through the browser client", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, (fn) =>
+      fn === "list_members"
+        ? [
+            { user_id: USER, role: "owner" },
+            { user_id: OTHER, role: "member" },
+          ]
+        : true,
+    );
+    const onChanged = vi.fn();
+    const view = renderHook(
+      () => useMembers({ organizationId: "org-1", schema: "api", onChanged }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.members?.map((member) => member.role)).toEqual([
+      "owner",
+      "member",
+    ]);
+    expect((await view.result.setRole(OTHER, "admin")).ok).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("update_member_role", {
+      organization: "org-1",
+      member: OTHER,
+      role: "admin",
+    });
+    expect(onChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "role", userId: OTHER }),
+    );
+    view.unmount();
+  });
+
+  it("takes a loader and the server's rows", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => true);
+    const load = vi.fn(async () => [
+      { userId: OTHER, role: "member", name: "Ada" },
+    ]);
+    const view = renderHook(
+      () =>
+        useMembers({
+          organizationId: "org-1",
+          load,
+          initial: [{ userId: OTHER, role: "member", name: "Ada" }],
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect(view.result.members?.[0]?.name).toBe("Ada");
+    await view.result.remove(OTHER);
+    expect(rpc).toHaveBeenCalledWith("remove_member", {
+      organization: "org-1",
+      member: OTHER,
+    });
+    expect(load).toHaveBeenCalledWith("org-1");
+    view.unmount();
+  });
+});
+
+describe("useInvitations", () => {
+  it("lists the open invitations and sends one", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, (fn, args) =>
+      fn === "invite_member"
+        ? {
+            id: "inv-1",
+            tenant: "org-1",
+            email: args["invitee_email"],
+            role: args["invitee_role"],
+            expires_at: "2026-10-23T00:00:00Z",
+            token: "token-1",
+          }
+        : [{ id: "inv-0", email: "a@b.c", role: "member" }],
+    );
+    const onChanged = vi.fn();
+    const view = renderHook(
+      () => useInvitations({ organizationId: "org-1", onChanged }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.invitations?.map((each) => each.id)).toEqual(["inv-0"]);
+    const result = await view.result.invite({
+      email: "ada@example.com",
+      role: "member",
+    });
+    expect(result.ok).toBe(true);
+    expect(view.result.sent?.token).toBe("token-1");
+    expect(rpc).toHaveBeenCalledWith(
+      "invite_member",
+      expect.objectContaining({
+        tenant: "org-1",
+        invitee_email: "ada@example.com",
+      }),
+    );
+    expect(onChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "invited" }),
+    );
+    view.unmount();
+  });
+
+  it("takes a loader and the server's rows", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => true);
+    const load = vi.fn(async () => [{ id: "inv-2" }]);
+    const view = renderHook(
+      () =>
+        useInvitations({
+          organizationId: "org-1",
+          load,
+          initial: [{ id: "inv-1" }],
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect((await view.result.revoke("inv-1")).ok).toBe(true);
+    expect(view.result.invitations).toEqual([{ id: "inv-2" }]);
+    view.unmount();
+  });
+});
+
+describe("useAuditLog", () => {
+  it("loads a page, filters it and loads more", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const entry = (id: string) => ({
+      id,
+      occurredAt: "2026-10-06T12:00:00Z",
+      eventType: "invitation.created",
+      actorId: USER,
+    });
+    const rpc = withRpc(client, (_fn, args) =>
+      args["cursor_id"] === "e2" ? [entry("e3")] : [entry("e1"), entry("e2")],
+    );
+    const view = renderHook(
+      () => useAuditLog({ organizationId: "org-1", limit: 2, schema: "api" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.entries?.map((each) => each.id)).toEqual(["e1", "e2"]);
+    expect(view.result.hasMore).toBe(true);
+    await view.result.loadMore();
+    expect(view.result.entries?.map((each) => each.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
+    expect(view.result.hasMore).toBe(false);
+    await view.result.setFilters({ actorId: OTHER });
+    expect(rpc).toHaveBeenLastCalledWith(
+      "list_audit_events",
+      expect.objectContaining({ for_tenants: ["org-1"], for_actors: [OTHER] }),
+    );
+    expect(view.result.filters).toEqual({ actorId: OTHER });
+    view.unmount();
+  });
+});
+
+describe("useApiKeys", () => {
+  it("lists the keys, creates one and revokes one", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const key = (id: string, created: string) => ({
+      id,
+      organization_id: "org-1",
+      name: id,
+      prefix: "bs",
+      public_id: `p${id}`,
+      scopes: [],
+      created_at: created,
+      state: "active",
+    });
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "create_api_key") return key("k3", "2026-10-03T00:00:00Z");
+      if (fn === "revoke_api_key") return true;
+      return [
+        key("k1", "2026-10-01T00:00:00Z"),
+        key("k2", "2026-10-02T00:00:00Z"),
+      ];
+    });
+    const view = renderHook(
+      () => useApiKeys({ organizationId: "org-1", schema: "api" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.keys?.map((each) => each.id)).toEqual(["k2", "k1"]);
+    const created = await view.result.create({ name: "CI" });
+    expect(created.ok).toBe(true);
+    expect(view.result.created?.token).toMatch(/^bs_/);
+    expect(rpc).toHaveBeenCalledWith(
+      "create_api_key",
+      expect.objectContaining({ name: "CI", tenant: "org-1" }),
+    );
+    view.result.dismiss();
+    expect(view.result.created).toBeUndefined();
+    expect((await view.result.revoke("k1")).ok).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("revoke_api_key", { key: "k1" });
+    view.unmount();
+  });
+});
+
+describe("useTagInput", () => {
+  it("loads the subject's tags and adds, creates and removes one", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "subject_tags")
+        return [{ id: "t1", name: "VIP", slug: "vip" }];
+      if (fn === "list_tags")
+        return [
+          { id: "t1", name: "VIP", slug: "vip" },
+          { id: "t2", name: "Churn risk", slug: "churn-risk" },
+        ];
+      if (fn === "create_tag") return { id: "t3", slug: "new", rank: "V" };
+      return true;
+    });
+    const onChanged = vi.fn();
+    const view = renderHook(
+      () =>
+        useTagInput({
+          organizationId: "org-1",
+          subjectType: "customer",
+          subjectId: "cu1",
+          kind: "customer",
+          schema: "api",
+          onChanged,
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.tags?.map((tag) => tag.name)).toEqual(["VIP"]);
+    expect(view.result.available).toHaveLength(2);
+    expect((await view.result.add("t2")).ok).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("tag", {
+      tenant: "org-1",
+      subject_type: "customer",
+      subject_id: "cu1",
+      tag_id: "t2",
+    });
+    expect((await view.result.create("New")).ok).toBe(true);
+    expect(view.result.tags?.map((tag) => tag.id)).toEqual(["t1", "t2", "t3"]);
+    expect(onChanged).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "added", created: true }),
+    );
+    expect((await view.result.remove("t1")).ok).toBe(true);
+    expect(view.result.tags?.map((tag) => tag.id)).toEqual(["t2", "t3"]);
     view.unmount();
   });
 });
