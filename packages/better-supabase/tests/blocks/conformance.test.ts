@@ -104,8 +104,6 @@ const NO_FIELDS: readonly string[] = [
   "custom-fields",
   "data-lifecycle",
   "documents",
-  "engagements",
-  "forms",
   "identities",
   "imports",
   "inbox",

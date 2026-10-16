@@ -29,6 +29,24 @@ const CASES: readonly {
     ],
   },
   {
+    module: "engagements",
+    table: "engagements",
+    writes: [
+      `"region" = case when log_engagement.attrs -> 'fields' ? 'region'`,
+      `"region" = case when update_engagement.attrs -> 'fields' ? 'region'`,
+    ],
+    reads: [`'fields', jsonb_build_object('region', x."region")`],
+  },
+  {
+    module: "forms",
+    table: "forms",
+    writes: [
+      `"region" = case when create_form.fields ? 'region'`,
+      `"region" = case when update_form.fields ? 'region'`,
+    ],
+    reads: [`'fields', jsonb_build_object('region', x."region")`],
+  },
+  {
     module: "deals",
     table: "deals",
     writes: [
