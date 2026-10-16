@@ -28,6 +28,11 @@ import {
   disabling,
 } from "./data-lifecycle-entries.ts";
 import { DATA_LIFECYCLE_EVENTS } from "./data-lifecycle-events.ts";
+import {
+  RETENTION_CONTRACT,
+  RETENTION_TABLES,
+  retentionSql,
+} from "./data-lifecycle-retention.ts";
 
 const NAMES: ModuleNames = {
   events: DATA_LIFECYCLE_EVENTS,
@@ -71,6 +76,7 @@ const NAMES: ModuleNames = {
         previouslyDisabled: "previously_disabled",
       },
     },
+    ...RETENTION_TABLES,
   },
 };
 
@@ -245,6 +251,8 @@ create table if not exists ${d} (
 create index if not exists ${ctx.naming.rename("organization_deletions_due_idx")} on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
 create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
 ${lockTable(d)}
+
+${retentionSql(ctx)}
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
@@ -591,6 +599,13 @@ begin
   if v_row.${cd("tenant")} is null or v_row.${cd("purgeAfter")} > now() then
     ${fail("ORGANIZATION_DELETION_NOT_DUE", "No due deletion for this organization", "P0002")}
   end if;
+  if exists (
+    select 1 from ${ctx.table("holds")} x
+    where x.${ctx.col("holds", "releasedAt")} is null
+      and (x.${ctx.col("holds", "tenant")} is null or x.${ctx.col("holds", "tenant")} = purge_organization.tenant)
+  ) then
+    ${fail("ORGANIZATION_LEGAL_HOLD", "A legal hold covers this organization, so it can't be purged", "P0001")}
+  end if;
   ${ctx.hook("on_organization_purge", [[id, "purge_organization.tenant"]])}
   -- Tables go in reverse order; a table whose rows another table still
   -- references (a restricting foreign key) waits for a later pass.
@@ -737,6 +752,7 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "due_organization_deletions", args: ["integer"], returns: "jsonb" },
     { name: "purge_organization", args: ["{id}"], returns: "jsonb" },
     { name: "anonymize_due", args: ["integer"], returns: "jsonb" },
+    ...RETENTION_CONTRACT,
   ];
 }
 
@@ -751,7 +767,7 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   names: NAMES,
   contract,
   upgrades: [
@@ -777,6 +793,12 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
       from: 4,
       description:
         "Exports leave out credential_ref columns and the audit row snapshots and impersonation details, more module tables are exported and purged, and organization_credential_refs lists the refs the purger revokes before the purge.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "retention_policies and legal_holds: the modules' purges keep rows for each kind's policy and skip held ones, and purge_organization refuses a held tenant.",
       sql: () => "",
     },
   ],

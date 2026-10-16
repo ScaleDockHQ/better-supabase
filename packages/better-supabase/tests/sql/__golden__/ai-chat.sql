@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bs-module ai-chat@2 managed
+-- @bs-module ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1712,6 +1712,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
+      and not false
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";
@@ -2320,13 +2321,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('ai-chat', 2, 'managed')
+values ('ai-chat', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bs-module ai-chat@2 managed
+-- @bs-module ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4092,6 +4093,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
+      and not "better_supabase"."is_held"('ai_chats', (x."organization_id")::text)
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";
@@ -4700,13 +4702,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('ai-chat', 2, 'managed')
+values ('ai-chat', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bs-module ai-chat@2 managed
+-- @bs-module ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6420,6 +6422,7 @@ begin
   with doomed as (
     select x."id" from "app_private"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
+      and not false
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "app_private"."ai_chats" c using doomed where c."id" = doomed."id";
@@ -7028,13 +7031,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('ai-chat', 2, 'managed')
+values ('ai-chat', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bs-module ai-chat@2 managed
+-- @bs-module ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8746,6 +8749,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
+      and not false
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";
@@ -9837,6 +9841,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('ai-chat', 2, 'managed')
+values ('ai-chat', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

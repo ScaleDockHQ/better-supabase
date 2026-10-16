@@ -185,7 +185,7 @@ declare
 begin
   delete from ${T("inbound")} e where e.${ie("id")} in (
     select x.${ie("id")} from ${T("inbound")} x
-    where x.${ie("receivedAt")} < now() - coalesce(older_than, interval '30 days')
+    where ${q.ctx.expired("inbound_events", { at: `x.${ie("receivedAt")}`, tenant: `x.${ie("tenant")}`, fallback: "coalesce(older_than, interval '30 days')" })}
       and x.${ie("status")} in ('processed', 'ignored')
     limit greatest(coalesce(batch, 1000), 1)
   );

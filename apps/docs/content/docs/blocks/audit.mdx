@@ -483,3 +483,81 @@ until it returns 0; each call deletes at most `batch` entries per tenant.
 `purgeAuditLog` also takes a service-role transport instead of the SQL
 connection, such as `rpcTransport(admin, { schema: "api" })` over the
 wrappers `blocks.audit.api` writes.
+
+With the `data-lifecycle` module, `purge_audit_log` also follows the
+`audit` [retention policies and legal holds](/docs/blocks/data-lifecycle#retention-policies-and-legal-holds).
+
+### Partitioned log
+
+`options.partitioned` creates a new managed log partitioned by month on
+`occurred_at`, so a purge drops whole months instead of deleting rows:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { audit: { options: { partitioned: true } } },
+});
+```
+
+The module creates this month's partition and the next three, plus a
+default partition for anything outside them. Schedule
+`better_supabase.maintain_partitions()` once a month to add the months
+ahead. `purge_audit_log` drops every month past the cutoff, which is the
+longest `audit` retention policy or `older_than`, and deletes the dropped
+entries' restricted details. It deletes rows one by one instead while a
+legal hold covers audit entries, when an `audit_retention` hook exists, or
+for one tenant.
+
+The option applies when the module creates the log. An existing log stays
+as it is, and `better-supabase doctor` reports it as BS335; move its rows
+into a partitioned copy yourself. An adopted log is never partitioned.
+
+## Hash chain
+
+`options.chain` links each tenant's entries in a hash chain: every entry
+stores its position, the previous entry's hash and its own hash, a SHA-256
+of the row and the previous hash. Changing, deleting or inserting an entry
+afterwards breaks the chain from that point. `createAuditChain` checks it
+and signs its heads:
+
+```ts title="jobs/audit-checkpoint.ts"
+import { createAuditChain, sqlTransport } from "better-supabase/blocks/audit";
+import { createSigningKeys } from "better-supabase/blocks/signing-keys";
+
+const signingKeys = createSigningKeys({
+  transport: sqlTransport(postgres.admin),
+});
+const chain = createAuditChain({
+  transport: sqlTransport(postgres.admin),
+  signer: signingKeys.signer(
+    { type: "app", id: "audit" },
+    { create: "Ed25519" },
+  ),
+  issuer: "https://app.example.com",
+});
+
+await chain.checkpoint().orThrow();
+
+const verdict = await chain.verify({ organizationId }).orThrow();
+// { valid: true, checked: 1204, seq: 1204, hash: "9f2c…" }
+// { valid: false, checked: 311, seq: 312, brokenAt: "8841", reason: "hash" }
+```
+
+| Method               | What it does                                                           |
+| -------------------- | ---------------------------------------------------------------------- |
+| `verify(range?)`     | Checks a tenant's entries in order, optionally between `from` and `to` |
+| `heads()`            | Each tenant's latest entry that no checkpoint covers yet               |
+| `checkpoint()`       | Signs every head as a JWS and records it in `audit_checkpoints`        |
+| `checkpoints(opts?)` | A tenant's recorded checkpoints, newest first                          |
+
+A verdict's `reason` is `hash` (an entry changed), `link` (an entry points
+at the wrong predecessor), `gap` (an entry is missing) or `checkpoint` (a
+signed head no longer matches). The checkpoint JWS carries `sub` (the
+tenant), `seq`, `hash`, `entry` and `iat`; publish the signer's
+[JWK Set](/docs/blocks/signing-keys) so an auditor can check the
+checkpoints without database access. Run `checkpoint()` on a schedule:
+an entry rewritten together with every later hash still fails against the
+last signed head.
+
+Every chain function is service-role only. The chain starts with the first
+entry written after the option is on; older entries stay outside it. It
+needs a managed log.

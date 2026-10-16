@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@2 managed
+-- @bs-module workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -872,13 +872,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 2, 'managed')
+values ('workflows', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@2 managed
+-- @bs-module workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1338,7 +1338,9 @@ begin
   with doomed as (
     select "id" from "better_supabase"."workflow_runs"
     where "status" in ('completed', 'failed', 'cancelled')
-      and coalesce("completed_at", "updated_at") < now() - coalesce(older_than, interval '30 days')
+      and (coalesce("completed_at", "updated_at") < now() - least(coalesce(older_than, interval '30 days'), "better_supabase"."retention_floor"('workflow_runs'))
+      and coalesce("completed_at", "updated_at") < now() - coalesce("better_supabase"."retention_for"('workflow_runs', ("tenant_id")::text), coalesce(older_than, interval '30 days'))
+      and not "better_supabase"."is_held"('workflow_runs', ("tenant_id")::text))
     limit greatest(coalesce(batch, 1000), 1)
   )
   delete from "better_supabase"."workflow_runs" x using doomed where x."id" = doomed."id";
@@ -1762,13 +1764,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 2, 'managed')
+values ('workflows', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@2 managed
+-- @bs-module workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2642,13 +2644,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 2, 'managed')
+values ('workflows', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_42_workflows.sql
 -- better-supabase module: workflows
--- @bs-module workflows@2 managed
+-- @bs-module workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3699,6 +3701,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('workflows', 2, 'managed')
+values ('workflows', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

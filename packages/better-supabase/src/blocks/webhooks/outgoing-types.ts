@@ -9,9 +9,14 @@ import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type {
+  CredentialProvider,
+  CredentialRef,
+} from "../../credentials/provider.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { WebhookEncoder } from "./encoders.ts";
 import type { WebhookTransport } from "./http.ts";
 import type { RotateSecretOptions, WebhookSecretStore } from "./secrets.ts";
 import type { WebhookSigner } from "./signers.ts";
@@ -42,6 +47,12 @@ export interface WebhookDelivery {
   readonly permissions: readonly string[] | null;
   /** The endpoint takes CloudEvents batches. */
   readonly batch: boolean;
+  /** `v1` signs with the endpoint's secrets, `v1a` with `asymmetricSigner`. */
+  readonly signing: "v1" | "v1a";
+  /** The encoder that writes the request body, such as `cloudevents` or `otlp-logs`. */
+  readonly format: string;
+  /** The credential whose token authenticates the request, if any. */
+  readonly credentialRef: CredentialRef | null;
   readonly createdAt: Temporal.Instant;
 }
 
@@ -79,10 +90,28 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly http?: WebhookTransport;
   /** Used by the default `http`. Defaults to `publicUrl()`. */
   readonly allowUrl?: AllowUrl;
-  /** Defaults to `standardWebhooks()`. */
+  /** Signs deliveries to `v1` endpoints. Defaults to `standardWebhooks()`. */
   readonly signer?: WebhookSigner;
+  /**
+   * Signs deliveries to endpoints with `signing = 'v1a'`, usually
+   * `standardWebhooksAsymmetric({ signer })`. Without it those deliveries
+   * are dead-lettered.
+   */
+  readonly asymmetricSigner?: WebhookSigner;
   /** Defaults to `sqlSecretStore(transport)`. */
   readonly secrets?: WebhookSecretStore;
+  /**
+   * Encoders for endpoint `format`s beyond, or replacing, the built-in
+   * `cloudevents`, `otlp-logs` and `splunk-hec`. A delivery to a format
+   * without an encoder is dead-lettered.
+   */
+  readonly encoders?: readonly WebhookEncoder[];
+  /**
+   * Resolves an endpoint's `credential_ref` to the token that
+   * authenticates its requests. Without it, such deliveries are
+   * dead-lettered.
+   */
+  readonly credentials?: CredentialProvider;
   readonly retry?: RetryPolicy;
   /** Return `false` (or throw) to cancel a delivery instead of sending it. */
   readonly shouldDeliver?: (

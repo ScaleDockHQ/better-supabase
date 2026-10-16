@@ -1,5 +1,6 @@
 import type {
   DataExportEventData,
+  LegalHoldEventData,
   OrganizationDeletionEventData,
 } from "../../core/block-events.ts";
 import type { Events } from "../../core/event-map.ts";
@@ -14,6 +15,8 @@ export type DataLifecycleEvents = {
   readonly "organization.deletion_requested": OrganizationDeletionEventData;
   readonly "organization.deletion_cancelled": OrganizationDeletionEventData;
   readonly "organization.purged": OrganizationDeletionEventData;
+  readonly "legal_hold.placed": LegalHoldEventData;
+  readonly "legal_hold.released": LegalHoldEventData;
 };
 
 /** The `data-lifecycle` block's event types, for its manifest and `onBlockEvent`. */
@@ -24,4 +27,6 @@ export const dataLifecycleEvents: Events<DataLifecycleEvents> = defineEvents({
   "organization.deletion_requested": event<OrganizationDeletionEventData>(),
   "organization.deletion_cancelled": event<OrganizationDeletionEventData>(),
   "organization.purged": event<OrganizationDeletionEventData>(),
+  "legal_hold.placed": event<LegalHoldEventData>(),
+  "legal_hold.released": event<LegalHoldEventData>(),
 });

@@ -139,6 +139,16 @@ export interface OrganizationDeletionEventData {
   readonly purgeAfter?: string;
 }
 
+/** `legal_hold.*`, from the data-lifecycle module. */
+export interface LegalHoldEventData {
+  readonly holdId: string;
+  /** Absent for a hold on every tenant. */
+  readonly organizationId?: string;
+  /** Absent for a hold on every kind. */
+  readonly kind?: string;
+  readonly reason: string;
+}
+
 /** `organization.domain_*`, from the sso module. */
 export interface OrganizationDomainEventData {
   readonly organizationId: string;

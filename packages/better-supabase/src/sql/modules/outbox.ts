@@ -546,23 +546,26 @@ $$;
 -- A null older_than or batch takes its default.
 create or replace function ${ctx.fn("purge_outbox")}(older_than interval default ${retention}, batch integer default 10000, ignore_idle interval default null)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with active as (
     select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")} from ${n.c} k
     where ignore_idle is null or k.${n.k("updatedAt")} >= now() - ignore_idle
   ),
   letters as (
     delete from ${n.d} x
-    where x.${n.x("deadAt")} < now() - coalesce(older_than, ${retention}::interval)
+    where ${ctx.expired("outbox", { at: `x.${n.x("deadAt")}`, tenant: "null", fallback: `coalesce(older_than, ${retention}::interval)` })}
   ),
   gone as (
     delete from ${n.t} e
     where e.${n.e("id")} in (
       select d.${n.e("id")} from ${n.t} d
-      where d.${n.e("createdAt")} < now() - coalesce(older_than, ${retention}::interval)
+      where ${ctx.expired("outbox", { at: `d.${n.e("createdAt")}`, tenant: n.has("tenant") ? `d.${n.e("tenant")}` : "null", fallback: `coalesce(older_than, ${retention}::interval)` })}
         and (
           not exists (select 1 from active)
           or ${key("d")} <= (
@@ -576,7 +579,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from gone
+  select count(*)::integer into v_purged from gone;
+  return v_purged;
+end;
 $$;
 ${service("outbox_register", "text, text[], boolean")}
 ${service("outbox_unregister", "text")}
@@ -659,7 +664,8 @@ export const OUTBOX: ModuleDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 3,
+  version: 4,
+  integrates: ["data-lifecycle"],
   names: NAMES,
   adoptOptional: () => ({ events: ["xid"] }),
   upgrades: [
@@ -675,6 +681,12 @@ export const OUTBOX: ModuleDefinition = {
         "Consumers count failures (outbox_fail) and back off; after max_attempts an event goes to outbox_dead_letters and the cursor moves on. purge_outbox takes ignore_idle.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("purge_outbox")}(interval, integer);`,
+    },
+    {
+      from: 3,
+      description:
+        "purge_outbox keeps events for the data-lifecycle retention policy and skips those under a legal hold.",
+      sql: () => "",
     },
   ],
   contract: () => [

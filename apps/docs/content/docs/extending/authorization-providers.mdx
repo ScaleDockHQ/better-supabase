@@ -103,6 +103,37 @@ or `integer`. Each `decidingColumns` entry is `schema.table.column`, and
 `apiVersion` gets one message naming both versions instead of a list of field
 errors.
 
+### Nested tenancy
+
+The built-in tenancy has one level: a row belongs to an organization, and
+`tenant_ids_with()` returns organization ids. An app that splits each
+organization into environments (or projects, or workspaces) models the extra
+level as provider scopes. Each scope names its `parent`, and `tenantScope`
+picks the level the modules treat as the tenant:
+
+```ts
+scopes: [
+  { name: "organization", idType: "uuid" },
+  { name: "environment", idType: "uuid", parent: "organization" },
+],
+tenantScope: "environment",
+functions: {
+  idsWith: "authz.{scope}_ids_with({permission})",
+  isPlatform: "authz.is_platform({permission})",
+  memberIds: "authz.member_{scope}_ids()",
+},
+```
+
+With `tenantScope: "environment"`, the modules' `organization_id` columns
+hold environment ids, and `can()` asks the provider for the environments
+where the caller holds a permission. The provider decides how a role on an
+organization reaches its environments, so `authz.environment_ids_with()`
+returns the environments of every organization where the caller holds the
+key, plus those granted one by one. Keep `tenantScope: "organization"` when
+the modules work per organization and only your own tables have an
+environment column; your policies then call the provider's environment
+function directly.
+
 ### Functions
 
 Each function is a SQL template. better-supabase fills the placeholders and

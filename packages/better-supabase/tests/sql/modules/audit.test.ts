@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockConfig } from "../../../src/config/blocks.ts";
 
+import { moduleContext } from "../../../src/sql/module-context.ts";
 import { resolveModules } from "../../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
@@ -222,9 +223,82 @@ describe("audit module", () => {
     expect(sql).not.toContain("audit_events_correlation_idx");
   });
 
-  it("upgrades from versions 5 and 6 without SQL of their own", () => {
+  it("upgrades from versions 5, 6 and 7 without SQL of their own", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 5 }]);
-    expect(plan!.steps.map((step) => step.sql)).toEqual(["", ""]);
+    expect(plan!.steps.map((step) => step.sql)).toEqual(["", "", ""]);
+  });
+
+  it("chains entries and lists the chain functions only with options.chain", () => {
+    const sql = audit({ options: { chain: true } });
+    expect(sql).toContain(
+      'alter table "better_supabase"."audit_events" add column if not exists row_hash bytea;',
+    );
+    expect(sql).toContain(
+      'create trigger "bs_audit_chain" before insert on "better_supabase"."audit_events"',
+    );
+    expect(sql).toContain(
+      "create or replace function better_supabase.verify_audit_chain(",
+    );
+    expect(sql).toContain(
+      "create table if not exists better_supabase.audit_checkpoints (",
+    );
+    expect(audit()).toContain(
+      'drop trigger if exists "bs_audit_chain" on "better_supabase"."audit_events";',
+    );
+    expect(audit()).not.toContain("verify_audit_chain");
+    expect(audit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
+      "audit_chain",
+    );
+    const contract = (config: BlockConfig) =>
+      resolveModules(["audit"]).find((module) => module.name === "audit")!
+        .contract!(moduleContext("audit", { modules: { audit: config } })).map(
+        (fn) => fn.name,
+      );
+    expect(contract({ options: { chain: true } })).toContain(
+      "verify_audit_chain",
+    );
+    expect(contract({})).not.toContain("verify_audit_chain");
+  });
+
+  it("partitions a new managed log by month and drops expired months in the purge", () => {
+    const sql = audit({ options: { partitioned: true, restricted: true } });
+    expect(sql).toContain(') partition by range ("occurred_at");');
+    expect(sql).toContain('primary key ("id", "occurred_at")');
+    expect(sql).not.toContain(
+      "create unique index if not exists audit_events_idempotency_idx",
+    );
+    expect(sql).toContain('"entry_id" bigint primary key,');
+    expect(sql).toContain(
+      `better_supabase.expired_partitions('"better_supabase"."audit_events"'::regclass, now() - older_than)`,
+    );
+    expect(sql).toContain(
+      'delete from "better_supabase"."audit_events_restricted" r using %s p',
+    );
+    expect(sql).toContain(
+      `select better_supabase.ensure_partitions('"better_supabase"."audit_events"'::regclass, 3);`,
+    );
+    expect(audit({ options: { partitioned: true } })).not.toContain(
+      "using %s p",
+    );
+    expect(audit()).not.toContain("expired_partitions");
+  });
+
+  it("keeps entries for the data-lifecycle policies and holds", () => {
+    const sql = renderModules(["audit", "data-lifecycle"], {
+      modules: { audit: { options: { partitioned: true } } },
+    })
+      .filter((file) => file.module === "audit")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(sql).toContain(
+      `"better_supabase"."retention_cutoff"('audit', older_than)) p`,
+    );
+    expect(sql).toContain(
+      `"better_supabase"."is_held"('audit', (v_tenant)::text)`,
+    );
+    expect(sql).toContain(
+      `"better_supabase"."retention_for"('audit', (l."organization_id")::text), older_than)`,
+    );
   });
 
   it("drops the old signatures when upgrading from version 1", () => {

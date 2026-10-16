@@ -45,6 +45,8 @@ export interface ApiKey {
   readonly prefix: string;
   readonly publicId: string;
   readonly scopes: readonly string[];
+  /** What the key is for, one of `blocks.api-keys.options.kinds`. */
+  readonly kind?: string;
   /** Requests per minute, when the key has a limit. */
   readonly rateLimit?: number;
   readonly expiresAt?: Temporal.Instant;
@@ -72,6 +74,8 @@ export interface CreateApiKeyInput {
   readonly personal?: boolean;
   /** `*` grants every scope. */
   readonly scopes?: readonly string[];
+  /** What the key is for, one of `blocks.api-keys.options.kinds`. */
+  readonly kind?: string;
   readonly expiresAt?: Temporal.Instant;
   /** Requests per minute. */
   readonly rateLimit?: number;
@@ -244,6 +248,7 @@ function apiKeyOf(value: unknown): ApiKey {
   const rotatedFrom = optionalText(row["rotated_from"]);
   const createdBy = optionalText(row["created_by"]);
   const successorId = optionalText(row["successor_id"]);
+  const kind = optionalText(row["kind"]);
   const rateLimit = row["rate_limit"];
   return {
     id: textOf(row["id"]),
@@ -253,6 +258,7 @@ function apiKeyOf(value: unknown): ApiKey {
     prefix: textOf(row["prefix"]),
     publicId: textOf(row["public_id"]),
     scopes: stringsOf(row["scopes"]),
+    ...(kind ? { kind } : {}),
     ...(typeof rateLimit === "number" ? { rateLimit } : {}),
     ...(expiresAt ? { expiresAt } : {}),
     ...(lastUsedAt ? { lastUsedAt } : {}),
@@ -325,6 +331,7 @@ export function createApiKeys<
       organizationId,
       personal,
       scopes,
+      kind,
       expiresAt,
       rateLimit,
       ...extra
@@ -344,6 +351,7 @@ export function createApiKeys<
               expires_at: instantArg(expiresAt) ?? null,
               rate_limit: rateLimit ?? null,
               prefix,
+              kind: kind ?? null,
               ...more,
             },
             token,
@@ -418,14 +426,36 @@ export interface ApiKeyExtraClaim {
   readonly serviceRoles?: readonly string[];
 }
 
-export interface ApiKeyClaimsOptions {
+/** The claims a key's JWT always carries, which `claims` cannot set. */
+export type ApiKeyReservedClaim = "sub" | "role" | "aud" | "api_key";
+
+/** Extra claims from the `claims` hook: any key but the reserved ones. */
+export type ApiKeyExtraClaims = Readonly<Record<string, unknown>> & {
+  readonly [K in ApiKeyReservedClaim]?: never;
+};
+
+const RESERVED_CLAIMS: ReadonlySet<string> = new Set<ApiKeyReservedClaim>([
+  "sub",
+  "role",
+  "aud",
+  "api_key",
+]);
+
+/** `F` is the extra key fields of `createApiKeys({ fields })`. */
+export interface ApiKeyClaimsOptions<F extends object = Record<never, never>> {
   /**
    * Also write the claim an authorization provider's SQL functions read:
    * the scopes as a ceiling, and a tenant key's tenant and roles.
    */
   readonly claim?: ApiKeyExtraClaim;
   /** The roles a tenant key holds in its tenant; default `claim.serviceRoles`. */
-  readonly serviceRoles?: (key: ApiKey) => readonly string[];
+  readonly serviceRoles?: (key: ApiKey & F) => readonly string[];
+  /**
+   * Claims to add for a key, such as one read from its `kind` or an extra
+   * column. `sub`, `role`, `aud`, `api_key` and the claims the other options
+   * write keep their values.
+   */
+  readonly claims?: (key: ApiKey & F) => ApiKeyExtraClaims;
   /**
    * The permission keys `*` stands for in `claim`, which has no wildcard,
    * so without this a key with `*` allows nothing there.
@@ -438,9 +468,11 @@ export interface ApiKeyClaimsOptions {
   readonly tenantClaim?: string;
 }
 
-export interface ApiKeyResolverOptions extends ApiKeyClaimsOptions {
+export interface ApiKeyResolverOptions<
+  F extends object = Record<never, never>,
+> extends ApiKeyClaimsOptions<F> {
   /** `createApiKeys` over a service transport. */
-  readonly keys: Pick<ApiKeys, "verify">;
+  readonly keys: Pick<ApiKeys<F>, "verify">;
   /** The header that carries the key besides `Authorization: Bearer`. Defaults to `x-api-key`. */
   readonly header?: string;
 }
@@ -448,11 +480,11 @@ export interface ApiKeyResolverOptions extends ApiKeyClaimsOptions {
 /**
  * The claims queries run with for a key: `api_key` with `id`, `name`,
  * `scopes` and `organization_id` for the module's `has_scope()` and
- * `api_key_tenant()`, plus `options.claim`.
+ * `api_key_tenant()`, plus `options.claim` and `options.claims`.
  */
-export function apiKeyClaims(
-  key: ApiKey,
-  options: ApiKeyClaimsOptions = {},
+export function apiKeyClaims<F extends object = Record<never, never>>(
+  key: ApiKey & F,
+  options: ApiKeyClaimsOptions<F> = {},
 ): JWTClaims {
   const scopes =
     key.scopes.includes("*") && options.allPermissions
@@ -469,7 +501,11 @@ export function apiKeyClaims(
     scopes,
     ...(key.organizationId ? { organization_id: key.organizationId } : {}),
   };
+  const extra = Object.entries(options.claims?.(key) ?? {}).filter(
+    ([name]) => !RESERVED_CLAIMS.has(name),
+  );
   const claims: Record<string, unknown> = {
+    ...Object.fromEntries(extra),
     sub: key.userId ?? "",
     role: "authenticated",
     aud: "authenticated",
@@ -514,7 +550,9 @@ function presented(request: Request, header: string): string | undefined {
  * auth state. Requests without one fall through to the JWT and cookie
  * resolution. Pass it to `createServer({ auth: { resolvers: [...] } })`.
  */
-export function apiKeyResolver(options: ApiKeyResolverOptions): AuthResolver {
+export function apiKeyResolver<F extends object = Record<never, never>>(
+  options: ApiKeyResolverOptions<F>,
+): AuthResolver {
   const header = options.header ?? "x-api-key";
   return {
     name: "api-keys",

@@ -146,7 +146,7 @@ describe("data-lifecycle module", () => {
       `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true)`,
       `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true, '{}'::text[], true)`,
       `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true, '{}'::text[], true)`,
-      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, '{}'::text[], true)`,
+      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, array['credential_ref']::text[], true)`,
       `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true, '{}'::text[], true)`,
     ]) {
       expect(sql).toContain(row);
@@ -199,7 +199,7 @@ describe("data-lifecycle module", () => {
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
     expect(sql).toContain(
-      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'app.notes')",
+      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'better_supabase.retention_policies', 'app.notes')",
     );
     expect(sql).toContain("like 'public.%\\_log'");
     expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);

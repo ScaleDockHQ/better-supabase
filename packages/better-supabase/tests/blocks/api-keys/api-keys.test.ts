@@ -160,17 +160,49 @@ describe("apiKeyClaims", () => {
     expect(claims["api_key"]).not.toHaveProperty("tenant");
     expect(claims["api_key"]).not.toHaveProperty("roles");
   });
+
+  it("adds the claims hook's claims, but never over the reserved ones", () => {
+    type Fields = { readonly region: string };
+    const typed = {
+      ...key({ organizationId: ORG, kind: "feed" }),
+      region: "eu",
+    };
+    const claims = apiKeyClaims<Fields>(typed, {
+      tenantClaim: "tenant_id",
+      serviceRoles: (each) => [`${each.region}-reader`],
+      claims: (each) =>
+        // SAFETY: a caller without the types could still return reserved claims.
+        ({
+          key_kind: each.kind,
+          region: each.region,
+          sub: "someone-else",
+          api_key: "forged",
+        }) as unknown as Record<string, unknown>,
+    });
+    expect(claims).toMatchObject({
+      sub: "",
+      role: "authenticated",
+      key_kind: "feed",
+      region: "eu",
+    });
+    expect(claims["api_key"]).toMatchObject({ id: "k", organization_id: ORG });
+    const reserved = () => ({ role: "admin" });
+    // @ts-expect-error role is a reserved claim
+    const forged = apiKeyClaims(typed, { claims: reserved });
+    expect(forged).toMatchObject({ role: "authenticated" });
+  });
 });
 
 describe("createApiKeys", () => {
   it("sends only the secret's hash and returns the token once", async () => {
-    const { transport, calls } = fakeTransport(() => row());
+    const { transport, calls } = fakeTransport(() => row({ kind: "export" }));
     const keys = createApiKeys({ transport, prefix: "acme" });
     const created = await keys
       .create({
         name: "CI",
         organizationId: ORG,
         scopes: ["deals:read"],
+        kind: "export",
         expiresAt: Temporal.Instant.from("2027-01-01T00:00:00Z"),
         rateLimit: 60,
       })
@@ -187,11 +219,13 @@ describe("createApiKeys", () => {
       personal: false,
       expires_at: "2027-01-01T00:00:00Z",
       prefix: "acme",
+      kind: "export",
     });
     expect(JSON.stringify(args)).not.toContain(parsed.secret);
     expect(created.key).toMatchObject({
       organizationId: ORG,
       scopes: ["deals:read"],
+      kind: "export",
       rateLimit: 60,
       createdBy: USER,
     });

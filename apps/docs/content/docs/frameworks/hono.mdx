@@ -148,6 +148,34 @@ const bs = createHono(betterSupabase, {
 });
 ```
 
+## Rate limits
+
+`bs.rateLimit()` counts one hit per request with
+[`createRateLimit`](/docs/blocks/sql#limits-in-route-handlers) and adds the
+`RateLimit` response field. With a `rule`, it also adds `RateLimit-Policy`.
+A refused request gets a `problem+json` 429 with `Retry-After`, and `key`
+returning `undefined` skips the limit:
+
+```ts
+import { createRateLimit } from "better-supabase/blocks/jobs";
+
+const limiter = createRateLimit({ sql: postgres.admin });
+
+app.use(
+  "/api/*",
+  bs.rateLimit({
+    limiter,
+    scope: "api",
+    rule: { max: 100, period: "1 minute" },
+    key: (c) => c.req.header("x-api-key"),
+  }),
+);
+```
+
+Without `rule`, the scope's rule from `set_rate_limit` applies. `policy`
+names the policy in the headers (default: the scope). A limiter error
+answers with its status unless `failOpen` is set.
+
 ## Resources
 
 `bs.resource(table)` mounts REST routes that match what

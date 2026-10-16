@@ -4,6 +4,8 @@
  */
 export const SPEC_PINS: {
   readonly otelSemconv: "1.37.0";
+  /** OTLP/HTTP JSON that the webhooks block's `otlpLogs()` encoder writes. */
+  readonly otlp: "1.7.0";
   readonly mcp: "2026-07-28";
   /** The default OpenAPI version `createOpenApi` emits. */
   readonly openapi: "3.1.2";
@@ -48,10 +50,27 @@ export const SPEC_PINS: {
   readonly rfc6902: "2013-04";
   /** RFC 9396 `authorization_details` that delegated tokens and job envelopes carry. */
   readonly rfc9396: "2023-05";
+  /** RFC 9864 fully specified JOSE algorithms; `Ed25519` is the alg the signing-keys block can write instead of `EdDSA`. */
+  readonly rfc9864: "2025-10";
+  /** RFC 8417 Security Event Tokens that the shared-signals block mints and verifies. */
+  readonly rfc8417: "2018-07";
+  /** RFC 8935 push delivery of SETs: the `set` webhook format and the receiver's push endpoint. */
+  readonly rfc8935: "2020-11";
+  /** RFC 8936 poll delivery of SETs that the transmitter serves and the receiver runs. */
+  readonly rfc8936: "2020-11";
+  /** OpenID Shared Signals Framework: metadata, streams, status and verification. */
+  readonly ssf: "1.0";
+  /** OpenID CAEP event types in `CAEP_EVENTS`. */
+  readonly caep: "1.0";
+  /** OpenID RISC event types in `RISC_EVENTS`. */
+  readonly risc: "1.0";
+  /** draft-ietf-httpapi-ratelimit-headers revision behind `rateLimitHeader` and the Hono and oRPC `rateLimit()`. */
+  readonly ratelimitHeaders: "draft-11";
   /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
   readonly shadcnRegistry: "4.21.4";
 } = {
   otelSemconv: "1.37.0",
+  otlp: "1.7.0",
   mcp: "2026-07-28",
   openapi: "3.1.2",
   openapi30: "3.0.4",
@@ -87,5 +106,13 @@ export const SPEC_PINS: {
   iso4217: "2026-09-17",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
+  rfc9864: "2025-10",
+  rfc8417: "2018-07",
+  rfc8935: "2020-11",
+  rfc8936: "2020-11",
+  ssf: "1.0",
+  caep: "1.0",
+  risc: "1.0",
+  ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
 };

@@ -1,12 +1,8 @@
 "use client";
 
-import type {
-  AuthOAuthAuthorizationDetailsResponse,
-  OAuthAuthorizationDetails,
-} from "@supabase/supabase-js";
-
+import { useOAuthConsent } from "better-supabase/blocks/sessions/react";
 import { useExtracted } from "next-intl";
-import { useEffect, useState, useTransition } from "react";
+import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,23 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSupabase } from "@/lib/hooks";
 
-type Load =
-  | { readonly kind: "loading" }
-  | { readonly kind: "ready"; readonly details: OAuthAuthorizationDetails }
-  | { readonly kind: "failed"; readonly message: string };
-
-// A request the user consented to before is used up by the first read, so a
-// second effect run (Strict Mode) has to share it.
-const reads = new Map<string, Promise<AuthOAuthAuthorizationDetailsResponse>>();
-
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
+const noSubscription = (): (() => void) => () => undefined;
+const authorizationIdOf = (): string | null =>
+  new URLSearchParams(window.location.search).get("authorization_id");
+const onServer = (): undefined => undefined;
+const leave = (url: string): void => {
+  window.location.replace(url);
 };
 
 /**
@@ -45,70 +31,28 @@ const hostOf = (url: string): string => {
  */
 export function OAuthConsentForm() {
   const t = useExtracted("oauth");
-  const supabase = useSupabase();
-  const [load, setLoad] = useState<Load>({ kind: "loading" });
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    let active = true;
-    const id = new URLSearchParams(window.location.search).get(
-      "authorization_id",
-    );
-    let read = id ? reads.get(id) : Promise.resolve(null);
-    if (id && !read) {
-      read = supabase.auth.oauth.getAuthorizationDetails(id);
-      reads.set(id, read);
-    }
-    void read?.then((result) => {
-      if (!active) return;
-      if (!result) {
-        setLoad({
-          kind: "failed",
+  const authorizationId = useSyncExternalStore(
+    noSubscription,
+    authorizationIdOf,
+    onServer,
+  );
+  const { request, deciding, error, approve, deny } = useOAuthConsent({
+    authorizationId: authorizationId ?? undefined,
+    redirect: leave,
+  });
+  const load =
+    authorizationId === null
+      ? {
+          kind: "failed" as const,
           message: t(
             "This link has no authorization request. Start again from the app that sent you here.",
           ),
-        });
-        return;
-      }
-      if (result.error) {
-        setLoad({ kind: "failed", message: result.error.message });
-        return;
-      }
-      // Consent given before: Auth answers with the client's redirect.
-      if (!("authorization_id" in result.data)) {
-        window.location.replace(result.data.redirect_url);
-        return;
-      }
-      setLoad({ kind: "ready", details: result.data });
-    });
-    return () => {
-      active = false;
-    };
-  }, [supabase, t]);
-
-  const decide = (details: OAuthAuthorizationDetails, approve: boolean) => {
-    startTransition(async () => {
-      setError(null);
-      const options = { skipBrowserRedirect: true };
-      const result = approve
-        ? await supabase.auth.oauth.approveAuthorization(
-            details.authorization_id,
-            options,
-          )
-        : await supabase.auth.oauth.denyAuthorization(
-            details.authorization_id,
-            options,
-          );
-      if (result.error) {
-        setError(result.error.message);
-        return;
-      }
-      window.location.assign(result.data.redirect_url);
-      // Keeps the buttons disabled while the browser leaves.
-      await new Promise<never>(() => {});
-    });
-  };
+        }
+      : request === undefined && error !== undefined
+        ? { kind: "failed" as const, message: error.message }
+        : request === undefined
+          ? { kind: "loading" as const }
+          : { kind: "ready" as const, details: request };
 
   if (load.kind === "loading") {
     return (
@@ -140,7 +84,7 @@ export function OAuthConsentForm() {
   }
 
   const { details } = load;
-  const scopes = details.scope.split(" ").filter(Boolean);
+  const { scopes } = details;
   return (
     <Card>
       <CardHeader className="text-center">
@@ -174,27 +118,27 @@ export function OAuthConsentForm() {
         <p className="text-muted-foreground">
           {t(
             "Row Level Security still applies: it can only see and change what you can. After you approve, you return to {host}.",
-            { host: hostOf(details.redirect_uri) },
+            { host: details.redirectHost },
           )}
         </p>
-        {error ? <p className="text-destructive">{error}</p> : null}
+        {error ? <p className="text-destructive">{error.message}</p> : null}
       </CardContent>
       <CardFooter className="flex gap-2">
         <Button
           variant="outline"
           className="flex-1"
-          disabled={pending}
+          disabled={deciding !== undefined}
           onClick={() => {
-            decide(details, false);
+            void deny();
           }}
         >
           {t("Deny")}
         </Button>
         <Button
           className="flex-1"
-          disabled={pending}
+          disabled={deciding !== undefined}
           onClick={() => {
-            decide(details, true);
+            void approve();
           }}
         >
           {t("Approve")}

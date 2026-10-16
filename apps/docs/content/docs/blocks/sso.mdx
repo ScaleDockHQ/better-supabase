@@ -34,6 +34,7 @@ hand out a role they couldn't grant themselves (`SSO_ROLE_FORBIDDEN`).
 | `scim_users`                 | The SCIM User resources, with the auth user they are linked to                           |
 | `scim_groups`                | The SCIM Group resources                                                                 |
 | `scim_group_members`         | Which users are in which group                                                           |
+| `scim_sync_log`              | One row per SCIM write, with `syncLog`                                                   |
 
 | Permission   | Lets a member                                                    | Default roles |
 | ------------ | ---------------------------------------------------------------- | ------------- |
@@ -218,20 +219,93 @@ Memberships SCIM changes emit `organization.member_added`,
 `organization.role_changed` and `organization.member_removed`, like the
 ones members change.
 
+### Another store
+
+`transport` is short for `store: sqlScimStore(transport)`, which keeps users
+and groups in the tables above. Pass your own `ScimStore` (`apiVersion: 1`,
+with `list`, `get`, `save` and `delete` for users and groups) to keep them
+somewhere else, such as a directory or a provider that relays them:
+
+```ts title="app/scim/v2/[...path]/route.ts"
+import type { ScimStore } from "better-supabase/blocks/sso";
+
+import { dbError, err, ok } from "better-supabase";
+
+const store: ScimStore = {
+  apiVersion: 1,
+  async list(type, tenant, query) {
+    const page = await directory.search(type, tenant, query);
+    // totalResults says the directory applied the filter and the paging.
+    return ok({ resources: page.items, totalResults: page.total });
+  },
+  get: async (type, tenant, id) => ok(await directory.find(type, tenant, id)),
+  async save(type, tenant, { id, resource, version }) {
+    const saved = await directory.put(type, tenant, id, resource, version);
+    return saved === "changed"
+      ? err(dbError("stale", "Read it again"))
+      : ok(saved);
+  },
+  delete: async (type, tenant, id) =>
+    ok(await directory.remove(type, tenant, id)),
+};
+
+const handler = scimHandler({ store, keys, basePath: "/scim/v2" });
+```
+
+`save` gets the resource as the client sent it, or as a PATCH left it,
+extension schemas included, so attributes such as the enterprise extension's
+`department` reach the store unchanged. It gets the validated core
+attributes as `data` as well; `sqlScimStore` stores only those. A store
+returns resources without `meta` and `$ref`s, plus their `version`,
+`created` and `lastModified`, and the handler adds the rest. Without
+`totalResults`, `list` returns every resource of the tenant and the handler
+filters and pages them. Errors are `DbError`s: `not_found` answers 404,
+`stale` 412, `conflict` 409, and `invalid_input` or `validation` 400.
+
+### The sync log
+
+`blocks.sso.options.syncLog: true` adds a `scim_sync_log` table with one row
+per write: the operation (`create`, `replace`, `patch` or `delete`), the
+resource, the status the handler answered, the error and the request id.
+Pass `sqlScimSyncLog` as the handler's `log`:
+
+```ts title="app/scim/v2/[...path]/route.ts"
+import {
+  scimHandler,
+  sqlScimSyncLog,
+  sqlTransport,
+} from "better-supabase/blocks/sso";
+
+const transport = sqlTransport(postgres.admin);
+const handler = scimHandler({
+  transport,
+  keys: createApiKeys({ transport }),
+  log: sqlScimSyncLog(transport),
+  requestId: (request) => request.headers.get("x-request-id") ?? undefined,
+});
+```
+
+The handler waits for the log but ignores its failures, so a log that is
+down never changes an answer. `list_scim_sync_log(tenant, max)` reads the
+latest rows for an admin page, and `purge_scim_sync_log(older_than, batch)`
+deletes rows older than 90 days, or the `scim_sync_log` retention policy of
+the [data lifecycle](/docs/blocks/data-lifecycle) block, for a periodic job.
+
 ## Functions
 
-| Function                                                | Granted to                            | Does                                                  |
-| ------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------- |
-| `add_organization_domain(tenant, domain)`               | `authenticated`                       | Claims a domain and returns its TXT record            |
-| `list_organization_domains(tenant)`                     | `authenticated`, `service_role`       | The organization's domains                            |
-| `update_organization_domain(id, auto_join, enforce)`    | `authenticated`, `service_role`       | Sets auto-join and enforcement on a verified domain   |
-| `remove_organization_domain(id)`                        | `authenticated`, `service_role`       | Removes a domain no provider uses                     |
-| `verify_organization_domain(id, actor)`                 | `service_role`                        | Marks a domain verified after the DNS check           |
-| `register_sso_provider(tenant, provider, domains, ...)` | `service_role`                        | Records a Supabase Auth provider for the organization |
-| `list_sso_providers(tenant)`                            | `authenticated`, `service_role`       | The organization's providers                          |
-| `sso_domain_for(email)`                                 | `anon`, `authenticated`               | The provider for an address at a verified domain      |
-| `sso_access_token_check(event)`                         | `service_role`, `supabase_auth_admin` | The event, or an error when the domain enforces SSO   |
-| `scim_save_user`, `scim_save_group` and the rest        | `service_role`                        | The storage behind `scimHandler`                      |
+| Function                                                     | Granted to                            | Does                                                  |
+| ------------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------- |
+| `add_organization_domain(tenant, domain)`                    | `authenticated`                       | Claims a domain and returns its TXT record            |
+| `list_organization_domains(tenant)`                          | `authenticated`, `service_role`       | The organization's domains                            |
+| `update_organization_domain(id, auto_join, enforce)`         | `authenticated`, `service_role`       | Sets auto-join and enforcement on a verified domain   |
+| `remove_organization_domain(id)`                             | `authenticated`, `service_role`       | Removes a domain no provider uses                     |
+| `verify_organization_domain(id, actor)`                      | `service_role`                        | Marks a domain verified after the DNS check           |
+| `register_sso_provider(tenant, provider, domains, ...)`      | `service_role`                        | Records a Supabase Auth provider for the organization |
+| `list_sso_providers(tenant)`                                 | `authenticated`, `service_role`       | The organization's providers                          |
+| `sso_domain_for(email)`                                      | `anon`, `authenticated`               | The provider for an address at a verified domain      |
+| `sso_access_token_check(event)`                              | `service_role`, `supabase_auth_admin` | The event, or an error when the domain enforces SSO   |
+| `scim_save_user`, `scim_save_group` and the rest             | `service_role`                        | The storage behind `sqlScimStore`                     |
+| `scim_log_sync`, `list_scim_sync_log`, `purge_scim_sync_log` | `service_role`                        | The sync log, with `syncLog`                          |
 
 ## Hooks
 

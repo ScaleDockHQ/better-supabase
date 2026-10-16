@@ -933,6 +933,15 @@ delegation cap. Check a permission with
 `better_supabase.tenant_ids_with('<permission>')` or `member_can()` instead.
 The modules' own `bs_` policies aren't reported.
 
+### BS335
+
+**Warning: audit log not partitioned.** `blocks.audit.options.partitioned` is
+on, but `better_supabase.audit_events` was created before it: its primary key
+is `id` alone, so `purge_audit_log` deletes row by row instead of dropping
+whole months. Postgres can't convert a table in place. Copy the entries into
+a partitioned table and swap the names in a maintenance window, or turn the
+option off.
+
 ## Auth config
 
 ### BS401

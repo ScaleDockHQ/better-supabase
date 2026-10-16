@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { moduleBody } from "../../src/sql/render.ts";
 
-/** Modules that own secrets by design: Vault itself and webhook signing. */
+/** Modules that own secrets by design: Vault itself, webhook signing and signing keys. */
 const ALLOWED = (name: string): boolean =>
-  name === "credentials" || name === "vault" || name.startsWith("webhook");
+  name === "credentials" ||
+  name === "vault" ||
+  name === "signing-keys" ||
+  name.startsWith("webhook");
 
 /**
  * Not credentials: the domain challenge is published in a DNS TXT record,
@@ -29,6 +32,8 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
   // A push token addresses a device; sending to it needs the provider's own credential.
   push: ['"better_supabase"."push_devices".token'],
+  // A SET is a signed, public security event the transmitter mints, not a credential.
+  "shared-signals": ['"better_supabase"."ssf_events".token'],
 };
 
 const SENSITIVE = /token|secret|api_?key/;

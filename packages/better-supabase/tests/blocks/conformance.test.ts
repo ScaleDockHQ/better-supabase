@@ -23,7 +23,12 @@ const RECIPES = join(
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
-const NO_CREATOR: readonly string[] = [];
+const NO_CREATOR: readonly string[] = [
+  // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
+  // the SQL tables have no client of their own.
+  "mfa",
+  "sessions",
+];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
 const NO_HOOKS: readonly string[] = [];
 /** Blocks with calls that skip `blockCall`. */
@@ -73,6 +78,10 @@ const NO_FIELDS: readonly string[] = [
   "search",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
+  // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.
+  "shared-signals",
+  // Key rows hold a public JWK and a Vault reference the module writes; nothing for an app to extend.
+  "signing-keys",
   // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.
   "sso",
   // Triggers on the app's own record table write its history; the app's columns live on that table.

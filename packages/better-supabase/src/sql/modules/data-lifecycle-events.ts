@@ -45,4 +45,12 @@ export const DATA_LIFECYCLE_EVENTS: ModuleEvents<DataLifecycleEvents> = {
     payload: ["organizationId", "userId", "purgeAfter"],
     retries: true,
   },
+  "legal_hold.placed": {
+    subject: "legal-holds",
+    payload: ["holdId", "organizationId", "kind", "reason"],
+  },
+  "legal_hold.released": {
+    subject: "legal-holds",
+    payload: ["holdId", "organizationId", "kind", "reason"],
+  },
 };

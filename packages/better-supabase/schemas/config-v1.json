@@ -1312,7 +1312,9 @@
               "sessions",
               "settings",
               "share-links",
+              "shared-signals",
               "signatures",
+              "signing-keys",
               "sla",
               "sso",
               "state-machine",
@@ -1579,8 +1581,14 @@
             "share-links": {
               "$ref": "#/$defs/blocks/share-links"
             },
+            "shared-signals": {
+              "$ref": "#/$defs/blocks/shared-signals"
+            },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
+            },
+            "signing-keys": {
+              "$ref": "#/$defs/blocks/signing-keys"
             },
             "sla": {
               "$ref": "#/$defs/blocks/sla"
@@ -2623,6 +2631,12 @@
             "additionalProperties": false,
             "properties": {
               "scopes": {},
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "touchInterval": {
                 "type": "number",
                 "default": 60
@@ -2705,6 +2719,10 @@
               "appendOnly": {
                 "type": "boolean"
               },
+              "chain": {
+                "type": "boolean",
+                "default": false
+              },
               "correlationIdHeader": {
                 "type": "string",
                 "default": "x-correlation-id"
@@ -2741,6 +2759,10 @@
                 "default": false
               },
               "metadataColumns": {},
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
               "readPolicy": {
                 "type": "boolean",
                 "default": false
@@ -4034,6 +4056,22 @@
           }
         }
       },
+      "shared-signals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retention": {
+                "type": "string",
+                "default": "7 days"
+              }
+            }
+          }
+        }
+      },
       "signatures": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4044,6 +4082,22 @@
             "properties": {
               "subjects": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "signing-keys": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "jwksGrace": {
+                "type": "string",
+                "default": "5 minutes"
+              }
             }
           }
         }
@@ -4085,7 +4139,11 @@
                   "type": "string"
                 }
               },
-              "groupRoles": {}
+              "groupRoles": {},
+              "syncLog": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }

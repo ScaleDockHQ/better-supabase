@@ -68,6 +68,8 @@ import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { sharedSignalsBlock } from "better-supabase/blocks/shared-signals";
+import { signingKeysBlock } from "better-supabase/blocks/signing-keys";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
@@ -155,6 +157,8 @@ export const blockSet = defineBlocks(blockConfig, {
   servicePrincipals: servicePrincipalsBlock,
   settings: settingsBlock,
   shareLinks: shareLinksBlock,
+  sharedSignals: sharedSignalsBlock,
+  signingKeys: signingKeysBlock,
   sla: slaBlock,
   sso: ssoBlock,
   stateMachine: stateMachineBlock,

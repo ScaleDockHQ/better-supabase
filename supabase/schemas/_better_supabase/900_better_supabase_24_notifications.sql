@@ -1,5 +1,5 @@
 -- better-supabase module: notifications (0.8.0)
--- @bs-module notifications@6 managed
+-- @bs-module notifications@7 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1159,26 +1159,26 @@ $$;
 revoke execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) to authenticated, service_role;
 
--- Deletes up to batch notifications older than older_than, with their
--- recipients and deliveries, and returns how many. Run it until it returns
--- less than batch.
+-- Deletes up to batch notifications past their retention, with their recipients
+-- and deliveries, and returns how many. Run it until it returns less than batch.
 create or replace function "better_supabase"."purge_notifications"(older_than interval default '90 days', batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
-  with gone as (
-    delete from "better_supabase"."notification_events"
-    where "id" in (
-      select ev."id" from "better_supabase"."notification_events" ev
-      where ev."created_at" < now() - coalesce(older_than, '90 days')
-      order by ev."created_at"
-      limit coalesce(batch, 10000)
-    )
-    returning 1
-  )
-  select count(*)::integer from gone
+declare v_purged integer;
+begin
+  delete from "better_supabase"."notification_events"
+  where "id" in (
+    select ev."id" from "better_supabase"."notification_events" ev
+    where ev."created_at" < now() - coalesce(older_than, '90 days')
+    order by ev."created_at"
+    limit coalesce(batch, 10000)
+  );
+  get diagnostics v_purged = row_count;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_notifications"(interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_notifications"(interval, integer) to service_role;

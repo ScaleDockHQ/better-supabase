@@ -87,6 +87,8 @@
   "blocks/service-principals",
   "blocks/settings",
   "blocks/share-links",
+  "blocks/shared-signals",
+  "blocks/signing-keys",
   "blocks/sla",
   "blocks/sql",
   "blocks/sso",

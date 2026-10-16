@@ -178,11 +178,19 @@ export const INBOX: ModuleDefinition = {
   description:
     "Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
   requires: ["tenant", "access", "updated-at", "teams"],
-  integrates: ["jobs", "notifications", "reactions"],
+  integrates: ["jobs", "notifications", "reactions", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "purge_inbound_events keeps events for the data-lifecycle retention policy and skips those under a legal hold.",
+      sql: () => "",
+    },
+  ],
   names: INBOX_NAMES,
   contract,
   build,

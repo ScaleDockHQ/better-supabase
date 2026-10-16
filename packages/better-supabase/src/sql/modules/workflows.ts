@@ -547,7 +547,7 @@ begin
   with doomed as (
     select ${cr("id")} from ${r}
     where ${cr("status")} in ${TERMINAL}
-      and coalesce(${cr("completedAt")}, ${cr("updatedAt")}) < now() - coalesce(older_than, interval '30 days')
+      and ${ctx.expired("workflow_runs", { at: `coalesce(${cr("completedAt")}, ${cr("updatedAt")})`, tenant: cr("tenant"), fallback: "coalesce(older_than, interval '30 days')" })}
     limit greatest(coalesce(batch, 1000), 1)
   )
   delete from ${r} x using doomed where x.${cr("id")} = doomed.${cr("id")};
@@ -1003,14 +1003,21 @@ export const WORKFLOWS: ModuleDefinition = {
   description:
     "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
   requires: ["tenant", "access"],
+  integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "workflow_runs and workflow_start_requests gain subject_type and subject_id; runs gain principal_kind, principal_id, mode and trigger_node; record_workflow_run, request_workflow_start and workflow_runs_list take the new arguments, and workflow_run.* events carry the subject.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "purge_workflow_runs keeps runs for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
     },
   ],

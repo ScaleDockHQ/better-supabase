@@ -10,6 +10,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
+  ensureCheck,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -51,6 +52,7 @@ const KEY_KEYS: readonly string[] = [
   "prefix",
   "public_id",
   "scopes",
+  "kind",
   "rate_limit",
   "expires_at",
   "last_used_at",
@@ -67,7 +69,7 @@ const KEY_KEYS: readonly string[] = [
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["scopes", "touchInterval", "prefix", "extraColumns"],
+  options: ["scopes", "kinds", "touchInterval", "prefix", "extraColumns"],
   tables: {
     keys: {
       name: "api_keys",
@@ -81,6 +83,7 @@ const NAMES: ModuleNames = {
         publicId: "public_id",
         secretHash: "secret_hash",
         scopes: "scopes",
+        kind: "kind",
         rateLimit: "rate_limit",
         windowStart: "window_start",
         windowHits: "window_hits",
@@ -97,6 +100,7 @@ const NAMES: ModuleNames = {
 
 const SCOPE = /^(\*|[A-Za-z][A-Za-z0-9_.:-]*)$/;
 const PREFIX = /^[a-z][a-z0-9]*$/;
+const KIND = /^[a-z][a-z0-9_-]*$/;
 
 /**
  * `blocks.api-keys.options.scopes`: the scopes a key may carry, every
@@ -126,6 +130,19 @@ function allowedScopes(
     }
   }
   return scopes;
+}
+
+/** `blocks.api-keys.options.kinds`: the kinds a key may have, any when unset. */
+function kindsOf(ctx: ModuleContext): readonly string[] {
+  const kinds = ctx.list("kinds", []);
+  for (const kind of kinds) {
+    if (!KIND.test(kind)) {
+      throw new TypeError(
+        `blocks.api-keys.options.kinds: "${kind}" is not a kind. Use lowercase names such as "client" or "export"`,
+      );
+    }
+  }
+  return kinds;
 }
 
 function prefixOf(ctx: ModuleContext): string {
@@ -176,7 +193,18 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const successor = (alias: string): string =>
     `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`;
   const extras = ctx.extraColumns("keys", KEY_KEYS);
-  const createArgs = `text, text, text, ${id}, boolean, text[], timestamptz, integer, text`;
+  const kinds = kindsOf(ctx);
+  // Version 3 had no kind argument; drop its signatures so calls stay unambiguous.
+  const previousArgs = `text, text, text, ${id}, boolean, text[], timestamptz, integer, text`;
+  const createArgs = `${previousArgs}, text`;
+  const kindCheck =
+    kinds.length === 0
+      ? `alter table ${t} drop constraint if exists api_keys_kind_check;`
+      : ensureCheck(
+          t,
+          "api_keys_kind_check",
+          `${c("kind")} is null or ${c("kind")} = any (${sqlString(`{${kinds.join(",")}}`)}::text[])`,
+        );
   const json = (
     alias: string,
     withSuccessor = true,
@@ -188,6 +216,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     'prefix', ${alias}.${c("prefix")},
     'public_id', ${alias}.${c("publicId")},
     'scopes', to_jsonb(${alias}.${c("scopes")}),
+    'kind', ${alias}.${c("kind")},
     'rate_limit', ${alias}.${c("rateLimit")},
     'expires_at', ${alias}.${c("expiresAt")},
     'last_used_at', ${alias}.${c("lastUsedAt")},
@@ -244,12 +273,17 @@ alter table ${t} set (fillfactor = 80);
 create index if not exists api_keys_tenant_idx on ${t} (${c("tenant")});
 create index if not exists api_keys_user_idx on ${t} (${c("user")});
 create index if not exists api_keys_rotated_from_idx on ${t} (${c("rotatedFrom")});
-create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});${addExtraColumns(t, extras)}
+create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});
+-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+alter table ${t} add column if not exists ${c("kind")} text;
+${kindCheck}${addExtraColumns(t, extras)}
 ${lockTable(t)}
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists ${fn("create_api_key")}(${previousArgs});
+drop function if exists ${fn("create_api_key")}(${previousArgs}, jsonb);
 ${extraFieldsArg(extras).drop(fn("create_api_key"), createArgs)}
 create or replace function ${fn("create_api_key")}(
   name text,
@@ -260,7 +294,8 @@ create or replace function ${fn("create_api_key")}(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default ${prefix}${extraFieldsArg(extras).param}
+  prefix text default ${prefix},
+  kind text default null${extraFieldsArg(extras).param}
 )
 returns jsonb
 language plpgsql
@@ -294,8 +329,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     ${fail("API_KEY_EXPIRED", "expires_at is in the past", "22023")}
   end if;
-  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")})
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
+  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("kind")}, ${c("rateLimit")}, ${c("expiresAt")})
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;${writeExtraColumns(t, extras, "create_api_key.fields", `x.${c("id")} = created.${c("id")}`, "created")}
   ${keyEvent("api_key.created", "created")}
   return ${json("created")};
@@ -375,8 +410,8 @@ begin
   if grace is null or grace < interval '0' then
     ${fail("API_KEY_GRACE", "grace must be zero or more", "22023")}
   end if;
-  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")}, ${c("rotatedFrom")}${extras.map((extra) => `, ${extra.ident}`).join("")})
-  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")}${extras.map((extra) => `, old.${extra.ident}`).join("")})
+  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("kind")}, ${c("rateLimit")}, ${c("expiresAt")}, ${c("rotatedFrom")}${extras.map((extra) => `, ${extra.ident}`).join("")})
+  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("kind")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")}${extras.map((extra) => `, old.${extra.ident}`).join("")})
   returning * into created;
   update ${t} k set ${c("revokedAt")} = now() + grace where k.${c("id")} = old.${c("id")};
   ${keyEvent("api_key.rotated", "created", `, 'previousKeyId', old.${c("id")}`)}
@@ -490,6 +525,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "timestamptz",
         "integer",
         "text",
+        "text",
         ...extra,
       ],
       returns: "jsonb",
@@ -516,7 +552,7 @@ export const API_KEYS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   contract,
   upgrades: [
@@ -530,6 +566,12 @@ export const API_KEYS: ModuleDefinition = {
       from: 2,
       description:
         "A personal key without a tenant needs the own permission in every tenant the caller belongs to, since it acts in all of them.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Keys have a kind (blocks.api-keys.options.kinds), and create_api_key takes it as its last argument.",
       sql: () => "",
     },
   ],

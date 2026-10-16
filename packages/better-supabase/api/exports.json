@@ -679,14 +679,18 @@
       "impersonatorOf",
       "isPrefetch",
       "isProblem",
+      "isRateLimitPolicyName",
       "isResult",
       "jwtClaimsOf",
       "lastSignIns",
       "parseDbStats",
+      "periodSeconds",
       "PRIMARY_COOKIE",
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
       "problemResponse",
+      "rateLimitHeader",
+      "rateLimitPolicyHeader",
       "readSession",
       "refreshFor",
       "refreshSession",
@@ -796,6 +800,8 @@
       "ProblemDetails",
       "ProblemOptions",
       "ProblemResponseOptions",
+      "RateLimitPolicy",
+      "RateLimitState",
       "RefreshOutcome",
       "RefreshPolicy",
       "ReplicaState",
@@ -1085,10 +1091,14 @@
       "HonoEnv",
       "HonoOptions",
       "MiddlewareOptions",
+      "RateLimiter",
+      "RateLimitRouteOptions",
+      "RateLimitVerdict",
       "ResourceAction",
       "ResourceContext",
       "ResourceHooks",
-      "ResourceRouteOptions"
+      "ResourceRouteOptions",
+      "RouteRateLimitRule"
     ]
   },
   "./tanstack-start": {
@@ -1428,7 +1438,13 @@
       "OrpcHandlerLike",
       "OrpcMiddleware",
       "OrpcOptions",
+      "OrpcRateLimitInput",
+      "OrpcRateLimitMiddleware",
       "OrpcRequestContext",
+      "RateLimiter",
+      "RateLimitRouteOptions",
+      "RateLimitVerdict",
+      "RouteRateLimitRule",
       "ToOrpcOptions"
     ]
   },
@@ -1722,6 +1738,7 @@
       "auditListQuery",
       "auditSink",
       "createAudit",
+      "createAuditChain",
       "createAuditLogController",
       "dbTransport",
       "exportAuditLog",
@@ -1732,6 +1749,13 @@
       "toOcsf"
     ],
     "types": [
+      "AuditChain",
+      "AuditChainBreak",
+      "AuditChainHead",
+      "AuditChainOptions",
+      "AuditChainVerdict",
+      "AuditCheckpoint",
+      "AuditCheckpointSigner",
       "AuditColumns",
       "AuditCsvColumn",
       "AuditCsvOptions",
@@ -2291,6 +2315,7 @@
       "InviteCodeEventData",
       "InvoiceEventData",
       "JobEventData",
+      "LegalHoldEventData",
       "MergedEventMap",
       "NotificationDeliveryEventData",
       "NotificationEventData",
@@ -2329,6 +2354,7 @@
   "./blocks/webhooks": {
     "values": [
       "authHook",
+      "cloudEvents",
       "createIncomingWebhooks",
       "createSafeFetch",
       "createWebhooks",
@@ -2344,13 +2370,17 @@
       "isDatabaseWebhook",
       "isPublicAddress",
       "jobsDestination",
+      "otlpLogs",
       "publicUrl",
       "rpcTransport",
+      "securityEvents",
       "signStripeWebhook",
       "signWebhook",
+      "splunkHec",
       "sqlSecretStore",
       "sqlTransport",
       "standardWebhooks",
+      "standardWebhooksAsymmetric",
       "stripeInboxVerify",
       "timingSafeEqual",
       "UnsafeUrlError",
@@ -2359,11 +2389,13 @@
       "verifyStripeWebhook",
       "verifyWebhook",
       "WebhookPolicyError",
+      "webhookPublicKey",
       "webhooksBlock",
       "webhooksEvents"
     ],
     "types": [
       "AllowUrl",
+      "AsymmetricWebhooksOptions",
       "AuthHookError",
       "AuthHookKind",
       "AuthHooks",
@@ -2386,21 +2418,27 @@
       "IncomingWebhooksEvents",
       "IncomingWebhooksOptions",
       "JobsDestinationOptions",
+      "OtlpLogsOptions",
       "PublicUrlOptions",
       "PublishInput",
       "PurgeWebhookDeliveriesOptions",
+      "RawSigner",
       "ResolveHost",
       "RetryPolicy",
       "RotatedIncomingSecret",
       "RotateSecretOptions",
       "RpcClient",
       "SafeFetchOptions",
+      "SplunkHecOptions",
       "StandardWebhooksOptions",
       "UpdatedIncomingWebhook",
       "UpdateIncomingWebhookInput",
       "VerifiedWebhook",
       "VerifyOptions",
       "WebhookDelivery",
+      "WebhookEncoded",
+      "WebhookEncoder",
+      "WebhookEncodeTarget",
       "WebhookInput",
       "WebhookRequest",
       "WebhookResponse",
@@ -2412,7 +2450,8 @@
       "WebhookSinkOptions",
       "WebhooksOptions",
       "WebhooksRouteOptions",
-      "WebhookTransport"
+      "WebhookTransport",
+      "WebhookVerdict"
     ]
   },
   "./blocks/entitlements": {
@@ -2508,6 +2547,8 @@
       "ApiKeyContributions",
       "ApiKeyDraft",
       "ApiKeyExtraClaim",
+      "ApiKeyExtraClaims",
+      "ApiKeyReservedClaim",
       "ApiKeyResolverOptions",
       "ApiKeys",
       "ApiKeysActions",
@@ -2522,6 +2563,51 @@
       "CreatedApiKey",
       "ParsedApiKey",
       "WithApiKeyOptions"
+    ]
+  },
+  "./blocks/mfa": {
+    "values": [
+      "createMfaController",
+      "createStepUpController",
+      "mfaBlock",
+      "needsStepUp"
+    ],
+    "types": [
+      "MfaActions",
+      "MfaApi",
+      "MfaAssurance",
+      "MfaController",
+      "MfaControllerOptions",
+      "MfaEnrollment",
+      "MfaFactor",
+      "MfaSnapshot",
+      "RawMfaFactor",
+      "StepUpActions",
+      "StepUpController",
+      "StepUpControllerOptions",
+      "StepUpSnapshot"
+    ]
+  },
+  "./blocks/sessions": {
+    "values": [
+      "createOAuthConsentController",
+      "createOAuthGrantsController",
+      "sessionsBlock"
+    ],
+    "types": [
+      "OAuthApi",
+      "OAuthClientInfo",
+      "OAuthConsentActions",
+      "OAuthConsentController",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentRequest",
+      "OAuthConsentSnapshot",
+      "OAuthGrant",
+      "OAuthGrantsActions",
+      "OAuthGrantsController",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "RawOAuthClient"
     ]
   },
   "./blocks/settings": {
@@ -2900,6 +2986,7 @@
       "createDataExporter",
       "createDataLifecycle",
       "createOrganizationPurger",
+      "createRetention",
       "dataLifecycleBlock",
       "dataLifecycleEvents",
       "dbTransport",
@@ -2917,6 +3004,7 @@
       "DataLifecycle",
       "DataLifecycleEvents",
       "DataLifecycleOptions",
+      "LegalHold",
       "LifecycleBucket",
       "LifecycleStorage",
       "LifecycleTable",
@@ -2925,6 +3013,11 @@
       "OrganizationPurger",
       "OrganizationPurgerOptions",
       "PurgeBucket",
+      "Retention",
+      "RetentionKind",
+      "RetentionOptions",
+      "RetentionPolicy",
+      "RetentionScope",
       "StorageEntry",
       "UnrevokedCredential"
     ]
@@ -2942,6 +3035,8 @@
       "SCIM_USER",
       "ScimFilterError",
       "scimHandler",
+      "sqlScimStore",
+      "sqlScimSyncLog",
       "sqlTransport",
       "ssoBlock",
       "ssoEvents"
@@ -2956,6 +3051,16 @@
       "ScimAttribute",
       "ScimFilter",
       "ScimHandlerOptions",
+      "ScimListPage",
+      "ScimListQuery",
+      "ScimResourceType",
+      "ScimSaveInput",
+      "ScimStore",
+      "ScimStoredResource",
+      "ScimSyncEntry",
+      "ScimSyncLog",
+      "ScimSyncOperation",
+      "SqlScimStoreOptions",
       "Sso",
       "SsoActor",
       "SsoAdmin",
@@ -4583,6 +4688,96 @@
       "ShareLinks",
       "ShareLinksEvents",
       "ShareLinksOptions"
+    ]
+  },
+  "./blocks/signing-keys": {
+    "values": [
+      "createSigningKeys",
+      "jwksOf",
+      "jwkThumbprint",
+      "JwsError",
+      "signingKeysBlock",
+      "signingKeysEvents",
+      "sqlTransport",
+      "verifyCompact"
+    ],
+    "types": [
+      "BlockTransport",
+      "CreatedSigningKey",
+      "Jwk",
+      "Jwks",
+      "JwksOptions",
+      "JwksResponseOptions",
+      "JwsAlgorithm",
+      "Signature",
+      "Signer",
+      "SignerOptions",
+      "SigningAlgorithm",
+      "SigningKeyCreatedEventData",
+      "SigningKeyEventData",
+      "SigningKeyOwner",
+      "SigningKeys",
+      "SigningKeysEvents",
+      "SigningKeysOptions",
+      "VerifiedJws",
+      "VerifyCompactOptions"
+    ]
+  },
+  "./blocks/shared-signals": {
+    "values": [
+      "CAEP_EVENTS",
+      "createSharedSignals",
+      "createSsfReceiver",
+      "createSsfTransmitter",
+      "mintSet",
+      "RISC_EVENTS",
+      "SET_CONTENT_TYPE",
+      "SET_TYP",
+      "sharedSignalsBlock",
+      "sharedSignalsEvents",
+      "sqlTransport",
+      "SSF_EVENTS",
+      "SSF_POLL",
+      "SSF_PUSH",
+      "verifySet"
+    ],
+    "types": [
+      "BlockTransport",
+      "CreateSsfStreamInput",
+      "EmitResult",
+      "EmitSecurityEventInput",
+      "MintedSet",
+      "MintSetInput",
+      "SecurityEvent",
+      "SetErrorCode",
+      "SetSigner",
+      "SetVerification",
+      "SharedSignals",
+      "SharedSignalsEvents",
+      "SharedSignalsOptions",
+      "SsfDeliveryMethod",
+      "SsfEventHandler",
+      "SsfPollOptions",
+      "SsfPollRequest",
+      "SsfPollResponse",
+      "SsfPollResult",
+      "SsfReceiver",
+      "SsfReceiveResult",
+      "SsfReceiverIdentity",
+      "SsfReceiverOptions",
+      "SsfStream",
+      "SsfStreamClient",
+      "SsfStreamCreatedEventData",
+      "SsfStreamEventData",
+      "SsfStreamRequest",
+      "SsfStreamStatus",
+      "SsfStreamStatusEventData",
+      "SsfTransmitter",
+      "SsfTransmitterOptions",
+      "SubjectIdentifier",
+      "UpdateSsfStreamInput",
+      "VerifiedSet",
+      "VerifySetOptions"
     ]
   },
   "./blocks/identities": {
@@ -6236,6 +6431,131 @@
       "ApiKeysControllerOptions",
       "ApiKeysSnapshot",
       "BlockOptions",
+      "SolidController"
+    ]
+  },
+  "./blocks/mfa/react": {
+    "values": [
+      "needsStepUp",
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "MfaAssurance",
+      "MfaEnrollment",
+      "MfaFactor",
+      "MfaState",
+      "StepUpState",
+      "UseMfaOptions"
+    ]
+  },
+  "./blocks/mfa/vue": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/mfa/svelte": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/mfa/solid": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "SolidController",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot"
+    ]
+  },
+  "./blocks/sessions/react": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "OAuthClientInfo",
+      "OAuthConsentRequest",
+      "OAuthConsentState",
+      "OAuthGrant",
+      "OAuthGrantsState",
+      "UseOAuthConsentOptions"
+    ]
+  },
+  "./blocks/sessions/vue": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/sessions/svelte": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/sessions/solid": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
       "SolidController"
     ]
   },

@@ -55,6 +55,11 @@ under `svix-id`, `svix-timestamp` and `svix-signature`; when a request has no
 sending, and is useful in tests; pass `timestamp` (a `Temporal.Instant`) to fix
 the signing time.
 
+A secret that starts with `whpk_` is an Ed25519 public key: `verifyWebhook`
+then checks the `v1a` signatures instead of the `v1` ones. Senders give you
+that key, and `webhookPublicKey(jwk)` turns a public JWK into it. See
+[Ed25519 signatures](/docs/blocks/webhooks-out#ed25519-signatures).
+
 To send webhooks to your customers' endpoints, with subscriptions, retries
 and a delivery log, use the [outgoing webhooks block](/docs/blocks/webhooks-out).
 

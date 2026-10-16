@@ -682,6 +682,109 @@ export const lockTable = (
 ${revokeTable(table)}
 ${options.read ? `grant select on ${table} to authenticated;\n` : ""}grant all on ${table} to service_role;`;
 
+/**
+ * Monthly range partitions for any table created `partition by range` on a
+ * timestamptz column: a registry, `ensure_partitions(parent, months_ahead)`,
+ * which creates `<parent>_pYYYYMM` for this month and the next ones (UTC
+ * bounds) with RLS on and the client roles revoked, `maintain_partitions()`
+ * for every registered table, and `expired_partitions(parent, cutoff)`, the
+ * partitions wholly before `cutoff`. A table that isn't partitioned (one
+ * created before the option) is left alone.
+ */
+export const MONTHLY_PARTITIONS: string = `create table if not exists better_supabase.partitioned_tables (
+  parent regclass primary key,
+  months_ahead integer not null default 3 check (months_ahead between 1 and 24)
+);
+${lockTable("better_supabase.partitioned_tables")}
+
+create or replace function better_supabase.ensure_partitions(parent regclass, months_ahead integer default 3)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_schema text;
+  v_name text;
+  v_month timestamp := date_trunc('month', now() at time zone 'UTC');
+  v_part text;
+  v_made integer := 0;
+begin
+  select n.nspname, c.relname into v_schema, v_name
+  from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where c.oid = parent and c.relkind = 'p';
+  if v_name is null then
+    return 0;
+  end if;
+  for i in 0..months_ahead loop
+    v_part := v_name || '_p' || to_char(v_month + make_interval(months => i), 'YYYYMM');
+    continue when pg_catalog.to_regclass(format('%I.%I', v_schema, v_part)) is not null;
+    begin
+      execute format(
+        'create table %I.%I partition of %s for values from (%L) to (%L)',
+        v_schema, v_part, parent,
+        (v_month + make_interval(months => i)) at time zone 'UTC',
+        (v_month + make_interval(months => i + 1)) at time zone 'UTC'
+      );
+    exception when check_violation then
+      -- The default partition already holds rows of that month.
+      raise notice '% not created: the default partition has rows in its range', v_part;
+      continue;
+    end;
+    execute format('alter table %I.%I enable row level security', v_schema, v_part);
+    execute format('revoke all on %I.%I from anon, authenticated', v_schema, v_part);
+    v_made := v_made + 1;
+  end loop;
+  return v_made;
+end;
+$$;
+
+create or replace function better_supabase.maintain_partitions()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_made integer := 0;
+  v_table record;
+begin
+  for v_table in select t.parent, t.months_ahead from better_supabase.partitioned_tables t loop
+    v_made := v_made + better_supabase.ensure_partitions(v_table.parent, v_table.months_ahead);
+  end loop;
+  return v_made;
+end;
+$$;
+
+create or replace function better_supabase.expired_partitions(parent regclass, cutoff timestamptz)
+returns setof regclass
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.oid::regclass
+  from pg_catalog.pg_inherits i
+  join pg_catalog.pg_class c on c.oid = i.inhrelid
+  where i.inhparent = parent
+    and c.relname ~ '_p[0-9]{6}$'
+    and cutoff is not null
+    and (to_date(right(c.relname, 6), 'YYYYMM')::timestamp + interval '1 month') at time zone 'UTC' <= cutoff
+  order by c.relname
+$$;
+revoke execute on function better_supabase.ensure_partitions(regclass, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.maintain_partitions() from public, anon, authenticated;
+revoke execute on function better_supabase.expired_partitions(regclass, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.maintain_partitions() to service_role;`;
+
+/** SQL that registers a partitioned table for `maintain_partitions()` and creates its first partitions. */
+export const registerPartitions = (table: string, monthsAhead = 3): string =>
+  `insert into better_supabase.partitioned_tables (parent, months_ahead)
+select ${sqlString(table)}::regclass, ${monthsAhead}
+where exists (select 1 from pg_catalog.pg_class c where c.oid = ${sqlString(table)}::regclass and c.relkind = 'p')
+on conflict (parent) do nothing;
+select better_supabase.ensure_partitions(${sqlString(table)}::regclass, ${monthsAhead});`;
+
 /** SQL that grants a function to signed-in users and the service role. */
 export const userGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon;

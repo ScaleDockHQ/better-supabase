@@ -12,12 +12,20 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   ensureCheck,
   EQUIVALENT_TRIGGERS,
+  MONTHLY_PARTITIONS,
+  registerPartitions,
   SCHEMA,
   SERVICE_CALLER,
   revokeTable,
 } from "../shared.ts";
 import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
+import {
+  CHAIN_CONTRACT,
+  chainOn,
+  chainSql,
+  partitionedOn,
+} from "./audit-chain.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import {
   eventInsert,
@@ -48,6 +56,7 @@ const NAMES: ModuleNames = {
   events: EVENTS,
   options: [
     "appendOnly",
+    "chain",
     "correlationIdHeader",
     "eventCategory",
     "eventRoles",
@@ -57,6 +66,7 @@ const NAMES: ModuleNames = {
     "impersonators",
     "keepMappedMetadata",
     "metadataColumns",
+    "partitioned",
     "readPolicy",
     "requestIdHeader",
     "restricted",
@@ -260,6 +270,9 @@ function present(
 
 function managedTables(ctx: ModuleContext, restricted: boolean): string {
   const log = ctx.table("log");
+  const partitioned = partitionedOn(ctx);
+  const sequence = `better_supabase.${ctx.naming.rename("audit_events_id_seq")}`;
+  const fallback = `better_supabase.${ctx.naming.rename("audit_events_default")}`;
   const c = (logical: string) => ctx.col("log", logical);
   const line = (logical: string, definition: string) =>
     ctx.has("log", logical) ? `\n  ${c(logical)} ${definition},` : "";
@@ -278,7 +291,7 @@ ${ensureCheck(log, "bs_audit_op_check", `${c("op")} in ('insert', 'update', 'del
   const restrictedTable = restricted
     ? `
 create table if not exists ${ctx.table("restricted")} (
-  ${ctx.col("restricted", "entry")} bigint primary key references ${log} (${c("id")}) on delete cascade,
+  ${ctx.col("restricted", "entry")} bigint primary key${partitioned ? "" : ` references ${log} (${c("id")}) on delete cascade`},
   ${ctx.col("restricted", "old")} jsonb,
   ${ctx.col("restricted", "new")} jsonb,
   ${ctx.col("restricted", "ip")} inet,
@@ -291,11 +304,32 @@ alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restr
 alter table ${ctx.table("restricted")} enable row level security;
 ${revokeTable(ctx.table("restricted"))}`
     : "";
-  return `create table if not exists ${log} (
-  ${c("id")} bigint generated always as identity primary key,${line("table", "text")}${line("record", "text")}${line("op", "text not null")}${line("old", "jsonb")}${line("new", "jsonb")}${line("changed", "text[]")}${line("actor", "uuid")}${line("actorRole", "text")}
+  const head = partitioned
+    ? `-- Partitioned by month on occurred_at: the key includes it, and a purge
+-- drops whole months. A log created before the option stays as it is.
+create sequence if not exists ${sequence};
+create table if not exists ${log} (
+  ${c("id")} bigint not null default nextval('${sequence}'),`
+    : `create table if not exists ${log} (
+  ${c("id")} bigint generated always as identity primary key,`;
+  const tail = partitioned
+    ? `,
+  primary key (${c("id")}, ${c("occurredAt")})
+) partition by range (${c("occurredAt")});
+do $$
+begin
+  if (select c.relkind from pg_catalog.pg_class c where c.oid = ${sqlString(log)}::regclass) = 'p' then
+    create table if not exists ${fallback} partition of ${log} default;
+    alter table ${fallback} enable row level security;
+    revoke all on ${fallback} from anon, authenticated;
+  end if;
+end;
+$$;`
+    : `
+);`;
+  return `${head}${line("table", "text")}${line("record", "text")}${line("op", "text not null")}${line("old", "jsonb")}${line("new", "jsonb")}${line("changed", "text[]")}${line("actor", "uuid")}${line("actorRole", "text")}
   ${c("tenant")} ${ctx.idType},
-  ${c("occurredAt")} timestamptz not null default now()
-);${op}${table}
+  ${c("occurredAt")} timestamptz not null default now()${tail}${op}${table}
 -- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}${add("supportSession", "uuid")}
 -- Semantic events (audit_event) and the per-table registry fill these.${add("eventType", "text")}${add("category", "text")}${add("outcome", "text")}${add("source", "text")}${add("targetType", "text")}${add("metadata", "jsonb")}${add("idempotencyKey", "text")}
 -- Who acted and on what, as it was then, for audit pages.${add("actorKind", "text")}${add("actorLabel", "text")}${add("tenantLabel", "text")}${add("targetLabel", "text")}${add("summary", "text")}${add("requestId", "text")}${add("correlationId", "text")}${add("scope", "text")}
@@ -312,12 +346,14 @@ create index if not exists audit_events_correlation_idx on ${log} (${c("correlat
   }${
     ctx.has("log", "idempotencyKey")
       ? `
-create unique index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
+create ${partitioned ? "" : "unique "}index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
       : ""
   }
 alter table ${log} enable row level security;
 ${revokeTable(log)}
-grant select on ${log} to service_role;${restrictedTable}`;
+grant select on ${log} to service_role;${restrictedTable}${
+    partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(log)}` : ""
+  }`;
 }
 
 const REGISTRY = `create table if not exists better_supabase.audited_tables (
@@ -894,6 +930,7 @@ function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
     REGISTER,
     auditEvent(ctx, restricted),
     appendOnly(ctx),
+    chainSql(ctx),
     readPolicy(ctx),
     retention(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),
@@ -910,16 +947,16 @@ export const AUDIT: ModuleDefinition = {
   description:
     "Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.",
   requires: [],
-  integrates: ["access", "organizations"],
+  integrates: ["access", "organizations", "data-lifecycle"],
   dependencies: (layout) =>
     layout.modules?.["audit"]?.options?.["readPolicy"] === true
       ? ["access"]
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 7,
+  version: 8,
   names: NAMES,
-  contract: () => [
+  contract: (ctx) => [
     {
       name: "audit",
       args: [
@@ -970,6 +1007,7 @@ export const AUDIT: ModuleDefinition = {
       args: ["interval", "integer", "{id}", "boolean"],
       returns: "integer",
     },
+    ...(chainOn(ctx) ? CHAIN_CONTRACT : []),
   ],
   upgrades: AUDIT_UPGRADES,
   deprecated: [

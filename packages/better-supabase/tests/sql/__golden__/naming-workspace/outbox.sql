@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@3 managed
+-- @bs-module outbox@4 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -387,10 +387,13 @@ $$;
 -- A null older_than or batch takes its default.
 create or replace function "better_supabase"."purge_outbox"(older_than interval default '30 days', batch integer default 10000, ignore_idle interval default null)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with active as (
     select k."cursor_xid", k."cursor_position" from "better_supabase"."outbox_consumers" k
     where ignore_idle is null or k."updated_at" >= now() - ignore_idle
@@ -417,7 +420,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from gone
+  select count(*)::integer into v_purged from gone;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."outbox_register"(text, text[], boolean) from public, anon, authenticated;
 grant execute on function "better_supabase"."outbox_register"(text, text[], boolean) to service_role;
@@ -503,6 +508,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 3, 'managed')
+values ('outbox', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

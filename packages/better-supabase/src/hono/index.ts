@@ -21,6 +21,10 @@ import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
+import {
+  type RateLimitRouteOptions,
+  rateLimitGate,
+} from "../server/rate-limit.ts";
 import { type ResourceRouteOptions } from "../server/resource-types.ts";
 import { defineResource } from "../server/resource.ts";
 import {
@@ -32,6 +36,12 @@ import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
+export type {
+  RateLimiter,
+  RateLimitRouteOptions,
+  RateLimitVerdict,
+  RouteRateLimitRule,
+} from "../server/rate-limit.ts";
 export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
 export type {
@@ -102,6 +112,21 @@ export interface BetterHono<
   require: (
     options?: BlockRequireOptions<C, P, boolean, Ref>,
   ) => MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
+  /**
+   * Counts a hit per request with a rate limiter, such as `createRateLimit()`,
+   * and adds the `RateLimit` (and with `rule`, `RateLimit-Policy`) fields. A
+   * refused request gets a 429 with `Retry-After`.
+   *
+   * ```ts
+   * app.use('/api/*', bs.rateLimit({
+   *   limiter, scope: 'api', rule: { max: 100, period: '1 minute' },
+   *   key: (c) => c.req.header('x-api-key'),
+   * }))
+   * ```
+   */
+  rateLimit(
+    options: RateLimitRouteOptions<Context<HonoEnv<M, F, E, C, P>>>,
+  ): MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
   /**
    * Wraps a handler: `Result`s and `AsyncResult`s become JSON or Problem
    * Details, `undefined` becomes 204.
@@ -238,6 +263,26 @@ export function createHono<
           });
         }
         return next();
+      };
+    },
+
+    rateLimit(rateLimitOptions) {
+      const gate = rateLimitGate(rateLimitOptions);
+      return async (c, next) => {
+        const outcome = await gate(c);
+        if (outcome.kind === "deny") {
+          return problemResponse(outcome.error, {
+            instance: new URL(c.req.url).pathname,
+            expose,
+            headers: outcome.headers,
+            format: rateLimitOptions.problem,
+          });
+        }
+        await next();
+        if (outcome.kind === "allow") {
+          for (const [name, value] of outcome.headers) c.header(name, value);
+        }
+        return;
       };
     },
 

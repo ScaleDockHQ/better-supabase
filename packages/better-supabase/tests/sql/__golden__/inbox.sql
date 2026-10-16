@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_46_inbox.sql
 -- better-supabase module: inbox
--- @bs-module inbox@1 managed
+-- @bs-module inbox@2 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1749,13 +1749,13 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 1, 'managed')
+values ('inbox', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_46_inbox.sql
 -- better-supabase module: inbox
--- @bs-module inbox@1 managed
+-- @bs-module inbox@2 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3266,7 +3266,9 @@ declare
 begin
   delete from "better_supabase"."inbound_events" e where e."id" in (
     select x."id" from "better_supabase"."inbound_events" x
-    where x."received_at" < now() - coalesce(older_than, interval '30 days')
+    where (x."received_at" < now() - least(coalesce(older_than, interval '30 days'), "better_supabase"."retention_floor"('inbound_events'))
+      and x."received_at" < now() - coalesce("better_supabase"."retention_for"('inbound_events', (x."tenant_id")::text), coalesce(older_than, interval '30 days'))
+      and not "better_supabase"."is_held"('inbound_events', (x."tenant_id")::text))
       and x."status" in ('processed', 'ignored')
     limit greatest(coalesce(batch, 1000), 1)
   );
@@ -3572,13 +3574,13 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 1, 'managed')
+values ('inbox', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_46_inbox.sql
 -- better-supabase module: inbox
--- @bs-module inbox@1 managed
+-- @bs-module inbox@2 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5329,13 +5331,13 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 1, 'managed')
+values ('inbox', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_46_inbox.sql
 -- better-supabase module: inbox
--- @bs-module inbox@1 managed
+-- @bs-module inbox@2 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7410,6 +7412,6 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 1, 'managed')
+values ('inbox', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

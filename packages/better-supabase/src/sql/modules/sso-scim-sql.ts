@@ -1,4 +1,6 @@
-import { fail, raise } from "../shared.ts";
+import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+
+import { fail, lockTable, raise, serviceGrant } from "../shared.ts";
 /** The SCIM storage functions of the sso module, for the SCIM handler. */
 
 export interface ScimSqlNames {
@@ -288,4 +290,114 @@ begin
   return true;
 end;
 $$;`;
+}
+
+const SCIM_SYNC_LOG = "better_supabase.scim_sync_log";
+
+export const SCIM_SYNC_LOG_CONTRACT: readonly ModuleContractFunction[] = [
+  {
+    name: "scim_log_sync",
+    args: ["{id}", "text", "text", "text", "integer", "text", "text"],
+    returns: "void",
+  },
+  { name: "list_scim_sync_log", args: ["{id}", "integer"], returns: "jsonb" },
+  {
+    name: "purge_scim_sync_log",
+    args: ["interval", "integer"],
+    returns: "integer",
+  },
+];
+
+/** `blocks.sso.options.syncLog`: one row per SCIM write, for the handler's log. */
+export function scimSyncLogSql(
+  ctx: ModuleContext,
+  serviceOnly: (what: string) => string,
+): string {
+  const id = ctx.idType;
+  const fn = (name: string): string => ctx.fn(name);
+  return `-- One row per SCIM write: what the identity provider asked for and how it
+-- went. sqlScimSyncLog writes it through scim_log_sync.
+create table if not exists ${SCIM_SYNC_LOG} (
+  id bigint generated always as identity primary key,
+  organization_id ${id} not null,
+  operation text not null check (operation in ('create', 'replace', 'patch', 'delete')),
+  resource_type text not null check (resource_type in ('User', 'Group')),
+  resource_id text,
+  status integer not null,
+  error text,
+  request_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists scim_sync_log_tenant_idx on ${SCIM_SYNC_LOG} (organization_id, created_at desc);
+create index if not exists scim_sync_log_created_idx on ${SCIM_SYNC_LOG} (created_at);
+${lockTable(SCIM_SYNC_LOG)}
+
+create or replace function ${fn("scim_log_sync")}(
+  tenant ${id},
+  operation text,
+  resource_type text,
+  resource_id text default null,
+  status integer default null,
+  error text default null,
+  request_id text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  ${serviceOnly("logs SCIM writes")}
+  insert into ${SCIM_SYNC_LOG} (organization_id, operation, resource_type, resource_id, status, error, request_id)
+  values (scim_log_sync.tenant, scim_log_sync.operation, scim_log_sync.resource_type, scim_log_sync.resource_id,
+    coalesce(scim_log_sync.status, 0), left(scim_log_sync.error, 2000), left(scim_log_sync.request_id, 200));
+end;
+$$;
+
+-- The tenant's latest SCIM writes, newest first.
+create or replace function ${fn("list_scim_sync_log")}(tenant ${id}, max integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  ${serviceOnly("reads the SCIM log")}
+  return (
+    select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc, x.id desc), '[]'::jsonb)
+    from (
+      select * from ${SCIM_SYNC_LOG} l
+      where l.organization_id = list_scim_sync_log.tenant
+      order by l.created_at desc, l.id desc
+      limit least(greatest(coalesce(list_scim_sync_log.max, 100), 1), 1000)
+    ) x
+  );
+end;
+$$;
+
+-- Deletes log rows older than older_than (or the data-lifecycle policy),
+-- at most batch.
+create or replace function ${fn("purge_scim_sync_log")}(older_than interval default '90 days', batch integer default 10000)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  ${serviceOnly("purges the SCIM log")}
+  delete from ${SCIM_SYNC_LOG} l where l.id in (
+    select x.id from ${SCIM_SYNC_LOG} x
+    where ${ctx.expired("scim_sync_log", { at: "x.created_at", tenant: "x.organization_id", fallback: "coalesce(older_than, interval '90 days')" })}
+    limit greatest(coalesce(batch, 10000), 1)
+  );
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+${serviceGrant(`${fn("scim_log_sync")}(${id}, text, text, text, integer, text, text)`)}
+${serviceGrant(`${fn("list_scim_sync_log")}(${id}, integer)`)}
+${serviceGrant(`${fn("purge_scim_sync_log")}(interval, integer)`)}`;
 }

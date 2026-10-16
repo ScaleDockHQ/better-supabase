@@ -355,6 +355,63 @@ The rule changes columns only. Files in Storage that belong to the row,
 such as a CV, stay where they are; remove them from an `after update`
 trigger on `markedBy` or in your own job.
 
+## Retention policies and legal holds
+
+Each module's purge takes an `older_than` default. A retention policy
+overrides it per kind of record, for every tenant, a plan's tenants or one
+tenant, and a legal hold stops every purge from deleting what it covers.
+Both live in `retention_policies` and `legal_holds`, and the functions are
+service-role only:
+
+```ts title="lib/retention.ts"
+import {
+  createRetention,
+  sqlTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const retention = createRetention({ transport: sqlTransport(postgres.admin) });
+
+await retention.setPolicy("audit", "7 years").orThrow();
+await retention.setPolicy("audit", "1 year", { plan: "free" }).orThrow();
+await retention
+  .setPolicy("outbox", Temporal.Duration.from({ days: 30 }), {
+    organizationId,
+  })
+  .orThrow();
+
+const hold = await retention
+  .placeHold({ organizationId, reason: "Case 2026-114" })
+  .orThrow();
+await retention.releaseHold(hold.id).orThrow();
+```
+
+| Kind                 | Purged by                  | Policies | Holds |
+| -------------------- | -------------------------- | -------- | ----- |
+| `audit`              | `purge_audit_log`          | yes      | yes   |
+| `outbox`             | `purge_outbox`             | yes      | yes   |
+| `webhook_deliveries` | `purge_webhook_deliveries` | yes      | yes   |
+| `webhooks`           | `purge_webhooks`           | yes      | yes   |
+| `inbound_events`     | `purge_inbound_events`     | yes      | yes   |
+| `job_archive`        | `purge_job_archive`        | yes      | yes   |
+| `usage`              | `purge_usage_history`      | yes      | yes   |
+| `notifications`      | `purge_notifications`      | yes      | yes   |
+| `workflow_runs`      | `purge_workflow_runs`      | yes      | yes   |
+| `ai_chats`           | `purge_ai_chats`           | no       | yes   |
+| `trash`              | `purge_expired_trash`      | no       | yes   |
+
+A purge keeps a row for the tenant's own policy, then its plan's, then the
+policy for every tenant, and falls back to its `older_than` argument; an
+`audit_retention` hook still comes first for the audit log. Chats and trash
+expire on their own date, so only holds apply to them. An app's own purges
+can use any other kind through `better_supabase.retention_for(kind, tenant)`
+and `is_held(kind, tenant)`.
+
+A hold without `organizationId` covers every tenant, and one without `kind`
+covers every kind. While a hold covers a tenant, `purge_organization` stops
+with `ORGANIZATION_LEGAL_HOLD`. Placing and releasing a hold emit
+`legal_hold.placed` and `legal_hold.released`. When `data-lifecycle` isn't
+installed, each purge keeps its plain `older_than` and nothing is held.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as

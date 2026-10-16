@@ -1,5 +1,9 @@
 import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
+import type { DbErrorKind } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
+import type { CredentialRef } from "../../credentials/provider.ts";
 import type { CloudEvent } from "../../events/index.ts";
+import type { WebhookEncoder } from "./encoders.ts";
 import type { WebhooksEvents } from "./events.ts";
 import type {
   DeliverWebhooksOptions,
@@ -25,14 +29,18 @@ import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import {
+  credentialRefInTenant,
+  foreignCredentialRef,
+} from "../../credentials/provider.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
-import { toHttp } from "../../events/index.ts";
 import {
   DEFAULT_BLOCK_SCHEMA,
   applyTemporal,
   errorText,
   isRecord,
 } from "../shared.ts";
+import { encoderRegistry } from "./encoders.ts";
 import {
   WebhookPolicyError,
   fetchTransport,
@@ -48,6 +56,11 @@ const textOf = (value: unknown): string | null =>
 
 const textsOf = (value: unknown): readonly string[] | null =>
   Array.isArray(value) ? value.map(String) : null;
+
+const credentialRefOf = (value: unknown): CredentialRef | null =>
+  isRecord(value) && typeof value["provider"] === "string"
+    ? { ...value, provider: value["provider"] }
+    : null;
 
 function toDelivery(row: Record<string, unknown>): WebhookDelivery {
   return {
@@ -65,6 +78,9 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
     principal: textOf(row["principal"]),
     permissions: textsOf(row["permissions"]),
     batch: row["batch"] === true,
+    signing: row["signing"] === "v1a" ? "v1a" : "v1",
+    format: typeof row["format"] === "string" ? row["format"] : "cloudevents",
+    credentialRef: credentialRefOf(row["credential_ref"]),
     createdAt:
       typeof row["created_at"] === "string"
         ? temporal().Instant.from(row["created_at"])
@@ -81,6 +97,14 @@ const defaultBackoff = (attempt: number): number => {
 };
 
 const MAX_RETRY_AFTER = 86_400;
+
+/** Token errors a retry can't fix. */
+const PERMANENT_CREDENTIAL_ERRORS: ReadonlySet<DbErrorKind> = new Set([
+  "invalid_input",
+  "not_found",
+  "forbidden",
+  "unauthorized",
+]);
 
 const defaultRetryable = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
@@ -144,6 +168,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   const mappers = options.mappers ?? [];
   const store = options.secrets ?? sqlSecretStore(transport, { schema });
   const signer = options.signer ?? standardWebhooks();
+  const encoders = encoderRegistry(options.encoders);
   const maxAttempts = options.retry?.maxAttempts ?? 8;
   const backoff = options.retry?.backoff ?? defaultBackoff;
   const retryable = options.retry?.retryable ?? defaultRetryable;
@@ -264,35 +289,100 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     };
   }
 
+  type Headers = Readonly<Record<string, string>>;
+
+  /** The headers the endpoint's `credential_ref` token becomes. */
+  async function authorization(
+    delivery: WebhookDelivery,
+    encoder: WebhookEncoder,
+  ): Promise<Result<Headers, Attempt>> {
+    const ref = delivery.credentialRef;
+    if (ref === null) return ok({});
+    if (!credentialRefInTenant(ref, delivery.tenant ?? undefined))
+      return err({
+        outcome: "dead",
+        error: foreignCredentialRef(delivery.tenant ?? undefined).message,
+      });
+    if (options.credentials === undefined)
+      return err({
+        outcome: "dead",
+        error:
+          "The endpoint has a credential_ref, but no credentials provider is set",
+      });
+    const token = await options.credentials.getToken(ref, {
+      subject: { type: "app" },
+    });
+    if (!token.ok)
+      return err({
+        outcome: PERMANENT_CREDENTIAL_ERRORS.has(token.error.kind)
+          ? "dead"
+          : "failed",
+        error: token.error.message,
+      });
+    return ok(encoder.authorize?.(token.data) ?? token.data.headers);
+  }
+
+  /** The Standard Webhooks headers, from the endpoint's secrets or `asymmetricSigner`. */
+  async function signatureHeaders(
+    deliveries: readonly WebhookDelivery[],
+    body: string,
+  ): Promise<Result<Headers, Attempt>> {
+    const first = deliveries[0]!;
+    const sign = first.signing === "v1a" ? options.asymmetricSigner : signer;
+    if (sign === undefined)
+      return err({
+        outcome: "dead",
+        error: "The endpoint signs with v1a, but no asymmetricSigner is set",
+      });
+    const secrets = await store.secrets(first.endpointId);
+    if (secrets.length === 0 && first.signing === "v1")
+      return err({
+        outcome: "dead",
+        error: "The endpoint has no signing secret",
+      });
+    return ok(
+      await sign.sign({
+        id: first.batch ? await batchId(deliveries) : first.id,
+        body,
+        timestamp: temporal().Now.instant(),
+        secrets,
+      }),
+    );
+  }
+
   /** Sends one delivery, or one batch for an endpoint that takes batches. */
   async function attempt(
     deliveries: readonly WebhookDelivery[],
   ): Promise<Attempt> {
     const first = deliveries[0]!;
+    const encoder = encoders.get(first.format);
+    if (encoder === undefined)
+      return {
+        outcome: "dead",
+        error: `No encoder for the endpoint format "${first.format}"`,
+      };
     let body: string;
     let headers: Record<string, string>;
     try {
-      const secrets = await store.secrets(first.endpointId);
-      if (secrets.length === 0)
-        return {
-          outcome: "dead",
-          error: "The endpoint has no signing secret",
-        };
+      const auth = await authorization(first, encoder);
+      if (!auth.ok) return auth.error;
       const events = await Promise.all(deliveries.map(cloudEvent));
-      const [message] = first.batch
-        ? toHttp(events, "batch")
-        : toHttp(events[0]!);
-      body = message!.body;
+      const message = await encoder.encode(events, {
+        url: first.url,
+        batch: first.batch,
+        tenant: first.tenant,
+      });
+      body = message.body;
+      const signature = encoder.signed
+        ? await signatureHeaders(deliveries, body)
+        : ok({});
+      if (!signature.ok) return signature.error;
       headers = {
-        ...message!.headers,
+        ...message.headers,
         "user-agent": "better-supabase-webhooks",
         ...options.headers?.(first),
-        ...(await signer.sign({
-          id: first.batch ? await batchId(deliveries) : first.id,
-          body,
-          timestamp: temporal().Now.instant(),
-          secrets,
-        })),
+        ...auth.data,
+        ...signature.data,
       };
     } catch (cause) {
       return { outcome: "failed", error: errorText(cause) };
@@ -305,6 +395,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         body,
       });
       const durationMs = Date.now() - started;
+      const verdict = encoder.classify?.(response);
+      if (verdict !== undefined)
+        return {
+          outcome: verdict.outcome === "retry" ? "failed" : verdict.outcome,
+          response,
+          durationMs,
+          ...(verdict.error === undefined ? {} : { error: verdict.error }),
+        };
       if (response.status >= 200 && response.status < 300)
         return { outcome: "succeeded", response, durationMs };
       return {

@@ -39,6 +39,8 @@ const PURE_BARRELS = [
   "blocks/state-machine",
   "blocks/custom-fields",
   "blocks/share-links",
+  "blocks/signing-keys",
+  "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",
   "blocks/rank",

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_35_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bs-module data-lifecycle@5 managed
+-- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,6 +88,249 @@ alter table "better_supabase"."organization_deletions" enable row level security
 revoke all on "better_supabase"."organization_deletions" from anon, authenticated;
 grant all on "better_supabase"."organization_deletions" to service_role;
 
+-- How long each kind of record is kept: for one tenant, for the tenants
+-- on a plan, or for every tenant (both null). A purge keeps a row while
+-- retention_for says so, whatever its own older_than argument.
+create table if not exists "better_supabase"."retention_policies" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "plan" text,
+  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null check ("keep" > interval '0'),
+  "updated_at" timestamptz not null default now(),
+  check ("organization_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "organization_id", "plan")
+);
+create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("organization_id") where "organization_id" is not null;
+alter table "better_supabase"."retention_policies" enable row level security;
+revoke all on "better_supabase"."retention_policies" from anon, authenticated;
+grant all on "better_supabase"."retention_policies" to service_role;
+
+-- Legal holds: while one is active (released_at null), no purge deletes
+-- the records it covers. A null tenant holds every tenant, a null kind
+-- every kind.
+create table if not exists "better_supabase"."legal_holds" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null check (length("reason") between 1 and 1000),
+  "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
+  "placed_at" timestamptz not null default now(),
+  "released_by" uuid references auth.users (id) on delete set null,
+  "released_at" timestamptz
+);
+create index if not exists legal_holds_active_idx on "better_supabase"."legal_holds" ("organization_id", "kind") where "released_at" is null;
+create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
+alter table "better_supabase"."legal_holds" enable row level security;
+revoke all on "better_supabase"."legal_holds" from anon, authenticated;
+grant all on "better_supabase"."legal_holds" to service_role;
+
+-- The tenant's policy for a kind, else its plan's (the shortest when it has
+-- several plans), else the policy for every tenant; null without one.
+create or replace function "better_supabase"."retention_for"(kind text, tenant text default null)
+returns interval
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep interval;
+begin
+  if retention_for.tenant is not null then
+    select x."keep" into v_keep from "better_supabase"."retention_policies" x
+    where x."kind" = retention_for.kind and x."organization_id"::text = retention_for.tenant;
+    if v_keep is not null then
+      return v_keep;
+    end if;
+    
+  end if;
+  select x."keep" into v_keep from "better_supabase"."retention_policies" x
+  where x."kind" = retention_for.kind and x."organization_id" is null and x."plan" is null;
+  return v_keep;
+end;
+$$;
+
+-- The shortest time any policy keeps a kind, so a purge can bound its scan
+-- on the timestamp index before it asks retention_for per row.
+create or replace function "better_supabase"."retention_floor"(kind text)
+returns interval
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select min(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_floor.kind
+$$;
+
+-- Whether an active hold covers the kind for the tenant. A null tenant (a
+-- row that belongs to no tenant) is covered only by a hold on every tenant.
+create or replace function "better_supabase"."is_held"(kind text, tenant text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = is_held.kind)
+      and (x."organization_id" is null or x."organization_id"::text = is_held.tenant)
+  )
+$$;
+
+-- Before when every tenant's rows of a kind may go, so a purge can drop a
+-- whole partition: null while any hold covers the kind, else the longest
+-- policy or the fallback, whichever keeps more.
+create or replace function "better_supabase"."retention_cutoff"(kind text, fallback interval)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = retention_cutoff.kind)
+  ) then null else now() - greatest(
+    fallback,
+    (select max(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_cutoff.kind)
+  ) end
+$$;
+
+create or replace function "better_supabase"."set_retention_policy"(kind text, keep interval, tenant uuid default null, plan text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."retention_policies";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
+  values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
+  on conflict ("kind", "organization_id", "plan") do update set
+    "keep" = excluded."keep",
+    "updated_at" = now()
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."retention_policies" x
+  where x."kind" = remove_retention_policy.kind
+    and x."organization_id" is not distinct from remove_retention_policy.tenant
+    and x."plan" is not distinct from remove_retention_policy.plan;
+  return found;
+end;
+$$;
+
+create or replace function "better_supabase"."list_retention_policies"(kind text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."organization_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  from "better_supabase"."retention_policies" x
+  where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
+$$;
+
+create or replace function "better_supabase"."place_legal_hold"(reason text, tenant uuid default null, kind text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
+  values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Releasing keeps the row, so the holds stay on record.
+create or replace function "better_supabase"."release_legal_hold"(id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role releases legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  update "better_supabase"."legal_holds" x set "released_at" = now(), "released_by" = auth.uid()
+  where x."id" = release_legal_hold.id and x."released_at" is null
+  returning * into v_row;
+  if v_row."id" is null then
+    return null;
+  end if;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."list_legal_holds"(include_released boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."placed_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."legal_holds" x
+  where list_legal_holds.include_released or x."released_at" is null
+$$;
+
+revoke execute on function "better_supabase"."retention_for"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_floor"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."is_held"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
+revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_legal_holds"(boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."retention_for"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_floor"(text) to service_role;
+grant execute on function "better_supabase"."is_held"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
+grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
+grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
+grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
+grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
+
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
 drop function if exists "better_supabase"."data_lifecycle_tables"();
@@ -101,7 +344,8 @@ as $$
     ('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.platform_roles', '"better_supabase"."platform_roles"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -512,6 +756,13 @@ begin
   if v_row."organization_id" is null or v_row."purge_after" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
+  if exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."organization_id" is null or x."organization_id" = purge_organization.tenant)
+  ) then
+    raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."on_organization_purge"(uuid)');
   begin
@@ -670,13 +921,13 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('data-lifecycle', 5, 'managed')
+values ('data-lifecycle', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_35_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bs-module data-lifecycle@5 managed
+-- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -763,6 +1014,272 @@ create index if not exists organization_deletions_requested_by_idx on "better_su
 alter table "better_supabase"."organization_deletions" enable row level security;
 revoke all on "better_supabase"."organization_deletions" from anon, authenticated;
 grant all on "better_supabase"."organization_deletions" to service_role;
+
+-- How long each kind of record is kept: for one tenant, for the tenants
+-- on a plan, or for every tenant (both null). A purge keeps a row while
+-- retention_for says so, whatever its own older_than argument.
+create table if not exists "better_supabase"."retention_policies" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "plan" text,
+  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null check ("keep" > interval '0'),
+  "updated_at" timestamptz not null default now(),
+  check ("organization_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "organization_id", "plan")
+);
+create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("organization_id") where "organization_id" is not null;
+alter table "better_supabase"."retention_policies" enable row level security;
+revoke all on "better_supabase"."retention_policies" from anon, authenticated;
+grant all on "better_supabase"."retention_policies" to service_role;
+
+-- Legal holds: while one is active (released_at null), no purge deletes
+-- the records it covers. A null tenant holds every tenant, a null kind
+-- every kind.
+create table if not exists "better_supabase"."legal_holds" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null check (length("reason") between 1 and 1000),
+  "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
+  "placed_at" timestamptz not null default now(),
+  "released_by" uuid references auth.users (id) on delete set null,
+  "released_at" timestamptz
+);
+create index if not exists legal_holds_active_idx on "better_supabase"."legal_holds" ("organization_id", "kind") where "released_at" is null;
+create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
+alter table "better_supabase"."legal_holds" enable row level security;
+revoke all on "better_supabase"."legal_holds" from anon, authenticated;
+grant all on "better_supabase"."legal_holds" to service_role;
+
+-- The tenant's policy for a kind, else its plan's (the shortest when it has
+-- several plans), else the policy for every tenant; null without one.
+create or replace function "better_supabase"."retention_for"(kind text, tenant text default null)
+returns interval
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep interval;
+begin
+  if retention_for.tenant is not null then
+    select x."keep" into v_keep from "better_supabase"."retention_policies" x
+    where x."kind" = retention_for.kind and x."organization_id"::text = retention_for.tenant;
+    if v_keep is not null then
+      return v_keep;
+    end if;
+    if pg_input_is_valid(retention_for.tenant, 'uuid') then
+      select min(x."keep") into v_keep from "better_supabase"."retention_policies" x
+      where x."kind" = retention_for.kind and x."organization_id" is null
+        and x."plan" = any (better_supabase.tenant_plans(retention_for.tenant::uuid));
+      if v_keep is not null then
+        return v_keep;
+      end if;
+    end if;
+  end if;
+  select x."keep" into v_keep from "better_supabase"."retention_policies" x
+  where x."kind" = retention_for.kind and x."organization_id" is null and x."plan" is null;
+  return v_keep;
+end;
+$$;
+
+-- The shortest time any policy keeps a kind, so a purge can bound its scan
+-- on the timestamp index before it asks retention_for per row.
+create or replace function "better_supabase"."retention_floor"(kind text)
+returns interval
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select min(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_floor.kind
+$$;
+
+-- Whether an active hold covers the kind for the tenant. A null tenant (a
+-- row that belongs to no tenant) is covered only by a hold on every tenant.
+create or replace function "better_supabase"."is_held"(kind text, tenant text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = is_held.kind)
+      and (x."organization_id" is null or x."organization_id"::text = is_held.tenant)
+  )
+$$;
+
+-- Before when every tenant's rows of a kind may go, so a purge can drop a
+-- whole partition: null while any hold covers the kind, else the longest
+-- policy or the fallback, whichever keeps more.
+create or replace function "better_supabase"."retention_cutoff"(kind text, fallback interval)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = retention_cutoff.kind)
+  ) then null else now() - greatest(
+    fallback,
+    (select max(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_cutoff.kind)
+  ) end
+$$;
+
+create or replace function "better_supabase"."set_retention_policy"(kind text, keep interval, tenant uuid default null, plan text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."retention_policies";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
+  values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
+  on conflict ("kind", "organization_id", "plan") do update set
+    "keep" = excluded."keep",
+    "updated_at" = now()
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."retention_policies" x
+  where x."kind" = remove_retention_policy.kind
+    and x."organization_id" is not distinct from remove_retention_policy.tenant
+    and x."plan" is not distinct from remove_retention_policy.plan;
+  return found;
+end;
+$$;
+
+create or replace function "better_supabase"."list_retention_policies"(kind text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."organization_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  from "better_supabase"."retention_policies" x
+  where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
+$$;
+
+create or replace function "better_supabase"."place_legal_hold"(reason text, tenant uuid default null, kind text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
+  values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
+  returning * into v_row;
+  perform "better_supabase".emit_event('legal_hold.placed', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'legal_hold.placed',
+    category => 'data',
+    target_type => 'legal_hold',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Releasing keeps the row, so the holds stay on record.
+create or replace function "better_supabase"."release_legal_hold"(id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role releases legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  update "better_supabase"."legal_holds" x set "released_at" = now(), "released_by" = auth.uid()
+  where x."id" = release_legal_hold.id and x."released_at" is null
+  returning * into v_row;
+  if v_row."id" is null then
+    return null;
+  end if;
+  perform "better_supabase".emit_event('legal_hold.released', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'legal_hold.released',
+    category => 'data',
+    target_type => 'legal_hold',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
+  );
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."list_legal_holds"(include_released boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."placed_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."legal_holds" x
+  where list_legal_holds.include_released or x."released_at" is null
+$$;
+
+revoke execute on function "better_supabase"."retention_for"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_floor"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."is_held"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
+revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_legal_holds"(boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."retention_for"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_floor"(text) to service_role;
+grant execute on function "better_supabase"."is_held"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
+grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
+grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
+grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
+grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
@@ -889,7 +1406,7 @@ as $$
     ('organization', 'better_supabase.notification_delivery_events', '"better_supabase"."notification_delivery_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_subscriptions', '"better_supabase"."notification_subscriptions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, array['credential_ref']::text[], true),
     ('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.webhook_deliveries', '"better_supabase"."webhook_deliveries"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.incoming_webhooks', '"better_supabase"."incoming_webhooks"', 'tenant', true, array['token_hash', 'secret', 'secret_id', 'previous_secret', 'previous_secret_id']::text[], true),
@@ -906,6 +1423,7 @@ as $$
     ('organization', 'better_supabase.comments', '"better_supabase"."comments"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.activity_entries', '"better_supabase"."activity_entries"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.attachments', '"better_supabase"."attachments"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.organization_domains', '"better_supabase"."organization_domains"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.scim_users', '"better_supabase"."scim_users"', 'organization_id', true, '{}'::text[], true),
@@ -1083,6 +1601,7 @@ immutable
 set search_path = ''
 as $$
   select * from (values
+    ('better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'credential_ref', null::text),
     ('better_supabase.workflow_credentials', '"better_supabase"."workflow_credentials"', 'credential_ref', null::text),
     ('better_supabase.chat_installations', '"better_supabase"."chat_installations"', 'credential_ref', null::text),
     ('better_supabase.connector_servers', '"better_supabase"."connector_servers"', 'credential_ref', null::text),
@@ -1539,6 +2058,13 @@ begin
   if v_row."organization_id" is null or v_row."purge_after" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
+  if exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."organization_id" is null or x."organization_id" = purge_organization.tenant)
+  ) then
+    raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."on_organization_purge"(uuid)');
   begin
@@ -1711,13 +2237,13 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('data-lifecycle', 5, 'managed')
+values ('data-lifecycle', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_35_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bs-module data-lifecycle@5 managed
+-- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1807,6 +2333,249 @@ alter table "app_private"."organization_deletions" enable row level security;
 revoke all on "app_private"."organization_deletions" from anon, authenticated;
 grant all on "app_private"."organization_deletions" to service_role;
 
+-- How long each kind of record is kept: for one tenant, for the tenants
+-- on a plan, or for every tenant (both null). A purge keeps a row while
+-- retention_for says so, whatever its own older_than argument.
+create table if not exists "app_private"."retention_policies" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "plan" text,
+  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null check ("keep" > interval '0'),
+  "updated_at" timestamptz not null default now(),
+  check ("organization_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "organization_id", "plan")
+);
+create index if not exists retention_policies_tenant_idx on "app_private"."retention_policies" ("organization_id") where "organization_id" is not null;
+alter table "app_private"."retention_policies" enable row level security;
+revoke all on "app_private"."retention_policies" from anon, authenticated;
+grant all on "app_private"."retention_policies" to service_role;
+
+-- Legal holds: while one is active (released_at null), no purge deletes
+-- the records it covers. A null tenant holds every tenant, a null kind
+-- every kind.
+create table if not exists "app_private"."legal_holds" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null check (length("reason") between 1 and 1000),
+  "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
+  "placed_at" timestamptz not null default now(),
+  "released_by" uuid references auth.users (id) on delete set null,
+  "released_at" timestamptz
+);
+create index if not exists legal_holds_active_idx on "app_private"."legal_holds" ("organization_id", "kind") where "released_at" is null;
+create index if not exists legal_holds_placed_by_idx on "app_private"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index if not exists legal_holds_released_by_idx on "app_private"."legal_holds" ("released_by") where "released_by" is not null;
+alter table "app_private"."legal_holds" enable row level security;
+revoke all on "app_private"."legal_holds" from anon, authenticated;
+grant all on "app_private"."legal_holds" to service_role;
+
+-- The tenant's policy for a kind, else its plan's (the shortest when it has
+-- several plans), else the policy for every tenant; null without one.
+create or replace function "app_private"."retention_for"(kind text, tenant text default null)
+returns interval
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep interval;
+begin
+  if retention_for.tenant is not null then
+    select x."keep" into v_keep from "app_private"."retention_policies" x
+    where x."kind" = retention_for.kind and x."organization_id"::text = retention_for.tenant;
+    if v_keep is not null then
+      return v_keep;
+    end if;
+    
+  end if;
+  select x."keep" into v_keep from "app_private"."retention_policies" x
+  where x."kind" = retention_for.kind and x."organization_id" is null and x."plan" is null;
+  return v_keep;
+end;
+$$;
+
+-- The shortest time any policy keeps a kind, so a purge can bound its scan
+-- on the timestamp index before it asks retention_for per row.
+create or replace function "app_private"."retention_floor"(kind text)
+returns interval
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select min(x."keep") from "app_private"."retention_policies" x where x."kind" = retention_floor.kind
+$$;
+
+-- Whether an active hold covers the kind for the tenant. A null tenant (a
+-- row that belongs to no tenant) is covered only by a hold on every tenant.
+create or replace function "app_private"."is_held"(kind text, tenant text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "app_private"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = is_held.kind)
+      and (x."organization_id" is null or x."organization_id"::text = is_held.tenant)
+  )
+$$;
+
+-- Before when every tenant's rows of a kind may go, so a purge can drop a
+-- whole partition: null while any hold covers the kind, else the longest
+-- policy or the fallback, whichever keeps more.
+create or replace function "app_private"."retention_cutoff"(kind text, fallback interval)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "app_private"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = retention_cutoff.kind)
+  ) then null else now() - greatest(
+    fallback,
+    (select max(x."keep") from "app_private"."retention_policies" x where x."kind" = retention_cutoff.kind)
+  ) end
+$$;
+
+create or replace function "app_private"."set_retention_policy"(kind text, keep interval, tenant uuid default null, plan text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."retention_policies";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  insert into "app_private"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
+  values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
+  on conflict ("kind", "organization_id", "plan") do update set
+    "keep" = excluded."keep",
+    "updated_at" = now()
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "app_private"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  delete from "app_private"."retention_policies" x
+  where x."kind" = remove_retention_policy.kind
+    and x."organization_id" is not distinct from remove_retention_policy.tenant
+    and x."plan" is not distinct from remove_retention_policy.plan;
+  return found;
+end;
+$$;
+
+create or replace function "app_private"."list_retention_policies"(kind text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."organization_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  from "app_private"."retention_policies" x
+  where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
+$$;
+
+create or replace function "app_private"."place_legal_hold"(reason text, tenant uuid default null, kind text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  insert into "app_private"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
+  values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Releasing keeps the row, so the holds stay on record.
+create or replace function "app_private"."release_legal_hold"(id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role releases legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  update "app_private"."legal_holds" x set "released_at" = now(), "released_by" = auth.uid()
+  where x."id" = release_legal_hold.id and x."released_at" is null
+  returning * into v_row;
+  if v_row."id" is null then
+    return null;
+  end if;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "app_private"."list_legal_holds"(include_released boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."placed_at" desc, x."id"), '[]'::jsonb)
+  from "app_private"."legal_holds" x
+  where list_legal_holds.include_released or x."released_at" is null
+$$;
+
+revoke execute on function "app_private"."retention_for"(text, text) from public, anon, authenticated;
+revoke execute on function "app_private"."retention_floor"(text) from public, anon, authenticated;
+revoke execute on function "app_private"."is_held"(text, text) from public, anon, authenticated;
+revoke execute on function "app_private"."retention_cutoff"(text, interval) from public, anon, authenticated;
+revoke execute on function "app_private"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
+revoke execute on function "app_private"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "app_private"."list_retention_policies"(text) from public, anon, authenticated;
+revoke execute on function "app_private"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "app_private"."release_legal_hold"(uuid) from public, anon, authenticated;
+revoke execute on function "app_private"."list_legal_holds"(boolean) from public, anon, authenticated;
+grant execute on function "app_private"."retention_for"(text, text) to service_role;
+grant execute on function "app_private"."retention_floor"(text) to service_role;
+grant execute on function "app_private"."is_held"(text, text) to service_role;
+grant execute on function "app_private"."retention_cutoff"(text, interval) to service_role;
+grant execute on function "app_private"."set_retention_policy"(text, interval, uuid, text) to service_role;
+grant execute on function "app_private"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "app_private"."list_retention_policies"(text) to service_role;
+grant execute on function "app_private"."place_legal_hold"(text, uuid, text) to service_role;
+grant execute on function "app_private"."release_legal_hold"(uuid) to service_role;
+grant execute on function "app_private"."list_legal_holds"(boolean) to service_role;
+
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
 drop function if exists "app_private"."data_lifecycle_tables"();
@@ -1820,7 +2589,8 @@ as $$
     ('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.platform_roles', '"better_supabase"."platform_roles"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'app_private.retention_policies', '"app_private"."retention_policies"', 'organization_id', true, '{}'::text[], false)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -2231,6 +3001,13 @@ begin
   if v_row."organization_id" is null or v_row."purge_after" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
+  if exists (
+    select 1 from "app_private"."legal_holds" x
+    where x."released_at" is null
+      and (x."organization_id" is null or x."organization_id" = purge_organization.tenant)
+  ) then
+    raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."on_organization_purge"(uuid)');
   begin
@@ -2389,13 +3166,13 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('data-lifecycle', 5, 'managed')
+values ('data-lifecycle', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_35_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bs-module data-lifecycle@5 managed
+-- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2483,6 +3260,249 @@ alter table "better_supabase"."organization_deletions" enable row level security
 revoke all on "better_supabase"."organization_deletions" from anon, authenticated;
 grant all on "better_supabase"."organization_deletions" to service_role;
 
+-- How long each kind of record is kept: for one tenant, for the tenants
+-- on a plan, or for every tenant (both null). A purge keeps a row while
+-- retention_for says so, whatever its own older_than argument.
+create table if not exists "better_supabase"."retention_policies" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "plan" text,
+  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null check ("keep" > interval '0'),
+  "updated_at" timestamptz not null default now(),
+  check ("organization_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "organization_id", "plan")
+);
+create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("organization_id") where "organization_id" is not null;
+alter table "better_supabase"."retention_policies" enable row level security;
+revoke all on "better_supabase"."retention_policies" from anon, authenticated;
+grant all on "better_supabase"."retention_policies" to service_role;
+
+-- Legal holds: while one is active (released_at null), no purge deletes
+-- the records it covers. A null tenant holds every tenant, a null kind
+-- every kind.
+create table if not exists "better_supabase"."legal_holds" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid,
+  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null check (length("reason") between 1 and 1000),
+  "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
+  "placed_at" timestamptz not null default now(),
+  "released_by" uuid references auth.users (id) on delete set null,
+  "released_at" timestamptz
+);
+create index if not exists legal_holds_active_idx on "better_supabase"."legal_holds" ("organization_id", "kind") where "released_at" is null;
+create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
+alter table "better_supabase"."legal_holds" enable row level security;
+revoke all on "better_supabase"."legal_holds" from anon, authenticated;
+grant all on "better_supabase"."legal_holds" to service_role;
+
+-- The tenant's policy for a kind, else its plan's (the shortest when it has
+-- several plans), else the policy for every tenant; null without one.
+create or replace function "better_supabase"."retention_for"(kind text, tenant text default null)
+returns interval
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep interval;
+begin
+  if retention_for.tenant is not null then
+    select x."keep" into v_keep from "better_supabase"."retention_policies" x
+    where x."kind" = retention_for.kind and x."organization_id"::text = retention_for.tenant;
+    if v_keep is not null then
+      return v_keep;
+    end if;
+    
+  end if;
+  select x."keep" into v_keep from "better_supabase"."retention_policies" x
+  where x."kind" = retention_for.kind and x."organization_id" is null and x."plan" is null;
+  return v_keep;
+end;
+$$;
+
+-- The shortest time any policy keeps a kind, so a purge can bound its scan
+-- on the timestamp index before it asks retention_for per row.
+create or replace function "better_supabase"."retention_floor"(kind text)
+returns interval
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select min(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_floor.kind
+$$;
+
+-- Whether an active hold covers the kind for the tenant. A null tenant (a
+-- row that belongs to no tenant) is covered only by a hold on every tenant.
+create or replace function "better_supabase"."is_held"(kind text, tenant text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = is_held.kind)
+      and (x."organization_id" is null or x."organization_id"::text = is_held.tenant)
+  )
+$$;
+
+-- Before when every tenant's rows of a kind may go, so a purge can drop a
+-- whole partition: null while any hold covers the kind, else the longest
+-- policy or the fallback, whichever keeps more.
+create or replace function "better_supabase"."retention_cutoff"(kind text, fallback interval)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."kind" is null or x."kind" = retention_cutoff.kind)
+  ) then null else now() - greatest(
+    fallback,
+    (select max(x."keep") from "better_supabase"."retention_policies" x where x."kind" = retention_cutoff.kind)
+  ) end
+$$;
+
+create or replace function "better_supabase"."set_retention_policy"(kind text, keep interval, tenant uuid default null, plan text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."retention_policies";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
+  values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
+  on conflict ("kind", "organization_id", "plan") do update set
+    "keep" = excluded."keep",
+    "updated_at" = now()
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."retention_policies" x
+  where x."kind" = remove_retention_policy.kind
+    and x."organization_id" is not distinct from remove_retention_policy.tenant
+    and x."plan" is not distinct from remove_retention_policy.plan;
+  return found;
+end;
+$$;
+
+create or replace function "better_supabase"."list_retention_policies"(kind text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."organization_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  from "better_supabase"."retention_policies" x
+  where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
+$$;
+
+create or replace function "better_supabase"."place_legal_hold"(reason text, tenant uuid default null, kind text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
+  values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Releasing keeps the row, so the holds stay on record.
+create or replace function "better_supabase"."release_legal_hold"(id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."legal_holds";
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role releases legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
+  end if;
+  update "better_supabase"."legal_holds" x set "released_at" = now(), "released_by" = auth.uid()
+  where x."id" = release_legal_hold.id and x."released_at" is null
+  returning * into v_row;
+  if v_row."id" is null then
+    return null;
+  end if;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+create or replace function "better_supabase"."list_legal_holds"(include_released boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."placed_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."legal_holds" x
+  where list_legal_holds.include_released or x."released_at" is null
+$$;
+
+revoke execute on function "better_supabase"."retention_for"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_floor"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."is_held"(text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
+revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_legal_holds"(boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."retention_for"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_floor"(text) to service_role;
+grant execute on function "better_supabase"."is_held"(text, text) to service_role;
+grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
+grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
+grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
+grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
+grant execute on function "better_supabase"."list_legal_holds"(boolean) to service_role;
+
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
 drop function if exists "better_supabase"."data_lifecycle_tables"();
@@ -2496,7 +3516,8 @@ as $$
     ('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.platform_roles', '"better_supabase"."platform_roles"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -2907,6 +3928,13 @@ begin
   if v_row."organization_id" is null or v_row."purge_after" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
+  if exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."organization_id" is null or x."organization_id" = purge_organization.tenant)
+  ) then
+    raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."on_organization_purge"(uuid)');
   begin
@@ -3067,6 +4095,96 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."retention_for"(kind text, tenant text default null)
+returns interval
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."retention_for"($1, $2) $$;
+revoke execute on function "api"."retention_for"(text, text) from public, anon, authenticated;
+grant execute on function "api"."retention_for"(text, text) to service_role;
+
+create or replace function "api"."retention_floor"(kind text)
+returns interval
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."retention_floor"($1) $$;
+revoke execute on function "api"."retention_floor"(text) from public, anon, authenticated;
+grant execute on function "api"."retention_floor"(text) to service_role;
+
+create or replace function "api"."is_held"(kind text, tenant text default null)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."is_held"($1, $2) $$;
+revoke execute on function "api"."is_held"(text, text) from public, anon, authenticated;
+grant execute on function "api"."is_held"(text, text) to service_role;
+
+create or replace function "api"."retention_cutoff"(kind text, fallback interval)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."retention_cutoff"($1, $2) $$;
+revoke execute on function "api"."retention_cutoff"(text, interval) from public, anon, authenticated;
+grant execute on function "api"."retention_cutoff"(text, interval) to service_role;
+
+create or replace function "api"."set_retention_policy"(kind text, keep interval, tenant uuid default null, plan text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_retention_policy"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."set_retention_policy"(text, interval, uuid, text) to service_role;
+
+create or replace function "api"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_retention_policy"($1, $2, $3) $$;
+revoke execute on function "api"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."remove_retention_policy"(text, uuid, text) to service_role;
+
+create or replace function "api"."list_retention_policies"(kind text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_retention_policies"($1) $$;
+revoke execute on function "api"."list_retention_policies"(text) from public, anon, authenticated;
+grant execute on function "api"."list_retention_policies"(text) to service_role;
+
+create or replace function "api"."place_legal_hold"(reason text, tenant uuid default null, kind text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."place_legal_hold"($1, $2, $3) $$;
+revoke execute on function "api"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."place_legal_hold"(text, uuid, text) to service_role;
+
+create or replace function "api"."release_legal_hold"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."release_legal_hold"($1) $$;
+revoke execute on function "api"."release_legal_hold"(uuid) from public, anon, authenticated;
+grant execute on function "api"."release_legal_hold"(uuid) to service_role;
+
+create or replace function "api"."list_legal_holds"(include_released boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_legal_holds"($1) $$;
+revoke execute on function "api"."list_legal_holds"(boolean) from public, anon, authenticated;
+grant execute on function "api"."list_legal_holds"(boolean) to service_role;
 
 create or replace function "api"."data_lifecycle_credentials"()
 returns table (name text, tbl text, col text, user_col text)
@@ -3255,6 +4373,6 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('data-lifecycle', 5, 'managed')
+values ('data-lifecycle', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

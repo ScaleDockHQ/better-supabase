@@ -81,6 +81,103 @@ page too: enroll there with `supabase.auth.mfa.enroll()`, or challenge with
 an `aal2` session and the redirect back to `next` passes. Without
 `redirect`, `requireAal` answers with the 403 Problem Details above.
 
+## Enrolment and step-up controllers
+
+`better-supabase/blocks/mfa` has two headless controllers over
+`supabase.auth.mfa`, with hooks for React, Vue, Svelte and Solid
+(`better-supabase/blocks/mfa/react` and the others).
+
+- `useMfa()` (`createMfaController`) is for a security settings page. It
+  lists the factors and reads the assurance level. `enroll()` keeps the QR
+  code and the secret in `enrollment`, `verify(code)` confirms the factor
+  with its first code, `cancel()` removes an unconfirmed one, and
+  `unenroll(id)` removes a factor.
+- `useStepUp()` (`createStepUpController`) raises the session to `aal2`.
+  Show it when a call fails with `needsStepUp(error)`, which matches the
+  `INSUFFICIENT_AAL` refusal above. `verify(code)` challenges the first
+  verified factor and reads the level again. Retry the call once
+  `satisfied` is true.
+
+```tsx
+"use client";
+
+import type { DbError } from "better-supabase";
+
+import { needsStepUp, useStepUp } from "better-supabase/blocks/mfa/react";
+import { useState } from "react";
+
+export function StepUp(props: {
+  error: DbError | undefined;
+  retry: () => void;
+}) {
+  const { error, retry } = props;
+  const { satisfied, verifying, verify } = useStepUp();
+  const [code, setCode] = useState("");
+  if (!needsStepUp(error) || satisfied) return null;
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if ((await verify(code)).ok) retry();
+      }}
+    >
+      <input value={code} onChange={(event) => setCode(event.target.value)} />
+      <button disabled={verifying}>Verify</button>
+    </form>
+  );
+}
+```
+
+The Vue, Svelte and Solid bindings take `mfa` themselves:
+
+```vue title="TwoFactor.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useMfa } from "better-supabase/blocks/mfa/vue";
+
+const { state, actions } = useMfa({ mfa: useSupabase().auth.mfa });
+</script>
+
+<template>
+  <img v-if="state.enrollment" :src="state.enrollment.qrCode" alt="QR code" />
+  <button v-else @click="actions.enroll()">Set up two-factor</button>
+</template>
+```
+
+```svelte title="StepUp.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useStepUp } from "better-supabase/blocks/mfa/svelte";
+
+  const { supabase } = getBetterSupabase();
+  const stepUp = useStepUp({ mfa: supabase.auth.mfa });
+</script>
+
+{#if !$stepUp.satisfied}<p>Enter a code from your authenticator.</p>{/if}
+```
+
+```tsx title="Factors.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useMfa } from "better-supabase/blocks/mfa/solid";
+
+export function Factors() {
+  const { state } = useMfa({ mfa: useSupabase().auth.mfa });
+  return <p>{state().factors?.length ?? 0} factors</p>;
+}
+```
+
+Without a framework, build the controller and subscribe to it:
+
+```ts
+import { createStepUpController } from "better-supabase/blocks/mfa";
+
+const stepUp = createStepUpController({
+  mfa: supabase.auth.mfa,
+  auth: bs.auth,
+});
+const stop = stepUp.subscribe(() => render(stepUp.getSnapshot()));
+```
+
 ## Row-level security
 
 Guards protect your server code; RLS protects the data from every client,

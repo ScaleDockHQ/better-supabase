@@ -337,6 +337,7 @@ export type {
   EventMapOf,
   Events,
   EventSpec,
+  LegalHoldEventData,
   MergedEventMap,
   NotificationDeliveryEventData,
   NotificationEventData,

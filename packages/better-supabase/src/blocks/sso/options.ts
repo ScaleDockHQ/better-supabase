@@ -6,6 +6,8 @@ export type SsoSqlOptions = {
   readonly defaultRole?: string;
   readonly roleOrder?: readonly string[];
   readonly groupRoles?: unknown;
+  /** Adds `scim_sync_log` and its functions, for `sqlScimSyncLog`. */
+  readonly syncLog?: boolean;
 };
 
 export const ssoSqlOptions: BlockOptionsSchema<SsoSqlOptions> =
@@ -14,4 +16,5 @@ export const ssoSqlOptions: BlockOptionsSchema<SsoSqlOptions> =
     defaultRole: option.string({ default: "member" }),
     roleOrder: option.strings(),
     groupRoles: option.unknown(),
+    syncLog: option.boolean({ default: false }),
   });

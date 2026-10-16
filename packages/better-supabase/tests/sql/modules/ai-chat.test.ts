@@ -133,7 +133,7 @@ describe("ai-chat module", () => {
 
   it("upgrades run states and moves harness sandboxes from version 1", () => {
     const [plan] = upgradePlan([{ module: "ai-chat", version: 1 }]);
-    expect(plan!.to).toBe(2);
+    expect(plan!.to).toBe(3);
     const sql = plan!.steps.map((step) => step.sql).join("\n");
     expect(sql).toContain("when 'error' then 'failed' else 'cancelled' end");
     expect(sql).toContain("a.attname = 'status'");

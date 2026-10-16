@@ -27,7 +27,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [],
       "integrates": [
         "access",
-        "organizations"
+        "organizations",
+        "data-lifecycle"
       ],
       "manifest": "audit"
     },
@@ -76,7 +77,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Job queue",
       "category": "platform",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "data-lifecycle"
+      ],
       "manifest": "jobs"
     },
     {
@@ -92,7 +95,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Webhook inbox",
       "category": "platform",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "data-lifecycle"
+      ],
       "manifest": "webhook-inbox"
     },
     {
@@ -249,7 +254,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Outbox",
       "category": "platform",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "data-lifecycle"
+      ],
       "manifest": "outbox"
     },
     {
@@ -262,7 +269,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "access",
         "profiles",
-        "tenant"
+        "tenant",
+        "data-lifecycle"
       ],
       "manifest": "notifications"
     },
@@ -275,7 +283,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "access",
-        "service-principals"
+        "service-principals",
+        "data-lifecycle"
       ],
       "manifest": "webhooks"
     },
@@ -341,7 +350,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "entitlements"
+        "entitlements",
+        "data-lifecycle"
       ],
       "manifest": "usage",
       "scopes": [
@@ -440,7 +450,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "organizations"
+        "organizations",
+        "data-lifecycle"
       ],
       "manifest": "sso",
       "scopes": [
@@ -520,7 +531,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "access"
       ],
-      "integrates": [],
+      "integrates": [
+        "data-lifecycle"
+      ],
       "manifest": "workflows",
       "scopes": [
         "tenant"
@@ -581,7 +594,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "jobs",
         "notifications",
-        "reactions"
+        "reactions",
+        "data-lifecycle"
       ],
       "manifest": "inbox",
       "scopes": [
@@ -603,7 +617,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "entitlements",
         "ai-providers",
-        "approvals"
+        "approvals",
+        "data-lifecycle"
       ],
       "manifest": "ai-chat",
       "scopes": [
@@ -1074,7 +1089,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "data-lifecycle"
       ],
       "manifest": "trash",
       "scopes": [
@@ -1635,6 +1651,29 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ]
+    },
+    {
+      "name": "signing-keys",
+      "title": "Signing keys",
+      "category": "platform",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "signing-keys"
+    },
+    {
+      "name": "shared-signals",
+      "title": "Shared signals",
+      "category": "platform",
+      "requires": [],
+      "integrates": [
+        "webhooks-out",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "shared-signals"
     },
     {
       "name": "ensure-rls",
@@ -2628,6 +2667,32 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "shareLinksBlock",
         "subpath": "better-supabase/blocks/share-links"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "shared-signals",
+      "sql": [
+        "shared-signals"
+      ],
+      "category": "platform",
+      "client": {
+        "export": "sharedSignalsBlock",
+        "subpath": "better-supabase/blocks/shared-signals"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "signing-keys",
+      "sql": [
+        "signing-keys"
+      ],
+      "category": "platform",
+      "client": {
+        "export": "signingKeysBlock",
+        "subpath": "better-supabase/blocks/signing-keys"
       },
       "consumes": {},
       "provides": []

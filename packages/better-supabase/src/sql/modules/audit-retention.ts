@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { partitionedOn } from "./audit-chain.ts";
 
 /**
  * `purge_audit_log`, which honours an `audit_retention(tenant)` hook, and
@@ -12,9 +13,34 @@ export function retention(ctx: ModuleContext): string {
   const id = ctx.idType;
   const hook = ctx.hookTarget("audit_retention");
   const signature = sqlString(`${hook}(${id})`);
+  const expired = (tenant: string): string =>
+    ctx.expired("audit", {
+      at: `l.${c("occurredAt")}`,
+      tenant,
+      fallback: "older_than",
+    });
+  const held = ctx.held("audit", "v_tenant");
+  const restricted = ctx.flag("restricted", false)
+    ? `\n      execute format('delete from ${ctx.table("restricted")} r using %s p where r.${ctx.col("restricted", "entry")} = p.${c("id")}', v_part);`
+    : "";
+  const months = partitionedOn(ctx)
+    ? `
+  if not for_tenant and to_regprocedure(${signature}) is null then
+    -- Whole months past every tenant's retention go at once, unless a hold
+    -- covers audit entries anywhere.
+    for v_part in
+      select p from better_supabase.expired_partitions(${sqlString(log)}::regclass, ${ctx.cutoff("audit", "older_than")}) p
+    loop
+      execute format('select count(*)::integer from %s', v_part) into gone;${restricted}
+      execute format('drop table %s', v_part);
+      purged := purged + gone;
+    end loop;
+  end if;`
+    : "";
   return `-- Deletes up to batch entries older than older_than and returns how many.
 -- With an audit_retention(tenant) function, each tenant keeps its own
--- interval (a plan's days, say); null falls back to older_than. With
+-- interval (a plan's days, say); null falls back to the data-lifecycle
+-- retention policy, then older_than. Entries under a legal hold stay. With
 -- for_tenant, only entries of tenant (null: entries without one).
 -- Nightly with pg_cron or the jobs drain route:
 --   select better_supabase.purge_audit_log();
@@ -34,9 +60,9 @@ declare
   purged integer := 0;
   gone integer;
   v_tenant ${id};
-  v_older interval;
+  v_older interval;${partitionedOn(ctx) ? "\n  v_part regclass;" : ""}
 begin
-  perform set_config('better_supabase.audit_purge', 'on', true);
+  perform set_config('better_supabase.audit_purge', 'on', true);${months}
   if not for_tenant and to_regprocedure(${signature}) is not null then
     -- One delete per tenant with that tenant's interval as a constant, so
     -- each runs on the (tenant, occurred_at) index. The tenants come from a
@@ -51,10 +77,11 @@ begin
       select t.v from t where t.v is not null
     loop
       exit when purged >= batch;
+      continue when ${held};
       -- Not a literal name, so plpgsql_check passes without the hook.
       execute format('select %s($1)', to_regprocedure(${signature})::oid::regproc)
         into v_older using v_tenant;
-      v_older := coalesce(v_older, older_than);
+      v_older := coalesce(v_older, ${ctx.retention("audit", "v_tenant", "older_than")});
       with deleted as (
         delete from ${log}
         where ${c("id")} in (
@@ -73,7 +100,7 @@ begin
         delete from ${log}
         where ${c("id")} in (
           select l.${c("id")} from ${log} l
-          where l.${c("tenant")} is null and l.${c("occurredAt")} < now() - older_than
+          where l.${c("tenant")} is null and ${expired("null")}
           order by l.${c("occurredAt")}
           limit batch - purged
         )
@@ -87,14 +114,14 @@ begin
       delete from ${log}
       where ${c("id")} in (
         select l.${c("id")} from ${log} l
-        where l.${c("occurredAt")} < now() - older_than
+        where ${expired(`l.${c("tenant")}`)}
           and (not for_tenant or l.${c("tenant")} is not distinct from purge_audit_log.tenant)
         order by l.${c("occurredAt")}
-        limit batch
+        limit greatest(batch - purged, 0)
       )
       returning 1
     )
-    select count(*)::integer into purged from deleted;
+    select purged + count(*)::integer into purged from deleted;
   end if;
   perform set_config('better_supabase.audit_purge', 'off', true);
   return purged;

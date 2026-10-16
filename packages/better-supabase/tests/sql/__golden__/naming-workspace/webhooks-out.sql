@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@3 managed
+-- @bs-module webhooks-out@4 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,6 +49,9 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "event_types" text[] not null default '{}',
   "permissions" text[],
   "batch" boolean not null default false,
+  "signing" text not null default 'v1' check ("signing" in ('v1', 'v1a')),
+  "format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -58,6 +61,9 @@ create table if not exists "better_supabase"."webhook_endpoints" (
 );
 alter table "better_supabase"."webhook_endpoints" add column if not exists "permissions" text[];
 alter table "better_supabase"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "signing" text not null default 'v1' check ("signing" in ('v1', 'v1a'));
+alter table "better_supabase"."webhook_endpoints" add column if not exists "format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$');
+alter table "better_supabase"."webhook_endpoints" add column if not exists "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'));
 create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("workspace_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
@@ -309,7 +315,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."workspace_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"
+    'created_at', c."created_at", 'tenant', c."workspace_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credential_ref', d."credential_ref"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -444,10 +450,13 @@ grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authent
 -- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select "better_supabase"."purge_webhook_deliveries"()');
 create or replace function "better_supabase"."purge_webhook_deliveries"(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_purged integer;
+begin
   with purged as (
     delete from "better_supabase"."webhook_deliveries"
     where "id" in (
@@ -461,7 +470,9 @@ as $$
     )
     returning 1
   )
-  select count(*)::integer from purged
+  select count(*)::integer into v_purged from purged;
+  return v_purged;
+end;
 $$;
 revoke execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_webhook_deliveries"(interval, boolean, integer) to service_role;
@@ -557,6 +568,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 3, 'managed')
+values ('webhooks-out', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

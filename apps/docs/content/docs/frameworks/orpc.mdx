@@ -159,6 +159,37 @@ export const role = authed.handler(({ context }) =>
 );
 ```
 
+## Rate limits
+
+`bs.rateLimit()` counts one hit per call with
+[`createRateLimit`](/docs/blocks/sql#limits-in-route-handlers). `key` gets
+the context and the procedure path; returning `undefined` skips the limit.
+Its type parameter is the context `key` reads, `OrpcRequestContext` by
+default. `bs.fetchHandler`
+adds the `RateLimit` field to the response, plus `RateLimit-Policy` with a
+`rule`. A refused call throws `TOO_MANY_REQUESTS`, and the response carries
+`Retry-After`:
+
+```ts
+import { createRateLimit } from "better-supabase/blocks/jobs";
+
+const limiter = createRateLimit({ sql: postgres.admin });
+
+const limited = os.$context<OrpcRequestContext>().use(
+  bs.rateLimit({
+    limiter,
+    scope: "rpc",
+    rule: { max: 60, period: "1 minute" },
+    key: ({ context, path }) => {
+      const key = context.request.headers.get("x-api-key");
+      return key === null ? undefined : `${key}:${path.join(".")}`;
+    },
+  }),
+);
+```
+
+The headers reach the client only through `bs.fetchHandler`.
+
 ## Permissions
 
 `createOrpc` takes the server's `authorizer` option. `bs.middleware()` and
