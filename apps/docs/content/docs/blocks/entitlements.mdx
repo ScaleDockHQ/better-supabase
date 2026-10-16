@@ -246,6 +246,29 @@ if (!hasEntitlement(session, organizationId, "exports"))
 
 This is UX: the policy above still decides.
 
+## From the server
+
+`createEntitlements` asks the database instead of the token, so it sees a
+plan change before the next refresh. `has` calls `has_entitlement` and
+`value` calls `entitlement_value`, both as the caller, so a non-member gets
+`false` and `undefined`. `hooks` runs your code around either method (see
+[extending blocks](/docs/extending/blocks#hooks)):
+
+```ts
+import {
+  createEntitlements,
+  sqlTransport,
+} from "better-supabase/blocks/entitlements";
+
+const entitlements = createEntitlements({
+  transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+});
+
+if (!(await entitlements.has(organizationId, "exports").orThrow()))
+  return new Response("Upgrade to export", { status: 402 });
+const seats = await entitlements.value(organizationId, "seats").orThrow();
+```
+
 ## With an authorization provider
 
 With an [authorization provider](/docs/extending/authorization-providers) in
