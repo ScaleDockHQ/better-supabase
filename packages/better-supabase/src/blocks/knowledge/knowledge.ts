@@ -1,9 +1,12 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral as pgVector } from "../../core/search.ts";
@@ -141,6 +144,10 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   readonly chunking?: ChunkOptions;
   /** Chunks per embedding call. Default 64. */
   readonly batchSize?: number;
+  /** `withBlockHooks` hooks around the methods (ADR 0015). */
+  readonly hooks?: NoInfer<BlockHooks<Knowledge>>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
 
 export interface Knowledge {
@@ -496,7 +503,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       }
     });
 
-  return {
+  const client: Knowledge = {
     documents: {
       create,
       get: (documentId) =>
@@ -642,4 +649,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         Number,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "knowledge",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

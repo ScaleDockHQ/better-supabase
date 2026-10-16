@@ -6,6 +6,7 @@ export {
   type MemoryHit,
   type MemoryKind,
   type MemoryNamespace,
+  type MemoryHooks,
   type MemoryOptions,
   type MemoryRecord,
   type MemoryScope,

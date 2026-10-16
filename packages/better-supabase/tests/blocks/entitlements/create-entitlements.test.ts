@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { dbError } from "../../../src/core/errors.ts";
 import { createEntitlements } from "../../../src/blocks/entitlements/index.ts";
+import { dbError } from "../../../src/core/errors.ts";
 
 describe("createEntitlements", () => {
   it("calls has_entitlement and entitlement_value as the member", async () => {
@@ -18,9 +18,7 @@ describe("createEntitlements", () => {
     });
     expect(await entitlements.has("org-1", "exports").orThrow()).toBe(true);
     expect(await entitlements.value("org-1", "seats").orThrow()).toBe(10);
-    expect(
-      await entitlements.value("org-1", "sso").orThrow(),
-    ).toBeUndefined();
+    expect(await entitlements.value("org-1", "sso").orThrow()).toBeUndefined();
     expect(calls).toEqual([
       ["api", "has_entitlement", { tenant: "org-1", key: "exports" }],
       ["api", "entitlement_value", { tenant: "org-1", key: "seats" }],

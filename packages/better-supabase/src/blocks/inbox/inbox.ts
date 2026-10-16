@@ -1,5 +1,7 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
   BotMode,
@@ -20,6 +22,7 @@ import type {
   StoredInboundEvent,
 } from "./types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   type BlockTemporalOptions,
   applyTemporal,
@@ -59,6 +62,10 @@ export interface InboxOptions extends BlockTemporalOptions {
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the methods (ADR 0015). */
+  readonly hooks?: NoInfer<BlockHooks<Inbox>>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
 
 export interface CreateInboxInput {
@@ -446,7 +453,7 @@ export function createInbox(options: InboxOptions): Inbox {
       messageOf,
     );
 
-  return {
+  const client: Inbox = {
     inboxes: {
       create: (input) =>
         call(
@@ -724,4 +731,8 @@ export function createInbox(options: InboxOptions): Inbox {
     purgeContact: (contactId) =>
       call("purge_contact", { contact: contactId }, purgedOf),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "inbox",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
