@@ -28,70 +28,105 @@ covers the rest of the OAuth server setup.
 
 ## The consent page
 
-The page reads `authorization_id` from the URL and asks Auth for the request.
+`useOAuthConsent` from `better-supabase/blocks/sessions/react`
+(`createOAuthConsentController` in `better-supabase/blocks/sessions`, with
+Vue, Svelte and Solid bindings) reads the request for `authorization_id`.
 Auth answers with the client, the user and the requested scopes, or with a
-`redirect_url` when the user approved this client before:
+`redirect_url` when the user approved this client before; the controller
+then leaves at once:
 
 ```tsx title="src/features/auth/components/oauth-consent-form.tsx"
 "use client";
 
-// A request the user consented to before is used up by the first read, so a
-// second effect run (Strict Mode) has to share it.
-const reads = new Map<string, Promise<AuthOAuthAuthorizationDetailsResponse>>();
+import { useOAuthConsent } from "better-supabase/blocks/sessions/react";
 
-useEffect(() => {
-  const id = new URLSearchParams(window.location.search).get(
-    "authorization_id",
-  );
-  if (!id) return;
-  let read = reads.get(id);
-  if (!read) {
-    read = supabase.auth.oauth.getAuthorizationDetails(id);
-    reads.set(id, read);
-  }
-  void read.then((result) => {
-    if (result.error) return showError(result.error.message);
-    if (!("authorization_id" in result.data)) {
-      window.location.replace(result.data.redirect_url);
-      return;
-    }
-    showConsent(result.data); // client.name, user.email, scope, redirect_uri
-  });
-}, [supabase]);
+const { request, deciding, error, approve, deny } = useOAuthConsent({
+  authorizationId, // from the URL
+  redirect: (url) => window.location.replace(url),
+});
+// request.client.name, request.user.email, request.scopes, request.redirectHost
 ```
 
-Share the read per `authorization_id`. For a client the user already
-approved, the first read uses up the request, and a second read (React
-Strict Mode runs effects twice in development) fails with "authorization
-request cannot be processed".
+For a client the user already approved, the first read uses up the request,
+and a second read (React Strict Mode runs effects twice in development)
+fails with "authorization request cannot be processed". The controller
+shares the read per `authorization_id`.
 
-Approve and Deny pass `skipBrowserRedirect` so the page decides when to
-leave, and keep the buttons disabled until it does:
-
-```ts
-const result = approve
-  ? await supabase.auth.oauth.approveAuthorization(id, {
-      skipBrowserRedirect: true,
-    })
-  : await supabase.auth.oauth.denyAuthorization(id, {
-      skipBrowserRedirect: true,
-    });
-if (result.error) return showError(result.error.message);
-window.location.assign(result.data.redirect_url);
-```
+`approve()` and `deny()` call Auth with `skipBrowserRedirect`, then go to
+the `redirect_url` it returns. `deciding` stays set while the browser
+leaves, so keep the buttons disabled on it. A failed decision keeps the
+request and sets `error`.
 
 The browser only ever goes to a `redirect_url` that Auth returned, which
-points at a redirect URI the client registered. Show the host of
-`redirect_uri` on the page so the user sees where approving sends them.
+points at a redirect URI the client registered. Show `redirectHost` on the
+page so the user sees where approving sends them.
 
 The approved client acts as the user: its tokens carry the user's `sub`, so
 RLS and every repository call see the same rows the user does. The page says
 so next to the scopes.
 
+The Vue, Svelte and Solid bindings take `oauth` themselves:
+
+```vue title="Consent.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useOAuthConsent } from "better-supabase/blocks/sessions/vue";
+
+const props = defineProps<{ authorizationId: string }>();
+const { state, actions } = useOAuthConsent({
+  oauth: useSupabase().auth.oauth,
+  authorizationId: props.authorizationId,
+});
+</script>
+
+<template>
+  <p v-if="state.request">Connect {{ state.request.client.name }}?</p>
+  <button :disabled="state.deciding !== undefined" @click="actions.approve()">
+    Approve
+  </button>
+</template>
+```
+
+```svelte title="Grants.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useOAuthGrants } from "better-supabase/blocks/sessions/svelte";
+
+  const { supabase } = getBetterSupabase();
+  const grants = useOAuthGrants({ oauth: supabase.auth.oauth });
+</script>
+
+<p>{$grants.grants?.length ?? 0} connected agents</p>
+```
+
+```tsx title="Grants.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useOAuthGrants } from "better-supabase/blocks/sessions/solid";
+
+export function Grants() {
+  const { state } = useOAuthGrants({ oauth: useSupabase().auth.oauth });
+  return <p>{state().grants?.length ?? 0} connected agents</p>;
+}
+```
+
+Without a framework, `createOAuthConsentController` and
+`createOAuthGrantsController` take the same options plus `auth`:
+
+```ts
+import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
+
+const grants = createOAuthGrantsController({
+  oauth: supabase.auth.oauth,
+  auth: bs.auth,
+});
+```
+
 ## Connected agents
 
-`listGrants` returns every client the user approved, with its scopes and
-`granted_at`. `revokeGrant` disconnects one:
+`useOAuthGrants()` (`createOAuthGrantsController`) lists every client the
+user approved, newest first, with its scopes and `grantedAt`, and
+`revoke(clientId)` disconnects one. On the server, or without the hook,
+`listGrants` and `revokeGrant` do the same:
 
 ```tsx title="src/features/user/components/connected-agents-card.tsx"
 const { data: grants } = await supabase.auth.oauth.listGrants();

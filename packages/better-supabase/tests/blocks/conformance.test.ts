@@ -23,7 +23,12 @@ const RECIPES = join(
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
-const NO_CREATOR: readonly string[] = [];
+const NO_CREATOR: readonly string[] = [
+  // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
+  // the SQL tables have no client of their own.
+  "mfa",
+  "sessions",
+];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
 const NO_HOOKS: readonly string[] = [];
 /** Blocks with calls that skip `blockCall`. */

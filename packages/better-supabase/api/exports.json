@@ -2563,6 +2563,51 @@
       "WithApiKeyOptions"
     ]
   },
+  "./blocks/mfa": {
+    "values": [
+      "createMfaController",
+      "createStepUpController",
+      "mfaBlock",
+      "needsStepUp"
+    ],
+    "types": [
+      "MfaActions",
+      "MfaApi",
+      "MfaAssurance",
+      "MfaController",
+      "MfaControllerOptions",
+      "MfaEnrollment",
+      "MfaFactor",
+      "MfaSnapshot",
+      "RawMfaFactor",
+      "StepUpActions",
+      "StepUpController",
+      "StepUpControllerOptions",
+      "StepUpSnapshot"
+    ]
+  },
+  "./blocks/sessions": {
+    "values": [
+      "createOAuthConsentController",
+      "createOAuthGrantsController",
+      "sessionsBlock"
+    ],
+    "types": [
+      "OAuthApi",
+      "OAuthClientInfo",
+      "OAuthConsentActions",
+      "OAuthConsentController",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentRequest",
+      "OAuthConsentSnapshot",
+      "OAuthGrant",
+      "OAuthGrantsActions",
+      "OAuthGrantsController",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "RawOAuthClient"
+    ]
+  },
   "./blocks/settings": {
     "values": [
       "createSettings",
@@ -6372,6 +6417,131 @@
       "ApiKeysControllerOptions",
       "ApiKeysSnapshot",
       "BlockOptions",
+      "SolidController"
+    ]
+  },
+  "./blocks/mfa/react": {
+    "values": [
+      "needsStepUp",
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "MfaAssurance",
+      "MfaEnrollment",
+      "MfaFactor",
+      "MfaState",
+      "StepUpState",
+      "UseMfaOptions"
+    ]
+  },
+  "./blocks/mfa/vue": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/mfa/svelte": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/mfa/solid": {
+    "values": [
+      "useMfa",
+      "useStepUp"
+    ],
+    "types": [
+      "BlockOptions",
+      "MfaActions",
+      "MfaControllerOptions",
+      "MfaSnapshot",
+      "SolidController",
+      "StepUpActions",
+      "StepUpControllerOptions",
+      "StepUpSnapshot"
+    ]
+  },
+  "./blocks/sessions/react": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "OAuthClientInfo",
+      "OAuthConsentRequest",
+      "OAuthConsentState",
+      "OAuthGrant",
+      "OAuthGrantsState",
+      "UseOAuthConsentOptions"
+    ]
+  },
+  "./blocks/sessions/vue": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/sessions/svelte": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/sessions/solid": {
+    "values": [
+      "useOAuthConsent",
+      "useOAuthGrants"
+    ],
+    "types": [
+      "BlockOptions",
+      "OAuthConsentActions",
+      "OAuthConsentControllerOptions",
+      "OAuthConsentSnapshot",
+      "OAuthGrantsActions",
+      "OAuthGrantsControllerOptions",
+      "OAuthGrantsSnapshot",
       "SolidController"
     ]
   },
