@@ -1,8 +1,20 @@
 import type { BlockOptions } from "../../core/block-helpers.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
 import { applyTemporal } from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
@@ -15,7 +27,22 @@ import {
   textOf,
 } from "../shared.ts";
 
-export type BookingsOptions = BlockOptions;
+export interface BookingsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the booking columns the app adds
+   * (`blocks.bookings.options.extraColumns`), keyed by column name. The
+   * customer object of `hold` and `public.hold` carries them; the schema
+   * validates them there, which returns a `validation` error for a bad
+   * value, and types and parses them on every booking read.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Bookings<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+}
 
 /** The queue each hold enqueues a job on, to expire it when its time is up. */
 export const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
@@ -137,7 +164,8 @@ export interface BookingExpirePayload {
   readonly bookingId?: string;
 }
 
-export interface Bookings {
+/** `F` is the extra booking fields `options.fields` describes. */
+export interface Bookings<F extends object = Record<never, never>> {
   saveResource(
     organizationId: string,
     input: BookingResourceInput,
@@ -167,17 +195,17 @@ export interface Bookings {
     serviceId: string,
     resourceId: string,
     startsAt: Temporal.Instant,
-    customer?: BookingCustomer,
+    customer?: BookingCustomer & Partial<F>,
     options?: { readonly confirm?: boolean },
-  ): AsyncResult<PlacedBooking>;
-  confirm(bookingId: string): AsyncResult<Booking>;
-  cancel(bookingId: string, reason?: string): AsyncResult<Booking>;
+  ): AsyncResult<PlacedBooking & F>;
+  confirm(bookingId: string): AsyncResult<Booking & F>;
+  cancel(bookingId: string, reason?: string): AsyncResult<Booking & F>;
   /** The bookings that overlap the range, as the caller's policies allow. */
   list(
     organizationId: string,
     range: BookingRange,
     options?: { readonly resourceId?: string },
-  ): AsyncResult<Booking[]>;
+  ): AsyncResult<(Booking & F)[]>;
   /** Cancels every hold whose time is up. Service only. */
   expireHolds(): AsyncResult<number>;
   /** The handler for the `bookings.expire-holds` queue. */
@@ -195,13 +223,14 @@ export interface Bookings {
       token: string,
       resourceId: string,
       startsAt: Temporal.Instant,
-      customer: BookingCustomer & {
-        readonly name: string;
-        readonly email: string;
-      },
-    ): AsyncResult<PlacedBooking>;
-    confirm(bookingId: string, accessToken: string): AsyncResult<Booking>;
-    cancel(bookingId: string, accessToken: string): AsyncResult<Booking>;
+      customer: BookingCustomer &
+        Partial<F> & {
+          readonly name: string;
+          readonly email: string;
+        },
+    ): AsyncResult<PlacedBooking & F>;
+    confirm(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
+    cancel(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
   };
 }
 
@@ -272,13 +301,44 @@ function itemOf(input: object): Record<string, unknown> {
   return item;
 }
 
-function customerOf(customer: BookingCustomer | undefined): object {
-  return itemOf(customer ?? {});
-}
+const CUSTOMER_KEYS: ReadonlySet<string> = new Set([
+  "name",
+  "email",
+  "userId",
+  "notes",
+]);
 
-export function createBookings(options: BookingsOptions): Bookings {
+export function createBookings<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: BookingsOptions<S>): Bookings<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "booking fields");
+  /** The customer object, with its extra fields validated. */
+  const customerOf = (
+    customer: BookingCustomer | undefined,
+  ): AsyncResult<object> =>
+    AsyncResult.from(() =>
+      fields.write(extraOf(customer ?? {}, CUSTOMER_KEYS)),
+    ).map((extra) => ({ ...extra, ...itemOf(customer ?? {}) }));
+  const one = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): AsyncResult<Booking & F> =>
+    call(fn, args, (value) => value).andThen((value) =>
+      withFields(fields, value, bookingOf(value)),
+    );
+  const placed = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+    customer: BookingCustomer | undefined,
+  ): AsyncResult<PlacedBooking & F> =>
+    customerOf(customer).andThen((item) =>
+      call(fn, { ...args, customer: item }, (value) => value).andThen((value) =>
+        withFields(fields, value, placedOf(value)),
+      ),
+    );
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
@@ -287,12 +347,12 @@ export function createBookings(options: BookingsOptions): Bookings {
   const expireHolds: Bookings["expireHolds"] = () =>
     service("expire_booking_holds", {}, Number);
   const change = (bookingId: string, accessToken: string, to: BookingStatus) =>
-    call(
-      "public_change_booking",
-      { booking: bookingId, access_token: accessToken, to_status: to },
-      bookingOf,
-    );
-  return {
+    one("public_change_booking", {
+      booking: bookingId,
+      access_token: accessToken,
+      to_status: to,
+    });
+  const client: Bookings<F> = {
     saveResource: (organizationId, input) =>
       call(
         "save_booking_resource",
@@ -342,25 +402,19 @@ export function createBookings(options: BookingsOptions): Bookings {
         slotsOf,
       ),
     hold: (serviceId, resourceId, startsAt, customer, holdOptions) =>
-      call(
+      placed(
         "hold_booking",
         {
           service: serviceId,
           resource: resourceId,
           starts_at: String(startsAt),
-          customer: customerOf(customer),
           confirm: holdOptions?.confirm ?? false,
         },
-        placedOf,
+        customer,
       ),
-    confirm: (bookingId) =>
-      call("confirm_booking", { booking: bookingId }, bookingOf),
+    confirm: (bookingId) => one("confirm_booking", { booking: bookingId }),
     cancel: (bookingId, reason) =>
-      call(
-        "cancel_booking",
-        { booking: bookingId, reason: reason ?? null },
-        bookingOf,
-      ),
+      one("cancel_booking", { booking: bookingId, reason: reason ?? null }),
     list: (organizationId, range, listOptions) =>
       call(
         "list_bookings",
@@ -370,8 +424,11 @@ export function createBookings(options: BookingsOptions): Bookings {
           range_end: String(range.until),
           resource: listOptions?.resourceId ?? null,
         },
-        (value) => recordsOf(value, "bookings").map(bookingOf),
-      ),
+        (value) =>
+          recordsOf(value, "bookings").map(
+            (raw) => [raw, bookingOf(raw)] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     expireHolds,
     job: async () => {
       await expireHolds().orThrow();
@@ -406,15 +463,10 @@ export function createBookings(options: BookingsOptions): Bookings {
           slotsOf,
         ),
       hold: (token, resourceId, startsAt, customer) =>
-        call(
+        placed(
           "public_hold_booking",
-          {
-            token,
-            resource: resourceId,
-            starts_at: String(startsAt),
-            customer: customerOf(customer),
-          },
-          placedOf,
+          { token, resource: resourceId, starts_at: String(startsAt) },
+          customer,
         ),
       confirm: (bookingId, accessToken) =>
         change(bookingId, accessToken, "confirmed"),
@@ -422,4 +474,8 @@ export function createBookings(options: BookingsOptions): Bookings {
         change(bookingId, accessToken, "cancelled"),
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "bookings",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

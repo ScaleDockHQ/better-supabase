@@ -3,7 +3,17 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraFieldsArg,
+  extraOf,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -114,21 +124,25 @@ export interface CollectionListOptions {
 /** The most ids `add`, `remove` and `subjectIds` take or return. */
 export const MAX_COLLECTION_IDS = 1000;
 
-export interface Collections {
+/** `F` is the extra collection fields `options.fields` describes. */
+export interface Collections<F extends object = Record<never, never>> {
   /** Creates a collection. Shared scopes need `collections.share`. */
   create(
     organizationId: string,
-    input: CreateCollectionInput,
-  ): AsyncResult<Collection>;
+    input: CreateCollectionInput & Partial<F>,
+  ): AsyncResult<Collection & F>;
   /** Renames a collection or changes its description. */
-  rename(id: string, input: RenameCollectionInput): AsyncResult<Collection>;
+  rename(
+    id: string,
+    input: RenameCollectionInput & Partial<F>,
+  ): AsyncResult<Collection & F>;
   /** Archives a collection, or restores it with `archived: false`. */
   archive(id: string, archived?: boolean): AsyncResult<boolean>;
   /** The collections the caller sees, by name. */
   list(
     organizationId: string,
     options?: CollectionListOptions,
-  ): AsyncResult<Collection[]>;
+  ): AsyncResult<(Collection & F)[]>;
   /**
    * Adds records to the end of a collection, in the given order (at most
    * 1000). Ids already in it are skipped; resolves to the ids added.
@@ -181,15 +195,34 @@ export interface Collections {
   ): AsyncResult<string>;
 }
 
-export interface CollectionsOptions {
+export interface CollectionsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the collection columns the app adds
+   * (`blocks.collections.options.extraColumns`), keyed by column name. It
+   * types and parses them on `create`, `rename` and `list`, and validates
+   * them on `create` and `rename`, which return a `validation` error for a
+   * bad value.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Collections>>;
+  readonly hooks?: NoInfer<BlockHooks<Collections<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
+
+const CREATE_KEYS: ReadonlySet<string> = new Set([
+  "name",
+  "subjectType",
+  "scope",
+  "teamId",
+  "description",
+]);
+const RENAME_KEYS: ReadonlySet<string> = new Set(["name", "description"]);
 
 /** `{ [key]: value }`, or nothing when `value` is undefined. */
 function optional<K extends string, V>(
@@ -263,17 +296,32 @@ function entryPage(
  * a sidebar) and lists (named, static collections of one subject type owned
  * by a user, a team or the organization) on any record in `config.subjects`.
  */
-export function createCollections(options: CollectionsOptions): Collections {
+export function createCollections<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: CollectionsOptions<S>): Collections<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "collection fields",
+  );
+  const saved = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+    extra: Readonly<Record<string, unknown>>,
+  ): AsyncResult<Collection & F> =>
+    AsyncResult.from(() => extraFieldsArg(fields, extra))
+      .andThen((more) => call(fn, { ...args, ...more }, (value) => value))
+      .andThen((value) => withFields(fields, value, collectionOf(value)));
   const subjectIds = (id: string, max: number | undefined) =>
     call(
       "collection_subject_ids",
       { collection: id, max_ids: max ?? null },
       (value) => [...stringsOf(value)],
     );
-  const client: Collections = {
+  const client: Collections<F> = {
     create: (organizationId, input) =>
-      call(
+      saved(
         "create_collection",
         {
           tenant: organizationId,
@@ -283,10 +331,10 @@ export function createCollections(options: CollectionsOptions): Collections {
           team: input.teamId ?? null,
           description: input.description ?? null,
         },
-        collectionOf,
+        extraOf(input, CREATE_KEYS),
       ),
     rename: (id, input) =>
-      call(
+      saved(
         "rename_collection",
         {
           collection: id,
@@ -294,7 +342,7 @@ export function createCollections(options: CollectionsOptions): Collections {
           description:
             input.description === undefined ? null : (input.description ?? ""),
         },
-        collectionOf,
+        extraOf(input, RENAME_KEYS),
       ),
     archive: (id, archived = true) =>
       call(
@@ -310,8 +358,11 @@ export function createCollections(options: CollectionsOptions): Collections {
           subject_type: listOptions.subjectType ?? null,
           include_archived: listOptions.includeArchived ?? false,
         },
-        (value) => recordsOf(value, "list_collections").map(collectionOf),
-      ),
+        (value) =>
+          recordsOf(value, "list_collections").map(
+            (raw) => [raw, collectionOf(raw)] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     add: (id, ids) =>
       call(
         "add_collection_entries",

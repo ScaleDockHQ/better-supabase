@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createAuditLog } from "../../src/blocks/audit/index.ts";
+import { createAudit } from "../../src/blocks/audit/index.ts";
 import { createUndo } from "../../src/blocks/undo/undo.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import {
@@ -180,9 +180,7 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     );
     await db.asRole(owner);
     const transport = sqlTransport(db.sql);
-    const reverted = await createAuditLog({ transport })
-      .revert([entry])
-      .orThrow();
+    const reverted = await createAudit({ transport }).revert([entry]).orThrow();
     expect(reverted.reverted).toBe(1);
     expect(await title(7)).toBe("before");
     expect(reverted.undo).not.toBeNull();

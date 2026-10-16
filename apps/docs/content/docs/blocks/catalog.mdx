@@ -210,3 +210,19 @@ Product import from CSV goes through the [imports](/docs/blocks/imports)
 block with a mapping you write. Rule collections are not evaluated in SQL;
 the app runs the stored filter through its list query. Price lists don't
 know who belongs to a customer group yet, so only base prices are public.
+
+## Your own fields
+
+`blocks.catalog.options.extraColumns` adds columns to the `products` table,
+keyed by column name with their SQL type. Pass `createCatalog` a Standard Schema
+for them as `fields`: `createProduct`, `updateProduct` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and the saved product return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createCatalog({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

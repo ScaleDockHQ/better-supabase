@@ -1,7 +1,9 @@
 import type { BlockEventType } from "../../core/block-events.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
@@ -10,6 +12,10 @@ import type { StripeSource, StripeTaxId } from "../stripe.ts";
 import type { BillingEvents } from "./events.ts";
 
 export interface BillingOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Billing>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;

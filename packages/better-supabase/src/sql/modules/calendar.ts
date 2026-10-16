@@ -7,7 +7,15 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsJson,
+  fail,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { liveShareLink } from "./share-links.ts";
 
@@ -33,7 +41,7 @@ const EVENTS: ModuleEvents<CalendarEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
-  options: [],
+  options: ["extraColumns"],
   tables: {
     calendars: {
       name: "calendars",
@@ -175,6 +183,27 @@ function updateSet(ctx: ModuleContext): string {
   return sets.join(",\n    ");
 }
 
+/** The keys an event read returns, which no extra column may shadow. */
+const EVENT_KEYS: readonly string[] = [
+  "id",
+  "uid",
+  "title",
+  "tz",
+  "status",
+  "rrule",
+  "exdates",
+  "description",
+  "location",
+  "color",
+  "attendees",
+  "created",
+  "fields",
+];
+
+/** `options.extraColumns`, which the events table gets. */
+const eventExtras = (ctx: ModuleContext) =>
+  ctx.extraColumns("events", EVENT_KEYS);
+
 /** A jsonb object of one event row, aliased `e`. */
 function eventJson(ctx: ModuleContext, attendees: string): string {
   const e = (column: string) => `e.${ctx.col("events", column)}`;
@@ -184,7 +213,7 @@ function eventJson(ctx: ModuleContext, attendees: string): string {
   const list = ctx.hasTable("attendees")
     ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${a("role")}, 'response', ${a("response")}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
     : "";
-  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list})`;
+  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
 }
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
@@ -327,7 +356,7 @@ create table if not exists ${events} (
   unique nulls not distinct (${e("calendar")}, ${e("uid")}, ${e("originalStart")})
 );
 create index if not exists calendar_events_recurrence_idx on ${events} (${e("recurrence")}) where ${e("recurrence")} is not null;
-create index if not exists calendar_events_range_idx on ${events} (${e("calendar")}, ${e("startsAt")});
+create index if not exists calendar_events_range_idx on ${events} (${e("calendar")}, ${e("startsAt")});${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
 drop policy if exists calendar_events_read on ${events};
 create policy calendar_events_read on ${events} for select to authenticated
@@ -546,7 +575,7 @@ begin
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
     end if;
-  end if;
+  end if;${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}
   end if;

@@ -342,7 +342,7 @@ the audit log. The forwarding listens on `events` until you call `close()`,
 so build these blocks once, at module scope, rather than per request.
 
 ```ts
-const log = createAuditLog({ transport: service });
+const log = createAudit({ transport: service });
 
 export const app = defineBlocks(blockConfig, {
   organizations: organizationsBlock,

@@ -1,8 +1,21 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  extraFieldsArg,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -52,7 +65,20 @@ export interface AttachmentStorage {
   from(bucket: string): AttachmentBucket;
 }
 
-export interface AttachmentsOptions extends BlockTemporalOptions {
+export interface AttachmentsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the attachment columns the app adds
+   * (`blocks.attachments.options.extraColumns`), keyed by column name. It
+   * types and parses them on every read, and validates them on `upload`
+   * and `put`, which return a `validation` error for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Attachments<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, so the bucket policies apply. */
@@ -108,31 +134,34 @@ export interface NewAttachment {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface AttachmentUpload {
-  readonly attachment: Attachment;
+export interface AttachmentUpload<F extends object = Record<never, never>> {
+  readonly attachment: Attachment & F;
   /** PUT the file here, or pass `token` to `uploadToSignedUrl(path, token, file)`. */
   readonly signedUrl: string;
   readonly token: string;
 }
 
-export interface AttachmentDownload {
-  readonly attachment: Attachment;
+export interface AttachmentDownload<F extends object = Record<never, never>> {
+  readonly attachment: Attachment & F;
   readonly signedUrl: string;
 }
 
-export interface Attachments {
+/** `F` is the extra attachment fields `options.fields` describes. */
+export interface Attachments<F extends object = Record<never, never>> {
   /**
    * Creates the pending record and a signed upload URL for its path. When
    * Storage refuses the URL, the record is deleted again.
    */
-  upload(attachment: NewAttachment): AsyncResult<AttachmentUpload>;
+  upload(
+    attachment: NewAttachment & Partial<F>,
+  ): AsyncResult<AttachmentUpload<F>>;
   /** Marks the upload done after the file is stored; emits `attachment.uploaded`. */
-  confirm(id: string): AsyncResult<Attachment>;
-  get(id: string): AsyncResult<Attachment>;
+  confirm(id: string): AsyncResult<Attachment & F>;
+  get(id: string): AsyncResult<Attachment & F>;
   list(
     organizationId: string | null,
     subject?: { readonly type: string; readonly id: string },
-  ): AsyncResult<readonly Attachment[]>;
+  ): AsyncResult<readonly (Attachment & F)[]>;
   /**
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
@@ -140,7 +169,7 @@ export interface Attachments {
   download(
     id: string,
     options?: { readonly as?: string | boolean },
-  ): AsyncResult<AttachmentDownload>;
+  ): AsyncResult<AttachmentDownload<F>>;
   /** Deletes the file, then the record (the uploader, or `attachments.manage`). */
   remove(id: string): AsyncResult<boolean>;
   /**
@@ -151,16 +180,16 @@ export interface Attachments {
    * the record is deleted again, so no pending record is left behind.
    */
   put(
-    attachment: NewAttachment,
+    attachment: NewAttachment & Partial<F>,
     file: Blob | ArrayBuffer | Uint8Array,
-  ): AsyncResult<Attachment>;
+  ): AsyncResult<Attachment & F>;
   /**
    * The file's bytes, for server-side processing, behind the same scan gate
    * as `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
    */
   read(
     id: string,
-  ): AsyncResult<{ readonly attachment: Attachment; readonly file: Blob }>;
+  ): AsyncResult<{ readonly attachment: Attachment & F; readonly file: Blob }>;
 }
 
 const STATUSES: readonly AttachmentStatus[] = [
@@ -256,9 +285,34 @@ function lookup(
 }
 
 /** Attachments as the caller: the table's and the bucket's policies apply. */
-export function createAttachments(options: AttachmentsOptions): Attachments {
+const NEW_ATTACHMENT: ReadonlySet<string> = new Set([
+  "organizationId",
+  "name",
+  "mimeType",
+  "size",
+  "subjectType",
+  "subjectId",
+  "metadata",
+]);
+
+export function createAttachments<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: AttachmentsOptions<S>): Attachments<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "attachment fields",
+  );
+  const typed = (value: unknown): AsyncResult<Attachment & F> =>
+    AsyncResult.from(() => withFields(fields, value, attachmentOf(value)));
+  const find = (id: string): AsyncResult<Attachment & F> =>
+    call("get_attachment", { id }, (value) => value).andThen((value) =>
+      isRecord(value) ? typed(value) : AsyncResult.err(notFound()),
+    );
+  const confirm = (id: string): AsyncResult<Attachment & F> =>
+    call("confirm_attachment", { id }, (value) => value).andThen(typed);
   const requireScan = options.requireScan ?? true;
   const ttl = options.downloadTtl ?? 300;
   const bucket = (attachment: Attachment): AttachmentBucket =>
@@ -287,21 +341,30 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
     await call("delete_attachment", { id: created.id }, (value) => value);
     return err(error);
   };
-  const create = (attachment: NewAttachment): AsyncResult<Attachment> =>
-    call(
-      "create_attachment",
-      {
-        tenant: attachment.organizationId,
-        name: attachment.name,
-        mime_type: attachment.mimeType,
-        size: attachment.size,
-        subject_type: attachment.subjectType,
-        subject_id: attachment.subjectId,
-        metadata: attachment.metadata,
-      },
-      attachmentOf,
-    );
-  const upload = (attachment: NewAttachment): AsyncResult<AttachmentUpload> =>
+  const create = (attachment: NewAttachment): AsyncResult<Attachment & F> =>
+    AsyncResult.from(() =>
+      extraFieldsArg(fields, extraOf(attachment, NEW_ATTACHMENT)),
+    )
+      .andThen((more) =>
+        call(
+          "create_attachment",
+          {
+            tenant: attachment.organizationId,
+            name: attachment.name,
+            mime_type: attachment.mimeType,
+            size: attachment.size,
+            subject_type: attachment.subjectType,
+            subject_id: attachment.subjectId,
+            metadata: attachment.metadata,
+            ...more,
+          },
+          (value) => value,
+        ),
+      )
+      .andThen(typed);
+  const upload = (
+    attachment: NewAttachment,
+  ): AsyncResult<AttachmentUpload<F>> =>
     create(attachment).andThen(async (created) => {
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
@@ -313,10 +376,10 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         token: url.data.token,
       });
     });
-  return {
+  const client: Attachments<F> = {
     upload,
-    confirm: (id) => call("confirm_attachment", { id }, attachmentOf),
-    get: (id) => lookup(call, id),
+    confirm,
+    get: find,
     list: (organizationId, subject) =>
       call(
         "list_attachments",
@@ -325,10 +388,13 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           subject_type: subject?.type,
           subject_id: subject?.id,
         },
-        (value) => recordsOf(value, "list_attachments").map(attachmentOf),
-      ),
+        (value) =>
+          recordsOf(value, "list_attachments").map(
+            (raw) => [raw, attachmentOf(raw)] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     download: (id, download = {}) =>
-      lookup(call, id).andThen((attachment) => {
+      find(id).andThen((attachment) => {
         const blocked = gate(attachment);
         if (blocked) return Promise.resolve(err(blocked));
         return stored(
@@ -357,10 +423,10 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           }),
         );
         if (!sent.ok) return discard(created, sent.error);
-        return call("confirm_attachment", { id: created.id }, attachmentOf);
+        return confirm(created.id);
       }),
     read: (id) =>
-      lookup(call, id).andThen((attachment) => {
+      find(id).andThen((attachment) => {
         const blocked = gate(attachment);
         if (blocked) return Promise.resolve(err(blocked));
         return stored(bucket(attachment).download(attachment.path)).map(
@@ -368,7 +434,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         );
       }),
     remove: (id) =>
-      lookup(call, id)
+      find(id)
         .andThen((attachment) =>
           stored(bucket(attachment).remove([attachment.path])),
         )
@@ -376,6 +442,10 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           call("delete_attachment", { id }, (value) => value === true),
         ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "attachments",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /** A scanner's verdict on one file. */

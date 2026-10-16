@@ -9,6 +9,7 @@ export type AttachmentsSqlOptions = {
   readonly subjects?: unknown;
   readonly path?: string;
   readonly scanBuckets?: readonly string[];
+  readonly extraColumns?: unknown;
 };
 
 export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
@@ -20,4 +21,5 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     subjects: option.unknown(),
     path: option.string({ default: "{organization_id}/attachments/{id}" }),
     scanBuckets: option.strings({ default: [] }),
+    extraColumns: option.unknown(),
   });

@@ -2,6 +2,9 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  withExtraFields,
+  writeExtraColumns,
   raise,
   replaceColumnCheck,
   schemaPreamble,
@@ -47,7 +50,7 @@ const RUNS = {
 } as const;
 
 const NAMES: ModuleNames = {
-  options: ["queue", "staleAfter", "maxPrompt"],
+  options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
   tables: {
     tasks: {
       name: "ai_scheduled_tasks",
@@ -99,7 +102,13 @@ function build(ctx: ModuleContext): string {
   const agentUsable = agents
     ? `exists (select 1 from ${agents.table("agents")} g where g.${agents.col("agents", "id")} = v_agent and g.${agents.col("agents", "tenant")} = v_row.${t.tenant} and (g.${agents.col("agents", "owner")} = v_row.${t.user} or g.${agents.col("agents", "publishedAt")} is not null))`
     : "false";
-  const taskJson = (row: string): string => rowJson(TASKS, t, row);
+  const extras = ctx.extraColumns("tasks", [
+    ...Object.values(TASKS),
+    "last_run",
+    "fields",
+  ]);
+  const taskJson = (row: string): string =>
+    withExtraFields(rowJson(TASKS, t, row), row, extras);
   const runJson = (row: string): string => rowJson(RUNS, r, row);
   const enqueue = (run: string): string =>
     ctx.installed("jobs")
@@ -137,7 +146,7 @@ create table if not exists ${tasks} (
 );
 create index if not exists ai_scheduled_tasks_due_idx on ${tasks} (${t.nextRunAt}) where ${t.enabled};
 create index if not exists ai_scheduled_tasks_user_idx on ${tasks} (${t.user}, ${t.tenant});
-create index if not exists ai_scheduled_tasks_agent_idx on ${tasks} (${t.agent});
+create index if not exists ai_scheduled_tasks_agent_idx on ${tasks} (${t.agent});${addExtraColumns(tasks, extras)}
 alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
@@ -237,7 +246,7 @@ begin
       else x.${t.nextRunAt} end,
     ${t.updatedAt} = now()
   where x.${t.id} = v_row.${t.id}
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(tasks, extras, "save_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
   return ${taskJson("v_row")};
 end;
 $$;

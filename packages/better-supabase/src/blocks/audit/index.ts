@@ -1,4 +1,4 @@
-export { createAuditLog } from "./client.ts";
+export { createAudit } from "./audit-log.ts";
 export type {
   AuditColumns,
   AuditCursor,
@@ -13,7 +13,7 @@ export type {
   AuditPage,
   AuditRecord,
   AuditReverted,
-} from "./client.ts";
+} from "./audit-log.ts";
 export type { AuditCsvColumn, AuditCsvOptions } from "./csv.ts";
 export { auditEventOf, auditSink } from "./sink.ts";
 export type { AuditSinkOptions } from "./sink.ts";

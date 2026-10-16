@@ -1,6 +1,10 @@
+import type { FieldsOf } from "../../core/block-fields.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { AiMessage } from "../ai-chat/message.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
@@ -34,7 +38,21 @@ export interface AiFileStorage {
   from(bucket: string): AiFileBucket;
 }
 
-export interface AiFilesOptions extends BlockTemporalOptions {
+export interface AiFilesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the file columns the app adds
+   * (`blocks.ai-files.options.extraColumns`), keyed by column name. It
+   * types and parses them on the file reads, and validates them on
+   * `files.upload` and `files.store`, which return a `validation` error for
+   * a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AiFiles<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /** The user's `supabase.storage`, so the bucket policies apply. */
@@ -84,8 +102,8 @@ export interface NewAiFile {
   readonly projectId?: string;
 }
 
-export interface AiFileUpload {
-  readonly file: AiFile;
+export interface AiFileUpload<F extends object = Record<never, never>> {
+  readonly file: AiFile & F;
   /** PUT the file here, or pass `token` to `uploadToSignedUrl(path, token, file)`. */
   readonly signedUrl: string;
   readonly token: string;
@@ -174,26 +192,36 @@ export interface AiSuggestion {
   readonly accepted: boolean | undefined;
 }
 
-export interface AiFiles {
+/** `F` is the extra file fields `options.fields` describes. */
+export interface AiFiles<F extends object = Record<never, never>> {
   readonly files: {
-    /** Reserves the file and returns a signed upload URL for its path. */
-    upload(organizationId: string, file: NewAiFile): AsyncResult<AiFileUpload>;
+    /**
+     * Reserves the file and returns a signed upload URL for its path. Keys
+     * besides the input's own are the file's extra columns.
+     */
+    upload(
+      organizationId: string,
+      file: NewAiFile & Partial<F>,
+    ): AsyncResult<AiFileUpload<F>>;
     /** Marks the upload done once the object exists. */
-    confirm(fileId: string, sha256?: string): AsyncResult<AiFile>;
-    get(fileId: string): AsyncResult<AiFile>;
+    confirm(fileId: string, sha256?: string): AsyncResult<AiFile & F>;
+    get(fileId: string): AsyncResult<AiFile & F>;
     /** The file a `supabase-storage://` URL names, when the caller may read it. */
-    resolve(url: string | URL): AsyncResult<AiFile>;
-    list(chatId: string): AsyncResult<readonly AiFile[]>;
+    resolve(url: string | URL): AsyncResult<AiFile & F>;
+    list(chatId: string): AsyncResult<readonly (AiFile & F)[]>;
     /** A signed download URL that expires after `downloadTtl`. */
     sign(file: AiFile | string): AsyncResult<string>;
     /** The bytes of a ready file, refusing more than `maxBytes`. */
     read(
       file: AiFile | string,
-    ): AsyncResult<{ readonly file: AiFile; readonly data: Uint8Array }>;
+    ): AsyncResult<{ readonly file: AiFile & F; readonly data: Uint8Array }>;
     /** Deletes the object and the record. */
     remove(fileId: string): AsyncResult<boolean>;
     /** Writes a ready file for `ownerId` from the server (service role). */
-    store(organizationId: string, file: StoredAiFile): AsyncResult<AiFile>;
+    store(
+      organizationId: string,
+      file: StoredAiFile & Partial<F>,
+    ): AsyncResult<AiFile & F>;
     /**
      * Deletes stale pending uploads, expired files and the files of
      * deleted chats, then their objects (service role). Returns how many.

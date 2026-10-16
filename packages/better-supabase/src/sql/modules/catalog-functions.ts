@@ -1,9 +1,17 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import {
+  columnsObject,
+  dropWithoutExtraFields,
+  extraFieldsParam,
+  extraFieldsType,
+  fail,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -16,6 +24,10 @@ const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
   active: ["draft", "archived"],
   archived: ["draft"],
 };
+
+/** `options.extraColumns`, which the products table gets. */
+export const productExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
+  ctx.extraColumns("products", ["id", "slug", "status", "fields"]);
 
 export function storefrontOption(ctx: ModuleContext): boolean {
   const value = ctx.text("storefront", "private");
@@ -81,6 +93,8 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
   const desc = ctx.has("products", "description");
   const kind = ctx.has("products", "kind");
   const governed = machineGoverns(ctx);
+  const extras = productExtras(ctx);
+  const saveArgs = `${ctx.idType}, uuid, text, text, text, text`;
   const edges = Object.entries(STATUS_EDGES)
     .map(
       ([from, to]) =>
@@ -99,7 +113,7 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
   end if;`;
   return `
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
-create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text)
+${dropWithoutExtraFields(extras, `${fn("save_product")}(${saveArgs})`)}create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${extraFieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -137,7 +151,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
-  end;
+  end;${writeExtraColumns(products, extras, "save_product.extra_fields", `x.${p("id")} = v_id`)}
   if v_created then
     ${ctx.record({
       type: "product.created",
@@ -159,10 +173,17 @@ begin
     ["uuid", "v_id"],
     ["boolean", "v_created"],
   ])}
-  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status)${
+    extras.length === 0
+      ? ""
+      : ` || (select jsonb_build_object('fields', ${columnsObject(
+          "x",
+          extras.map((extra) => extra.name),
+        )}) from ${products} x where x.${p("id")} = v_id)`
+  };
 end;
 $$;
-${userGrant(`${fn("save_product")}(${ctx.idType}, uuid, text, text, text, text)`)}
+${userGrant(`${fn("save_product")}(${saveArgs}${extraFieldsType(extras)})`)}
 
 -- Moves a product to another status: draft, active or archived.${governed ? "\n-- A state-machine machine owns the transitions of this table." : ""}
 create or replace function ${fn("set_product_status")}(product uuid, status text)

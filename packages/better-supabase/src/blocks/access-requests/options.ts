@@ -6,6 +6,7 @@ export type AccessRequestsSqlOptions = {
   readonly policy?: unknown;
   readonly maxDuration?: unknown;
   readonly join?: boolean;
+  readonly extraColumns?: unknown;
 };
 
 export const accessRequestsSqlOptions: BlockOptionsSchema<AccessRequestsSqlOptions> =
@@ -14,4 +15,5 @@ export const accessRequestsSqlOptions: BlockOptionsSchema<AccessRequestsSqlOptio
     policy: option.unknown(),
     maxDuration: option.unknown(),
     join: option.boolean({ default: false }),
+    extraColumns: option.unknown(),
   });

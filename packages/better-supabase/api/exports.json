@@ -1719,7 +1719,7 @@
       "auditEvents",
       "auditListQuery",
       "auditSink",
-      "createAuditLog",
+      "createAudit",
       "dbTransport",
       "exportAuditLog",
       "purgeAuditLog",

@@ -6,6 +6,7 @@ export type AiFilesSqlOptions = {
   readonly maxSize?: number;
   readonly allowedMimeTypes?: readonly string[];
   readonly pendingTtl?: string;
+  readonly extraColumns?: unknown;
 };
 
 export const aiFilesSqlOptions: BlockOptionsSchema<AiFilesSqlOptions> =
@@ -14,4 +15,5 @@ export const aiFilesSqlOptions: BlockOptionsSchema<AiFilesSqlOptions> =
     maxSize: option.number(),
     allowedMimeTypes: option.strings({ default: [] }),
     pendingTtl: option.string({ default: "1 day" }),
+    extraColumns: option.unknown(),
   });
