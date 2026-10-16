@@ -25,6 +25,8 @@ const SUPABASE = resolve(
   "../../../../node_modules/.bin/supabase",
 );
 const DB_PORT = 56422;
+// The round trip uses its own Docker stack on fixed ports, whatever engine the shell selects.
+const ENV = { ...process.env, SUPABASE_EXPERIMENTAL_STACK: "0" };
 // read-sets and vector-search render nothing without app config; pgtap is a test file.
 const NAMES = Object.keys(SQL_MODULES).filter(
   (name) => !["pgtap", "read-sets", "vector-search"].includes(name),
@@ -40,6 +42,7 @@ const supabase = (cwd: string, args: string[]) => {
   // The plan for every module is printed in full and is over the 1 MiB default.
   const run = spawnSync(SUPABASE, args, {
     cwd,
+    env: ENV,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -67,13 +70,18 @@ const startWhenPortFree = async (cwd: string) => {
     if (await portFree(DB_PORT)) {
       const run = spawnSync(SUPABASE, ["db", "start"], {
         cwd,
+        env: ENV,
         encoding: "utf8",
       });
       if (run.status === 0) return;
       const output = `${run.stdout}${run.stderr}`;
       if (!/address already in use|port is already allocated/i.test(output))
         throw new Error(`supabase db start:\n${output}`);
-      spawnSync(SUPABASE, ["stop", "--no-backup"], { cwd, stdio: "ignore" });
+      spawnSync(SUPABASE, ["stop", "--no-backup"], {
+        cwd,
+        env: ENV,
+        stdio: "ignore",
+      });
     }
     if (Date.now() > deadline)
       throw new Error(`Port ${String(DB_PORT)} stayed in use`);
@@ -115,6 +123,7 @@ declarative_schema_path = "./schemas"
       if (root === "") return;
       spawnSync(SUPABASE, ["stop", "--no-backup"], {
         cwd: root,
+        env: ENV,
         stdio: "ignore",
       });
       await rm(root, { recursive: true, force: true });

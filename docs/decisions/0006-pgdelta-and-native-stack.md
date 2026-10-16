@@ -51,6 +51,12 @@ native stack when a CLI release passes `pnpm test:integration` with
 `scripts/env-local.ts` to `supabase status --env`, which the Docker backend
 rejects.
 
+## Native stack (2026-10-16)
+
+Superseded by [0032](0032-fixture-on-the-stack-engine.md): the fixture runs
+on the CLI's stack engine, with the native runtime in CI and the three
+Realtime tests it still fails on the legacy engine.
+
 ## File layout (2026-10-04)
 
 Superseded by [0027](0027-fixture-pgdelta-baseline.md): the fixture now uses

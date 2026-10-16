@@ -14,7 +14,7 @@ alwaysApply: false
 | apps/docs | `https://docs.localhost/docs` |
 | apps/examples/nextjs | `https://example.localhost` |
 
-Supabase stays at `http://127.0.0.1:55421` (`pnpm supabase:start`).
+Supabase runs on ports the CLI picks for each checkout and branch; `pnpm supabase:start` writes `SUPABASE_URL` to `.env.development.local`.
 
 - Open and test pages only through these URLs, with `agent-browser`. Never
   guess a `localhost:<port>`, and never use the IDE's built-in browser.

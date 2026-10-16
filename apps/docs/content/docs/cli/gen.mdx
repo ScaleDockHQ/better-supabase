@@ -157,8 +157,9 @@ In order:
 5. `$DATABASE_URL`;
 6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
    use;
-7. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
-   default).
+7. the local stack, on the `[db] port` from `supabase/config.toml`. When
+   `config.toml` sets no port, as on the CLI's stack engine
+   (`[experimental] stack = true`), the `DB_URL` from `supabase status`, then 54322.
 
 On a Lite project, the `postgres` driver reads its `[db] url`. The `pglite`
 and `sqlite-postgres` drivers replay `supabase/migrations` and then the

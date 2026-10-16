@@ -62,8 +62,7 @@ either. The SQL modules write their rows and role settings to
 `supabase/better-supabase-data/` instead, and `better-supabase sql data`
 turns them into a migration stamped after the newest one.
 `tests/integration/pgdelta-roundtrip.integration.test.ts` runs every block
-module through the sync on a second stack (ports 56420 to 56422) when the
-Supabase CLI and Docker are available.
+module through the sync on a second, legacy Docker stack (ports 56420 to 56422) when the Supabase CLI and Docker are available.
 
 The `900_better_supabase_*` files in `supabase/schemas/_better_supabase` and
 `supabase/better-supabase-data` are SQL modules that `better-supabase sql sync`
@@ -116,28 +115,34 @@ diff -r /tmp/before /tmp/after
 
 The export changes nothing in the repo; never point it at `supabase/schemas`.
 
-## The native stack
+## The stack engine
 
-The fixture runs on the Docker backend. In a sandbox without Docker, prefix
-the stack commands with `SUPABASE_EXPERIMENTAL_STACK=1` to use the Supabase
-CLI's native stack (ADR 0006 says why it isn't committed). It runs one stack
-per checkout with the ports in `config.toml`, so stop one before starting
-another.
+The fixture runs on the Supabase CLI's stack engine (`[experimental] stack =
+true` in `config.toml`, ADR 0032). `pnpm supabase:start` creates the stack on
+the native runtime, without Docker. The runtime is fixed when a stack is
+created, and a plain `supabase start` picks Docker when it is running.
 
-- Its `supabase status` rejects `-o env` and `-o json`; use
-  `supabase status --env`. The Docker backend rejects `--env`, which is why
-  CI and `scripts/env-local.ts` keep `-o env`.
-- On CLI 2.119.0 its Realtime refuses or times out private-channel joins, so
-  the Realtime block and access topic integration tests fail there. Run them
-  on the Docker backend.
-- The two backends keep separate databases, so reset after switching.
-- A native stack keeps running after its shell exits. While it holds ports
-  55421 and 55422, a Docker `supabase start` applies the migrations to the
-  native database and fails with `type ... already exists (SQLSTATE 42710)`.
-  Each branch gets its own native stack, so one left from an old branch still
-  holds the ports. `lsof -nP -iTCP:55422 -sTCP:LISTEN` shows the
-  `__supabase_stack_host__` process, whose last argument is the stack id;
-  stop it with `SUPABASE_EXPERIMENTAL_STACK=1 supabase stop --stack-id <id>`.
+- The engine keeps one stack per checkout and branch, with its own ports and
+  database, so two worktrees run side by side. Switching branches opens
+  another stack: run `pnpm supabase:start` and `pnpm supabase:reset` again.
+- Nothing may hardcode a port. `pnpm supabase:start` runs `pnpm env:local`,
+  and code reads `SUPABASE_URL` and `SUPABASE_DB_URL`
+  (`tests/integration/stack-env.ts` in the integration suite). `pnpm test:integration` and `pnpm db:gen` load
+  `.env.development.local`.
+- `supabase status --env --output-format json` prints the URLs and keys.
+  `SUPABASE_EXPERIMENTAL_STACK=0` turns the legacy Docker engine back on;
+  its status needs `-o json` instead, and `scripts/env-local.ts` reads both.
+- Its Realtime denies the private-channel joins in three tests (two in
+  `realtime.integration.test.ts`, one in `access-policies`), on every
+  runtime. They skip when `SUPABASE_RUNTIME` names a stack engine runtime,
+  and the CI `realtime` job runs them on the legacy engine.
+- On the native runtime, `pg_net` reaches the host at `127.0.0.1`, not
+  `host.docker.internal`.
+- Services start on first request and stop when idle; `supabase start --eager`
+  starts all of them and turns the idle stop off.
+- A stack keeps running after its shell exits. `supabase stack list` shows
+  every stack on the machine, `supabase stop` stops the current one and
+  `supabase stop --stack-id <id>` or `--all` stops others.
 
 ## Integration tests leave objects behind
 

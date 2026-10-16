@@ -11,7 +11,7 @@ add one, and link it from the code or config it explains.
 | [0003](0003-cli-package.md)                     | The CLI runs on citty; MCP keeps its own protocol layer (package split superseded)                       |
 | [0004](0004-commit-maintainer-skills.md)        | Maintainer skills in `.agents/skills` and `skills-lock.json` are committed                               |
 | [0005](0005-temporal.md)                        | Time values in the public API are `Temporal`; the polyfill is an optional peer                           |
-| [0006](0006-pgdelta-and-native-stack.md)        | The fixture schema diffs with pg-delta; the native local stack stays opt-in                              |
+| [0006](0006-pgdelta-and-native-stack.md)        | The fixture schema diffs with pg-delta; the native stack part is superseded by 0032                      |
 | [0007](0007-cli-in-library.md)                  | The CLI ships inside `better-supabase` with its dependencies inlined                                     |
 | [0008](0008-middleware-entries.md)              | The server and the adapters run on `@supabase/middleware` entries and bridges                            |
 | [0009](0009-stripe-peer-and-openfeature.md)     | Stripe is a lazily loaded optional peer; OpenFeature is typed structurally                               |
@@ -37,3 +37,4 @@ add one, and link it from the code or config it explains.
 | [0029](0029-block-manifests.md)                 | One `defineBlock` manifest per block, wired by provides and consumes; `blocks` replaces `sql.modules`    |
 | [0030](0030-headless-block-controllers.md)      | Block client state lives in headless controllers with React, Vue, Svelte and Solid bindings              |
 | [0031](0031-presets-registry-recipes.md)        | Presets install blocks, a shadcn registry ships glue only, and UI is a recipe                            |
+| [0032](0032-fixture-on-the-stack-engine.md)     | The fixture runs on the CLI's stack engine with per-checkout ports and the native runtime in CI          |

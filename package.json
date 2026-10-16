@@ -44,7 +44,7 @@
     "size": "turbo run test --filter=@better-supabase/bundle",
     "supabase:reset": "supabase db reset",
     "supabase:signing-key": "better-supabase keys --cwd .",
-    "supabase:start": "supabase start && pnpm env:local",
+    "supabase:start": "supabase start --runtime native && pnpm env:local",
     "supabase:stop": "supabase stop",
     "supabase:sync": "supabase db schema declarative sync --no-apply --strict-coverage -f",
     "supabase:test": "supabase test db",

@@ -26,7 +26,7 @@ pnpm run verify
 pnpm install
 vercel link           # maintainers: link the scaledock team's project
 pnpm env:pull         # maintainers: hosted keys in .env.local
-pnpm supabase:start   # API on 55421, Postgres on 55422
+pnpm supabase:start   # native stack; writes its URLs to .env.development.local
 pnpm env:local        # local stack and Portless URLs in .env.development.local
 pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
 ```
@@ -60,7 +60,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm run format`        | Format with Oxfmt                                                         |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |
 
-The local stack uses the API on port 55421 and Postgres on 55422. Override them with `SUPABASE_URL` and `SUPABASE_DB_URL`. It needs Docker; `SUPABASE_EXPERIMENTAL_STACK=1` runs it on the Supabase CLI's native stack instead (its Realtime private channels fail the integration tests). After you edit `supabase/schemas`, create the migration with `pnpm supabase:sync <name>` (see `docs/agents/database.md`).
+The local stack runs on the Supabase CLI's stack engine without Docker. The CLI picks its ports for each checkout and branch, so worktrees run their own stacks side by side; `pnpm supabase:start` writes the URLs and keys to `.env.development.local`, which `pnpm test:integration` and `pnpm db:gen` load. Run it again after switching branches. After you edit `supabase/schemas`, create the migration with `pnpm supabase:sync <name>` (see `docs/agents/database.md`).
 
 Before the first `supabase start`, create the stack's ES256 signing key with `node packages/better-supabase/src/cli/bin.ts keys --cwd .`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
 

@@ -22,12 +22,14 @@ schema, and runs against the local stack from `supabase/config.toml`.
 ## Run them
 
 ```bash
-supabase start
+pnpm supabase:start
 pnpm build:packages
 pnpm --filter @better-supabase/example-nextjs dev
 ```
 
-The examples use the stack from `supabase/config.toml` (API on port 55421).
+The examples use the stack from `supabase/config.toml`. The Supabase CLI
+picks its ports, and `pnpm supabase:start` writes them to
+`.env.development.local`.
 To use another stack, set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
 `SUPABASE_SECRET_KEY`.
 

@@ -57,12 +57,12 @@ docs/
   80% branches); `autoUpdate` raises them locally, never in CI.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
-- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack (`SUPABASE_EXPERIMENTAL_STACK=1` runs it without Docker), a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
 - `pnpm supabase:sync <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.
 - `pnpm typecheck:matrix`: published types against TypeScript 6 and 7 (5.9 has no Temporal lib).
 - `pnpm size`: gzip size baselines per entry, min+gzip baselines for three app-shaped consumers (`CONSUMERS` in `tests/bundle/bundle.test.ts`), and the WinterTC import check.
-- `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
+- `pnpm test:integration`: integration suite against the running stack; it loads `SUPABASE_URL` and `SUPABASE_DB_URL` from `.env.development.local`.
 - `pnpm --filter @better-supabase/example-nextjs test:e2e`: resets the local stack, builds the Next.js example with the testing API and runs its `instant()` specs (local only; see `docs/agents/nextjs.md`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
 - `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
@@ -307,7 +307,7 @@ standard or sets how the repo works.
 - 0003: the CLI runs on citty; the MCP SDK spike failed the size check. Its package split is superseded by 0007.
 - 0004: the maintainer skills in `.agents/skills` are committed.
 - 0005: the public API uses Temporal for time values.
-- 0006: the fixture schema diffs with pg-delta; the native local stack stays opt-in.
+- 0006: the fixture schema diffs with pg-delta (its native stack part is superseded by 0032).
 - 0007: the CLI ships inside `better-supabase` with its dependencies inlined.
 - 0008: the server and the framework adapters run on `@supabase/middleware` entries and bridges.
 - 0009: `stripe` is an optional peer loaded lazily; the flags block types OpenFeature structurally.
@@ -333,6 +333,7 @@ standard or sets how the repo works.
 - 0029: every block is one `defineBlock` manifest; `createBlocks` wires on what blocks provide and consume, events are declared per block, one contract is checked by a conformance test, and a top-level `blocks` key replaces `blocks`.
 - 0030: block client state lives in headless controllers (`src/blocks/<name>/client.ts`) with thin React (web and native), Vue, Svelte and Solid bindings; they reach the platform only through the ports in `bs.ports`.
 - 0031: presets install a block selection, a shadcn-compatible registry ships glue only, and UI ships as recipes over the app's own shadcn components.
+- 0032: the fixture runs on the CLI's stack engine with ports per checkout and branch; CI uses the native runtime and runs the three Realtime tests it fails on the legacy engine.
 
 ## Pre-release pins
 
