@@ -60,13 +60,16 @@ select better_supabase.track_events('public.invoices', 'invoice', 'organization_
 
 ## Relaying events
 
-Create the outbox client on a server connection, register each consumer
-once, then relay it from a cron route or a worker:
+Create the outbox client over a server connection, register each consumer
+once, then relay it from a cron route or a worker. `transport` emits and
+reads the history; `service`, which defaults to `transport`, runs the
+consumer calls, which need the service role:
 
 ```ts title="lib/outbox.ts"
-import { createOutbox } from "better-supabase/blocks/outbox";
+import { createOutbox, sqlTransport } from "better-supabase/blocks/outbox";
 
-export const outbox = createOutbox(postgres.admin, {
+export const outbox = createOutbox({
+  transport: sqlTransport(postgres.admin),
   source: "https://crm.example.com",
   typePrefix: "com.example.crm",
 });
@@ -159,7 +162,9 @@ default policy for them under an authorization provider; the sinks they
 feed (webhooks, notifications, realtime) check their own subscribers.
 
 ```ts
-const outbox = createOutbox(postgres.admin, {
+const outbox = createOutbox({
+  transport: sqlTransport(postgres.admin),
+  source: "https://crm.example.com",
   subscribers: (event, subscribers) =>
     event.type.startsWith("billing.")
       ? subscribers.filter((s) => s.principal === "ledger")
@@ -169,6 +174,12 @@ const outbox = createOutbox(postgres.admin, {
 
 The outbox SQL doesn't filter: every registered consumer claims every event,
 and the policy runs in TypeScript.
+
+`hooks` run around `emit`, `register`, `unregister`, `history`,
+`deadLetters` and `purge`, the methods that return a result. With
+[`defineBlocks`](/docs/blocks/create-blocks), set the CloudEvents source with
+`outboxBlock.with({ source: "https://crm.example.com" })`. The outbox tables
+take no app columns: the app's data goes in each event's payload.
 
 ### Ordering and open transactions
 

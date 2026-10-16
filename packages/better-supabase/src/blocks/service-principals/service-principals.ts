@@ -1,6 +1,19 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  rowFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -39,7 +52,9 @@ export interface ServicePrincipalAuthAdmin {
   deleteUser(id: string): PromiseLike<{ error: { message: string } | null }>;
 }
 
-export interface ServicePrincipalsOptions extends BlockTemporalOptions {
+export interface ServicePrincipalsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   /** A service-role transport: every function but `list` is service only. */
   readonly transport: BlockTransport;
   /** `supabase.auth.admin` of a service-role client. */
@@ -47,9 +62,19 @@ export interface ServicePrincipalsOptions extends BlockTemporalOptions {
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<ServicePrincipals<FieldsOf<S>>>>;
+  /**
+   * A Standard Schema for the extra columns of the principals table
+   * (`blocks.service-principals.options.extraColumns`): writes are
+   * validated, reads parsed.
+   */
+  readonly fields?: S;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface ServicePrincipal {
+export interface ServicePrincipal<F extends object = Record<never, never>> {
   readonly id: string;
   readonly name: string;
   readonly role: string;
@@ -57,6 +82,8 @@ export interface ServicePrincipal {
   readonly createdBy: string | null;
   readonly createdAt: Temporal.Instant;
   readonly disabledAt: Temporal.Instant | null;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 /**
@@ -68,21 +95,29 @@ export interface ServicePrincipalActor {
   readonly createdBy?: string;
 }
 
-export interface CreateServicePrincipalOptions extends ServicePrincipalActor {
+export interface CreateServicePrincipalOptions<
+  F extends object = Record<never, never>,
+> extends ServicePrincipalActor {
   /** Makes it the tenant's default, which organization-owned work runs as. */
   readonly default?: boolean;
+  /** Values for the app's extra columns (`options.extraColumns`). */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface CreatedServicePrincipal {
+export interface CreatedServicePrincipal<
+  F extends object = Record<never, never>,
+> {
   readonly id: string;
   readonly organizationId: string;
   readonly name: string;
   readonly role: string;
   readonly isDefault: boolean;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 /** The `service-principals` SQL module as typed calls. */
-export interface ServicePrincipals {
+export interface ServicePrincipals<F extends object = Record<never, never>> {
   /**
    * Creates an `auth.users` row that can't sign in (banned, no password,
    * an address under `.invalid`), then registers it with `role` in the
@@ -92,8 +127,8 @@ export interface ServicePrincipals {
     organizationId: string,
     name: string,
     role: string,
-    options?: CreateServicePrincipalOptions,
-  ) => AsyncResult<CreatedServicePrincipal>;
+    options?: CreateServicePrincipalOptions<F>,
+  ) => AsyncResult<CreatedServicePrincipal<F>>;
   readonly setRole: (
     id: string,
     role: string,
@@ -109,18 +144,28 @@ export interface ServicePrincipals {
   /** The organization's principals, through the read policy. */
   readonly list: (
     organizationId: string,
-  ) => AsyncResult<readonly ServicePrincipal[]>;
+  ) => AsyncResult<readonly ServicePrincipal<F>[]>;
 }
 
-export function createServicePrincipals(
-  options: ServicePrincipalsOptions,
-): ServicePrincipals {
+export function createServicePrincipals<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ServicePrincipalsOptions<S>): ServicePrincipals<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "service principal fields",
+  );
   const { admin } = options;
-  return {
+  const client: ServicePrincipals<F> = {
     create: (organizationId, name, role, extra = {}) =>
       AsyncResult.from(async () => {
+        const checked =
+          extra.fields === undefined
+            ? ok(undefined)
+            : await fields.write({ ...extra.fields });
+        if (!checked.ok) return checked;
         const created = await admin.createUser({
           email: `${crypto.randomUUID()}@service-principals.invalid`,
           email_confirm: true,
@@ -149,6 +194,7 @@ export function createServicePrincipals(
             role,
             is_default: extra.default ?? false,
             created_by: extra.createdBy ?? null,
+            fields: checked.data,
           },
           (value) => {
             const row = recordOf(value, "register_service_principal");
@@ -158,6 +204,7 @@ export function createServicePrincipals(
               name: textOf(row["name"]),
               role: textOf(row["role"]),
               isDefault: row["isDefault"] === true,
+              fields: rowFields(row["fields"]),
             };
           },
         );
@@ -165,7 +212,7 @@ export function createServicePrincipals(
           await admin.deleteUser(user.id);
           return err(registered.error);
         }
-        return ok(registered.data);
+        return readFields(fields, registered.data);
       }),
     setRole: (id, role, extra = {}) =>
       call(
@@ -193,7 +240,12 @@ export function createServicePrincipals(
           createdBy: nullableText(row["createdBy"]),
           createdAt: requiredInstant(row["createdAt"], "createdAt"),
           disabledAt: nullableInstant(row["disabledAt"]),
+          fields: rowFields(row["fields"]),
         })),
-      ),
+      ).andThen((principals) => readAllFields(fields, principals)),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "service-principals",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

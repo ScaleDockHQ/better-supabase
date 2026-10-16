@@ -5,7 +5,7 @@ import { defineChecklist } from "better-supabase/blocks/onboarding";
  * block in `better-supabase.config.ts` too, so the database knows the steps:
  * `blocks: { onboarding: { options: { checklists: [gettingStarted] } } }`.
  * Complete a step from the action that does it, with
- * `blocks(supabase).onboarding.complete("invite", organizationId)`.
+ * `blocks(supabase).onboarding.complete(gettingStarted, "invite", organizationId)`.
  */
 export const gettingStarted = defineChecklist({
   id: "getting-started",

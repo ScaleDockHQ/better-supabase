@@ -1,14 +1,15 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockOptions } from "../../core/block-helpers.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
   optionalInstant,
   optionalText,
   recordsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 
@@ -34,11 +35,11 @@ export interface ChecklistSpec<
   readonly steps: readonly ChecklistStep<Id>[];
 }
 
-export interface ChecklistConnectOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface OnboardingOptions extends BlockOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<Onboarding>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 /** A step with the subject's progress. */
@@ -62,32 +63,39 @@ export interface ChecklistProgress<Id extends string> {
 export type ChecklistSubject<Scope extends ChecklistScope> =
   Scope extends "organization" ? [organizationId: string] : [];
 
-export interface ChecklistClient<
-  Id extends string,
-  Scope extends ChecklistScope,
-> {
-  progress(
+/** The onboarding block: progress through any checklist `defineChecklist` declared. */
+export interface Onboarding {
+  /** The subject's progress: the caller's for a user checklist, the organization's otherwise. */
+  progress<Id extends string, Scope extends ChecklistScope>(
+    checklist: Checklist<Id, Scope>,
     ...subject: ChecklistSubject<Scope>
   ): AsyncResult<ChecklistProgress<Id>>;
   /** Marks a step done; `false` when it already was. */
-  complete(step: Id, ...subject: ChecklistSubject<Scope>): AsyncResult<boolean>;
+  complete<Id extends string, Scope extends ChecklistScope>(
+    checklist: Checklist<Id, Scope>,
+    step: Id,
+    ...subject: ChecklistSubject<Scope>
+  ): AsyncResult<boolean>;
   /** Marks a step not done; `false` when it wasn't. */
-  reset(step: Id, ...subject: ChecklistSubject<Scope>): AsyncResult<boolean>;
+  reset<Id extends string, Scope extends ChecklistScope>(
+    checklist: Checklist<Id, Scope>,
+    step: Id,
+    ...subject: ChecklistSubject<Scope>
+  ): AsyncResult<boolean>;
 }
 
-export interface Checklist<
+/** A checklist `defineChecklist` checked; pass it to the onboarding client's methods. */
+export type Checklist<
   Id extends string,
   Scope extends ChecklistScope,
-> extends ChecklistSpec<Id, Scope> {
-  connect(options: ChecklistConnectOptions): ChecklistClient<Id, Scope>;
-}
+> = ChecklistSpec<Id, Scope>;
 
 const ID = /^[a-z][a-z0-9_.-]{0,63}$/;
 
 /**
  * Declares an onboarding checklist. Pass the result to
  * `blocks.onboarding.options.checklists` so the database knows its
- * steps, and `connect` it to read and complete them.
+ * steps, and to the methods of `createOnboarding` to read and complete them.
  */
 export function defineChecklist<
   const Id extends string,
@@ -105,41 +113,43 @@ export function defineChecklist<
     }
     seen.add(step.id);
   }
-  return {
-    ...spec,
-    connect: (options) => connectChecklist(spec, options),
-  };
+  return spec;
 }
 
-function connectChecklist<Id extends string, Scope extends ChecklistScope>(
-  spec: ChecklistSpec<Id, Scope>,
-  options: ChecklistConnectOptions,
-): ChecklistClient<Id, Scope> {
+/**
+ * The onboarding block: reads and completes the steps of the checklists in
+ * `blocks.onboarding.options.checklists`, for the caller or an organization.
+ */
+export function createOnboarding(options: OnboardingOptions): Onboarding {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenantOf = (subject: readonly string[]) => ({
     tenant: subject[0] ?? null,
   });
-  return {
-    progress: (...subject) =>
+  const client: Onboarding = {
+    progress: (checklist, ...subject) =>
       call(
         "onboarding_progress",
-        { checklist: spec.id, ...tenantOf(subject) },
-        (value) => progressOf(spec.steps, value),
+        { checklist: checklist.id, ...tenantOf(subject) },
+        (value) => progressOf(checklist.steps, value),
       ),
-    complete: (step, ...subject) =>
+    complete: (checklist, step, ...subject) =>
       call(
         "complete_onboarding_step",
-        { checklist: spec.id, step, ...tenantOf(subject) },
+        { checklist: checklist.id, step, ...tenantOf(subject) },
         (value) => value === true,
       ),
-    reset: (step, ...subject) =>
+    reset: (checklist, step, ...subject) =>
       call(
         "reset_onboarding_step",
-        { checklist: spec.id, step, ...tenantOf(subject) },
+        { checklist: checklist.id, step, ...tenantOf(subject) },
         (value) => value === true,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "onboarding",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 function progressOf<Id extends string>(

@@ -4,6 +4,11 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  fieldsArg,
+  fieldsArgs,
+  fieldsParam,
+  writeExtraColumns,
   memberAddedRecord,
   organizationMissing,
   renameSql,
@@ -89,6 +94,7 @@ const NAMES: ModuleNames = {
     "tokenBytes",
     "tokenStorage",
     "validFor",
+    "extraColumns",
   ],
   tables: {
     invitations: {
@@ -161,7 +167,7 @@ create table if not exists ${t.table} (
 );
 alter table ${t.table} alter column ${c("tenant")} set not null;
 alter table ${t.table} alter column ${c("role")} drop default;
-${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}
+${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${addExtraColumns(t.table, t.extras).trimStart()}${t.extras.length === 0 ? "" : "\n"}
 drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on ${t.table} (${c("tenant")}, lower(${c("email")})) where ${where};
@@ -348,7 +354,7 @@ create or replace function ${ctx.fn("invite_member")}(
   invitee_email text,
   invitee_role text,
   valid_for interval default ${validFor},
-  prefill jsonb default '{}'
+  prefill jsonb default '{}'${fieldsParam(t.extras)}
 )
 returns jsonb
 language plpgsql
@@ -393,7 +399,12 @@ begin
     and lower(i.${c("email")}) = lower(btrim(invitee_email))${open ? `\n    and ${open}` : ""};
   insert into ${t.table} (${present.map(([logical]) => c(logical)).join(", ")})
   values (${present.map(([, value]) => value).join(", ")})
-  returning * into created;
+  returning * into created;${
+    t.extras.length === 0
+      ? ""
+      : `${writeExtraColumns(t.table, t.extras, "invite_member.fields", `x.${c("id")} = created.${c("id")}`)}
+  select * into created from ${t.table} i where i.${c("id")} = created.${c("id")};`
+  }
   ${ctx.record({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `created.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "created", "token", `created.${c("tenant")}`)};
 end;
@@ -806,7 +817,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
 ${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
-${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
+${grant("invite_member", `${id}, text, text, interval, jsonb${fieldsArg(tenantTable(ctx).extras)}`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
 ${grant("update_invitation", "uuid, text, text, jsonb", "authenticated, service_role")}
@@ -833,10 +844,17 @@ export const INVITATIONS: ModuleDefinition = {
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: NAMES,
-  contract: () => [
+  contract: (ctx) => [
     {
       name: "invite_member",
-      args: ["{id}", "text", "text", "interval", "jsonb"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "interval",
+        "jsonb",
+        ...fieldsArgs(tenantTable(ctx).extras),
+      ],
       returns: "jsonb",
     },
     { name: "accept_invitation", args: ["text"], returns: "{id}" },

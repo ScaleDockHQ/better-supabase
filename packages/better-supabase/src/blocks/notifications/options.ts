@@ -10,6 +10,7 @@ export type NotificationsSqlOptions = {
   readonly realtime?: string;
   readonly topic?: string;
   readonly updatedEvent?: string;
+  readonly extraColumns?: unknown;
 };
 
 export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions> =
@@ -24,4 +25,5 @@ export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions
     realtime: option.string({ default: "broadcast" }),
     topic: option.string({ default: "notifications:{userId}", client: true }),
     updatedEvent: option.string({ default: "notification_updated" }),
+    extraColumns: option.unknown(),
   });

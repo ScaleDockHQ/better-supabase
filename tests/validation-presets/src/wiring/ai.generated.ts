@@ -14,8 +14,11 @@ import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./ai.blocks.generated.ts";
@@ -33,8 +36,11 @@ export const blockSet = defineBlocks(blockConfig, {
   knowledge: knowledgeBlock,
   memory: memoryBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   profiles: profilesBlock,
+  settings: settingsBlock,
   teams: teamsBlock,
 });
 

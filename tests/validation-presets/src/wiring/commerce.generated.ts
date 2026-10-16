@@ -10,10 +10,13 @@ import { catalogBlock } from "better-supabase/blocks/catalog";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./commerce.blocks.generated.ts";
@@ -27,10 +30,13 @@ export const blockSet = defineBlocks(blockConfig, {
   entitlements: entitlementsBlock,
   inventory: inventoryBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   orders: ordersBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   profiles: profilesBlock,
   promotions: promotionsBlock,
+  settings: settingsBlock,
   teams: teamsBlock,
 });
 

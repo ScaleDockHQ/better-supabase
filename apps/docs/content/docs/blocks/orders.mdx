@@ -245,6 +245,30 @@ const app = createBlocks(
 
 Pass the same definitions to `blocks.metrics.options.metrics`. The [commerce preset page](/docs/presets/commerce#metrics) adds units sold from the order lines.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `orders`. `checkout` writes them when it places the order from `fields`,
+and `checkout`, `getOrder`, `capture` and `invoice` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    orders: { options: { extraColumns: { channel: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createOrders({
+  transport,
+  fields: v.object({ channel: v.optional(v.picklist(["web", "pos"])) }),
+});
+await client.checkout(cartId, { fields: { channel: "pos" } });
+```
+
 ## Hooks
 
 The SQL module calls `before_order_place`, `after_order_place`,

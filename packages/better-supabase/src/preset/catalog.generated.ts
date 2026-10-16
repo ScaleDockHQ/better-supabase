@@ -2336,7 +2336,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "onboarding"
       ],
       "category": "operations",
-      "client": null,
+      "client": {
+        "export": "onboardingBlock",
+        "subpath": "better-supabase/blocks/onboarding"
+      },
       "consumes": {},
       "provides": []
     },
@@ -2373,7 +2376,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox"
       ],
       "category": "platform",
-      "client": null,
+      "client": {
+        "export": "outboxBlock",
+        "subpath": "better-supabase/blocks/outbox"
+      },
       "consumes": {},
       "provides": []
     },
@@ -2606,7 +2612,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "settings"
       ],
       "category": "foundation",
-      "client": null,
+      "client": {
+        "export": "settingsBlock",
+        "subpath": "better-supabase/blocks/settings"
+      },
       "consumes": {},
       "provides": []
     },

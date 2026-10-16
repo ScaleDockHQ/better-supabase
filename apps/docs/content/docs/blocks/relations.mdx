@@ -161,6 +161,36 @@ const { origins, conversions } = await relations
 first, for a breadcrumb such as deal, quote, order, invoice. An app that sets
 its own `kinds` adds `created_from` to use them.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `relations`. `link` writes them from `fields`,
+and `link`, `of` and `edges` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    relations: { options: { extraColumns: { weight: "integer" } } },
+  },
+});
+```
+
+```ts
+const client = createRelations({
+  transport,
+  fields: v.object({ weight: v.optional(v.number()) }),
+});
+await client.link({
+  organizationId,
+  kind: "blocks",
+  source: { type: "task", id: a },
+  target: { type: "task", id: b },
+  fields: { weight: 2 },
+});
+```
+
 ## Events
 
 `link` and `unlink` record `subject.linked` and `subject.unlinked` with the

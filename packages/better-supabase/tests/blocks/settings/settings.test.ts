@@ -3,7 +3,10 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
-import { defineSettings } from "../../../src/blocks/settings/index.ts";
+import {
+  createSettings,
+  defineSettings,
+} from "../../../src/blocks/settings/index.ts";
 
 function fakeTransport(
   answer: (fn: string, args: Record<string, unknown>) => unknown,
@@ -40,36 +43,34 @@ describe("defineSettings", () => {
       theme: "dark",
       stale: true,
     }));
-    const client = settings.connect({ transport });
-    expect(await client.user.get().orThrow()).toEqual({
+    const client = createSettings({ settings, transport });
+    expect(await client.getUser().orThrow()).toEqual({
       theme: "dark",
       digest: undefined,
     });
-    expect(await client.user.get("theme").orThrow()).toBe("dark");
+    expect(await client.getUser("theme").orThrow()).toBe("dark");
     expect(calls[0]).toEqual(["better_supabase", "get_user_settings", {}]);
   });
 
   it("reads a stored value that fails its schema as the default", async () => {
     const { transport } = fakeTransport(() => ({ seats: -1 }));
-    const client = settings.connect({ transport, schema: "app" });
-    expect(await client.organization.get("org-1", "seats").orThrow()).toBe(5);
-    expect(await client.organization.get("org-1").orThrow()).toEqual({
+    const client = createSettings({ settings, transport, schema: "app" });
+    expect(await client.getOrganization("org-1", "seats").orThrow()).toBe(5);
+    expect(await client.getOrganization("org-1").orThrow()).toEqual({
       seats: 5,
     });
   });
 
   it("validates before writing", async () => {
     const { transport, calls } = fakeTransport(() => null);
-    const client = settings.connect({ transport });
+    const client = createSettings({ settings, transport });
     // @ts-expect-error not one of the enum values
-    const bad = await client.user.set("theme", "neon");
+    const bad = await client.setUser("theme", "neon");
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(calls).toHaveLength(0);
 
-    expect(await client.user.set("theme", "light").orThrow()).toBe("light");
-    expect(await client.organization.set("org-1", "seats", 9).orThrow()).toBe(
-      9,
-    );
+    expect(await client.setUser("theme", "light").orThrow()).toBe("light");
+    expect(await client.setOrganization("org-1", "seats", 9).orThrow()).toBe(9);
     expect(calls).toEqual([
       [
         "better_supabase",
@@ -86,13 +87,13 @@ describe("defineSettings", () => {
 
   it("refuses keys it does not declare", async () => {
     const { transport, calls } = fakeTransport(() => true);
-    const client = settings.connect({ transport });
+    const client = createSettings({ settings, transport });
     // @ts-expect-error not a declared key
-    const read = await client.user.get("color");
+    const read = await client.getUser("color");
     // @ts-expect-error not a declared key
-    const write = await client.user.set("color", "red");
+    const write = await client.setUser("color", "red");
     // @ts-expect-error not a declared key
-    const reset = await client.organization.reset("org-1", "color");
+    const reset = await client.resetOrganization("org-1", "color");
     for (const result of [read, write, reset]) {
       expect(result).toMatchObject({
         ok: false,
@@ -100,34 +101,36 @@ describe("defineSettings", () => {
       });
     }
     expect(calls).toHaveLength(0);
-    expect(await client.user.reset("theme").orThrow()).toBe(true);
-    expect(await client.organization.reset("org-1", "seats").orThrow()).toBe(
+    expect(await client.resetUser("theme").orThrow()).toBe(true);
+    expect(await client.resetOrganization("org-1", "seats").orThrow()).toBe(
       true,
     );
   });
 
   it("types values per key", () => {
-    const client = settings.connect({
+    const client = createSettings({
+      settings,
       transport: fakeTransport(() => 0).transport,
     });
-    expectTypeOf(client.user.get("theme").orThrow()).resolves.toEqualTypeOf<
+    expectTypeOf(client.getUser("theme").orThrow()).resolves.toEqualTypeOf<
       "light" | "dark" | "system"
     >();
-    expectTypeOf(client.user.get("digest").orThrow()).resolves.toEqualTypeOf<
+    expectTypeOf(client.getUser("digest").orThrow()).resolves.toEqualTypeOf<
       { weekly: boolean } | undefined
     >();
     expectTypeOf(
-      client.organization.get("org-1", "seats").orThrow(),
+      client.getOrganization("org-1", "seats").orThrow(),
     ).resolves.toEqualTypeOf<number>();
   });
 
   it("works with an empty spec", async () => {
     const empty = defineSettings({});
     expect(empty.schemas).toEqual({ user: {}, organization: {}, platform: {} });
-    const client = empty.connect({
+    const client = createSettings({
+      settings: empty,
       transport: fakeTransport(() => null).transport,
     });
-    expect(await client.user.get().orThrow()).toEqual({});
+    expect(await client.getUser().orThrow()).toEqual({});
   });
 
   it("reads and writes platform settings through their functions", async () => {
@@ -147,17 +150,17 @@ describe("defineSettings", () => {
         ? { fee: 2 }
         : fn === "reset_platform_setting",
     );
-    const client = platform.connect({ transport });
-    expect(await client.platform.get("fee").orThrow()).toBe(2);
-    expect(await client.platform.set("fee", 3).orThrow()).toBe(3);
-    expect(await client.platform.reset("fee").orThrow()).toBe(true);
+    const client = createSettings({ settings: platform, transport });
+    expect(await client.getPlatform("fee").orThrow()).toBe(2);
+    expect(await client.setPlatform("fee", 3).orThrow()).toBe(3);
+    expect(await client.resetPlatform("fee").orThrow()).toBe(true);
     expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
       ["get_platform_settings", {}],
       ["set_platform_setting", { key: "fee", value: { value: 3 } }],
       ["reset_platform_setting", { key: "fee" }],
     ]);
     expectTypeOf<
-      Parameters<typeof client.platform.set<"fee">>[1]
+      Parameters<typeof client.setPlatform<"fee">>[1]
     >().toEqualTypeOf<number>();
   });
 });

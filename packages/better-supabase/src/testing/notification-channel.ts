@@ -40,6 +40,7 @@ function sample(channel: string, email: string | null): NotificationMessage {
       createdAt,
       readAt: null,
       resolvedAt: null,
+      fields: Object.freeze({}),
     }),
     text: Object.freeze({ title: "Conformance check" }),
   });

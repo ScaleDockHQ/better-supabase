@@ -5,6 +5,7 @@ import type {
 } from "./api-types.ts";
 import type { NotificationItem } from "./types.ts";
 
+import { rowFields } from "../../core/block-fields.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nullableInstant, nullableText } from "../shared.ts";
 
@@ -29,6 +30,7 @@ export function toItem(row: Record<string, unknown>): NotificationItem {
     createdAt: nullableInstant(row["created_at"]) ?? temporal().Now.instant(),
     readAt: nullableInstant(row["read_at"]),
     resolvedAt: nullableInstant(row["resolved_at"]),
+    fields: rowFields(row["fields"]),
   };
 }
 

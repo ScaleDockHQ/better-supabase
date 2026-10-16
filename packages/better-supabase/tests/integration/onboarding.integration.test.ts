@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  createOnboarding,
   defineChecklist,
   sqlTransport,
 } from "../../src/blocks/onboarding/index.ts";
@@ -39,21 +40,22 @@ describe.skipIf(!live)("onboarding", () => {
       const tenant = await s.organization(owner, { member });
 
       await s.as(member);
-      const mine = profile.connect({ transport: sqlTransport(s.sql) });
-      expect(await mine.complete("avatar").orThrow()).toBe(true);
-      expect(await mine.complete("avatar").orThrow()).toBe(false);
-      const progress = await mine.progress().orThrow();
+      const onboarding = createOnboarding({ transport: sqlTransport(s.sql) });
+      expect(await onboarding.complete(profile, "avatar").orThrow()).toBe(true);
+      expect(await onboarding.complete(profile, "avatar").orThrow()).toBe(
+        false,
+      );
+      const progress = await onboarding.progress(profile).orThrow();
       expect(progress).toMatchObject({ completed: 1, total: 2 });
       expect(progress.next?.id).toBe("bio");
-      expect(await mine.reset("bio").orThrow()).toBe(false);
+      expect(await onboarding.reset(profile, "bio").orThrow()).toBe(false);
 
-      const teamOf = team.connect({ transport: sqlTransport(s.sql) });
-      expect(await teamOf.progress(tenant).orThrow()).toMatchObject({
+      expect(await onboarding.progress(team, tenant).orThrow()).toMatchObject({
         completed: 0,
       });
       expect(
-        await teamOf
-          .complete("billing", tenant)
+        await onboarding
+          .complete(team, "billing", tenant)
           .then((r) => !r.ok && r.error.hint),
       ).toBe("ONBOARDING_FORBIDDEN");
       expect(
@@ -72,8 +74,10 @@ describe.skipIf(!live)("onboarding", () => {
       ).toBe("ONBOARDING_SCOPE");
 
       await s.as(owner);
-      expect(await teamOf.complete("billing", tenant).orThrow()).toBe(true);
-      expect((await mine.progress().orThrow()).completed).toBe(0);
+      expect(await onboarding.complete(team, "billing", tenant).orThrow()).toBe(
+        true,
+      );
+      expect((await onboarding.progress(profile).orThrow()).completed).toBe(0);
 
       await s.service();
       await s.rows(
@@ -82,7 +86,7 @@ describe.skipIf(!live)("onboarding", () => {
         [tenant, owner.id],
       );
       await s.as(member);
-      expect(await teamOf.progress(tenant).orThrow()).toMatchObject({
+      expect(await onboarding.progress(team, tenant).orThrow()).toMatchObject({
         done: true,
       });
 
@@ -98,7 +102,9 @@ describe.skipIf(!live)("onboarding", () => {
       ).toEqual([]);
       await s.as(outsider);
       expect(
-        await teamOf.progress(tenant).then((r) => !r.ok && r.error.hint),
+        await onboarding
+          .progress(team, tenant)
+          .then((r) => !r.ok && r.error.hint),
       ).toBe("ONBOARDING_FORBIDDEN");
       await s.as("anon");
       expect(

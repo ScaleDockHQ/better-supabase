@@ -1,6 +1,8 @@
+invitations
 webhook-inbox
 organizations
 profiles
+notifications
 api-keys
 flags
 attachments
@@ -11,9 +13,13 @@ ai-chat
 ai-files
 agents
 ai-tasks
+push
 teams
 tags
 share-links
+reminders
+saved-views
+relations
 calendar
 bookings
 versions
@@ -23,10 +29,14 @@ access-requests
 catalog
 inventory
 drive
+orders
+promotions
 forms
 signatures
 time-tracking
+service-principals
 templates
+pipelines
 parties
 engagements
 deals

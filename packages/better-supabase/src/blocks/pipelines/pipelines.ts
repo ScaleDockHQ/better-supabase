@@ -3,7 +3,18 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -43,7 +54,7 @@ export interface PipelineStage {
   readonly wipLimit?: number;
 }
 
-export interface Pipeline {
+export interface Pipeline<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly subjectType: string;
@@ -55,9 +66,11 @@ export interface Pipeline {
   readonly isDefault: boolean;
   /** Its active stages in board order. Empty on the result of `save`. */
   readonly stages: readonly PipelineStage[];
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
-export interface PipelineInput {
+export interface PipelineInput<F extends object = Record<never, never>> {
   /** Leave out to create a pipeline. */
   readonly id?: string;
   readonly subjectType: string;
@@ -65,6 +78,8 @@ export interface PipelineInput {
   readonly name: string;
   readonly scopeId?: string;
   readonly isDefault?: boolean;
+  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 export interface PipelineStageInput {
@@ -134,11 +149,14 @@ export interface PipelineHealth {
   readonly rotting: boolean;
 }
 
-export interface Pipelines {
+export interface Pipelines<F extends object = Record<never, never>> {
   /** The organization's active pipelines of a subject type, with their stages. */
-  list(organizationId: string, subjectType: string): AsyncResult<Pipeline[]>;
+  list(organizationId: string, subjectType: string): AsyncResult<Pipeline<F>[]>;
   /** Creates or renames a pipeline. The first of a type and scope is its default. */
-  save(organizationId: string, input: PipelineInput): AsyncResult<Pipeline>;
+  save(
+    organizationId: string,
+    input: PipelineInput<F>,
+  ): AsyncResult<Pipeline<F>>;
   /** Archives a pipeline that holds no records. */
   archive(pipelineId: string): AsyncResult<boolean>;
   /** Adds a stage at the end of a pipeline, or changes one. */
@@ -173,12 +191,20 @@ export interface Pipelines {
   health(pipelineId: string): AsyncResult<PipelineHealth[]>;
 }
 
-export interface PipelinesOptions extends BlockTemporalOptions {
+export interface PipelinesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the extra columns of the pipelines table
+   * (`blocks.pipelines.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Pipelines>>;
+  readonly hooks?: NoInfer<BlockHooks<Pipelines<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -225,6 +251,7 @@ function pipelineOf(value: unknown): Pipeline {
     rank: textOf(row["rank"]),
     isDefault: row["is_default"] === true,
     stages: recordsOf(row["stages"], "pipeline stages").map(stageOf),
+    fields: rowFields(row["fields"]),
     ...(scopeId === undefined ? {} : { scopeId }),
   };
 }
@@ -290,30 +317,37 @@ function healthOf(value: unknown): PipelineHealth {
  * stats and health reads over them. Moving a record is a plain update of
  * its stage column, or `rank.move` with the stage id as the group.
  */
-export function createPipelines(options: PipelinesOptions): Pipelines {
+export function createPipelines<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: PipelinesOptions<S>): Pipelines<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Pipelines = {
+  const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
+  const client: Pipelines<F> = {
     list: (organizationId, subjectType) =>
       call(
         "list_pipelines",
         { tenant: organizationId, subject_type: subjectType },
         (value) => recordsOf(value, "list_pipelines").map(pipelineOf),
-      ),
+      ).andThen((pipelines) => readAllFields(fields, pipelines)),
     save: (organizationId, input) =>
-      call(
-        "save_pipeline",
-        {
-          tenant: organizationId,
-          pipeline: input.id ?? null,
-          subject_type: input.subjectType,
-          key: input.key,
-          name: input.name,
-          scope_id: input.scopeId ?? null,
-          is_default: input.isDefault ?? null,
-        },
-        pipelineOf,
-      ),
+      writeFields(fields, input.fields, (checked) =>
+        call(
+          "save_pipeline",
+          {
+            tenant: organizationId,
+            pipeline: input.id ?? null,
+            subject_type: input.subjectType,
+            key: input.key,
+            name: input.name,
+            scope_id: input.scopeId ?? null,
+            is_default: input.isDefault ?? null,
+            fields: checked,
+          },
+          pipelineOf,
+        ),
+      ).andThen((pipeline) => readFields(fields, pipeline)),
     archive: (pipelineId) =>
       call(
         "archive_pipeline",

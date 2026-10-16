@@ -23,6 +23,8 @@ export interface NotificationItem<K extends string = string, D = unknown> {
   readonly createdAt: Temporal.Instant;
   readonly readAt: Temporal.Instant | null;
   readonly resolvedAt: Temporal.Instant | null;
+  /** The events table's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: Readonly<Record<string, unknown>>;
 }
 
 /** What `render` returns: the text for one notification, in one locale. */

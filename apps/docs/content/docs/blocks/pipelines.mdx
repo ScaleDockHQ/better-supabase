@@ -154,6 +154,35 @@ With the [notifications](/docs/blocks/notifications) module installed, the owner
 
 `pipeline.stage_changed` carries the record as its subject, so the [activity feed](/docs/blocks/comments#activity-feed) shows it on the record's timeline. Pipeline and stage changes are written to the audit log as configuration changes.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `pipelines`. `save` writes them from `fields`,
+and `save` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    pipelines: { options: { extraColumns: { team: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createPipelines({
+  transport,
+  fields: v.object({ team: v.optional(v.string()) }),
+});
+await client.save(organizationId, {
+  subjectType: "deal",
+  key: "enterprise",
+  name: "Enterprise",
+  fields: { team: "sales-emea" },
+});
+```
+
 ## Hooks
 
 The module calls `before_pipeline_save`, `after_pipeline_save`, `before_pipeline_stage_save` and `after_pipeline_stage_save` around admin changes, and `before_pipeline_stage_change(subject_type text, subject_id text, from_stage uuid, to_stage uuid)` and `after_pipeline_stage_change(subject_type text, subject_id text, to_stage uuid)` inside the trigger. A `before_` hook raises to refuse the move. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).

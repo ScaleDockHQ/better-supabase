@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can, canAssign } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
@@ -119,7 +120,7 @@ export const inviteMember = bs.action(
         metadata: { role },
       }),
     );
-    await onboarding.complete("invite", organizationId);
+    await onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
     return ok({ token: sent.data.token });
   },

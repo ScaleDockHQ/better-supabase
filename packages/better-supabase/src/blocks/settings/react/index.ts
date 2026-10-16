@@ -7,6 +7,7 @@ import { rpcTransport } from "../../../core/block-transport.ts";
 import { useController } from "../../react-controller.ts";
 import { useBlockEnv } from "../../react-env.ts";
 import { createSettingsController } from "../client.ts";
+import { createSettings } from "../settings.ts";
 
 export type { SettingField, SettingKind } from "../client.ts";
 
@@ -55,7 +56,8 @@ export function useSettings(
   const { supabase, auth } = useBlockEnv();
   const { scope, organizationId, schema } = options;
   return useController(() => {
-    const client = settings.connect({
+    const client = createSettings({
+      settings,
       transport: rpcTransport(supabase),
       ...(schema === undefined ? {} : { schema }),
     });
@@ -63,12 +65,12 @@ export function useSettings(
       ? createSettingsController({
           entries: settings.schemas.user,
           auth,
-          user: client.user,
+          user: client,
         })
       : createSettingsController({
           entries: settings.schemas.organization,
           auth,
-          organization: client.organization,
+          organization: client,
           organizationId: organizationId ?? null,
         });
   }, [settings, supabase, auth, scope, organizationId, schema]).view;

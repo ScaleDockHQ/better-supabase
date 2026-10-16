@@ -105,6 +105,22 @@ blocks: {
 },
 ```
 
+Pass a Standard Schema as `fields` to type them: `saveCompany` validates the fields it writes (a `validation` error, before the database), and `saveCompany`, `mergeCompanies` and `listCompanies` parse them on read.
+
+```ts
+const parties = createParties({
+  transport,
+  fields: v.object({
+    segment: v.optional(v.string()),
+    employees: v.optional(v.number()),
+  }),
+});
+await parties.saveCompany(organizationId, {
+  name: "Acme",
+  fields: { segment: "smb" },
+});
+```
+
 People take app fields through [custom fields](/docs/blocks/custom-fields) with the `person` subject.
 
 ## Events

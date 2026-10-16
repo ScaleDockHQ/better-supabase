@@ -1,14 +1,22 @@
 import type { BlockOptions } from "../../core/block-helpers.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";
 import { blockCall, isRecord, optionalText, textOf } from "../shared.ts";
 
-export type RankOptions = Pick<
+export interface RankOptions extends Pick<
   BlockOptions,
   "transport" | "service" | "schema" | "mappers"
->;
+> {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<Rank>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+}
 
 /** Where a row goes: between two rows (by id), and into a group. */
 export interface MoveTarget {
@@ -70,13 +78,7 @@ export function createRank(options: RankOptions): Rank {
     options.schema,
     options.mappers,
   );
-  const rebalance: Rank["rebalance"] = (subjectType, tenant, group) =>
-    service(
-      "rebalance_ranks",
-      { subject_type: subjectType, tenant, rank_group: group ?? null },
-      Number,
-    );
-  return {
+  const client: Rank = {
     move: (subjectType, subjectId, target) =>
       call(
         "move",
@@ -89,10 +91,20 @@ export function createRank(options: RankOptions): Rank {
         },
         textOf,
       ),
-    rebalance,
+    rebalance: (subjectType, tenant, group) =>
+      service(
+        "rebalance_ranks",
+        { subject_type: subjectType, tenant, rank_group: group ?? null },
+        Number,
+      ),
     job: async (payload) => {
       const { subjectType, tenant, group } = payloadOf(payload);
-      await rebalance(subjectType, tenant, group).orThrow();
+      await hooked.rebalance(subjectType, tenant, group).orThrow();
     },
   };
+  const hooked = withBlockHooks(client, options.hooks, {
+    block: "rank",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  return hooked;
 }

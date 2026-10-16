@@ -477,7 +477,8 @@ wrapper an earlier `sql sync` wrote for one of them is dropped. Add the
 schema to `[api] schemas` in `config.toml` and pass it to the transport:
 
 ```ts
-const client = settings.connect({
+const client = createSettings({
+  settings,
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 ```
@@ -490,7 +491,7 @@ announcements:
 const transport = rpcTransport(serviceClient, { schema: "api" });
 const flags = createFlagsProvider({ transport });
 const announcements = createAnnouncements({ transport });
-const outbox = createOutbox(transport, { source: "https://app.example.com" });
+const outbox = createOutbox({ transport, source: "https://app.example.com" });
 ```
 
 An unknown table, column or module, or a mode a module doesn't support, stops
@@ -1079,7 +1080,9 @@ connection pass a service-role `BlockTransport`, like the other blocks:
 `createRateLimit(rpcTransport(adminClient))`. It calls
 `check_rate_limit(scope, key, max_requests, period)`, which returns the same
 decision as JSON; with `blocks.rate-limit.api` set, pass the API schema
-as `rpcTransport(adminClient, { schema: "api" })`.
+as `rpcTransport(adminClient, { schema: "api" })`. The `hooks` option runs
+around `check` and `purge`, and the `purgeJob` handler calls `purge` through
+them.
 
 The limit is the scope's rule from `set_rate_limit`, or one given per call
 (`check("chat", threadId, { max: 20, period: "1 minute" })`). A scope with

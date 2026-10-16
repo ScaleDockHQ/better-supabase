@@ -44,6 +44,7 @@ export type InvitationsSqlOptions = {
   readonly tokenBytes?: number;
   readonly tokenStorage?: string;
   readonly validFor?: string;
+  readonly extraColumns?: unknown;
 };
 
 export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
@@ -56,4 +57,5 @@ export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
     tokenBytes: option.number({ default: 24 }),
     tokenStorage: option.string({ default: "sha256" }),
     validFor: option.string({ default: "7 days" }),
+    extraColumns: option.unknown(),
   });

@@ -1,9 +1,16 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, serviceGrant, sha256Hex, userGrant } from "../shared.ts";
+import {
+  columnsObject,
+  fail,
+  serviceGrant,
+  sha256Hex,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
 export interface QuoteNames {
@@ -19,6 +26,8 @@ export interface QuoteNames {
   /** Days a new quote stays valid. */
   readonly validDays: number;
   readonly service: string;
+  /** `options.extraColumns` of the quotes table, written from `attrs.fields`. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 /**
@@ -57,7 +66,14 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   const lines = (alias: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
   const row = (alias: string): string =>
-    `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || jsonb_build_object('lines', ${lines(alias)})`;
+    `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || jsonb_build_object('lines', ${lines(alias)}${
+      n.extras.length === 0
+        ? ""
+        : `, 'fields', ${columnsObject(
+            alias,
+            n.extras.map((extra) => extra.name),
+          )}`
+    })`;
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -208,7 +224,7 @@ begin
       coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + ${String(n.validDays)}),
       create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
       create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id', auth.uid())
-    returning * into v_row;
+    returning * into v_row;${writeExtraColumns(t("quotes"), n.extras, "(create_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
   exception when check_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
   end;
@@ -256,7 +272,12 @@ begin
       ${q("contactId")} = case when update_quote.attrs ? 'contact' then update_quote.attrs -> 'contact' ->> 'id' else x.${q("contactId")} end,
       ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;
+    returning * into v_row;${
+      n.extras.length === 0
+        ? ""
+        : `${writeExtraColumns(t("quotes"), n.extras, "(update_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
+    select * into v_row from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")};`
+    }
   exception when check_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
   end;
@@ -371,7 +392,13 @@ begin
     x.${q("contactType")}, x.${q("contactId")}, x.${q("owner")}, x.${q("currency")}, greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)}), x.${q("terms")}, x.${q("note")},
     x.${q("originType")}, x.${q("originId")}, auth.uid()
   from ${t("quotes")} x where x.${q("id")} = v_old.${q("id")}
-  returning * into v_row;
+  returning * into v_row;${
+    n.extras.length === 0
+      ? ""
+      : `
+  update ${t("quotes")} x set ${n.extras.map((extra) => `${extra.ident} = o.${extra.ident}`).join(", ")}
+  from ${t("quotes")} o where o.${q("id")} = v_old.${q("id")} and x.${q("id")} = v_row.${q("id")};`
+  }
   insert into ${t("lines")} (${l("tenant")}, ${l("parent")}, ${l("productType")}, ${l("productId")}, ${l("description")}, ${l("quantity")}, ${l("unitAmount")}, ${l("discountBps")}, ${l("taxRateBps")}, ${l("taxCode")}, ${l("position")})
   select x.${l("tenant")}, v_row.${q("id")}, x.${l("productType")}, x.${l("productId")}, x.${l("description")}, x.${l("quantity")}, x.${l("unitAmount")}, x.${l("discountBps")}, x.${l("taxRateBps")}, x.${l("taxCode")}, x.${l("position")}
   from ${t("lines")} x where x.${l("parent")} = v_old.${q("id")};

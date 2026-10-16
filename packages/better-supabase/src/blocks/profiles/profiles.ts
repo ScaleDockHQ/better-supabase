@@ -4,7 +4,11 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
-import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
@@ -62,7 +66,10 @@ export function createProfiles<
     options.schema,
     options.mappers ?? [],
   );
-  const fields = blockFields<FieldsOf<S>>(options.fields, "profile fields");
+  const fields: BlockFields<FieldsOf<S>> = blockFields(
+    options.fields,
+    "profile fields",
+  );
 
   const client: Profiles<FieldsOf<S>> = {
     mine() {

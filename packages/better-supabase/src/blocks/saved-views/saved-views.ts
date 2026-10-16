@@ -1,8 +1,22 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper, ValidationIssue } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { ListQueryInput } from "../../list/list-query.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -102,6 +116,7 @@ export interface SavedViewList {
 
 export interface SavedView<
   Q extends ListQueryInput<string, string> = ListQueryInput<string, string>,
+  F extends object = Record<never, never>,
 > {
   readonly id: string;
   readonly list: string;
@@ -116,10 +131,21 @@ export interface SavedView<
   readonly isDefault: boolean;
   /** The caller's own flags; all false without the preferences table. */
   readonly preference: SavedViewPreference;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
+}
+
+/** What `save` and `duplicate` resolve to: the view's id, rank key and extra columns. */
+export interface SavedViewRef<F extends object = Record<never, never>> {
+  readonly id: string;
+  readonly rank: string;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 export interface SaveViewInput<
   Q extends ListQueryInput<string, string> = ListQueryInput<string, string>,
+  F extends object = Record<never, never>,
 > {
   readonly organizationId: string;
   /** The list's key, such as `tasks`; also the key in `lists`. */
@@ -134,21 +160,40 @@ export interface SaveViewInput<
   readonly teamId?: string;
   /** Updates this view instead of adding one. */
   readonly id?: string;
+  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface SavedViewsOptions {
+export interface SavedViewsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** List definitions by key; `save` checks a view's query against its list. */
   readonly lists?: Readonly<Record<string, SavedViewList>>;
+  /**
+   * A Standard Schema for the extra columns of the saved views table
+   * (`blocks.saved-views.options.extraColumns`): writes are validated,
+   * reads parsed.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<SavedViews<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface SavedViews {
+export interface SavedViews<F extends object = Record<never, never>> {
   /** Adds a view, or updates `input.id`. Resolves to its id and rank key. */
-  save(input: SaveViewInput): AsyncResult<{ id: string; rank: string }>;
+  save(
+    input: SaveViewInput<ListQueryInput<string, string>, F>,
+  ): AsyncResult<SavedViewRef<F>>;
   /** The views the caller sees for a list, in rank order. */
-  list(organizationId: string, list: string): AsyncResult<SavedView[]>;
+  list(
+    organizationId: string,
+    list: string,
+  ): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   /** Makes a view the default of its slot (the user's, the team's or the tenant's). */
@@ -165,7 +210,7 @@ export interface SavedViews {
   duplicate(
     id: string,
     input?: DuplicateViewInput,
-  ): AsyncResult<{ id: string; rank: string }>;
+  ): AsyncResult<SavedViewRef<F>>;
   delete(id: string): AsyncResult<boolean>;
 }
 
@@ -329,9 +374,13 @@ function preferenceOf(value: unknown): SavedViewPreference {
   };
 }
 
-function savedOf(value: unknown): { id: string; rank: string } {
+function savedOf(value: unknown): SavedViewRef {
   const row = recordOf(value, "saved view");
-  return { id: textOf(row["id"]), rank: textOf(row["rank"]) };
+  return {
+    id: textOf(row["id"]),
+    rank: textOf(row["rank"]),
+    fields: rowFields(row["fields"]),
+  };
 }
 
 function viewOf(value: unknown): SavedView {
@@ -349,12 +398,20 @@ function viewOf(value: unknown): SavedView {
     rank: optionalText(row["rank"]) ?? "V",
     isDefault: row["isDefault"] === true,
     preference: preferenceOf(row["preference"]),
+    fields: rowFields(row["fields"]),
   };
 }
 
-export function createSavedViews(options: SavedViewsOptions): SavedViews {
+export function createSavedViews<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: SavedViewsOptions<S>): SavedViews<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "saved view fields",
+  );
+  const client: SavedViews<F> = {
     save: (input) => {
       const issues = savedViewIssues(input.state, options.lists?.[input.list]);
       if (issues.length > 0) {
@@ -364,25 +421,28 @@ export function createSavedViews(options: SavedViewsOptions): SavedViews {
           }),
         );
       }
-      return call(
-        "save_view",
-        {
-          tenant: input.organizationId,
-          list: input.list,
-          name: input.name,
-          kind: input.kind ?? "table",
-          scope: input.scope ?? "user",
-          team: input.teamId ?? null,
-          state: storedState(input.state),
-          view_id: input.id ?? null,
-        },
-        savedOf,
-      );
+      return writeFields(fields, input.fields, (checked) =>
+        call(
+          "save_view",
+          {
+            tenant: input.organizationId,
+            list: input.list,
+            name: input.name,
+            kind: input.kind ?? "table",
+            scope: input.scope ?? "user",
+            team: input.teamId ?? null,
+            state: storedState(input.state),
+            view_id: input.id ?? null,
+            fields: checked,
+          },
+          savedOf,
+        ),
+      ).andThen((saved) => readFields(fields, saved));
     },
     list: (organizationId, list) =>
       call("list_views", { tenant: organizationId, list }, (value) =>
         recordsOf(value, "list_views").map(viewOf),
-      ),
+      ).andThen((views) => readAllFields(fields, views)),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
       if (!key.ok) return AsyncResult.err(key.error);
@@ -415,10 +475,14 @@ export function createSavedViews(options: SavedViewsOptions): SavedViews {
           team: input.teamId ?? null,
         },
         savedOf,
-      ),
+      ).andThen((saved) => readFields(fields, saved)),
     delete: (id) =>
       call("delete_view", { view_id: id }, (value) => value === true),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "saved-views",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /** The fields of a view `defaultView` reads; `SavedView` fits. */

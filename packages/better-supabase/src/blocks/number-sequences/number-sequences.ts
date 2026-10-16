@@ -1,13 +1,20 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { blockCall } from "../shared.ts";
 
 export interface NumberSequencesOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<NumberSequences>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface NumberSequences {
@@ -27,7 +34,7 @@ export function createNumberSequences(
   options: NumberSequencesOptions,
 ): NumberSequences {
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const client: NumberSequences = {
     next: (organizationId, entity, at) =>
       call(
         "next_number",
@@ -41,4 +48,8 @@ export function createNumberSequences(
         },
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "number-sequences",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

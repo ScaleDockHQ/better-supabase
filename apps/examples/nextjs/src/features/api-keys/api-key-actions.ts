@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
@@ -40,7 +41,7 @@ export const createApiKey = bs.action(
         targetLabel: name,
       }),
     );
-    await onboarding.complete("api-key", organizationId);
+    await onboarding.complete(gettingStarted, "api-key", organizationId);
     refresh();
     return ok({ token: created.data.token });
   },

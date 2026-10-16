@@ -1,5 +1,5 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -380,6 +380,8 @@ export function pipelineBindings(
 
 export interface Names {
   readonly fn: (name: string) => string;
+  /** `options.extraColumns` of the pipelines table. */
+  readonly extras: readonly ExtraColumn[];
   readonly read: string;
   readonly manage: string;
   readonly t: (table: string) => string;

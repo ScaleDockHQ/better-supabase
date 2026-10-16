@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../../src/blocks/onboarding/index.ts";
 
-import { defineChecklist } from "../../../src/blocks/onboarding/index.ts";
+import {
+  createOnboarding,
+  defineChecklist,
+} from "../../../src/blocks/onboarding/index.ts";
 
 const steps = [
   { id: "invite", title: "Invite a teammate", href: "/team" },
@@ -45,9 +48,9 @@ describe("defineChecklist", () => {
     );
     const transport: BlockTransport = { call };
     const team = defineChecklist({ id: "team", scope: "organization", steps });
-    const client = team.connect({ transport, schema: "app" });
+    const client = createOnboarding({ transport, schema: "app" });
 
-    const progress = await client.progress("org").orThrow();
+    const progress = await client.progress(team, "org").orThrow();
     expect(call).toHaveBeenCalledWith("app", "onboarding_progress", {
       checklist: "team",
       tenant: "org",
@@ -66,8 +69,8 @@ describe("defineChecklist", () => {
     expect(progress).toMatchObject({ completed: 2, total: 3, done: false });
     expect(progress.next?.id).toBe("billing");
 
-    expect(await client.complete("billing", "org").orThrow()).toBe(true);
-    expect(await client.reset("billing", "org").orThrow()).toBe(false);
+    expect(await client.complete(team, "billing", "org").orThrow()).toBe(true);
+    expect(await client.reset(team, "billing", "org").orThrow()).toBe(false);
     expect(call.mock.calls[2]?.[2]).toEqual({
       checklist: "team",
       step: "billing",
@@ -82,9 +85,8 @@ describe("defineChecklist", () => {
       scope: "user",
       steps: [{ id: "a" }],
     });
-    const progress = await profile
-      .connect({ transport: { call } })
-      .progress()
+    const progress = await createOnboarding({ transport: { call } })
+      .progress(profile)
       .orThrow();
     expect(call).toHaveBeenCalledWith(
       "better_supabase",

@@ -8,7 +8,12 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fieldsArgs,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
@@ -78,7 +83,7 @@ const NAMES: ModuleNames = {
     "before_refund_create",
     "after_refund_create",
   ],
-  options: ["paymentWindowMinutes"],
+  options: ["paymentWindowMinutes", "extraColumns"],
   tables: {
     carts: {
       name: "carts",
@@ -417,7 +422,7 @@ create table if not exists ${t("orders")} (
 );
 create index if not exists orders_status_idx on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
 create index if not exists orders_customer_idx on ${t("orders")} (${o("customer")});
-create index if not exists orders_sequence_idx on ${t("orders")} (${o("tenant")}, ${o("sequence")});
+create index if not exists orders_sequence_idx on ${t("orders")} (${o("tenant")}, ${o("sequence")});${addExtraColumns(t("orders"), names.extras)}
 ${lockTable(t("orders"), { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}
 
@@ -543,8 +548,12 @@ ${policy("refunds", ofOrder("refunds"))}
 `;
 }
 
+/** `options.extraColumns`, added to the orders table. */
+const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("orders", ["fields"]);
+
 function namesOf(ctx: ModuleContext): OrdersNames {
   return {
+    extras: extrasOf(ctx),
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", OPERATIONS["orders.manage"]),
@@ -562,7 +571,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_shipping_rate",
@@ -600,7 +609,7 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "merge_carts", args: ["uuid", "uuid"], returns: "integer" },
     {
       name: "place_order",
-      args: ["uuid", "jsonb", "bigint", "uuid"],
+      args: ["uuid", "jsonb", "bigint", "uuid", ...fieldsArgs(extrasOf(ctx))],
       returns: "jsonb",
     },
     {

@@ -60,6 +60,7 @@ describe("createServicePrincipals", () => {
       name: "Automations",
       role: "member",
       isDefault: true,
+      fields: {},
     });
     const attributes = auth.createUser.mock.calls[0]?.[0];
     expect(attributes?.email).toMatch(/@service-principals\.invalid$/);

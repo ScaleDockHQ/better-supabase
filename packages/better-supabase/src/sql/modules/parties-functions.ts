@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, pageSize, userGrant } from "../shared.ts";
+import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface PartyNames {
@@ -21,6 +21,22 @@ export interface PartyNames {
 }
 
 type Kind = "company" | "person";
+
+/**
+ * ` || jsonb_build_object('fields', ...)` with a company's extra columns
+ * (`options.extraColumns`) for row `alias`; empty for people and without
+ * extra columns.
+ */
+function extraFields(ctx: ModuleContext, kind: Kind, alias: string): string {
+  if (kind !== "company") return "";
+  const extras = ctx.extraColumns("companies");
+  return extras.length === 0
+    ? ""
+    : ` || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )})`;
+}
 
 interface Field {
   /** The attrs key, camelCase. */
@@ -193,7 +209,7 @@ begin
   exception when unique_violation then
     ${fail(spec.taken[0], spec.taken[1], "23505")}
   end;
-  select to_jsonb(x) into v_row from ${table} x where x.${col("id")} = v_id;
+  select to_jsonb(x)${extraFields(ctx, kind, "x")} into v_row from ${table} x where x.${col("id")} = v_id;
   if v_created then
     ${ctx.record({ type: `${kind}.created`, payload, subject, tenant: `${fnName}.tenant::text`, audit: false })}
   else
@@ -323,7 +339,7 @@ begin
       summary: `'merged ' || v_drop.${col("name")} || ' into ' || v_keep.${col("name")}`,
     },
   })}
-  return (select to_jsonb(x) from ${t(spec.table)} x where x.${col("id")} = ${name}.keep);
+  return (select to_jsonb(x)${extraFields(ctx, kind, "x")} from ${t(spec.table)} x where x.${col("id")} = ${name}.keep);
 end;
 $$;
 ${userGrant(`${fn(name)}(uuid, uuid)`)}
@@ -358,7 +374,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(${name}.search, ''), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) order by lower(p.${col("name")}), p.${col("id")})
+    select jsonb_agg(to_jsonb(p)${extraFields(ctx, kind, "p")} order by lower(p.${col("name")}), p.${col("id")})
     from (
       select x.* from ${t(spec.table)} x
       where x.${col("tenant")} = ${name}.tenant

@@ -23,6 +23,7 @@ export type {
   SavedViewsOptions,
   SavedViewState,
   SaveViewInput,
+  SavedViewRef,
 } from "./saved-views.ts";
 export {
   displayStateOf,

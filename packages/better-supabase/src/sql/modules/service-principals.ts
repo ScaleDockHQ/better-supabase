@@ -9,11 +9,18 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   SERVICE_CALLER,
+  addExtraColumns,
+  columnsObject,
   fail,
+  fieldsArg,
+  fieldsArgs,
+  extraFieldsJson,
+  fieldsParam,
   lockTable,
   schemaPreamble,
   serviceGrant,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { checkRole, roleValue } from "./organizations.ts";
@@ -38,6 +45,7 @@ const EVENTS: ModuleEvents<ServicePrincipalsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  options: ["extraColumns"],
   tables: {
     principals: {
       name: "service_principals",
@@ -56,8 +64,12 @@ const NAMES: ModuleNames = {
   },
 };
 
+/** `options.extraColumns`, added to a managed principals table. */
+const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("principals");
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
+  const extras = extrasOf(ctx);
   const t = ctx.table("principals");
   const c = (column: string): string => ctx.col("principals", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -88,7 +100,7 @@ function build(ctx: ModuleContext): string {
 create index if not exists service_principals_tenant_idx on ${t} (${c("tenant")});
 create index if not exists service_principals_created_by_idx on ${t} (${c("createdBy")});
 create unique index if not exists service_principals_default_idx on ${t} (${c("tenant")})
-  where ${c("isDefault")} and ${c("disabledAt")} is null;
+  where ${c("isDefault")} and ${c("disabledAt")} is null;${addExtraColumns(t, extras)}
 ${lockTable(t, { read: true })}
 `
     : "";
@@ -137,7 +149,7 @@ using (${c("tenant")} in (select ${ctx.scope.ids(read)}));
 -- app_metadata.${SERVICE_PRINCIPAL_CLAIM} and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-create or replace function ${fn("register_service_principal")}(principal uuid, tenant ${id}, name text, role text, is_default boolean default false, created_by uuid default null)
+create or replace function ${fn("register_service_principal")}(principal uuid, tenant ${id}, name text, role text, is_default boolean default false, created_by uuid default null${fieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -160,7 +172,7 @@ begin
   end if;
   insert into ${t} (${c("id")}, ${c("tenant")}, ${c("name")}, ${c("role")}, ${c("isDefault")}, ${c("createdBy")})
   values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,
-    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);${addMembership}
+    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);${writeExtraColumns(t, extras, "register_service_principal.fields", `x.${c("id")} = register_service_principal.principal`)}${addMembership}
   ${ctx.record({
     type: "service_principal.created",
     payload: `jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role)`,
@@ -176,10 +188,18 @@ begin
   })}
   return jsonb_build_object('id', register_service_principal.principal, 'tenant', register_service_principal.tenant,
     'name', register_service_principal.name, 'role', register_service_principal.role,
-    'isDefault', coalesce(register_service_principal.is_default, false));
+    'isDefault', coalesce(register_service_principal.is_default, false)${
+      extras.length === 0
+        ? ""
+        : `,
+    'fields', (select ${columnsObject(
+      "p",
+      extras.map((extra) => extra.name),
+    )} from ${t} p where p.${c("id")} = register_service_principal.principal)`
+    });
 end;
 $$;
-${serviceGrant(`${fn("register_service_principal")}(uuid, ${id}, text, text, boolean, uuid)`)}
+${serviceGrant(`${fn("register_service_principal")}(uuid, ${id}, text, text, boolean, uuid${fieldsArg(extras)})`)}
 
 -- Changes a principal's role and its membership. Service role only; with
 -- created_by, that member needs the manage permission and may assign role.
@@ -278,7 +298,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', p.${c("id")}, 'name', p.${c("name")}, 'role', p.${c("role")}, 'isDefault', p.${c("isDefault")},
-    'createdBy', p.${c("createdBy")}, 'createdAt', p.${c("createdAt")}, 'disabledAt', p.${c("disabledAt")}
+    'createdBy', p.${c("createdBy")}, 'createdAt', p.${c("createdAt")}, 'disabledAt', p.${c("disabledAt")}${extraFieldsJson("p", extras)}
   ) order by p.${c("name")}), '[]'::jsonb)
   from ${t} p
   where p.${c("tenant")} = service_principals_list.tenant
@@ -287,11 +307,19 @@ ${userGrant(`${fn("service_principals_list")}(${id})`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "register_service_principal",
-      args: ["uuid", "{id}", "text", "text", "boolean", "uuid"],
+      args: [
+        "uuid",
+        "{id}",
+        "text",
+        "text",
+        "boolean",
+        "uuid",
+        ...fieldsArgs(extrasOf(ctx)),
+      ],
       returns: "jsonb",
     },
     {

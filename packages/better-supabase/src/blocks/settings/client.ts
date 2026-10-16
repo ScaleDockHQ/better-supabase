@@ -1,12 +1,11 @@
 import type { AsyncResult } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type {
-  OrganizationSettings,
   SettingEntries,
   SettingEntry,
   SettingInputs,
+  Settings,
   SettingValues,
-  UserSettings,
 } from "./settings.ts";
 
 import { type DbError, dbError } from "../../core/errors.ts";
@@ -123,10 +122,13 @@ export interface SettingsControllerOptions<E extends SettingEntries> {
   /** One scope of the definition: `settings.schemas.user` or `settings.schemas.organization`. */
   readonly entries: E;
   readonly auth: AuthPort;
-  /** The caller's own settings, `settings.connect({ transport }).user`. Pass this or `organization`. */
-  readonly user?: UserSettings<E>;
-  /** An organization's settings, `settings.connect({ transport }).organization`, with `organizationId`. */
-  readonly organization?: OrganizationSettings<E>;
+  /** The caller's own settings: a `createSettings` client. Pass this or `organization`. */
+  readonly user?: Pick<Settings<E>, "getUser" | "setUser" | "resetUser">;
+  /** An organization's settings: a `createSettings` client, with `organizationId`. */
+  readonly organization?: Pick<
+    Settings<SettingEntries, E>,
+    "getOrganization" | "setOrganization" | "resetOrganization"
+  >;
   /** The organization for `organization`; the page waits without one. */
   readonly organizationId?: string | null;
 }
@@ -180,9 +182,9 @@ function storeOf<E extends SettingEntries>(
   const { user, organization } = options;
   if (user) {
     return {
-      get: () => user.get(),
-      set: (key, value) => user.set(key, value),
-      reset: (key) => user.reset(key),
+      get: () => user.getUser(),
+      set: (key, value) => user.setUser(key, value),
+      reset: (key) => user.resetUser(key),
     };
   }
   if (!organization) {
@@ -193,9 +195,10 @@ function storeOf<E extends SettingEntries>(
   const organizationId = options.organizationId ?? null;
   if (organizationId === null) return undefined;
   return {
-    get: () => organization.get(organizationId),
-    set: (key, value) => organization.set(organizationId, key, value),
-    reset: (key) => organization.reset(organizationId, key),
+    get: () => organization.getOrganization(organizationId),
+    set: (key, value) =>
+      organization.setOrganization(organizationId, key, value),
+    reset: (key) => organization.resetOrganization(organizationId, key),
   };
 }
 

@@ -185,7 +185,7 @@ begin
   exception when unique_violation then
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
-  select to_jsonb(x) into v_row from "better_supabase"."companies" x where x."id" = v_id;
+  select to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) into v_row from "better_supabase"."companies" x where x."id" = v_id;
   if v_created then
     null;
   else
@@ -468,7 +468,7 @@ begin
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop;
   null;
-  return (select to_jsonb(x) from "better_supabase"."companies" x where x."id" = merge_companies.keep);
+  return (select to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."companies" x where x."id" = merge_companies.keep);
 end;
 $$;
 revoke execute on function "better_supabase"."merge_companies"(uuid, uuid) from public, anon;
@@ -532,7 +532,7 @@ declare
   v_like text := '%' || replace(replace(replace(coalesce(list_companies.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   return coalesce((
-    select jsonb_agg(to_jsonb(p) order by lower(p."name"), p."id")
+    select jsonb_agg(to_jsonb(p) || jsonb_build_object('fields', jsonb_build_object('app_note', p."app_note")) order by lower(p."name"), p."id")
     from (
       select x.* from "better_supabase"."companies" x
       where x."tenant_id" = list_companies.tenant
