@@ -58,9 +58,9 @@ describe("extraColumns on managed tables", () => {
       );
       expect(sql).toContain(`"app_note" = `);
       expect(sql).toMatch(/jsonb_populate_record\(null::.*\."app_note"/);
-      if (read === "fields") {
-        expect(sql).toContain(`'fields', jsonb_build_object('app_note', `);
-      }
+      expect(sql.includes(`'fields', jsonb_build_object('app_note', `)).toBe(
+        read === "fields",
+      );
       expect(sqlOf(module, undefined)).not.toContain("app_note");
     },
   );

@@ -254,11 +254,11 @@ const STATUSES: ReadonlySet<string> = new Set([
   "dead",
 ]);
 
-const statusOf = (value: unknown): WebhookInboxEntry["status"] =>
-  typeof value === "string" && STATUSES.has(value)
-    ? // SAFETY: the set holds exactly the status values.
-      (value as WebhookInboxEntry["status"])
-    : "pending";
+function statusOf(value: unknown): WebhookInboxEntry["status"] {
+  if (typeof value !== "string" || !STATUSES.has(value)) return "pending";
+  // SAFETY: the set holds exactly the status values.
+  return value as WebhookInboxEntry["status"];
+}
 
 const nullableText = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
