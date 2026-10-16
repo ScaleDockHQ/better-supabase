@@ -17,3 +17,10 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export { createFeatureGateController } from "./client.ts";
+export type {
+  FeatureGateActions,
+  FeatureGateController,
+  FeatureGateControllerOptions,
+  FeatureGateSnapshot,
+} from "./client.ts";

@@ -1,7 +1,8 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
-import { fail, sha256Hex } from "../shared.ts";
+import { fail } from "../shared.ts";
+import { liveShareLink } from "./share-links.ts";
 
 const SERVICE_CALLER = "auth.role() = 'service_role'";
 const RATE_SCOPE = "bookings.public";
@@ -155,10 +156,7 @@ grant execute on function ${signature} to anon, authenticated, service_role;`;
   end if;
   select ${l("id")}, ${l("subjectId")}, ${l("tenant")}::text into v_link, v_subject, v_link_tenant
   from ${links.table("links")} l
-  where ${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
-    and ${l("subjectType")} = 'booking_service'
-    and ${l("revokedAt")} is null
-    and (${l("expiresAt")} is null or ${l("expiresAt")} > now());
+  where ${liveShareLink(links, "l", token, "'booking_service'")};
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     ${fail("BOOKING_LINK_INVALID", "unknown or expired booking link", "P0002")}
   end if;

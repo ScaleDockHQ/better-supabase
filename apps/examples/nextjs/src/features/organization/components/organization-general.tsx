@@ -9,23 +9,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getOrganizationSettings } from "@/features/settings/settings-queries";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getMyOrganizations } from "../organization-queries";
 import { LeaveOrganizationButton } from "./leave-organization-button";
 import { OrganizationForm } from "./organization-form";
-import { OrganizationSettingsForm } from "./organization-settings-form";
 
 /** Render inside `<Suspense>`; the fallback is `OrganizationGeneralSkeleton`. */
 export async function OrganizationGeneral() {
   const session = await getSession();
   const organizationId = tenantOf(session);
   if (!organizationId) return null;
-  const [organizations, settings, t] = await Promise.all([
+  const [organizations, t] = await Promise.all([
     getMyOrganizations(),
-    getOrganizationSettings(organizationId),
     getExtracted("organization"),
   ]);
   const organization = organizations.find(
@@ -46,18 +43,6 @@ export async function OrganizationGeneral() {
             name={organization.name}
             slug={organization.slug}
             canEdit={can(session, "organization.update")}
-          />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("Defaults")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OrganizationSettingsForm
-            defaultRole={settings.defaultRole}
-            weekStart={settings.weekStart}
-            canEdit={can(session, "settings.update")}
           />
         </CardContent>
       </Card>
