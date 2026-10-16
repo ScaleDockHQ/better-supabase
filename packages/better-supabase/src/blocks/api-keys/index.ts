@@ -3,6 +3,8 @@ export type {
   ApiKeyCheck,
   ApiKeyClaimsOptions,
   ApiKeyExtraClaim,
+  ApiKeyExtraClaims,
+  ApiKeyReservedClaim,
   ApiKeyResolverOptions,
   ApiKeyState,
   ApiKeys,

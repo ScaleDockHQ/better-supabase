@@ -75,6 +75,33 @@ while its grace period runs:
 
 A rotated key also has `successorId`, the id of the key that replaced it.
 
+### Key kinds
+
+A key's `kind` says what it is for. List the kinds in
+`blocks.api-keys.options.kinds`, and a check constraint on the `kind` column
+refuses any other. Without the option, `kind` takes any value. A key created
+without a kind has none, and `rotate` copies it.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "api-keys": { options: { kinds: ["client", "admin", "export", "feed"] } },
+},
+```
+
+```ts
+const { token } = await keys
+  .create({
+    name: "Warehouse sync",
+    organizationId,
+    kind: "export",
+    scopes: ["deals:read"],
+  })
+  .orThrow();
+```
+
+`list` and `verify` return the kind, so a settings page can group keys by
+kind and a route can turn away a key of the wrong kind.
+
 ### In the browser
 
 `useApiKeys` from `better-supabase/blocks/api-keys/react` lists an
@@ -312,6 +339,20 @@ apiKeyResolver({
 | `tenant`       | `tenant` | the field with a tenant key's tenant                                           |
 | `roles`        | `roles`  | the field with a tenant key's roles                                            |
 | `serviceRoles` | none     | the roles a tenant key holds, unless the `serviceRoles` option answers per key |
+
+`claims` adds claims of your own for each key, such as one read from its
+kind or from an [extra column](#your-own-fields). It cannot set `sub`, `role`,
+`aud` or `api_key`, or the claims the other options write; TypeScript refuses
+those names, and the resolver drops them. With `fields`, the hook and
+`serviceRoles` receive the key with its parsed columns.
+
+```ts
+apiKeyResolver({
+  keys,
+  serviceRoles: (key) => (key.kind === "admin" ? ["admin"] : ["integration"]),
+  claims: (key) => ({ key_kind: key.kind ?? "client" }),
+});
+```
 
 A personal key limited to a tenant also gets `tenantClaim`, the claim that
 narrows the provider's functions to one tenant. The claim has no wildcard:

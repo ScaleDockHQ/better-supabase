@@ -2547,6 +2547,8 @@
       "ApiKeyContributions",
       "ApiKeyDraft",
       "ApiKeyExtraClaim",
+      "ApiKeyExtraClaims",
+      "ApiKeyReservedClaim",
       "ApiKeyResolverOptions",
       "ApiKeys",
       "ApiKeysActions",

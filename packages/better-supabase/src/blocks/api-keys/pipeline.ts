@@ -20,8 +20,8 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { apiKeyResolver } from "./api-keys.ts";
 
-export interface WithApiKeyOptions
-  extends ApiKeyResolverOptions, BlockProblemOptions {}
+export interface WithApiKeyOptions<F extends object = Record<never, never>>
+  extends ApiKeyResolverOptions<F>, BlockProblemOptions {}
 
 /** The API key a request verified with, as `withApiKey` puts it on `ctx.auth`. */
 export type ApiKeyAuth = Extract<AuthState, { readonly kind: "apiKey" }>;
@@ -35,8 +35,8 @@ export interface ApiKeyContributions {
   readonly authMode: AuthMode;
 }
 
-function withApiKeyAuth(
-  options: WithApiKeyOptions,
+function withApiKeyAuth<F extends object>(
+  options: WithApiKeyOptions<F>,
 ): SingleKeyEntry<"auth", Record<never, never>, ApiKeyAuth> {
   const resolver = apiKeyResolver(options);
   return defineMiddleware<"auth", undefined, Record<never, never>, ApiKeyAuth>({
@@ -73,8 +73,8 @@ function withApiKeyAuth(
  * pipeline([withApiKey({ keys }), withPostgresClient(), withBetterPostgres(betterSupabase)()], (req, ctx) => ...)
  * ```
  */
-export function withApiKey(
-  options: WithApiKeyOptions,
+export function withApiKey<F extends object = Record<never, never>>(
+  options: WithApiKeyOptions<F>,
 ): Entry<ApiKeyContributions> {
   return defineComposite({
     build: () =>

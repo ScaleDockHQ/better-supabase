@@ -42,6 +42,15 @@ A tenant from a URL or request body is only safe after you check it against
 the user's memberships. Do that in `resolve`, or pass `{ tenant }` to
 `betterSupabase.connect` once it is checked.
 
+## One level
+
+The plugin scopes queries to one tenant column with one id. For an
+organization with environments under it, make the environment the tenant:
+put its id in the claim or in `{ tenant }`, and let an
+[authorization provider](/docs/extending/authorization-providers#nested-tenancy)
+declare organization and environment as scopes with `parent`, so the SQL
+modules check permissions at the environment level.
+
 ## In the API document
 
 [`defineApi`](/docs/specs) marks the tenant column of every served tenant

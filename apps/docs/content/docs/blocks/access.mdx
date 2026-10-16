@@ -175,6 +175,10 @@ export default defineConfig({
 `authorization`, or when `blocks.access.idType` disagrees with the tenant
 scope's `idType`.
 
+The tenant is one level. For an organization with environments under it,
+the provider declares both as scopes and picks the tenant level with
+`tenantScope`; see [nested tenancy](/docs/extending/authorization-providers#nested-tenancy).
+
 The provider's functions check role and scope, never row conditions. Every
 permission key a SQL module checks must be `sqlComplete: true` in the
 provider's `permissions`, or `sql add` and [doctor](/docs/cli/doctor#bs411)

@@ -28,6 +28,25 @@ describe("api-keys module", () => {
     expect(() => render({ scopes: ["bad scope"] })).toThrow(/is not a scope/);
   });
 
+  it("adds the kind column, checks it against the kinds option and takes it on create", () => {
+    const sql = render({ kinds: ["client", "admin", "export", "feed"] });
+    expect(sql).toContain(
+      `alter table "better_supabase"."api_keys" add column if not exists "kind" text;`,
+    );
+    expect(sql).toContain(
+      `"kind" is null or "kind" = any ('{client,admin,export,feed}'::text[])`,
+    );
+    expect(sql).toContain("kind text default null");
+    expect(sql).toMatch(
+      /drop function if exists "better_supabase"\."create_api_key"\(text, text, text, uuid, boolean, text\[\], timestamptz, integer, text\);/,
+    );
+    expect(sql).toContain(`'kind', k."kind"`);
+    expect(render({})).toContain(
+      `alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;`,
+    );
+    expect(() => render({ kinds: ["Bad Kind"] })).toThrow(/is not a kind/);
+  });
+
   it("refuses the * scope under the provider model", () => {
     const sql = moduleBody("api-keys", {
       modules: { access: { model: "provider" } },

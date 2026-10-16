@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_28_api_keys.sql
 -- better-supabase module: api-keys
--- @bs-module api-keys@3 managed
+-- @bs-module api-keys@4 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -70,6 +70,9 @@ create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" (
 create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
 create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
 create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+alter table "better_supabase"."api_keys" add column if not exists "kind" text;
+alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -77,7 +80,9 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
 drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -87,7 +92,8 @@ create or replace function "better_supabase"."create_api_key"(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs'
+  prefix text default 'bs',
+  kind text default null
 )
 returns jsonb
 language plpgsql
@@ -124,8 +130,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
   null;
   return jsonb_build_object(
@@ -136,6 +142,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -173,6 +180,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -199,6 +207,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -224,6 +233,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -299,8 +309,8 @@ begin
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at", "rotated_from")
-  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."rate_limit", old."expires_at", old."id")
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
+  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
   null;
@@ -312,6 +322,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -385,6 +396,7 @@ begin
     'prefix', found."prefix",
     'public_id', found."public_id",
     'scopes', to_jsonb(found."scopes"),
+    'kind', found."kind",
     'rate_limit', found."rate_limit",
     'expires_at', found."expires_at",
     'last_used_at', found."last_used_at",
@@ -428,12 +440,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::uuid
 $$;
 
-revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
+revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
@@ -462,13 +474,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('api-keys', 3, 'managed')
+values ('api-keys', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_28_api_keys.sql
 -- better-supabase module: api-keys
--- @bs-module api-keys@3 managed
+-- @bs-module api-keys@4 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -538,6 +550,9 @@ create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" (
 create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
 create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
 create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+alter table "better_supabase"."api_keys" add column if not exists "kind" text;
+alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -545,7 +560,9 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
 drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -555,7 +572,8 @@ create or replace function "better_supabase"."create_api_key"(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs'
+  prefix text default 'bs',
+  kind text default null
 )
 returns jsonb
 language plpgsql
@@ -592,8 +610,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
   perform "better_supabase".emit_event('api_key.created', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
@@ -613,6 +631,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -650,6 +669,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -676,6 +696,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -701,6 +722,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -785,8 +807,8 @@ begin
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at", "rotated_from")
-  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."rate_limit", old."expires_at", old."id")
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
+  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
   perform "better_supabase".emit_event('api_key.rotated', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
@@ -807,6 +829,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -880,6 +903,7 @@ begin
     'prefix', found."prefix",
     'public_id', found."public_id",
     'scopes', to_jsonb(found."scopes"),
+    'kind', found."kind",
     'rate_limit', found."rate_limit",
     'expires_at', found."expires_at",
     'last_used_at', found."last_used_at",
@@ -923,12 +947,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::uuid
 $$;
 
-revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
+revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
@@ -957,13 +981,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('api-keys', 3, 'managed')
+values ('api-keys', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_28_api_keys.sql
 -- better-supabase module: api-keys
--- @bs-module api-keys@3 managed
+-- @bs-module api-keys@4 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1035,6 +1059,9 @@ create index if not exists api_keys_tenant_idx on "app_private"."api_keys" ("org
 create index if not exists api_keys_user_idx on "app_private"."api_keys" ("user_id");
 create index if not exists api_keys_rotated_from_idx on "app_private"."api_keys" ("rotated_from");
 create index if not exists api_keys_created_by_idx on "app_private"."api_keys" ("created_by");
+-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+alter table "app_private"."api_keys" add column if not exists "kind" text;
+alter table "app_private"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "app_private"."api_keys" enable row level security;
 revoke all on "app_private"."api_keys" from anon, authenticated;
 grant all on "app_private"."api_keys" to service_role;
@@ -1042,7 +1069,9 @@ grant all on "app_private"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
 drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
+drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
 create or replace function "app_private"."create_api_key"(
   name text,
   public_id text,
@@ -1052,7 +1081,8 @@ create or replace function "app_private"."create_api_key"(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs'
+  prefix text default 'bs',
+  kind text default null
 )
 returns jsonb
 language plpgsql
@@ -1089,8 +1119,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
-  insert into "app_private"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
+  insert into "app_private"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
   null;
   return jsonb_build_object(
@@ -1101,6 +1131,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -1138,6 +1169,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1164,6 +1196,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1189,6 +1222,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1264,8 +1298,8 @@ begin
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
   end if;
-  insert into "app_private"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at", "rotated_from")
-  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."rate_limit", old."expires_at", old."id")
+  insert into "app_private"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
+  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "app_private"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
   null;
@@ -1277,6 +1311,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -1350,6 +1385,7 @@ begin
     'prefix', found."prefix",
     'public_id', found."public_id",
     'scopes', to_jsonb(found."scopes"),
+    'kind', found."kind",
     'rate_limit', found."rate_limit",
     'expires_at', found."expires_at",
     'last_used_at', found."last_used_at",
@@ -1393,12 +1429,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::uuid
 $$;
 
-revoke execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
+revoke execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "app_private"."list_api_keys"(uuid) from public, anon;
 revoke execute on function "app_private"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "app_private"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "app_private"."verify_api_key"(text, text) from public, anon, authenticated;
-grant execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+grant execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "app_private"."list_api_keys"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
@@ -1427,13 +1463,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('api-keys', 3, 'managed')
+values ('api-keys', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_28_api_keys.sql
 -- better-supabase module: api-keys
--- @bs-module api-keys@3 managed
+-- @bs-module api-keys@4 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1503,6 +1539,9 @@ create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" (
 create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
 create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
 create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+alter table "better_supabase"."api_keys" add column if not exists "kind" text;
+alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -1510,7 +1549,9 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
 drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -1520,7 +1561,8 @@ create or replace function "better_supabase"."create_api_key"(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs'
+  prefix text default 'bs',
+  kind text default null
 )
 returns jsonb
 language plpgsql
@@ -1557,8 +1599,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
   null;
   return jsonb_build_object(
@@ -1569,6 +1611,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -1606,6 +1649,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1632,6 +1676,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1657,6 +1702,7 @@ begin
     'prefix', k."prefix",
     'public_id', k."public_id",
     'scopes', to_jsonb(k."scopes"),
+    'kind', k."kind",
     'rate_limit', k."rate_limit",
     'expires_at', k."expires_at",
     'last_used_at', k."last_used_at",
@@ -1732,8 +1778,8 @@ begin
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at", "rotated_from")
-  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."rate_limit", old."expires_at", old."id")
+  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
+  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
   null;
@@ -1745,6 +1791,7 @@ begin
     'prefix', created."prefix",
     'public_id', created."public_id",
     'scopes', to_jsonb(created."scopes"),
+    'kind', created."kind",
     'rate_limit', created."rate_limit",
     'expires_at', created."expires_at",
     'last_used_at', created."last_used_at",
@@ -1818,6 +1865,7 @@ begin
     'prefix', found."prefix",
     'public_id', found."public_id",
     'scopes', to_jsonb(found."scopes"),
+    'kind', found."kind",
     'rate_limit', found."rate_limit",
     'expires_at', found."expires_at",
     'last_used_at', found."last_used_at",
@@ -1861,12 +1909,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::uuid
 $$;
 
-revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
+revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
@@ -1878,7 +1926,9 @@ grant execute on function "better_supabase"."api_key_tenant"() to anon, authenti
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
 drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
+drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1898,14 +1948,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."create_api_key"(name text, public_id text, secret_hash text, tenant uuid default null, personal boolean default false, scopes text[] default '{}', expires_at timestamptz default null, rate_limit integer default null, prefix text default 'bs')
+create or replace function "api"."create_api_key"(name text, public_id text, secret_hash text, tenant uuid default null, personal boolean default false, scopes text[] default '{}', expires_at timestamptz default null, rate_limit integer default null, prefix text default 'bs', kind text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_api_key"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
-grant execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_api_key"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
+grant execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_api_keys"(tenant uuid default null)
 returns jsonb
@@ -1982,6 +2032,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('api-keys', 3, 'managed')
+values ('api-keys', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

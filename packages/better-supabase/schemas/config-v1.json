@@ -2631,6 +2631,12 @@
             "additionalProperties": false,
             "properties": {
               "scopes": {},
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "touchInterval": {
                 "type": "number",
                 "default": 60
