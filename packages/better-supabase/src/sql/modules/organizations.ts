@@ -246,7 +246,7 @@ function idColumn(ctx: ModuleContext, column: string): string {
 function table(ctx: ModuleContext, n: OrganizationNames): string {
   if (!ctx.manages) {
     return `
--- Adopted: ${n.organization} belongs to the app (modules.organizations.tables.organizations).
+-- Adopted: ${n.organization} belongs to the app (blocks.organizations.tables.organizations).
 `;
   }
   const c = (logical: string) => ctx.col("organizations", logical);
@@ -524,7 +524,7 @@ function deleteMode(ctx: ModuleContext): DeleteMode {
 /** `delete_organization(organization)`: requests the purge through data-lifecycle. */
 function requestDeletion(ctx: ModuleContext): string {
   return `
--- Deletes an organization through data-lifecycle (modules.organizations.options.deleteMode
+-- Deletes an organization through data-lifecycle (blocks.organizations.options.deleteMode
 -- "lifecycle"): schedules the purge after the grace period and disables it.
 create or replace function ${ctx.fn("delete_organization")}(organization ${ctx.idType})
 returns boolean
@@ -549,7 +549,7 @@ function remove(ctx: ModuleContext, n: OrganizationNames): string {
   const mode = deleteMode(ctx);
   if (mode === "none") {
     return `
--- modules.organizations.options.deleteMode is "none": no delete function.
+-- blocks.organizations.options.deleteMode is "none": no delete function.
 drop function if exists ${ctx.fn("delete_organization")}(${id});
 `;
   }
@@ -564,7 +564,7 @@ drop function if exists ${ctx.fn("delete_organization")}(${id});
     ? `update ${n.organization} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = organization and ${ctx.col("organizations", "deletedAt")} is null;`
     : `delete from ${n.organization} where ${n.id} = organization;`;
   return `
--- Deletes an organization (modules.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
+-- Deletes an organization (blocks.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
 create or replace function ${ctx.fn("delete_organization")}(organization ${id})
 returns boolean
 language plpgsql
@@ -880,7 +880,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function ${ctx.fn("transfer_ownership")}(organization ${id}, new_owner uuid, former_role text default ${former})
 returns boolean
 language plpgsql
@@ -967,7 +967,7 @@ function switcher(ctx: ModuleContext, n: OrganizationNames): string {
   update ${n.m} set ${tenantModule.col("memberships", "lastUsedAt")} = now() where ${n.tenant} = organization and ${n.user} = me;`
     : "";
   return `
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function ${ctx.fn("switch_organization")}(organization ${ctx.idType})
 returns jsonb
 language plpgsql

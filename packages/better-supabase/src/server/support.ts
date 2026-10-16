@@ -71,7 +71,7 @@ export interface SupportOptions {
    * `policy.approval: 'distinct'`; `{ approvedBy }` names that admin.
    *
    * `'store'` hands the decision to the store alone: the SQL store checks
-   * `is_platform(modules.support-sessions.permissions.start)` and nothing
+   * `is_platform(blocks["support-sessions"].permissions.start)` and nothing
    * else, so use it only when that permission is the whole rule.
    */
   readonly authorize?: SupportAuthorize | "store";
