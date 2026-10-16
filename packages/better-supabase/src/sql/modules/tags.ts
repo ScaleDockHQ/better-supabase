@@ -132,18 +132,18 @@ function untagBody(
   const polymorphic =
     taggings === ""
       ? fail("TAG_SUBJECT_UNKNOWN", "this subject has no link table", "22023")
-      : `delete from ${taggings}
-      where ${ctx.scope.eq(ctx.col("taggings", "tenant"), "untag.tenant")}
-        and ${ctx.col("taggings", "tag")} = untag.tag_id
-        and ${ctx.col("taggings", "subjectType")} = untag.subject_type
-        and ${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
+      : `delete from ${taggings} g
+      where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "untag.tenant")}
+        and g.${ctx.col("taggings", "tag")} = untag.tag_id
+        and g.${ctx.col("taggings", "subjectType")} = untag.subject_type
+        and g.${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
   if (bound.length === 0) return polymorphic;
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
       const tagCol = link.columns["tag"] ?? "tag";
       return `    when ${sqlString(link.type)} then
-      delete from ${link.qualified} where ${sqlIdent(subject)}::text = untag.subject_id and ${sqlIdent(tagCol)} = untag.tag_id;`;
+      delete from ${link.qualified} l where l.${sqlIdent(subject)}::text = untag.subject_id and l.${sqlIdent(tagCol)} = untag.tag_id;`;
     })
     .join("\n");
   return `case untag.subject_type

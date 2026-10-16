@@ -260,11 +260,11 @@ begin
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."taggings"
-      where "tenant_id" = untag.tenant
-        and "tag_id" = untag.tag_id
-        and "subject_type" = untag.subject_type
-        and "subject_id" = untag.subject_id;
+  delete from "better_supabase"."taggings" g
+      where g."tenant_id" = untag.tenant
+        and g."tag_id" = untag.tag_id
+        and g."subject_type" = untag.subject_type
+        and g."subject_id" = untag.subject_id;
   null;
   return true;
 end;
@@ -614,11 +614,11 @@ begin
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."taggings"
-      where "tenant_id" = untag.tenant
-        and "tag_id" = untag.tag_id
-        and "subject_type" = untag.subject_type
-        and "subject_id" = untag.subject_id;
+  delete from "better_supabase"."taggings" g
+      where g."tenant_id" = untag.tenant
+        and g."tag_id" = untag.tag_id
+        and g."subject_type" = untag.subject_type
+        and g."subject_id" = untag.subject_id;
   perform "better_supabase".emit_event('subject.untagged', jsonb_build_object('organizationId', untag.tenant, 'subjectType', untag.subject_type, 'subjectId', untag.subject_id, 'id', untag.tag_id), 'subjects/' || untag.subject_type || '/' || untag.subject_id, (untag.tenant)::text, null, 'better-supabase/tags');
   return true;
 end;
@@ -970,11 +970,11 @@ begin
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
-  delete from "app_private"."taggings"
-      where "tenant_id" = untag.tenant
-        and "tag_id" = untag.tag_id
-        and "subject_type" = untag.subject_type
-        and "subject_id" = untag.subject_id;
+  delete from "app_private"."taggings" g
+      where g."tenant_id" = untag.tenant
+        and g."tag_id" = untag.tag_id
+        and g."subject_type" = untag.subject_type
+        and g."subject_id" = untag.subject_id;
   null;
   return true;
 end;
@@ -1324,11 +1324,11 @@ begin
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."taggings"
-      where "tenant_id" = untag.tenant
-        and "tag_id" = untag.tag_id
-        and "subject_type" = untag.subject_type
-        and "subject_id" = untag.subject_id;
+  delete from "better_supabase"."taggings" g
+      where g."tenant_id" = untag.tenant
+        and g."tag_id" = untag.tag_id
+        and g."subject_type" = untag.subject_type
+        and g."subject_id" = untag.subject_id;
   null;
   return true;
 end;
@@ -1746,11 +1746,11 @@ begin
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."taggings"
-      where "tenant_id" = untag.tenant
-        and "tag_id" = untag.tag_id
-        and "subject_type" = untag.subject_type
-        and "subject_id" = untag.subject_id;
+  delete from "better_supabase"."taggings" g
+      where g."tenant_id" = untag.tenant
+        and g."tag_id" = untag.tag_id
+        and g."subject_type" = untag.subject_type
+        and g."subject_id" = untag.subject_id;
   null;
   return true;
 end;
