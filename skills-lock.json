@@ -473,7 +473,7 @@
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
       "skillPath": "skills/scaledock-repo-standard/SKILL.md",
-      "computedHash": "e00bbb729dd97db776c89e6c2e7ba5f6b53566364e810789ecfed5d20ad47c2d"
+      "computedHash": "00db4411bcf37c39bc417cad5fa8343aa159af3abf6c227fab0d9471b119c9ba"
     },
     "scim": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -587,7 +587,7 @@
       "source": "vercel/turborepo",
       "sourceType": "github",
       "skillPath": "skills/turborepo/SKILL.md",
-      "computedHash": "9681d8dfeb5e6cdff767f1bcaba5d7ac55732a9d6c02ee120f44229f8ec25e7e"
+      "computedHash": "c83a6ff75c62092f71da91408164ed3426f11749b032fd23ecc855e27c2fb538"
     },
     "typescript-advanced-types": {
       "source": "wshobson/agents",
@@ -611,7 +611,7 @@
       "source": "vercel/vercel",
       "sourceType": "github",
       "skillPath": "skills/vercel-cli/SKILL.md",
-      "computedHash": "bc312e5c407c79c264503ef588613ee697508636b8e6ba76ee2585979b49ba2b"
+      "computedHash": "f44187982f783fb73f383fe05f0b42ce0917277cf3f412ca56b72da25cdf4711"
     },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",
