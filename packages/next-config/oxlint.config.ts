@@ -1,15 +1,16 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, {
   ignorePatterns,
   library,
-  node,
-} from "@better-supabase/ox-config/oxlint";
+  settings,
+} from "../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, library],
-  ignorePatterns: [...ignorePatterns],
+  extends: [root, library],
+  settings,
+  ignorePatterns,
   overrides: [
     {
       // Build-time switches for CI and the e2e suite, read while Next loads the config.

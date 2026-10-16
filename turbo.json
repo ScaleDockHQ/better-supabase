@@ -29,7 +29,6 @@
     "oxfmt.config.ts",
     "pnpm-workspace.yaml",
     "packages/typescript-config/**",
-    "packages/ox-config/**",
     "!packages/*/.turbo/**",
     "!packages/*/node_modules/**"
   ],

@@ -58,6 +58,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm db:gen`            | Regenerates the typed client in every example and validation project      |
 | `pnpm run check:publish` | publint and arethetypeswrong on the packed tarball                        |
 | `pnpm run format`        | Format with Oxfmt                                                         |
+| `pnpm run fix`           | Format and apply lint fixes with Ultracite                                |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |
 
 The local stack runs on the Supabase CLI's stack engine without Docker. The CLI picks its ports for each checkout and branch, so worktrees run their own stacks side by side; `pnpm supabase:start` writes the URLs and keys to `.env.development.local`, which `pnpm test:integration` and `pnpm db:gen` load. Run it again after switching branches. After you edit `supabase/schemas`, create the migration with `pnpm supabase:sync <name>` (see `docs/agents/database.md`).
@@ -69,7 +70,6 @@ Before the first `supabase start`, create the stack's ES256 signing key with `no
 ```text
 packages/better-supabase   the published library, the better-supabase CLI and its consumer skills
 packages/next-config       shared Next.js config for docs and marketing
-packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
 packages/typescript-config tsconfig presets
 apps/docs                  bettersupabase.com/docs (Fumadocs)
 apps/marketing             bettersupabase.com

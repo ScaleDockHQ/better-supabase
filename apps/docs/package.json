@@ -37,7 +37,6 @@
   },
   "devDependencies": {
     "@better-supabase/next-config": "workspace:*",
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@modelcontextprotocol/client": "catalog:",
     "@tailwindcss/postcss": "catalog:",

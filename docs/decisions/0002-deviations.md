@@ -165,7 +165,8 @@ how an absent option stays absent. `promise-function-async` would turn
 synchronous throws for misuse (an unknown table, a missing pool) into
 rejections that tests assert on.
 
-These rules stay off by design, each with its reason in the preset:
+These rules stay off by design, each with its reason in the root
+`oxlint.config.ts`:
 
 | Rule                                  | Findings     | Reason                                               |
 | ------------------------------------- | ------------ | ---------------------------------------------------- |
@@ -180,20 +181,49 @@ These rules stay off by design, each with its reason in the preset:
 | `typescript/no-unsafe-type-assertion` | 402          | each assertion carries a `SAFETY:` comment instead   |
 | `typescript/no-base-to-string`        | 27           | `String(unknown)` for SQL literals and error text    |
 
-The test preset also turns off `vitest/no-conditional-in-test` (206),
+The test-files override also turns off `vitest/no-conditional-in-test` (206),
 `typescript/require-await` (89), `typescript/strict-void-return` (77),
 `eslint/max-lines` and the promise-rejection rules (10), because fakes,
 table-driven cases and rejection tests need them.
 
 `anti-slop/require-safety-comment-for-type-assertion` had 470 findings (282
 outside tests). Those were annotated and the rule is an error everywhere
-except the test preset, where fakes are handed to typed APIs on purpose.
+except the test-files override, where fakes are handed to typed APIs on purpose.
 
-The test preset turns off the `typescript/no-unsafe-*` rules, because Vitest's
+The test-files override turns off the `typescript/no-unsafe-*` rules, because Vitest's
 asymmetric matchers and `Response.json()` are typed `any` (60 findings).
 The docs table wrapper disables `jsx-a11y/no-noninteractive-tabindex` on one
 line: axe requires a scrolling region to take keyboard focus
 (`scrollable-region-focusable`), which that rule forbids.
+
+### Ultracite presets
+
+The root `oxlint.config.ts` extends Ultracite 8.0.1 (`core`, `vitest`,
+`anti-slop`, `react`, `next`, `shadcn`) and keeps every house rule above.
+On adoption, 125 of its rules fired 97,274 times on existing code. Each one
+is off in the root config, in a group with the reason and the count, so
+enforcement on new code is what it was before the migration. The largest:
+
+| Rule                                     | Findings when measured |
+| ---------------------------------------- | ---------------------- |
+| `anti-slop/require-readable-spacing`     | 36,556                 |
+| `eslint/sort-keys`                       | 21,748                 |
+| `eslint/curly`                           | 6,255                  |
+| `vitest/prefer-strict-equal`             | 5,619                  |
+| `eslint/func-style`                      | 5,465                  |
+| `vitest/prefer-expect-resolves`          | 4,118                  |
+| `vitest/max-expects`                     | 3,996                  |
+| `typescript/method-signature-style`      | 1,896                  |
+| `import/consistent-type-specifier-style` | 1,826                  |
+| `unicorn/no-await-expression-member`     | 1,472                  |
+
+`require-readable-spacing` is a whitespace autofix that touches most files, so
+it lands in its own commit. The style rules (`sort-keys`, `curly`,
+`func-style` and the rest of that group) want a different form than the repo
+writes, and their fixes are not all safe (`func-style` changes hoisting), so
+each is a decision before it is a codemod. The review group and the
+react-doctor hints need reading per site. A group's backlog ends when its
+rules are cleared and the `off` lines removed.
 
 ## Consequences
 

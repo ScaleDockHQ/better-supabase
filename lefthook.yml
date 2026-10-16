@@ -1,10 +1,10 @@
 pre-commit:
   parallel: true
   jobs:
-    - name: format
+    - name: fix
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs,json,jsonc,md,mdx,css,yml,yaml}"
       exclude: "{.agents,.cursor,.claude}/**"
-      run: pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}
+      run: pnpm exec ultracite fix {staged_files}
       stage_fixed: true
     - name: lint
       run: pnpm exec turbo run lint lint:root --affected

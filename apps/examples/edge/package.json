@@ -23,7 +23,6 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "oxlint": "catalog:",

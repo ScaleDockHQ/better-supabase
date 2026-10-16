@@ -17,7 +17,6 @@ package, from `src/cli`, with its dependencies inlined at build time. Docs live 
 packages/
   better-supabase/     the published library and its CLI (src/cli, tests/cli, bin/), skills/, schemas/, api/exports.json
   next-config/         createNextConfig() and the security headers for docs and marketing
-  ox-config/           Oxlint presets (core, react, node, library, test), Oxfmt, anti-slop
   typescript-config/   tsconfig presets (base, library, react-library, next)
 apps/
   docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
@@ -44,7 +43,7 @@ docs/
 
 - `pnpm install`: install (pnpm 12, Node 24).
 - `pnpm verify`: the gate before every push. It runs the format check, lint
-  (type-aware Oxlint with the anti-slop plugin), the prose check, the PermDock name check, typecheck,
+  (type-aware Oxlint on the Ultracite presets in the root `oxlint.config.ts`), the prose check, the PermDock name check, typecheck,
   Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
   the format check, boundaries and audit is a cached Turbo task with
   `inputs` in `turbo.json`, so a second run only repeats what changed.

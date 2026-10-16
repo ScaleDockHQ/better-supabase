@@ -1,7 +1,0 @@
-{
-  "extends": "@better-supabase/typescript-config/library.json",
-  "include": ["src", "tests"],
-  "compilerOptions": {
-    "types": ["node"]
-  }
-}

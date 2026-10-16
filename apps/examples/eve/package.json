@@ -27,7 +27,6 @@
     "workflow": "catalog:"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

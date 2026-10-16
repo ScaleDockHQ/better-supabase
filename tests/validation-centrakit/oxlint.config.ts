@@ -1,14 +1,11 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
-  node,
-  test,
-  ignorePatterns,
-} from "@better-supabase/ox-config/oxlint";
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, { ignorePatterns, settings } from "../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, test],
+  extends: [root],
+  settings,
   ignorePatterns,
   overrides: [
     {

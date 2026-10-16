@@ -5,7 +5,6 @@ export default defineConfig({
   test: {
     projects: [
       "packages/better-supabase",
-      "packages/ox-config",
       "packages/registry",
       "apps/docs",
       "apps/marketing",

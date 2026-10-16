@@ -1,12 +1,15 @@
-import { oxfmt } from "@better-supabase/ox-config/oxfmt";
+import { type OxfmtConfig, defineConfig } from "oxfmt";
+import ultracite from "ultracite/oxfmt";
 
-export default oxfmt({
+import { ignorePatterns } from "./oxlint.config.ts";
+
+const config: OxfmtConfig = defineConfig({
+  ...ultracite,
+  trailingComma: "all",
+  // Ultracite's "never" would rewrap every Markdown and MDX file.
+  proseWrap: "preserve",
   ignorePatterns: [
-    "**/.agents/**",
-    "**/.cursor/**",
-    "**/.claude/**",
-    "**/*.generated.ts",
-    "**/database.types.ts",
+    ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
     "apps/examples/**/lib/supabase/generated.*",
     "apps/examples/monorepo/runtime/src/generated.*",
@@ -18,6 +21,20 @@ export default oxfmt({
     "apps/marketing/components/reui/**",
     "apps/marketing/public/r/**",
     "CHANGELOG.md",
-    "pnpm-lock.yaml",
   ],
+  sortImports: {
+    internalPattern: ["@/", "@better-supabase/"],
+    groups: [
+      "type-import",
+      ["value-builtin", "value-external"],
+      "type-internal",
+      "value-internal",
+      ["type-parent", "type-sibling", "type-index"],
+      ["value-parent", "value-sibling", "value-index"],
+      "unknown",
+    ],
+  },
+  sortPackageJson: { sortScripts: true },
 });
+
+export default config;

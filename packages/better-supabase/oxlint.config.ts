@@ -1,22 +1,20 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, {
   ignorePatterns,
   library,
-  node,
   react,
   restrictedImportPaths,
   restrictedImportPatterns,
-  test,
-} from "@better-supabase/ox-config/oxlint";
+  settings,
+} from "../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, library, react, test],
+  extends: [root, library, react],
+  settings,
   ignorePatterns: [
     ...ignorePatterns,
-    "**/*.generated.ts",
-    "**/database.types.ts",
     // Generated fixtures open with a blanket disable for consumers' linters.
     "tests/fixtures/generated*",
     "api/**",

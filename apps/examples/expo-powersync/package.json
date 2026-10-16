@@ -45,7 +45,6 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
-    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@react-native/metro-config": "catalog:",
     "@types/react": "catalog:",

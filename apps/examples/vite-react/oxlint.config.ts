@@ -1,23 +1,16 @@
 import { defineConfig } from "oxlint";
 
-import {
-  core,
-  node,
-  react,
-  test,
+// @boundaries-ignore the root lint and format config is repo tooling, not a package
+import root, {
   ignorePatterns,
-} from "@better-supabase/ox-config/oxlint";
+  react,
+  settings,
+} from "../../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [core, node, react, test],
-  ignorePatterns: [
-    ...ignorePatterns,
-    "**/*.generated.ts",
-    "**/generated.ts",
-    "**/generated.meta.*",
-    "**/generated-*.ts",
-    "**/database.types.ts",
-  ],
+  extends: [root, react],
+  settings,
+  ignorePatterns,
   overrides: [
     {
       // Examples read env where they create the client, the way the
