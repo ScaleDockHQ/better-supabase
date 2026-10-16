@@ -1,5 +1,8 @@
 name: Verify
 
+# Every `pnpm verify` gate and nothing else, so local and CI results agree. `ci.yml` calls it on pull
+# requests and `release.yml` on the release commit.
+
 on:
   workflow_call:
     inputs:
@@ -27,57 +30,94 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
-  verify:
-    name: ${{ matrix.task }}
+  # The cheap gates share one machine and one install.
+  static:
+    name: static
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       # OIDC token for the Vercel Remote Cache.
       id-token: write
-      # The doctor task uploads SARIF to code scanning.
+      # Doctor uploads SARIF to code scanning.
       security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # `turbo --affected` needs the merge base, not old file contents.
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: $/.github/actions/setup
+
+      - parallel:
+          - name: Workspace tasks
+            run: >-
+              pnpm exec turbo run
+              lint lint:root typecheck:tooling check:prose check:no-permdock recipes:check
+              catalog:check docs:drift knip gen:check doctor typecheck:matrix
+              $AFFECTED --log-file
+          - name: Format
+            run: pnpm run format:check
+          - name: Boundaries
+            run: pnpm run boundaries
+          - name: Audit
+            run: pnpm run audit:high
+
+      # After the group, so the build comes from the Turbo cache the workspace tasks filled.
+      - name: Doctor SARIF
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
+
+      - name: Upload doctor findings
+        if: always() && hashFiles('doctor.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: doctor.sarif
+          category: better-supabase-doctor
+        continue-on-error: true
+
+      - name: Upload the Turbo logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-logs-static
+          path: .turbo/logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # CPU-heavy gates get a machine each.
+  heavy:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - task: format
-            run: pnpm run format:check
-          - task: lint
-            run: pnpm exec turbo run lint lint:root $AFFECTED --log-file
-          - task: prose
-            run: pnpm exec turbo run check:prose docs:drift
-          - task: knip
-            run: pnpm exec turbo run knip
-          - task: boundaries
-            run: pnpm run boundaries
+          - task: test
+            run: pnpm exec turbo run test $AFFECTED --log-file
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
-            run: pnpm exec turbo run typecheck typecheck:tooling --concurrency=1 $AFFECTED --log-file
-          - task: test
-            run: pnpm exec turbo run test --concurrency=1 $AFFECTED --log-file
-          - task: audit
-            run: pnpm run audit:high
-          - task: typecheck matrix
-            run: pnpm exec turbo run typecheck:matrix
-          # The size baselines run in the test task (`@better-supabase/bundle`).
-          - task: type performance
-            run: pnpm exec turbo run typecheck:perf
+            run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED --log-file
           - task: publish checks
             run: pnpm run check:publish
-          - task: generated code drift
-            run: pnpm exec turbo run gen:check
-          - task: doctor
-            run: |
-              pnpm exec turbo run build --filter=better-supabase...
-              pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
+          # A benchmark: it gets a machine to itself so its timings stay comparable.
+          - task: type performance
+            run: pnpm exec turbo run typecheck:perf
     steps:
       - uses: actions/checkout@v7
         with:
-          # `turbo --affected` compares against the base commit.
-          fetch-depth: 0
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: ${{ matrix.task }}
         run: ${{ matrix.run }}
@@ -90,11 +130,3 @@ jobs:
           path: .turbo/logs/
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Upload doctor findings
-        if: always() && matrix.task == 'doctor'
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: doctor.sarif
-          category: better-supabase-doctor
-        continue-on-error: true

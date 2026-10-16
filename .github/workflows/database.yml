@@ -31,7 +31,9 @@ env:
 
 jobs:
   database:
+    # x64 until the Supabase native runtime is confirmed on arm.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -40,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: Create the local signing key
         run: |
@@ -48,7 +50,7 @@ jobs:
           pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase
-        uses: ./.github/actions/supabase-stack
+        uses: $/.github/actions/supabase-stack
 
       - name: Migrations match supabase/schemas
         run: |

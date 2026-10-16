@@ -9,6 +9,7 @@ name: Supabase latest
 on:
   schedule:
     - cron: "17 3 * * *"
+      timezone: Europe/Amsterdam
   workflow_dispatch:
 
 permissions:
@@ -17,14 +18,21 @@ permissions:
 jobs:
   latest:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # OIDC token for the Vercel Remote Cache. The changed lockfile is part of every task hash,
+      # so these results never stand in for main's.
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      # Restores the store from main; the changed lockfile never writes back to the cache.
+      - uses: $/.github/actions/setup
         with:
-          cache: "false"
+          save-cache: "false"
 
       - name: Install latest Supabase packages
         run: |

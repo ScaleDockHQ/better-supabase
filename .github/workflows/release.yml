@@ -4,9 +4,10 @@ on:
   push:
     branches: [main]
 
+# Release runs wait in order; none is dropped.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  queue: max
 
 permissions: {}
 
@@ -17,7 +18,7 @@ jobs:
       contents: read
       id-token: write
       security-events: write
-    uses: ./.github/workflows/verify.yml
+    uses: $/.github/workflows/verify.yml
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
@@ -25,6 +26,7 @@ jobs:
     name: Select mode
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
@@ -34,9 +36,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: Select mode
         id: select-mode
@@ -47,6 +50,7 @@ jobs:
     needs: select-mode
     if: needs.select-mode.outputs.mode == 'version'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -55,7 +59,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       - name: Create or update the release pull request
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -76,7 +80,13 @@ jobs:
     needs: select-mode
     if: needs.select-mode.outputs.mode == 'publish' && vars.NPM_PUBLISH == 'true'
     runs-on: ubuntu-latest
-    environment: npm
+    timeout-minutes: 20
+    # A poisoned cache never reaches a publish.
+    cache-mode: none
+    # The environment only gates the OIDC trust; the run is not a deployment.
+    environment:
+      name: npm
+      deployment: false
     permissions:
       contents: write
       id-token: write
