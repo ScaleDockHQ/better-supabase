@@ -42,7 +42,7 @@ export default defineConfig({
       // The top-level numbers count every file, CLI included; the src/cli set
       // also holds the CLI to its own numbers.
       thresholds: {
-        statements: 96,
+        statements: 97,
         lines: 98,
         functions: 98,
         branches: 91,

@@ -64,7 +64,7 @@ export function getPageImage(page: DocsPage) {
 }
 
 /** Each page as Markdown: `llms-full.txt`, the `.md` routes, Ask AI and the docs MCP server. */
-export const docsLlms = llms(source, {
+const docsLlms = llms(source, {
   async renderPage(page) {
     const description = page.data.description?.trim();
     const processed = await page.data.getText("processed", {
