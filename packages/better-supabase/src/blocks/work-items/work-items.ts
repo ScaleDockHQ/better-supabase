@@ -3,10 +3,17 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -41,7 +48,8 @@ const STATES: readonly WorkItemState[] = [
 
 export type CloseReason = "completed" | "not_planned" | "duplicate";
 
-export interface WorkItem {
+/** A work item. `F` types the extra columns the `fields` schema describes. */
+export interface WorkItem<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly number: bigint;
@@ -71,13 +79,14 @@ export interface WorkItem {
   readonly locked: boolean;
   readonly rank: string;
   readonly assigneeIds: readonly string[];
-  readonly fields: Readonly<Record<string, unknown>>;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
   readonly archived: boolean;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
 }
 
-export interface WorkItemInput {
+export interface WorkItemInput<F extends object = Record<never, never>> {
   readonly title: string;
   readonly body?: string;
   readonly parentId?: string;
@@ -92,6 +101,8 @@ export interface WorkItemInput {
   readonly dueAt?: Temporal.Instant;
   readonly pipelineId?: string;
   readonly stageId?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export type WorkItemField =
@@ -110,10 +121,10 @@ export type WorkItemField =
   | "stageId"
   | "closeReason";
 
-/** One cell edit or drag. `null` clears the field. */
-export interface WorkItemChange {
+/** One cell edit or drag: a built-in field or an extra column. `null` clears the field. */
+export interface WorkItemChange<F extends object = Record<never, never>> {
   readonly workItemId: string;
-  readonly field: WorkItemField;
+  readonly field: WorkItemField | (keyof F & string);
   readonly value: unknown;
 }
 
@@ -181,13 +192,16 @@ export interface Iteration {
   readonly endsOn: Temporal.PlainDate;
 }
 
-export interface WorkItems {
+export interface WorkItems<F extends object = Record<never, never>> {
   create(
     organizationId: string,
-    input: WorkItemInput,
+    input: WorkItemInput<F>,
     assigneeIds?: readonly string[],
-  ): AsyncResult<WorkItem>;
-  update(changes: readonly WorkItemChange[]): AsyncResult<WorkItemChangeResult>;
+  ): AsyncResult<WorkItem<F>>;
+  /** Extra column changes are validated with the `fields` schema first. */
+  update(
+    changes: readonly WorkItemChange<F>[],
+  ): AsyncResult<WorkItemChangeResult>;
   /** Replaces the assignees; new ones are notified and every one watches. */
   assign(workItemId: string, userIds: readonly string[]): AsyncResult<number>;
   archive(workItemId: string, archived?: boolean): AsyncResult<boolean>;
@@ -196,7 +210,7 @@ export interface WorkItems {
   list(
     organizationId: string,
     options?: WorkItemListOptions,
-  ): AsyncResult<WorkItem[]>;
+  ): AsyncResult<WorkItem<F>[]>;
   saveProject(
     organizationId: string,
     project: Partial<
@@ -214,13 +228,40 @@ export interface WorkItems {
   ): AsyncResult<Iteration>;
 }
 
-export interface WorkItemsOptions extends BlockTemporalOptions {
+export interface WorkItemsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
-  readonly hooks?: NoInfer<BlockHooks<WorkItems>>;
+  /**
+   * A Standard Schema for the item's extra columns
+   * (`blocks.work-items.options.extraColumns`), keyed by database name. It
+   * types and parses them on reads, and validates them on `create` and
+   * `update`.
+   */
+  readonly fields?: S;
+  readonly hooks?: NoInfer<BlockHooks<WorkItems<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
+
+/** The fields `update` writes without the `fields` schema. */
+const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
+  "title",
+  "body",
+  "parentId",
+  "teamId",
+  "projectId",
+  "iterationId",
+  "priority",
+  "estimate",
+  "progress",
+  "startAt",
+  "endAt",
+  "dueAt",
+  "stageId",
+  "closeReason",
+]);
 
 const KNOWN = new Set([
   "id",
@@ -387,47 +428,70 @@ const args = (input: object): Record<string, unknown> =>
  * for a grid or a Gantt chart, assignees, a progress tree, projects and
  * iterations.
  */
-export function createWorkItems(options: WorkItemsOptions): WorkItems {
+export function createWorkItems<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: WorkItemsOptions<S>): WorkItems<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: WorkItems = {
-    create: (organizationId, input, assigneeIds) =>
-      call(
-        "create_work_item",
-        {
-          tenant: organizationId,
-          attrs: args(input),
-          assignees: assigneeIds === undefined ? null : [...assigneeIds],
-        },
-        itemOf,
-      ),
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "work item fields",
+  );
+  const client: WorkItems<F> = {
+    create: (organizationId, input, assigneeIds) => {
+      const { fields: extra, ...attrs } = input;
+      return fields.args(extra).andThen((checked) =>
+        call(
+          "create_work_item",
+          {
+            tenant: organizationId,
+            attrs: {
+              ...args(attrs),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            assignees: assigneeIds === undefined ? null : [...assigneeIds],
+          },
+          itemOf,
+        ).andThen(fields.row),
+      );
+    },
     update: (changes) =>
-      call(
-        "update_work_items",
-        {
-          changes: changes.map((change) => ({
-            workItemId: change.workItemId,
-            field: change.field,
-            value: valueArg(change.value),
-          })),
-        },
-        (value) => {
-          const row = recordOf(value, "update_work_items");
-          return {
-            accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
-              workItemId: textOf(item["workItemId"]),
-              field: textOf(item["field"]),
+      AsyncResult.from(async () => {
+        for (const change of changes) {
+          if (BUILT_IN.has(change.field)) continue;
+          const valid = await fields.write({ [change.field]: change.value });
+          if (!valid.ok) return valid;
+        }
+        return ok(changes);
+      }).andThen((checked) =>
+        call(
+          "update_work_items",
+          {
+            changes: checked.map((change) => ({
+              workItemId: change.workItemId,
+              field: change.field,
+              value: valueArg(change.value),
             })),
-            rejected: recordsOf(row["rejected"], "rejected").map((item) =>
-              compact<WorkItemChangeResult["rejected"][number]>({
+          },
+          (value) => {
+            const row = recordOf(value, "update_work_items");
+            return {
+              accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
                 workItemId: textOf(item["workItemId"]),
                 field: textOf(item["field"]),
-                hint: optionalText(item["hint"]),
-                reason: textOf(item["reason"]),
-              }),
-            ),
-          };
-        },
+              })),
+              rejected: recordsOf(row["rejected"], "rejected").map((item) =>
+                compact<WorkItemChangeResult["rejected"][number]>({
+                  workItemId: textOf(item["workItemId"]),
+                  field: textOf(item["field"]),
+                  hint: optionalText(item["hint"]),
+                  reason: textOf(item["reason"]),
+                }),
+              ),
+            };
+          },
+        ),
       ),
     assign: (workItemId, userIds) =>
       call(
@@ -463,7 +527,7 @@ export function createWorkItems(options: WorkItemsOptions): WorkItems {
           page_size: limit ?? null,
         },
         (value) => recordsOf(value, "list_work_items").map(itemOf),
-      );
+      ).andThen(fields.rows);
     },
     saveProject: (organizationId, project) => {
       const { id, ...attrs } = project;

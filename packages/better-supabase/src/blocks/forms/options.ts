@@ -19,9 +19,11 @@ export const formsSqlOptions: BlockOptionsSchema<FormsSqlOptions> =
 /** `blocks.signatures.options`. */
 export type SignaturesSqlOptions = {
   readonly subjects?: unknown;
+  readonly extraColumns?: unknown;
 };
 
 export const signaturesSqlOptions: BlockOptionsSchema<SignaturesSqlOptions> =
   blockOptions<SignaturesSqlOptions>({
     subjects: option.unknown(),
+    extraColumns: option.unknown(),
   });

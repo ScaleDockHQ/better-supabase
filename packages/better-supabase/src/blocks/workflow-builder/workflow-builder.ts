@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -11,13 +12,21 @@ import type {
   BuilderStarter,
   GrantInput,
   RunInput,
+  TestRunInput,
   WorkflowBuilder,
+  WorkflowBuilderHooks,
   WorkflowDefinition,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowVersion,
 } from "./types.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -69,6 +78,7 @@ export type {
   VersionSaveOptions,
   WorkflowAlert,
   WorkflowBuilder,
+  WorkflowBuilderHooks,
   WorkflowCredential,
   WorkflowDefinition,
   WorkflowDefinitionGrant,
@@ -101,10 +111,15 @@ const BUILDER_PREFIX = "builder:";
  * });
  * ```
  */
-export function createWorkflowBuilder(
-  options: BuilderOptions,
-): WorkflowBuilder {
+export function createWorkflowBuilder<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: BuilderOptions<S>): WorkflowBuilder<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "workflow definition fields",
+  );
   injectableOf("workflow-builder compiler", options.compile);
   injectableOf("workflow-builder starter", options.start);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -212,21 +227,25 @@ export function createWorkflowBuilder(
       isRecord(value) ? credentialOf(value) : undefined,
     );
 
-  const builder: WorkflowBuilder = {
+  const builder: WorkflowBuilder<F> = {
     definitions: {
       save: (input) =>
-        call(
-          "save_workflow_definition",
-          {
-            tenant: input.tenant,
-            slug: input.slug,
-            name: input.name,
-            description: input.description,
-            subject_types: input.subjectTypes,
-            scope: input.scope,
-            restricted: input.restricted,
-          },
-          (value) => definitionOf(recordOf(value, "save_workflow_definition")),
+        fields.args(input.fields).andThen((checked) =>
+          call(
+            "save_workflow_definition",
+            {
+              tenant: input.tenant,
+              slug: input.slug,
+              name: input.name,
+              description: input.description,
+              subject_types: input.subjectTypes,
+              scope: input.scope,
+              restricted: input.restricted,
+              fields: checked,
+            },
+            (value) =>
+              definitionOf(recordOf(value, "save_workflow_definition")),
+          ).andThen(fields.row),
         ),
       list: (tenant, filter = {}) =>
         call(
@@ -234,12 +253,16 @@ export function createWorkflowBuilder(
           { tenant, subject_type: filter.subjectType },
           (value) =>
             recordsOf(value, "workflow_definitions_list").map(definitionOf),
-        ),
+        ).andThen(fields.rows),
       get: (id) =>
         call(
           "workflow_definition_get",
           { definition: id },
           optionalOf(definitionOf),
+        ).andThen((definition) =>
+          definition === undefined
+            ? AsyncResult.ok(undefined)
+            : fields.row(definition),
         ),
       remove: (id) =>
         call(
@@ -252,7 +275,7 @@ export function createWorkflowBuilder(
           "fork_workflow_definition",
           { source: input.source, tenant: input.tenant, slug: input.slug },
           (value) => definitionOf(recordOf(value, "fork_workflow_definition")),
-        ),
+        ).andThen(fields.row),
       optOut: (input) =>
         call(
           "set_workflow_opt_out",
@@ -727,7 +750,66 @@ export function createWorkflowBuilder(
         serviceCall("check_workflow_alerts", { batch: check.batch }, Number),
     },
   };
-  return builder;
+  return hooked(builder, options);
+}
+
+/** The builder with `options.hooks` around `run`, `test` and each group's methods. */
+function hooked<F extends object>(
+  builder: WorkflowBuilder<F>,
+  options: Pick<BuilderOptions<StandardSchemaV1 | undefined>, "logger"> & {
+    readonly hooks?: WorkflowBuilderHooks<F>;
+  },
+): WorkflowBuilder<F> {
+  const hooks = options.hooks;
+  if (hooks === undefined) return builder;
+  const logger = options.logger ? { logger: options.logger } : {};
+  const block = (group: string) => ({
+    block: `workflow-builder.${group}`,
+    ...logger,
+  });
+  const top = withBlockHooks(
+    {
+      run: (input: RunInput) => builder.run(input),
+      test: (input: TestRunInput) => builder.test(input),
+    },
+    {
+      ...(hooks.run === undefined ? {} : { run: hooks.run }),
+      ...(hooks.test === undefined ? {} : { test: hooks.test }),
+    },
+    { block: "workflow-builder", ...logger },
+  );
+  return {
+    ...builder,
+    run: top.run,
+    test: top.test,
+    definitions: withBlockHooks(
+      builder.definitions,
+      hooks.definitions,
+      block("definitions"),
+    ),
+    versions: withBlockHooks(
+      builder.versions,
+      hooks.versions,
+      block("versions"),
+    ),
+    triggers: withBlockHooks(
+      builder.triggers,
+      hooks.triggers,
+      block("triggers"),
+    ),
+    credentials: withBlockHooks(
+      builder.credentials,
+      hooks.credentials,
+      block("credentials"),
+    ),
+    steps: withBlockHooks(builder.steps, hooks.steps, block("steps")),
+    nodeRuns: withBlockHooks(
+      builder.nodeRuns,
+      hooks.nodeRuns,
+      block("nodeRuns"),
+    ),
+    alerts: withBlockHooks(builder.alerts, hooks.alerts, block("alerts")),
+  };
 }
 
 /**

@@ -108,6 +108,8 @@ import {
   jobsSqlOptions,
   type RateLimitSqlOptions,
   rateLimitSqlOptions,
+  type WebhookInboxSqlOptions,
+  webhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import {
   type KnowledgeSqlOptions,
@@ -209,7 +211,15 @@ import {
   supportSessionsSqlOptions,
 } from "./support-sessions/options.ts";
 import { type TagsSqlOptions, tagsSqlOptions } from "./tags/options.ts";
+import {
+  type TargetsSqlOptions,
+  targetsSqlOptions,
+} from "./targets/options.ts";
 import { type TeamsSqlOptions, teamsSqlOptions } from "./teams/options.ts";
+import {
+  type TemplatesSqlOptions,
+  templatesSqlOptions,
+} from "./templates/options.ts";
 import { type TenantSqlOptions, tenantSqlOptions } from "./tenant/options.ts";
 import {
   type TimeTrackingSqlOptions,
@@ -239,6 +249,10 @@ import {
   type WorkItemsSqlOptions,
   workItemsSqlOptions,
 } from "./work-items/options.ts";
+import {
+  type WorkflowBuilderSqlOptions,
+  workflowBuilderSqlOptions,
+} from "./workflow-builder/options.ts";
 import {
   type WorkflowSdkWorldSqlOptions,
   workflowSdkWorldSqlOptions,
@@ -338,9 +352,9 @@ export interface BlockOptionsRegistry {
   readonly subjects: None;
   readonly "support-sessions": SupportSessionsSqlOptions;
   readonly tags: TagsSqlOptions;
-  readonly targets: None;
+  readonly targets: TargetsSqlOptions;
   readonly teams: TeamsSqlOptions;
-  readonly templates: None;
+  readonly templates: TemplatesSqlOptions;
   readonly tenant: TenantSqlOptions;
   readonly "time-tracking": TimeTrackingSqlOptions;
   readonly trash: TrashSqlOptions;
@@ -349,11 +363,11 @@ export interface BlockOptionsRegistry {
   readonly "vector-search": VectorSearchSqlOptions;
   readonly versions: VersionsSqlOptions;
   readonly waitlist: WaitlistSqlOptions;
-  readonly "webhook-inbox": None;
+  readonly "webhook-inbox": WebhookInboxSqlOptions;
   readonly "webhooks-in": WebhooksInSqlOptions;
   readonly "webhooks-out": WebhooksOutSqlOptions;
   readonly "work-items": WorkItemsSqlOptions;
-  readonly "workflow-builder": None;
+  readonly "workflow-builder": WorkflowBuilderSqlOptions;
   readonly "workflow-sdk-world": WorkflowSdkWorldSqlOptions;
   readonly workflows: None;
 }
@@ -450,9 +464,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   subjects: NO_OPTIONS,
   "support-sessions": supportSessionsSqlOptions,
   tags: tagsSqlOptions,
-  targets: NO_OPTIONS,
+  targets: targetsSqlOptions,
   teams: teamsSqlOptions,
-  templates: NO_OPTIONS,
+  templates: templatesSqlOptions,
   tenant: tenantSqlOptions,
   "time-tracking": timeTrackingSqlOptions,
   trash: trashSqlOptions,
@@ -461,11 +475,11 @@ export const BLOCK_OPTION_SCHEMAS: {
   "vector-search": vectorSearchSqlOptions,
   versions: versionsSqlOptions,
   waitlist: waitlistSqlOptions,
-  "webhook-inbox": NO_OPTIONS,
+  "webhook-inbox": webhookInboxSqlOptions,
   "webhooks-in": webhooksInSqlOptions,
   "webhooks-out": webhooksOutSqlOptions,
   "work-items": workItemsSqlOptions,
-  "workflow-builder": NO_OPTIONS,
+  "workflow-builder": workflowBuilderSqlOptions,
   "workflow-sdk-world": workflowSdkWorldSqlOptions,
   workflows: NO_OPTIONS,
 };

@@ -163,7 +163,7 @@ carts and records payment events; everything else runs as the caller, so
 the policies apply:
 
 ```ts title="lib/store.ts"
-import { fixedRates, stripePayments } from "better-supabase/blocks/commerce";
+import { fixedRates, stripePayments } from "better-supabase/commerce";
 import { createOrders } from "better-supabase/blocks/orders";
 import { createPromotions } from "better-supabase/blocks/promotions";
 
@@ -187,7 +187,7 @@ key is the SKU, so a rerun skips what already imported:
 
 ```ts title="lib/imports/products.ts"
 import { defineImport } from "better-supabase/blocks/imports";
-import { money } from "better-supabase/blocks/commerce";
+import { money } from "better-supabase/commerce";
 
 export const products = defineImport({
   kind: "products",

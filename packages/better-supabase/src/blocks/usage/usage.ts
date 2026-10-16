@@ -1,10 +1,13 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
+  type BlockOptions,
   DEFAULT_BLOCK_SCHEMA,
   eachLimit,
   isRecord,
@@ -13,7 +16,6 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
   applyTemporal,
   type CursorPageOptions,
   pageOf,
@@ -21,11 +23,11 @@ import {
 } from "../shared.ts";
 import { lazyStripe, type StripeSource } from "../stripe.ts";
 
-export interface UsageOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface UsageOptions extends BlockOptions {
+  /** `withBlockHooks` hooks around the client's methods, such as a check before `consume`. */
+  readonly hooks?: BlockHooks<Usage>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface RecordUsageOptions {
@@ -346,7 +348,7 @@ export function createUsage(options: UsageOptions): Usage {
       );
   const purgeHistory = purge("purge_usage_history");
   const purgeEvents = purge("purge_usage_events");
-  return {
+  const client: Usage = {
     purgeHistory,
     purgeEvents,
     purgeJob:
@@ -407,6 +409,10 @@ export function createUsage(options: UsageOptions): Usage {
         );
       }),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "usage",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 export interface ReportUsageOptions {
@@ -464,18 +470,18 @@ export interface ReportUsageResult {
 export async function reportUsageToStripe(
   options: ReportUsageOptions,
 ): Promise<ReportUsageResult> {
-  const transport = options.transport;
-  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const call = blockCall(options.transport, options.schema);
+  const entitlements = blockCall(options.transport, DEFAULT_BLOCK_SCHEMA);
   const stripe = await lazyStripe(options.stripe)();
   const customers = new Map<string, string | undefined>();
   const customerOf =
     options.customer ??
     (async (organizationId: string) =>
-      optionalText(
-        await transport.call(DEFAULT_BLOCK_SCHEMA, "tenant_stripe_customer", {
-          tenant: organizationId,
-        }),
-      ));
+      entitlements(
+        "tenant_stripe_customer",
+        { tenant: organizationId },
+        optionalText,
+      ).orThrow());
   const limit = options.batch ?? 500;
   const skipMeters = new Set<string>();
   const skipTenants = new Set<string>();
@@ -498,26 +504,26 @@ export async function reportUsageToStripe(
         { idempotencyKey: identifier },
       );
     }
-    await transport.call(schema, "mark_usage_reported", {
-      tenant: organizationId,
-      meter,
-      day,
-      value,
-    });
+    await call(
+      "mark_usage_reported",
+      { tenant: organizationId, meter, day, value },
+      () => undefined,
+    ).orThrow();
     return delta > 0;
   };
   let reported = 0;
   let skipped = 0;
   let handled = 0;
   for (;;) {
-    const rows = recordsOf(
-      await transport.call(schema, "unreported_usage", {
+    const rows = await call(
+      "unreported_usage",
+      {
         max_rows: limit - handled,
         skip_meters: [...skipMeters],
         skip_tenants: [...skipTenants],
-      }),
-      "unreported_usage",
-    );
+      },
+      (value) => recordsOf(value, "unreported_usage"),
+    ).orThrow();
     let passedOver = false;
     const eventNameOf = (meter: string): string | undefined =>
       options.eventName ? options.eventName(meter) : meter;

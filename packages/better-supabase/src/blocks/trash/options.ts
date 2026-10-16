@@ -4,10 +4,12 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 export type TrashSqlOptions = {
   readonly subjects?: unknown;
   readonly retentionDays?: number;
+  readonly extraColumns?: unknown;
 };
 
 export const trashSqlOptions: BlockOptionsSchema<TrashSqlOptions> =
   blockOptions<TrashSqlOptions>({
     subjects: option.unknown(),
     retentionDays: option.number({ default: 30 }),
+    extraColumns: option.unknown(),
   });

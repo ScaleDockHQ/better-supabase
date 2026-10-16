@@ -203,7 +203,8 @@ for each row execute function better_supabase.bs_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function "better_supabase"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
@@ -841,7 +842,8 @@ for each row execute function better_supabase.bs_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function "better_supabase"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
@@ -1503,7 +1505,8 @@ for each row execute function better_supabase.bs_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function "app_private"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
@@ -2141,7 +2144,8 @@ for each row execute function better_supabase.bs_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function "better_supabase"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql

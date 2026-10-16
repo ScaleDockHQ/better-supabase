@@ -1,4 +1,4 @@
-import { ISO_4217_MINOR_UNITS } from "../blocks/commerce/iso4217.ts";
+import { ISO_4217_MINOR_UNITS } from "../commerce/iso4217.ts";
 import { sqlString } from "../core/template.ts";
 
 /**

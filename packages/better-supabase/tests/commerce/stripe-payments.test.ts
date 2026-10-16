@@ -1,6 +1,7 @@
 import { Stripe } from "stripe";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import { signStripeWebhook } from "../../src/blocks/webhooks/verify.ts";
 import {
   fromStripeAmount,
   money,
@@ -13,13 +14,12 @@ import {
   type StripePaymentsClient,
   type StripeRefund,
   toStripeAmount,
-} from "../../../src/blocks/commerce/index.ts";
-import { stripeError } from "../../../src/blocks/commerce/stripe-shared.ts";
-import { signStripeWebhook } from "../../../src/blocks/webhooks/verify.ts";
+} from "../../src/commerce/index.ts";
+import { stripeError } from "../../src/commerce/stripe-shared.ts";
 import {
   ConformanceError,
   testPaymentProvider,
-} from "../../../src/testing/index.ts";
+} from "../../src/testing/index.ts";
 
 const SECRET = "whsec_conformance";
 

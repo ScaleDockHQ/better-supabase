@@ -76,3 +76,21 @@ The module records `subject.trashed`, `subject.restored` and `subject.purged` fo
 ## With ReUI
 
 A bin page renders `list()` in a ReUI data grid, with restore and delete-forever actions per row. `count` shows how many rows a batch holds, and `purgeAfter` when it goes for good.
+
+## Your own columns
+
+Add columns to the trash item, such as a reason, table with `blocks.trash.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`trash` (the last argument) validates and writes them, and `list` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+import { z } from "zod";
+
+const client = createTrash({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

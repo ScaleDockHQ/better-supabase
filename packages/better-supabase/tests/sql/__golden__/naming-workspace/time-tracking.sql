@@ -154,7 +154,9 @@ create trigger bs_time_entry_guard
   before insert or update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."time_entry_guard"();
 
--- Starts a timer for the caller, stopping the one that runs.
+-- Starts a timer for the caller, stopping the one that runs. fields: the
+-- extra columns (blocks.time-tracking.options.extraColumns) to set.
+drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text, jsonb);
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -283,6 +285,7 @@ revoke execute on function "better_supabase"."running_timer"(uuid) from public, 
 grant execute on function "better_supabase"."running_timer"(uuid) to authenticated, service_role;
 
 -- Records finished time. Logging for another member needs the manage permission.
+drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb);
 create or replace function "better_supabase"."log_time"(tenant uuid, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, user_id uuid default null)
 returns jsonb
 language plpgsql
@@ -364,7 +367,7 @@ revoke execute on function "better_supabase"."log_time"(uuid, timestamptz, times
 grant execute on function "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid) to authenticated, service_role;
 
 -- Changes the keys in patch: startedAt, endedAt, subjectType and subjectId
--- together, billable, rate and note.
+-- together, billable, rate, note and fields (the extra columns).
 create or replace function "better_supabase"."update_time_entry"(entry_id uuid, patch jsonb)
 returns jsonb
 language plpgsql

@@ -82,6 +82,7 @@ const CALL: BuilderStartCall = {
     forkedFrom: undefined,
     forkedFromVersion: undefined,
     restricted: false,
+    fields: {},
   },
   version: {
     id: "v1",

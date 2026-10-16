@@ -1,12 +1,18 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { DrainResult, JobHandler } from "./types.ts";
 
 import {
-  budget,
-  DEFAULT_BLOCK_SCHEMA,
-  leaseHeartbeat,
-} from "../../core/block-helpers.ts";
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
+import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   problemResponse,
@@ -16,16 +22,23 @@ import { ok, type AsyncResult, type Result } from "../../core/result.ts";
 import { verifyWebhook } from "../../core/signatures.ts";
 import {
   applyTemporal,
+  blockCall,
+  type BlockOptions,
   errorText,
+  isRecord,
   readBodyCapped,
+  recordOf,
+  recordsOf,
   run,
   seconds,
   toInstant,
   workerId,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
-export interface WebhookInboxMessage<T = unknown> {
+export interface WebhookInboxMessage<
+  T = unknown,
+  F extends object = Record<never, never>,
+> {
   readonly id: number;
   readonly source: string;
   readonly messageId: string;
@@ -45,6 +58,8 @@ export interface WebhookInboxMessage<T = unknown> {
   readonly tenant: string | null;
   /** Progress an earlier attempt saved with `checkpoint`, `{}` at first. */
   readonly progress: Readonly<Record<string, unknown>>;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
   /**
    * Saves progress mid-processing (merged into `progress`), so a retry
    * resumes there, such as a provider's page cursor. `false` when the lease
@@ -54,7 +69,7 @@ export interface WebhookInboxMessage<T = unknown> {
 }
 
 /** A verified event to store, from `verify` or from `store` for a provider SDK that verifies itself. */
-export interface WebhookInboxEvent {
+export interface WebhookInboxEvent<F extends object = Record<never, never>> {
   /** The sender's message id; the inbox stores each one once. */
   readonly id: string;
   readonly payload: unknown;
@@ -63,10 +78,14 @@ export interface WebhookInboxEvent {
   /** Defaults to `tenantOf(payload)`. */
   readonly tenant?: string | null;
   readonly headers?: Readonly<Record<string, string>>;
+  /** The extra columns of a new message; a duplicate keeps the stored ones. */
+  readonly fields?: Partial<F>;
 }
 
-export interface WebhookInboxOptions
-  extends BlockProblemOptions, BlockTemporalOptions {
+export interface WebhookInboxOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+>
+  extends BlockOptions, BlockProblemOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
   /**
@@ -103,6 +122,17 @@ export interface WebhookInboxOptions
    * read to the end. Defaults to 1 MiB.
    */
   readonly maxBodyBytes?: number;
+  /**
+   * A Standard Schema for the message's extra columns
+   * (`blocks.webhook-inbox.options.extraColumns`), keyed by database name.
+   * It validates them on `store`, and types and parses them on `list` and
+   * on the messages `process` hands the handler.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around `store`, `list` and `purge`. */
+  readonly hooks?: NoInfer<BlockHooks<WebhookInbox<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface WebhookInboxProcessOptions {
@@ -131,7 +161,7 @@ export interface WebhookInboxListOptions {
 }
 
 /** A stored message as `list` returns it. */
-export interface WebhookInboxEntry {
+export interface WebhookInboxEntry<F extends object = Record<never, never>> {
   readonly id: number;
   readonly messageId: string;
   readonly type: string | null;
@@ -142,6 +172,8 @@ export interface WebhookInboxEntry {
   readonly tenant: string | null;
   readonly receivedAt: Temporal.Instant;
   readonly processedAt: Temporal.Instant | null;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface WebhookInboxPurgeOptions {
@@ -168,16 +200,12 @@ export function purgeWebhookInbox(
     batch: options.batch ?? 10_000,
     for_tenant: options.tenant ?? null,
   };
+  if ("call" in source) {
+    return blockCall(source, options.schema)("purge_webhooks", args, (value) =>
+      Number(value ?? 0),
+    );
+  }
   return run(async () => {
-    if ("call" in source) {
-      return Number(
-        (await source.call(
-          options.schema ?? DEFAULT_BLOCK_SCHEMA,
-          "purge_webhooks",
-          args,
-        )) ?? 0,
-      );
-    }
     const [row] = await source.queryRaw<{ purged: number }>(
       "select better_supabase.purge_webhooks($1::interval, $2, $3, $4) as purged",
       [args.older_than, args.include_dead, args.batch, args.for_tenant],
@@ -186,7 +214,7 @@ export function purgeWebhookInbox(
   });
 }
 
-export interface WebhookInbox {
+export interface WebhookInbox<F extends object = Record<never, never>> {
   /**
    * Verifies and stores a webhook; answers 202, or 200 for a duplicate
    * delivery. Throws a `TypeError` when the inbox has neither `secrets` nor
@@ -199,41 +227,51 @@ export interface WebhookInbox {
    * before.
    */
   store(
-    event: WebhookInboxEvent,
+    event: WebhookInboxEvent<F>,
   ): AsyncResult<{ id: number; duplicate: boolean }>;
   /**
    * Processes stored messages until none are ready, or until `budgetMs`
    * is spent. A message whose lease another claim took over is skipped,
-   * and its outcome is not counted.
+   * and its outcome is not counted. A message whose extra columns the
+   * `fields` schema rejects fails without reaching the handler.
    */
   process<T = unknown>(
-    handler: (message: WebhookInboxMessage<T>) => unknown,
+    handler: (message: WebhookInboxMessage<T, F>) => unknown,
     options?: WebhookInboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
-  list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry[]>;
+  list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry<F>[]>;
   /** Deletes old processed (and, with `includeDead`, dead) messages of this source's table; returns how many. */
   purge(options?: WebhookInboxPurgeOptions): AsyncResult<number>;
   /** A job handler that runs `purge`; schedule it nightly. */
   purgeJob(options?: WebhookInboxPurgeOptions): JobHandler<unknown>;
 }
 
-interface WebhookInboxRow {
-  id: string | number;
-  source: string;
-  message_id: string;
-  event_type: string | null;
-  payload: unknown;
-  headers: Record<string, string>;
-  attempts: number;
-  max_attempts?: number;
-  received_at: Date | string;
-  tenant?: string | null;
-  checkpoint?: Record<string, unknown> | null;
-  status?: WebhookInboxEntry["status"];
-  last_error?: string | null;
-  processed_at?: Date | string | null;
+const STATUSES: ReadonlySet<string> = new Set([
+  "pending",
+  "processing",
+  "processed",
+  "dead",
+]);
+
+function statusOf(value: unknown): WebhookInboxEntry["status"] {
+  if (typeof value !== "string" || !STATUSES.has(value)) return "pending";
+  // SAFETY: the set holds exactly the status values.
+  return value as WebhookInboxEntry["status"];
 }
+
+const nullableText = (value: unknown): string | null =>
+  value === null || value === undefined ? null : String(value);
+
+const instantOf = (value: unknown): Temporal.Instant =>
+  toInstant(value instanceof Date ? value : String(value));
+
+const headersOf = (value: unknown): Readonly<Record<string, string>> =>
+  isRecord(value)
+    ? Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [key, String(item)]),
+      )
+    : {};
 
 function defaultType(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) return null;
@@ -253,16 +291,16 @@ export interface ReceiveWebhookInput {
   readonly maxAttempts?: number | undefined;
 }
 
-/** Stores one webhook through `receive_webhook`; `duplicate` when the id was stored before. */
+/**
+ * Stores one webhook through `receive_webhook` over a service SQL
+ * connection; `duplicate` when the id was stored before.
+ */
 export async function receiveWebhook(
   sql: SqlClient,
   input: ReceiveWebhookInput,
 ): Promise<{ id: number; duplicate: boolean }> {
-  const [row] = await sql.queryRaw<{
-    id: string | number;
-    duplicate: boolean;
-  }>(
-    "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
+  const [row] = await sql.queryRaw<{ value: unknown }>(
+    "select better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7) as value",
     [
       input.source,
       input.id,
@@ -273,15 +311,29 @@ export async function receiveWebhook(
       input.maxAttempts ?? null,
     ],
   );
-  return { id: Number(row!.id), duplicate: row!.duplicate };
+  return storedOf(row?.value);
 }
 
-/** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
-export function createWebhookInbox(
-  sql: SqlClient,
-  options: WebhookInboxOptions,
-): WebhookInbox {
+function storedOf(value: unknown): { id: number; duplicate: boolean } {
+  const row = recordOf(value, "receive_webhook");
+  return { id: Number(row["id"]), duplicate: row["duplicate"] === true };
+}
+
+/**
+ * Store-then-process webhooks: acknowledge fast, process with retries, never
+ * twice. Pass a service transport, `sqlTransport(postgres.admin)`: the inbox
+ * functions are granted to the service role only.
+ */
+export function createWebhookInbox<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: WebhookInboxOptions<S>): WebhookInbox<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "webhook inbox fields",
+  );
   const worker = options.worker ?? workerId();
   const format = options.problem;
   const maxAttempts = options.maxAttempts ?? 8;
@@ -313,57 +365,76 @@ export function createWebhookInbox(
       : result;
   };
 
-  const save = (event: WebhookInboxEvent) =>
-    run(() =>
-      receiveWebhook(sql, {
-        source: options.source,
-        id: event.id,
-        type:
-          event.type === undefined
-            ? (options.typeOf ?? defaultType)(event.payload)
-            : event.type,
-        payload: event.payload,
-        headers: event.headers ?? {},
-        tenant:
-          (event.tenant === undefined
-            ? options.tenantOf?.(event.payload)
-            : event.tenant) ?? null,
-        maxAttempts,
-      }),
+  const save = (event: WebhookInboxEvent<F>) =>
+    fields.args(event.fields).andThen((checked) =>
+      call(
+        "receive_webhook",
+        {
+          source: options.source,
+          message_id: event.id,
+          event_type:
+            event.type === undefined
+              ? (options.typeOf ?? defaultType)(event.payload)
+              : event.type,
+          payload: event.payload,
+          headers: event.headers ?? {},
+          tenant:
+            (event.tenant === undefined
+              ? options.tenantOf?.(event.payload)
+              : event.tenant) ?? null,
+          max_attempts: maxAttempts,
+          fields: checked,
+        },
+        storedOf,
+      ),
     );
 
-  return {
+  /** Runs a call the worker can't go on without; it throws the `DbError`. */
+  const must = <T>(
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+    then: (value: unknown) => T,
+  ): Promise<T> => call(fn, args, then).orThrow();
+
+  const client: WebhookInbox<F> = {
     store: save,
     list: (listOptions) =>
-      run(async () => {
-        const rows = await sql.queryRaw<WebhookInboxRow>(
-          "select * from better_supabase.list_webhooks($1, $2, $3, $4)",
-          [
-            listOptions.tenant,
-            options.source,
-            listOptions.status ?? null,
-            listOptions.limit ?? 100,
-          ],
-        );
-        return rows.map((row) => ({
-          id: Number(row.id),
-          messageId: row.message_id,
-          type: row.event_type,
-          status: row.status ?? "pending",
-          attempts: row.attempts,
-          maxAttempts: row.max_attempts ?? maxAttempts,
-          lastError: row.last_error ?? null,
-          tenant: row.tenant ?? null,
-          receivedAt: toInstant(row.received_at),
-          processedAt:
-            row.processed_at === null || row.processed_at === undefined
-              ? null
-              : toInstant(row.processed_at),
-        }));
+      call(
+        "list_webhooks",
+        {
+          for_tenant: listOptions.tenant,
+          for_source: options.source,
+          for_status: listOptions.status ?? null,
+          max_rows: listOptions.limit ?? 100,
+        },
+        (value) =>
+          recordsOf(value, "list_webhooks").map((row) => ({
+            id: Number(row["id"]),
+            messageId: String(row["message_id"]),
+            type: nullableText(row["event_type"]),
+            status: statusOf(row["status"]),
+            attempts: Number(row["attempts"]),
+            maxAttempts:
+              row["max_attempts"] === null || row["max_attempts"] === undefined
+                ? maxAttempts
+                : Number(row["max_attempts"]),
+            lastError: nullableText(row["last_error"]),
+            tenant: nullableText(row["tenant"]),
+            receivedAt: instantOf(row["received_at"]),
+            processedAt:
+              row["processed_at"] === null || row["processed_at"] === undefined
+                ? null
+                : instantOf(row["processed_at"]),
+            fields: isRecord(row["fields"]) ? row["fields"] : {},
+          })),
+      ).andThen(fields.rows),
+    purge: (purgeOptions) =>
+      purgeWebhookInbox(options.transport, {
+        ...(options.schema === undefined ? {} : { schema: options.schema }),
+        ...purgeOptions,
       }),
-    purge: (purgeOptions) => purgeWebhookInbox(sql, purgeOptions),
     purgeJob: (purgeOptions) => async () =>
-      purgeWebhookInbox(sql, purgeOptions).orThrow(),
+      client.purge(purgeOptions).orThrow(),
     async receive(request) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {
@@ -417,52 +488,68 @@ export function createWebhookInbox(
       const spent = budget(processOptions.budgetMs);
       for (;;) {
         if (spent.expired()) return { succeeded, failed };
-        const rows = await sql.queryRaw<WebhookInboxRow>(
-          "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
-          [options.source, worker, processOptions.batch ?? 10, lease],
+        const rows = await must(
+          "claim_webhooks",
+          {
+            source: options.source,
+            worker,
+            batch: processOptions.batch ?? 10,
+            lease,
+          },
+          (value) => recordsOf(value, "claim_webhooks"),
         );
         if (rows.length === 0) return { succeeded, failed };
         for (const row of rows) {
-          const id = Number(row.id);
-          const attempt = row.attempts;
+          const id = Number(row["id"]);
+          const attempt = Number(row["attempts"]);
           // Renews the lease, which ran from the claim while earlier messages
           // of the batch were handled. No lease: another claim took it over.
-          const extend = async (): Promise<number | undefined> => {
-            const [held] = await sql.queryRaw<{ lease: number | null }>(
-              "select better_supabase.extend_webhook($1, $2, $3, $4::interval) as lease",
-              [id, worker, attempt, lease],
+          const extend = (): Promise<number | undefined> =>
+            must(
+              "extend_webhook",
+              { inbox_id: id, worker, attempt, lease },
+              (value) =>
+                value === null || value === undefined
+                  ? undefined
+                  : Number(value),
             );
-            return held?.lease ?? undefined;
-          };
           const leaseSeconds = await extend();
           if (leaseSeconds === undefined) continue;
-          const message: WebhookInboxMessage<never> = {
-            id,
-            source: row.source,
-            messageId: row.message_id,
-            type: row.event_type,
-            // SAFETY: the handler's payload type comes from its event type,
-            // and the inbox stores the payload as JSON.
-            payload: row.payload as never,
-            headers: row.headers,
-            attempts: row.attempts,
-            maxAttempts: row.max_attempts ?? maxAttempts,
-            receivedAt: toInstant(row.received_at),
-            tenant: row.tenant ?? null,
-            progress: row.checkpoint ?? {},
-            async checkpoint(fields) {
-              const [saved] = await sql.queryRaw<{ saved: boolean }>(
-                "select better_supabase.checkpoint_webhook($1, $2, $3, $4) as saved",
-                [id, worker, JSON.stringify(fields), attempt],
-              );
-              return saved?.saved ?? false;
-            },
-          };
           const stopHeartbeat = leaseHeartbeat(
             leaseSeconds,
             () => void extend().catch(() => undefined),
           );
           try {
+            const parsed = await fields.read(
+              isRecord(row["fields"]) ? row["fields"] : {},
+            );
+            if (!parsed.ok) throw new Error(parsed.error.message);
+            const message: WebhookInboxMessage<never, F> = {
+              id,
+              source: String(row["source"]),
+              messageId: String(row["message_id"]),
+              type: nullableText(row["event_type"]),
+              // SAFETY: the handler's payload type comes from its event type,
+              // and the inbox stores the payload as JSON.
+              payload: row["payload"] as never,
+              headers: headersOf(row["headers"]),
+              attempts: attempt,
+              maxAttempts:
+                row["max_attempts"] === null ||
+                row["max_attempts"] === undefined
+                  ? maxAttempts
+                  : Number(row["max_attempts"]),
+              receivedAt: instantOf(row["received_at"]),
+              tenant: nullableText(row["tenant"]),
+              progress: isRecord(row["checkpoint"]) ? row["checkpoint"] : {},
+              fields: parsed.data,
+              checkpoint: (progress) =>
+                must(
+                  "checkpoint_webhook",
+                  { inbox_id: id, worker, fields: progress, attempt },
+                  (value) => value === true,
+                ),
+            };
             const outcome: unknown = await handler(message);
             if (
               typeof outcome === "object" &&
@@ -479,15 +566,17 @@ export function createWebhookInbox(
                 ),
               );
             }
-            const [done] = await sql.queryRaw<{ done: boolean }>(
-              "select better_supabase.complete_webhook($1, $2, $3) as done",
-              [message.id, worker, attempt],
+            const done = await must(
+              "complete_webhook",
+              { inbox_id: id, worker, attempt },
+              (value) => value !== false,
             );
-            if (done?.done !== false) succeeded += 1;
+            if (done) succeeded += 1;
           } catch (cause) {
-            await sql.queryRaw(
-              "select better_supabase.fail_webhook($1, $2, $3, null, $4)",
-              [message.id, worker, errorText(cause), attempt],
+            await must(
+              "fail_webhook",
+              { inbox_id: id, worker, error: errorText(cause), attempt },
+              () => undefined,
             );
             failed += 1;
           } finally {
@@ -497,4 +586,8 @@ export function createWebhookInbox(
       }
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "webhook-inbox",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

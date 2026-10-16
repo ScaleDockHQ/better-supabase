@@ -90,6 +90,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+drop function if exists "better_supabase"."trash"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -446,6 +449,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+drop function if exists "better_supabase"."trash"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -813,6 +819,9 @@ end;
 $$;
 revoke execute on function "app_private"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+drop function if exists "app_private"."trash"(uuid, text, text, jsonb);
 create or replace function "app_private"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1160,6 +1169,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+drop function if exists "better_supabase"."trash"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1394,6 +1406,8 @@ grant execute on function "better_supabase"."is_trashed"(text, text) to authenti
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."trash"(uuid, text, text, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -1561,6 +1575,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+drop function if exists "better_supabase"."trash"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql

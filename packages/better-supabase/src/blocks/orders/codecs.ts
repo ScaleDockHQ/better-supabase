@@ -1,12 +1,12 @@
-import type { Payment } from "../commerce/payments.ts";
+import type { Payment } from "../../commerce/payments.ts";
 
 import { type RowFields, rowFields } from "../../core/block-fields.ts";
-import { money, type Money } from "../commerce/money.ts";
+import { money, type Money } from "../../commerce/money.ts";
 import {
   type TaxLine,
   type TaxQuote,
   type TaxTransaction,
-} from "../commerce/tax.ts";
+} from "../../commerce/tax.ts";
 import {
   enumOrThrow,
   isRecord,

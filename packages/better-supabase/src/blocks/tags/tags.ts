@@ -1,34 +1,69 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { blockCall, optionalText, recordOf, textOf } from "../shared.ts";
+import {
+  applyTemporal,
+  blockCall,
+  type BlockOptions,
+  isRecord,
+  optionalText,
+  recordOf,
+  textOf,
+} from "../shared.ts";
 
-export interface TagsOptions {
-  readonly transport: BlockTransport;
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface TagsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the tag's extra columns
+   * (`blocks.tags.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create` and `update`.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Tags<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface Tag {
+/** A tag. `F` types the extra columns the `fields` schema describes. */
+export interface Tag<F extends object = Record<never, never>> {
   readonly id: string;
   readonly name: string;
   readonly slug: string;
   /** Its rank key among the tenant's tags of the same kind, when it has one. */
   readonly rank?: string;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface Tags {
+export interface Tags<F extends object = Record<never, never>> {
+  /** Creates a tag; `fields` sets its extra columns. */
   create(
     organizationId: string,
     kind: string,
     name: string,
     color?: string,
     description?: string,
-  ): AsyncResult<Tag>;
-  update(id: string, name: string): AsyncResult<boolean>;
+    fields?: Partial<F>,
+  ): AsyncResult<Tag<F>>;
+  /** Renames a tag (`name` null keeps it) and sets the extra columns `fields` names. */
+  update(
+    id: string,
+    name: string | null,
+    fields?: Partial<F>,
+  ): AsyncResult<boolean>;
   /**
    * Moves a tag between the tags with rank keys `previous` and `next`.
    * Resolves to its new key.
@@ -57,26 +92,44 @@ function tagOf(value: unknown): Tag {
     name: optionalText(row["name"]) ?? "",
     slug: optionalText(row["slug"]) ?? "",
     ...(rank === undefined ? {} : { rank }),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
-export function createTags(options: TagsOptions): Tags {
+/** The `tags` SQL module as typed calls. */
+export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
+  options: TagsOptions<S>,
+): Tags<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
-    create: (organizationId, kind, name, color, description) =>
-      call(
-        "create_tag",
-        {
-          tenant: organizationId,
-          kind,
-          name,
-          color: color ?? null,
-          description: description ?? null,
-        },
-        (value) => ({ ...tagOf(value), name }),
+  const fields: BlockFields<F> = blockFields(options.fields, "tag fields");
+  const client: Tags<F> = {
+    create: (organizationId, kind, name, color, description, extra) =>
+      fields.args(extra).andThen((checked) =>
+        call(
+          "create_tag",
+          {
+            tenant: organizationId,
+            kind,
+            name,
+            color: color ?? null,
+            description: description ?? null,
+            fields: checked,
+          },
+          (value) => ({ ...tagOf(value), name }),
+        ).andThen(fields.row),
       ),
-    update: (id, name) =>
-      call("update_tag", { tag_id: id, name }, (value) => value === true),
+    update: (id, name, extra) =>
+      fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "update_tag",
+            { tag_id: id, name, fields: checked },
+            (value) => value === true,
+          ),
+        ),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
       if (!key.ok) return AsyncResult.err(key.error);
@@ -107,4 +160,8 @@ export function createTags(options: TagsOptions): Tags {
         (value) => value === true,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "tags",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

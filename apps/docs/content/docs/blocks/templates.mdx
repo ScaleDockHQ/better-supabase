@@ -185,3 +185,21 @@ Errors carry these hints: `TEMPLATE_INVALID`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_FO
 | `template_versions`     | The versions of each template, with the body and its SHA-256; the draft has no `published_at`                          |
 | `template_applications` | Which version of which template created which record, by whom                                                          |
 | `template_workflows`    | The workflow definitions each template starts on a new record, with their inputs (with `workflow-builder`)             |
+
+## Your own columns
+
+Add columns to the template table with `blocks.templates.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`save` validates and writes them, and `save`, `list`, `get` and `fork` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTemplates } from "better-supabase/blocks/templates";
+import { z } from "zod";
+
+const client = createTemplates({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

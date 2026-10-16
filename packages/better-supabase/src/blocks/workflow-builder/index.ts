@@ -1,6 +1,7 @@
 export {
   type AlertInput,
   type BuilderOptions,
+  type WorkflowBuilderHooks,
   type BuilderStartCall,
   type BuilderStarter,
   createWorkflowBuilder,

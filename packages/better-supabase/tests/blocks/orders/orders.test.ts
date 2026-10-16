@@ -2,17 +2,17 @@ import * as v from "valibot";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
+  createOrders,
+  type OrdersOptions,
+} from "../../../src/blocks/orders/index.ts";
+import {
   fixedRates,
   money,
   type Money,
   type Payment,
   type PaymentProvider,
   type TaxProvider,
-} from "../../../src/blocks/commerce/index.ts";
-import {
-  createOrders,
-  type OrdersOptions,
-} from "../../../src/blocks/orders/index.ts";
+} from "../../../src/commerce/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 

@@ -23,7 +23,11 @@ describe("blocks on @supabase/server's Postgres clients", () => {
     sqlTransport(postgres);
     createJobs({ sql: postgresAdmin, queues: {} });
     createIdempotency({ sql: postgresAdmin });
-    createWebhookInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
+    createWebhookInbox({
+      transport: sqlTransport(postgresAdmin),
+      source: "stripe",
+      secrets: "whsec_x",
+    });
     purgeAuditLog(postgresAdmin);
     createOutbox({ transport: sqlTransport(postgresAdmin), source: "app" });
     void entitlementMembers(postgresAdmin, "cus_1");

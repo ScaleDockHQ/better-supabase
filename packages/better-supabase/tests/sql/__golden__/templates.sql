@@ -127,6 +127,8 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
+-- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -1004,6 +1006,8 @@ grant execute on function "better_supabase"."template_workflow_input_errors"(uui
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
+-- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -1966,6 +1970,8 @@ create policy template_applications_read on "app_private"."template_applications
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
+-- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+drop function if exists "app_private"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 create or replace function "app_private"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -2786,6 +2792,8 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
+-- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -3453,6 +3461,8 @@ grant execute on function "better_supabase"."template_applications_list"(uuid, u
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
