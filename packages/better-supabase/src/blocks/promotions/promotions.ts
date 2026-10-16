@@ -3,6 +3,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { type Money } from "../../commerce/money.ts";
 import {
   type BlockFields,
   blockFields,
@@ -12,7 +13,6 @@ import {
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
-import { type Money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
