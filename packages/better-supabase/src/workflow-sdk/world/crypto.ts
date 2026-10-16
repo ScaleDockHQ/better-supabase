@@ -2,7 +2,7 @@ import { hmacHex, timingSafeEqual } from "../../core/hmac.ts";
 import { env } from "./env.ts";
 import { HKDF_SALT, SIGNATURE_TOLERANCE_SECONDS } from "./types.ts";
 
-const encoder = new TextEncoder();
+const encoder = /* @__PURE__ */ new TextEncoder();
 
 /** A 32-byte key from base64 or hex. */
 export function parseMasterKey(value: string): Uint8Array {

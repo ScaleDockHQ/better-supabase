@@ -347,4 +347,19 @@ describe("CloudEvents", () => {
       failing.send([{ specversion: "1.0", id: "1", source: "/s", type: "t" }]),
     ).rejects.toThrow("Event sink responded 500");
   });
+
+  it("aborts a request that outlives timeoutMs", async () => {
+    const hanging = httpSink("http://sink", {
+      timeoutMs: 10,
+      fetch: async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(init.signal?.reason);
+          });
+        }),
+    });
+    await expect(
+      hanging.send([{ specversion: "1.0", id: "1", source: "/s", type: "t" }]),
+    ).rejects.toThrow(/timed out|aborted/i);
+  });
 });

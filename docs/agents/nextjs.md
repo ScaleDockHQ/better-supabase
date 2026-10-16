@@ -130,3 +130,9 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   prints as JSX in `llms-full.txt`; add its form there.
 - Next drops `Vary: Accept` from prerendered HTML pages even when the proxy
   sets it; the Markdown rewrite keeps it.
+- Keep the `Accept` negotiation in `proxy.ts`. A `has` header rule in
+  `rewrites()` can't compare q-values the way `isMarkdownPreferred` does, and
+  the proxy runs on every docs URL for the 404 check anyway.
+- Load agent Markdown through the `"use cache"` functions in `lib/source.ts`
+  (`getLLMIndex`, `getFullMarkdown`, `getPageMarkdown`), so the build
+  prerenders the routes and `/mcp` and Ask AI reuse the rendered pages.

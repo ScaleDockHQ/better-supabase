@@ -9,16 +9,16 @@ export interface PolicyGrant {
 }
 
 const NAME = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
-const POLICY = new RegExp(
+const POLICY = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+policy\s+(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)((?:(?!\bcreate\s+policy\b)[\s\S])*?)(?:\busing\b|\bwith\s+check\b|;)`,
   "gi",
 );
-const DROP_POLICY = new RegExp(
+const DROP_POLICY = /* @__PURE__ */ new RegExp(
   String.raw`\bdrop\s+policy\s+(?:if\s+exists\s+)?(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)`,
   "gi",
 );
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
-const DROP_TABLE = new RegExp(
+const DROP_TABLE = /* @__PURE__ */ new RegExp(
   String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${TABLE_NAME}(?:\s*,\s*${TABLE_NAME})*)`,
   "gi",
 );
@@ -45,7 +45,7 @@ function qualified(target: string): string {
   return parts.length === 1 ? `public.${parts[0]!}` : parts.join(".");
 }
 
-const TABLE = new RegExp(
+const TABLE = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
   "gi",
 );
@@ -95,7 +95,7 @@ export function declaredTables(
   return [...found];
 }
 
-const RLS_TOGGLE = new RegExp(
+const RLS_TOGGLE = /* @__PURE__ */ new RegExp(
   String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s+(enable|disable)\s+row\s+level\s+security\b`,
   "gi",
 );
@@ -298,7 +298,7 @@ export function policyGrants(
     );
 }
 
-const EXTENSION = new RegExp(
+const EXTENSION = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?(${NAME})(?:\s+with)?\s+schema\s+(${NAME})`,
   "gi",
 );

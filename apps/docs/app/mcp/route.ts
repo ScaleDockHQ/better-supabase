@@ -3,7 +3,7 @@ import manifest from "better-supabase/package.json" with { type: "json" };
 
 import { createDocsMcpServer } from "@/lib/docs-mcp";
 import { searchHits } from "@/lib/search";
-import { docsLlms, getLLMIndex, source } from "@/lib/source";
+import { getLLMIndex, getPageMarkdown } from "@/lib/source";
 
 const handler = createMcpHandler(
   () =>
@@ -11,10 +11,7 @@ const handler = createMcpHandler(
       version: manifest.version,
       search: searchHits,
       index: getLLMIndex,
-      page: async (url) => {
-        const page = source.getPageByUrl(url);
-        return page === undefined ? undefined : docsLlms.page(page);
-      },
+      page: getPageMarkdown,
     }),
   { legacy: "stateless" },
 );

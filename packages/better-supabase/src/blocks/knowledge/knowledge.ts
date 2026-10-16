@@ -369,7 +369,7 @@ const notFound = (): DbError =>
     hint: "KNOWLEDGE_NOT_FOUND",
   });
 
-const decoder = new TextDecoder("utf-8", { fatal: true });
+const decoder = /* @__PURE__ */ new TextDecoder("utf-8", { fatal: true });
 
 function defaultExtract(file: AiFile, data: Uint8Array): Promise<string> {
   if (!TEXT_TYPES.test(file.mediaType)) {

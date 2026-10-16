@@ -232,9 +232,13 @@ export interface HttpSinkOptions {
   readonly mode?: HttpMode;
   readonly headers?: Readonly<Record<string, string>>;
   readonly fetch?: typeof fetch;
+  /** Abort a request that takes longer than this. Defaults to 10 seconds. */
+  readonly timeoutMs?: number;
 }
 
-/** POSTs events to `url`. Non-2xx responses reject. */
+const HTTP_SINK_TIMEOUT_MS = 10_000;
+
+/** POSTs events to `url`. Non-2xx responses and timeouts reject. */
 export function httpSink(
   url: string | URL,
   options: HttpSinkOptions = {},
@@ -247,6 +251,9 @@ export function httpSink(
           method: "POST",
           headers: { ...options.headers, ...message.headers },
           body: message.body,
+          signal: AbortSignal.timeout(
+            options.timeoutMs ?? HTTP_SINK_TIMEOUT_MS,
+          ),
         });
         if (!response.ok)
           throw new Error(`Event sink responded ${String(response.status)}`);

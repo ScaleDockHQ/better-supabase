@@ -2,6 +2,7 @@ import { llms, loader } from "fumadocs-core/source";
 import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
 import { defineDocs } from "fumadocs-mdx/macro";
+import { cacheLife } from "next/cache";
 
 import { markdownComponents } from "@/components/mdx-markdown";
 
@@ -88,11 +89,12 @@ compiled to PostgREST, auth for every caller, framework adapters, blocks
 Every page below is Markdown. Add \`.md\` to a page URL, or send
 \`Accept: text/markdown\`, to read any other page the same way.`;
 
-let llmsIndex: string | undefined;
-
-/** `llms.txt`, built once per server: the pages only change with a deploy. */
-export function getLLMIndex(): Promise<string> {
-  llmsIndex ??= formatLLMIndex(source.getPageTree(), {
+/** `llms.txt`; the pages only change with a deploy. */
+// oxlint-disable-next-line typescript/require-await -- a "use cache" function must be async
+export async function getLLMIndex(): Promise<string> {
+  "use cache";
+  cacheLife("max");
+  return formatLLMIndex(source.getPageTree(), {
     title: "better-supabase",
     summary:
       source.getPage([])?.data.description ??
@@ -114,7 +116,23 @@ export function getLLMIndex(): Promise<string> {
       },
     ],
   });
-  return Promise.resolve(llmsIndex);
+}
+
+/** `llms-full.txt`: every page as Markdown in one file. */
+export async function getFullMarkdown(): Promise<string> {
+  "use cache";
+  cacheLife("max");
+  return docsLlms.full();
+}
+
+/** One page as Markdown by its docs URL, or `undefined` when no page has it. */
+export async function getPageMarkdown(
+  url: string,
+): Promise<string | undefined> {
+  "use cache";
+  cacheLife("max");
+  const page = source.getPageByUrl(url);
+  return page === undefined ? undefined : docsLlms.page(page);
 }
 
 /** Response headers for the Markdown routes agents read. */

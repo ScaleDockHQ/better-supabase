@@ -56,7 +56,8 @@ the mutation. Events are forwarded after the write, so use the SQL modules'
 outbox when every event must arrive.
 
 `httpSink(url, { mode })` POSTs in the HTTP binding's `batch` (default),
-`structured` or `binary` mode. On the receiving side, `fromHttp(request)`
+`structured` or `binary` mode, and aborts a request after `timeoutMs`
+(10 seconds by default). On the receiving side, `fromHttp(request)`
 reads all three modes, and `isCloudEvent` validates the required attributes.
 `toCloudEvents(notice, options)` builds events without a sink.
 

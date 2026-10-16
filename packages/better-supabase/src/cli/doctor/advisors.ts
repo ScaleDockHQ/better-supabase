@@ -16,6 +16,7 @@ const SPLINTER_COMMIT = "e74a9e36cb12258cb67d1464bc1cb196e9cd8446";
 const SPLINTER_SHA256 =
   "d8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349";
 const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export type AdvisorCategory = "security" | "performance";
 
@@ -75,6 +76,7 @@ export function managementAdvisors(
       const url = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/advisors/${category}`;
       const response = await doFetch(url, {
         headers: { authorization: `Bearer ${options.accessToken}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const text = await response.text();
       if (!response.ok) {
@@ -140,7 +142,9 @@ async function splinterSql(options: SplinterOptions): Promise<string> {
     const cached = await readFile(file, "utf8");
     if (sha256(cached) === SPLINTER_SHA256) return cached;
   }
-  const response = await (options.fetch ?? fetch)(SPLINTER_URL);
+  const response = await (options.fetch ?? fetch)(SPLINTER_URL, {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(
       `Downloading splinter.sql failed (${response.status}) from ${SPLINTER_URL}`,

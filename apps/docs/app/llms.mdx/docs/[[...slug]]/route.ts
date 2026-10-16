@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import {
-  docsLlms,
+  getPageMarkdown,
   getPageMarkdownUrl,
   markdownHeaders,
   source,
@@ -22,7 +22,10 @@ export async function GET(
   const page = source.getPage(slugs);
   if (!page) notFound();
 
-  return new Response(await docsLlms.page(page), { headers: markdownHeaders });
+  const markdown = await getPageMarkdown(page.url);
+  if (markdown === undefined) notFound();
+
+  return new Response(markdown, { headers: markdownHeaders });
 }
 
 export function generateStaticParams() {
