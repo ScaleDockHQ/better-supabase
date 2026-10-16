@@ -7,6 +7,7 @@ export type AiChatSqlOptions = {
   readonly temporaryTtl?: unknown;
   readonly staleAfter?: unknown;
   readonly sandboxIdleAfter?: number;
+  readonly extraColumns?: unknown;
 };
 
 export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
@@ -16,4 +17,5 @@ export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
     temporaryTtl: option.unknown(),
     staleAfter: option.unknown(),
     sandboxIdleAfter: option.number({ default: 600 }),
+    extraColumns: option.unknown(),
   });

@@ -1,4 +1,4 @@
-import type { AuditColumns, AuditDetails, AuditRecord } from "./log.ts";
+import type { AuditColumns, AuditDetails, AuditRecord } from "./audit-log.ts";
 
 import { toCsv } from "../../core/csv.ts";
 

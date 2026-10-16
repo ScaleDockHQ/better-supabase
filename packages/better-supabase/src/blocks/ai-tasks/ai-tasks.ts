@@ -1,10 +1,22 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { RunState } from "../../core/run-state.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { runStateOf } from "../../core/run-state.ts";
@@ -103,7 +115,21 @@ export interface AiTaskOutcome {
   readonly chatId?: string;
 }
 
-export interface AiTasksOptions extends BlockTemporalOptions {
+export interface AiTasksOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the task columns the app adds
+   * (`blocks.ai-tasks.options.extraColumns`), keyed by column name. It
+   * types and parses them on `create`, `update`, `pause`, `resume` and
+   * `list`, and validates them on `create` and `update`, which return a
+   * `validation` error for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AiTasks<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /** Calls as the service role, for `tick`, `execute` and `runJob`. */
@@ -125,22 +151,27 @@ export interface AiTasksOptions extends BlockTemporalOptions {
   readonly now?: () => Temporal.Instant;
 }
 
-export interface AiTasks {
-  create(organizationId: string, task: NewAiTask): AsyncResult<AiTask>;
+/** `F` is the extra task fields `options.fields` describes. */
+export interface AiTasks<F extends object = Record<never, never>> {
+  /** Keys besides the task's own are its extra columns. */
+  create(
+    organizationId: string,
+    task: NewAiTask & Partial<F>,
+  ): AsyncResult<AiTask & F>;
   update(
     organizationId: string,
     taskId: string,
-    fields: AiTaskFields,
-  ): AsyncResult<AiTask>;
-  pause(organizationId: string, taskId: string): AsyncResult<AiTask>;
+    fields: AiTaskFields & Partial<F>,
+  ): AsyncResult<AiTask & F>;
+  pause(organizationId: string, taskId: string): AsyncResult<AiTask & F>;
   /** Enables a task again; it runs at its next occurrence. */
-  resume(organizationId: string, taskId: string): AsyncResult<AiTask>;
+  resume(organizationId: string, taskId: string): AsyncResult<AiTask & F>;
   remove(taskId: string): AsyncResult<boolean>;
   /** The caller's tasks, or every task in the tenant with `all` and `ai.admin`. */
   list(
     organizationId: string,
     options?: { readonly all?: boolean },
-  ): AsyncResult<readonly AiTask[]>;
+  ): AsyncResult<readonly (AiTask & F)[]>;
   runs(
     taskId: string,
     options?: { readonly limit?: number },
@@ -222,6 +253,16 @@ function taskOf(value: unknown): AiTask {
 const invalid = (message: string): DbError =>
   dbError("invalid_input", message, { hint: "AI_TASK_INVALID" });
 
+const TASK_FIELDS: ReadonlySet<string> = new Set([
+  "title",
+  "prompt",
+  "cron",
+  "timezone",
+  "chatId",
+  "agentId",
+  "enabled",
+]);
+
 function fieldsArg(fields: AiTaskFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (fields.title !== undefined) out["title"] = fields.title;
@@ -255,8 +296,12 @@ function notifyThrough(
 }
 
 /** Prompts users schedule on a cron, and the scheduler that runs them. */
-export function createAiTasks(options: AiTasksOptions): AiTasks {
+export function createAiTasks<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: AiTasksOptions<S>): AiTasks<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(options.fields, "task fields");
   injectableOf("ai-tasks runner", options.run);
   const notify = options.notify ?? notifyThrough(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -280,26 +325,30 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
   const save = (
     organizationId: string,
     taskId: string | undefined,
-    fields: AiTaskFields & { readonly enabled?: boolean },
+    task: AiTaskFields & { readonly enabled?: boolean },
     nextRunAt: Temporal.Instant | undefined,
-  ): AsyncResult<AiTask> => {
-    const args: Record<string, unknown> = fieldsArg(fields);
-    if (fields.enabled !== undefined) args["enabled"] = fields.enabled;
-    return call(
-      "save_ai_task",
-      {
-        tenant: organizationId,
-        id: taskId,
-        fields: args,
-        next_run_at: nextRunAt?.toString(),
-      },
-      taskOf,
-    ).andThen((task) => scheduleNow(task));
-  };
+  ): AsyncResult<AiTask & F> =>
+    AsyncResult.from(() => fields.write(extraOf(task, TASK_FIELDS)))
+      .andThen((extra) => {
+        const args: Record<string, unknown> = { ...extra, ...fieldsArg(task) };
+        if (task.enabled !== undefined) args["enabled"] = task.enabled;
+        return call(
+          "save_ai_task",
+          {
+            tenant: organizationId,
+            id: taskId,
+            fields: args,
+            next_run_at: nextRunAt?.toString(),
+          },
+          (value) => value,
+        );
+      })
+      .andThen((value) => withFields(fields, value, taskOf(value)))
+      .andThen((saved) => scheduleNow(saved));
 
   // save_ai_task ignores next_run_at from users; with a service transport the
   // next occurrence is set right away instead of on the next tick.
-  const scheduleNow = (task: AiTask): AsyncResult<AiTask> => {
+  const scheduleNow = <T extends AiTask>(task: T): AsyncResult<T> => {
     if (
       options.service === undefined ||
       !task.enabled ||
@@ -411,7 +460,7 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
         }),
     );
 
-  return {
+  const client: AiTasks<F> = {
     create: (organizationId, task) =>
       schedule(task, task.timezone).andThen((nextRunAt) =>
         save(organizationId, undefined, task, nextRunAt),
@@ -430,8 +479,11 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
       call(
         "list_ai_tasks",
         { tenant: organizationId, mine: listOptions.all !== true },
-        (value) => recordsOf(value, "list_ai_tasks").map(taskOf),
-      ),
+        (value) =>
+          recordsOf(value, "list_ai_tasks").map(
+            (raw) => [raw, taskOf(raw)] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     runs: (taskId, runsOptions = {}) =>
       call(
         "list_ai_task_runs",
@@ -470,4 +522,8 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
         }),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "ai-tasks",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

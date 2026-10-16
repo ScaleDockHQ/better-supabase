@@ -1,12 +1,19 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { blockCall, recordOf, textOf } from "../shared.ts";
 
 export interface CustomFieldsOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<CustomFields>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -50,7 +57,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   const idOf = (label: string) => (value: unknown) => ({
     id: textOf(recordOf(value, label)["id"]),
   });
-  return {
+  const client: CustomFields = {
     saveDefinition: (organizationId, entity, key, label, type, sensitive) =>
       call(
         "save_field_definition",
@@ -102,4 +109,8 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         idOf("set_field_value"),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "custom-fields",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

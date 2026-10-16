@@ -4,7 +4,7 @@ import type {
   AuditListOptions,
   AuditPage,
   AuditRecord,
-} from "../../../src/blocks/audit/log.ts";
+} from "../../../src/blocks/audit/audit-log.ts";
 
 import { createAuditLogController } from "../../../src/blocks/audit/client.ts";
 import {

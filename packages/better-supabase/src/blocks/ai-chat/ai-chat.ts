@@ -1,11 +1,23 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { FinalRunState } from "../../core/run-state.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { AiRunState, AiRuns } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
 import type { AiSandboxes } from "./sandboxes.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -104,8 +116,8 @@ export interface AiChatQuery {
   readonly limit?: number;
 }
 
-export interface AiChatPage {
-  readonly items: readonly AiChatRecord[];
+export interface AiChatPage<F extends object = Record<never, never>> {
+  readonly items: readonly (AiChatRecord & F)[];
   /** Pass as `after` for the next page; `undefined` on the last one. */
   readonly next: string | undefined;
 }
@@ -337,7 +349,21 @@ export interface AiModerationInput {
   readonly score?: number;
 }
 
-export interface AiChatOptions extends BlockTemporalOptions {
+export interface AiChatOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the chat columns the app adds
+   * (`blocks.ai-chat.options.extraColumns`), keyed by column name. It
+   * types and parses them on the chat reads, and validates them on
+   * `chats.create` and `chats.update`, which return a `validation` error
+   * for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AiChat<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)` or `sqlTransport(postgres.asUser(claims))`. */
   readonly transport: BlockTransport;
   /**
@@ -351,15 +377,20 @@ export interface AiChatOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
 }
 
-export interface AiChat {
+/** `F` is the extra chat fields `options.fields` describes. */
+export interface AiChat<F extends object = Record<never, never>> {
   readonly chats: {
+    /** Keys besides the input's own are the chat's extra columns. */
     create(
       organizationId: string,
-      input?: AiChatInput,
-    ): AsyncResult<AiChatRecord>;
-    get(chatId: string): AsyncResult<AiChatRecord>;
-    list(query?: AiChatQuery): AsyncResult<AiChatPage>;
-    update(chatId: string, patch: AiChatPatch): AsyncResult<AiChatRecord>;
+      input?: AiChatInput & Partial<F>,
+    ): AsyncResult<AiChatRecord & F>;
+    get(chatId: string): AsyncResult<AiChatRecord & F>;
+    list(query?: AiChatQuery): AsyncResult<AiChatPage<F>>;
+    update(
+      chatId: string,
+      patch: AiChatPatch & Partial<F>,
+    ): AsyncResult<AiChatRecord & F>;
     remove(chatId: string): AsyncResult<boolean>;
     /** Deletes expired temporary chats (service role); returns how many. */
     purge(batch?: number): AsyncResult<number>;
@@ -516,8 +547,29 @@ export function aiChatListTopic(userId: string, prefix = "ai-chats"): string {
   return `${prefix}:${userId}`;
 }
 
-export function createAiChat(options: AiChatOptions): AiChat {
+const CHAT_INPUT: ReadonlySet<string> = new Set([
+  "id",
+  "title",
+  "model",
+  "projectId",
+  "agentId",
+  "visibility",
+  "pinned",
+  "temporary",
+  "ownerId",
+  "archived",
+]);
+
+export function createAiChat<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: AiChatOptions<S>): AiChat<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(options.fields, "chat fields");
+  const typed = (value: unknown): AsyncResult<AiChatRecord & F> =>
+    AsyncResult.from(() => withFields(fields, value, chatOf(value)));
+  const checked = (input: object): AsyncResult<Record<string, unknown>> =>
+    AsyncResult.from(() => fields.write(extraOf(input, CHAT_INPUT)));
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,
@@ -528,15 +580,21 @@ export function createAiChat(options: AiChatOptions): AiChat {
   const count = (value: unknown): number =>
     typeof value === "number" ? value : Number(value ?? 0);
 
-  return {
+  const client: AiChat<F> = {
     chats: {
       create: (organizationId, input = {}) =>
-        (input.ownerId === undefined ? call : service)(
-          "create_ai_chat",
-          { tenant: organizationId, fields: chatFields(input) },
-          chatOf,
+        checked(input).andThen((extra) =>
+          (input.ownerId === undefined ? call : service)(
+            "create_ai_chat",
+            {
+              tenant: organizationId,
+              fields: { ...extra, ...chatFields(input) },
+            },
+            (value) => value,
+          ).andThen(typed),
         ),
-      get: (chatId) => call("get_ai_chat", { chat: chatId }, chatOf),
+      get: (chatId) =>
+        call("get_ai_chat", { chat: chatId }, (value) => value).andThen(typed),
       list: (query = {}) =>
         call(
           "list_ai_chats",
@@ -552,16 +610,23 @@ export function createAiChat(options: AiChatOptions): AiChat {
           (value) => {
             const row = recordOf(value, "list_ai_chats");
             return {
-              items: recordsOf(row["items"], "list_ai_chats").map(chatOf),
+              items: recordsOf(row["items"], "list_ai_chats").map(
+                (item) => [item, chatOf(item)] as const,
+              ),
               next: optionalText(row["next"]),
             };
           },
-        ),
+        ).andThen(async ({ items, next }) => {
+          const parsed = await allWithFields(fields, items);
+          return parsed.ok ? ok({ items: parsed.data, next }) : parsed;
+        }),
       update: (chatId, patch) =>
-        call(
-          "update_ai_chat",
-          { chat: chatId, fields: patchFields(patch) },
-          chatOf,
+        checked(patch).andThen((extra) =>
+          call(
+            "update_ai_chat",
+            { chat: chatId, fields: { ...extra, ...patchFields(patch) } },
+            (value) => value,
+          ).andThen(typed),
         ),
       remove: (chatId) => call("delete_ai_chat", { chat: chatId }, isTrue),
       purge: (batch) => service("purge_ai_chats", { batch }, count),
@@ -855,4 +920,8 @@ export function createAiChat(options: AiChatOptions): AiChat {
         ),
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "ai-chat",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

@@ -5,7 +5,7 @@ import type {
   AuditListOptions,
   AuditLog,
   AuditRecord,
-} from "./log.ts";
+} from "./audit-log.ts";
 
 import { defineController, whileSignedIn } from "../controller.ts";
 

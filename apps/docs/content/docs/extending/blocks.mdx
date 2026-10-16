@@ -84,27 +84,42 @@ keys it doesn't name.
 Notifications type their `data` the same way, per notification type: see
 [typed data](/docs/blocks/notifications#reading).
 
-| Block         | Columns from                                    | `fields` types                                  |
-| ------------- | ----------------------------------------------- | ----------------------------------------------- |
-| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`                    |
-| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`                          |
-| notifications | the `data` of each type                         | `send`, `get`, `list`, `page`                   |
-| deals         | `options.extraColumns` on `deals`               | every deal it returns, `create`, `update`       |
-| drive         | `options.extraColumns` on `drive_nodes`         | every node it returns, `createFolder`, `upload` |
-| employees     | `options.extraColumns` on `employees`           | every employee it returns, `create`, `update`   |
-| engagements   | `options.extraColumns` on `engagements`         | every engagement it returns, `log`, `update`    |
-| flags         | `options.extraColumns` on `flags`               | `list`, `save`                                  |
-| forms         | `options.extraColumns` on `forms`               | `create`, `update`, `get`, `list`               |
-| hiring        | `options.extraColumns` on `jobs`                | `saveJob`                                       |
-| inventory     | `options.extraColumns` on `inventory_locations` | `saveLocation`                                  |
-| invoices      | `options.extraColumns` on `invoices`            | every invoice it returns, `create`              |
+| Block           | Columns from                                    | `fields` types                                                                     |
+| --------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| organizations   | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`                                                       |
+| profiles        | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`                                                             |
+| notifications   | the `data` of each type                         | `send`, `get`, `list`, `page`                                                      |
+| deals           | `options.extraColumns` on `deals`               | every deal it returns, `create`, `update`                                          |
+| drive           | `options.extraColumns` on `drive_nodes`         | every node it returns, `createFolder`, `upload`                                    |
+| employees       | `options.extraColumns` on `employees`           | every employee it returns, `create`, `update`                                      |
+| engagements     | `options.extraColumns` on `engagements`         | every engagement it returns, `log`, `update`                                       |
+| flags           | `options.extraColumns` on `flags`               | `list`, `save`                                                                     |
+| forms           | `options.extraColumns` on `forms`               | `create`, `update`, `get`, `list`                                                  |
+| hiring          | `options.extraColumns` on `jobs`                | `saveJob`                                                                          |
+| inventory       | `options.extraColumns` on `inventory_locations` | `saveLocation`                                                                     |
+| invoices        | `options.extraColumns` on `invoices`            | every invoice it returns, `create`                                                 |
+| access-requests | `options.extraColumns` on `access_requests`     | writes: `request`; reads: every read                                               |
+| agents          | `options.extraColumns` on `agents`              | writes: `create`, `update`; reads: every agent read                                |
+| ai-chat         | `options.extraColumns` on `ai_chats`            | writes: `chats.create`, `chats.update`; reads: `chats.get`, `chats.list`           |
+| ai-files        | `options.extraColumns` on `ai_files`            | writes: `files.upload`, `files.store`; reads: the file reads                       |
+| ai-tasks        | `options.extraColumns` on `ai_scheduled_tasks`  | writes: `create`, `update`; reads: `create`, `update`, `pause`, `resume`, `list`   |
+| announcements   | `options.extraColumns` on `announcements`       | writes: `publish`, `update`; reads: `listActive`, `list`                           |
+| api-keys        | `options.extraColumns` on `api_keys`            | writes: `create` (`rotate` copies them); reads: `list`, `verify`                   |
+| approvals       | `options.extraColumns` on `approval_requests`   | writes: `request`; reads: every request read                                       |
+| attachments     | `options.extraColumns` on `attachments`         | writes: `upload`, `put`; reads: every attachment read                              |
+| bookings        | `options.extraColumns` on `bookings`            | writes: the customer object of `hold` and `public.hold`; reads: every booking read |
+| calendar        | `options.extraColumns` on `calendar_events`     | writes: `save` and the occurrence edits; reads: `events`                           |
+| catalog         | `options.extraColumns` on `products`            | writes: `createProduct`, `updateProduct`; reads: the saved product                 |
+| collections     | `options.extraColumns` on `subject_collections` | writes: `create`, `rename`; reads: `create`, `rename`, `list`                      |
 
-Deals, employees and invoices take the columns next to their own fields
+Deals, employees, invoices and the blocks from access-requests to
+collections take the columns next to their own fields
 (`create(id, { name, region })` writes `region`); the others take them
 under `fields` (`saveJob(id, { title, fields: { level: 3 } })`). Every
-block returns them under `fields`. Except organizations, profiles,
-employees and drive, a block copies the columns right after its insert,
-so give a `not null` column a default.
+block returns them under `fields`, and the blocks from access-requests to
+collections merge the parsed values into the row they return. Except
+organizations, profiles, employees, drive and attachments, a block copies
+the columns right after its insert, so give a `not null` column a default.
 
 The other blocks with a managed table that apps extend take the same pair:
 `options.extraColumns` on the table below and `fields` on the creator. A

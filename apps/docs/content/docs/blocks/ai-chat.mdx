@@ -399,3 +399,19 @@ The same format is published as JSON Schema 2020-12 at
 in a `jsonb` check constraint. The version is pinned as
 `SPEC_PINS.aiMessage`; a change to the format ships as a new schema file and
 a new pin, never as an edit to version 1. See [Standards](/docs/standards).
+
+## Your own fields
+
+`blocks.ai-chat.options.extraColumns` adds columns to the `ai_chats` table,
+keyed by column name with their SQL type. Pass `createAiChat` a Standard Schema
+for them as `fields`: `chats.create`, `chats.update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `chats.get`, `chats.list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAiChat({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

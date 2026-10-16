@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
@@ -196,6 +197,48 @@ describe.skipIf(!live)("access requests", () => {
           [tenant, outsider.id],
         ),
       ).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("stores, validates and returns extra columns", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const requester = await s.user("requester");
+      await s.install(MODULES, {
+        modules: {
+          "access-requests": {
+            options: { extraColumns: { ticket: "text", priority: "integer" } },
+          },
+        },
+      });
+      const tenant = await s.organization(owner, { member: requester });
+      const access = createAccessRequests({
+        transport: sqlTransport(s.sql),
+        fields: v.object({
+          ticket: v.nullable(v.string()),
+          priority: v.nullable(v.pipe(v.number(), v.minValue(1))),
+        }),
+      });
+
+      await s.asRole(requester);
+      expect(
+        await access
+          .request({ organizationId: tenant, role: "admin", priority: 0 })
+          .then((result) => (result.ok ? "ok" : result.error.kind)),
+      ).toBe("validation");
+      const request = await access
+        .request({ organizationId: tenant, role: "admin", ticket: "OPS-1" })
+        .orThrow();
+      expect(request).toMatchObject({
+        role: "admin",
+        ticket: "OPS-1",
+        priority: null,
+      });
+      const [listed] = await access.list(tenant).orThrow();
+      expect(listed).toMatchObject({ id: request.id, ticket: "OPS-1" });
     } finally {
       await s.close();
     }

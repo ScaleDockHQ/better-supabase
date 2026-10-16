@@ -9,8 +9,8 @@ import type {
 import { rpcTransport } from "../../../core/block-transport.ts";
 import { useController, useLatest } from "../../react-controller.ts";
 import { useBlockEnv } from "../../react-env.ts";
+import { createAudit } from "../audit-log.ts";
 import { createAuditLogController } from "../client.ts";
-import { createAuditLog } from "../log.ts";
 
 export type { AuditFilters } from "../client.ts";
 
@@ -44,7 +44,7 @@ export function useAuditLog(options: UseAuditLogOptions): AuditLogState {
   return useController(() => {
     const { filters } = latest.current;
     return createAuditLogController({
-      client: createAuditLog({
+      client: createAudit({
         transport: rpcTransport(supabase),
         ...(schema === undefined ? {} : { schema }),
       }),

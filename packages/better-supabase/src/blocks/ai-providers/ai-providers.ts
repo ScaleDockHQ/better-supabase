@@ -6,6 +6,7 @@ import type {
   ResolvedProviderKey,
 } from "./types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { revokeIfConfigured } from "../../credentials/compose.ts";
@@ -72,7 +73,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
       return ok(keys.length);
     });
 
-  return {
+  const client: AiProviders = {
     keys: {
       list: (organizationId) =>
         call("list_ai_provider_keys", { tenant: organizationId }, (value) =>
@@ -255,4 +256,8 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
         ),
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "ai-providers",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

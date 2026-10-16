@@ -1,10 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  createAuditLog,
-  exportAuditLog,
-} from "../../src/blocks/audit/index.ts";
+import { createAudit, exportAuditLog } from "../../src/blocks/audit/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -167,7 +164,7 @@ describe.skipIf(!live)("audit block", () => {
           workspace_name: null,
         },
       ]);
-      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      const audit = createAudit({ transport: sqlTransport(s.sql) });
       const page = await audit.list({ limit: 10 }).orThrow();
       expect(
         page.entries.map(
@@ -302,7 +299,7 @@ describe.skipIf(!live)("audit block", () => {
           },
         },
       });
-      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      const audit = createAudit({ transport: sqlTransport(s.sql) });
       await s.service();
       await audit
         .record({ eventType: "role.changed", actorKind: "support" })
@@ -390,7 +387,7 @@ describe.skipIf(!live)("audit block", () => {
       });
       const workspace = crypto.randomUUID();
       const ticket = crypto.randomUUID();
-      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      const audit = createAudit({ transport: sqlTransport(s.sql) });
       await s.service();
       const id = await audit
         .record({
@@ -451,7 +448,7 @@ describe.skipIf(!live)("audit block", () => {
           metadata: {},
         },
       ]);
-      const listed = await createAuditLog<{
+      const listed = await createAudit<{
         ticket_id: string | null;
         priority: number;
       }>({ transport: sqlTransport(s.sql) })
@@ -492,7 +489,7 @@ describe.skipIf(!live)("audit block", () => {
           [type, organization, summary],
         );
       }
-      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      const audit = createAudit({ transport: sqlTransport(s.sql) });
 
       await s.asRole(owner);
       const first = await audit

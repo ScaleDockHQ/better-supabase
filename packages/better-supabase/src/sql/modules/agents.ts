@@ -3,11 +3,14 @@ import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  withExtraFields,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
   revokeTable,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
@@ -82,7 +85,7 @@ const EVENTS: ModuleEvents<AgentsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["maxInstructions"],
+  options: ["maxInstructions", "extraColumns"],
   tables: {
     agents: {
       name: "agents",
@@ -102,6 +105,15 @@ const NAMES: ModuleNames = {
     skills: { name: "agent_skills", columns: SKILLS },
   },
 };
+
+/** The keys an agent read returns besides its columns. */
+const AGENT_KEYS: readonly string[] = [
+  ...Object.values(AGENTS),
+  "skills",
+  "installed",
+  "my_rating",
+  "fields",
+];
 
 const SLUG = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
@@ -127,7 +139,9 @@ function build(ctx: ModuleContext): string {
       "blocks.agents.options.maxInstructions must be a positive whole number of characters",
     );
   }
-  const json = (row: string): string => rowJson(AGENTS, a, row);
+  const extras = ctx.extraColumns("agents", AGENT_KEYS);
+  const json = (row: string): string =>
+    withExtraFields(rowJson(AGENTS, a, row), row, extras);
   // Owners see their agents, members the tenant's published ones, every
   // signed-in user the published public ones, moderators all of the tenant's.
   const readable = (row: string): string =>
@@ -190,7 +204,7 @@ create table if not exists ${agents} (
   ${a.updatedAt} timestamptz not null default now(),
   unique (${a.tenant}, ${a.slug})
 );
-create index if not exists agents_owner_idx on ${agents} (${a.owner});
+create index if not exists agents_owner_idx on ${agents} (${a.owner});${addExtraColumns(agents, extras)}
 create index if not exists agents_published_idx on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
 ${revokeTable(agents)}
@@ -295,7 +309,7 @@ begin
     ${a.starters} = coalesce(save_agent.fields -> 'starters', x.${a.starters}),
     ${a.updatedAt} = now()
   where x.${a.id} = v_row.${a.id}
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
   ${agentEvent("agent.saved", "v_row")}
   return ${json("v_row")};
 exception

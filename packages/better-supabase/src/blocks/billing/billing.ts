@@ -17,6 +17,7 @@ import {
   type BillingEventData,
   type BlockEventType,
 } from "../../core/block-events.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { entitlementMembers } from "../entitlements/entitlements.ts";
@@ -363,7 +364,7 @@ export function createBilling(options: BillingOptions): Billing {
       ),
     );
 
-  return {
+  const client: Billing = {
     customer,
     ensureCustomer,
     changePlan: (organizationId, change) =>
@@ -614,4 +615,8 @@ export function createBilling(options: BillingOptions): Billing {
     }),
     handleStripeEvent,
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "billing",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

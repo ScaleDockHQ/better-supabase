@@ -176,3 +176,19 @@ The module records `approval.requested`, `approval.approved`, `approval.rejected
 ## With ReUI
 
 An approvals inbox renders `list(organizationId, { assigned: true })` in a ReUI data grid with approve and reject actions. A request sheet shows `get(id)`: the steps as a stepper with the current `step` highlighted, and `decisions` as a timeline. Show the approve buttons only when `canDecide` is true.
+
+## Your own fields
+
+`blocks.approvals.options.extraColumns` adds columns to the `approval_requests` table,
+keyed by column name with their SQL type. Pass `createApprovals` a Standard Schema
+for them as `fields`: `request` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every request read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createApprovals({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

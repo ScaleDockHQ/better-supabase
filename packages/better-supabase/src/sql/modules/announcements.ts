@@ -9,6 +9,8 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  withExtraFields,
   schemaPreamble,
   SERVICE_CALLER,
   lockTable,
@@ -30,7 +32,7 @@ const EVENTS: ModuleEvents<AnnouncementsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["topic", "event"],
+  options: ["topic", "event", "extraColumns"],
   tables: {
     announcements: {
       name: "announcements",
@@ -87,6 +89,8 @@ function build(ctx: ModuleContext): string {
   const ca = (c: string): string => ctx.col("announcements", c);
   const cd = (c: string): string => ctx.col("dismissals", c);
   const raw = (c: string): string => sqlString(ca(c).replaceAll('"', ""));
+  const extras = ctx.extraColumns("announcements", ["fields"]);
+  const editable = [...EDITABLE.map(ca), ...extras.map((extra) => extra.ident)];
   const manage = ctx.permission("manage", OPERATIONS["announcements.manage"]);
   const staff = ctx.staff(manage);
   const announcementEvent = (type: string, id: string): string =>
@@ -141,7 +145,7 @@ create table if not exists ${a} (
 alter table ${a} drop constraint if exists bs_announcements_audience;
 alter table ${a} add constraint bs_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
 create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
-create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});
+create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});${addExtraColumns(a, extras)}
 ${lockTable(a)}
 
 create table if not exists ${d} (
@@ -175,7 +179,7 @@ begin
     end if;
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) - ${raw("targets")} order by x.${ca("startsAt")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields(`to_jsonb(x) - ${raw("targets")}`, "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x
     where x.${ca("startsAt")} <= now()
       and (x.${ca("endsAt")} is null or x.${ca("endsAt")} > now())
@@ -235,7 +239,7 @@ begin
     ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) order by x.${ca("startsAt")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x
   );
 end;
@@ -276,12 +280,12 @@ begin
     end if;
     v_row := jsonb_populate_record(v_row, save_announcement.fields - ${raw("id")} - ${raw("createdBy")} - ${raw("createdAt")});
     v_row.${ca("updatedAt")} := now();
-    update ${a} x set (${EDITABLE.map(ca).join(", ")}) = (${EDITABLE.map((c) => `v_row.${ca(c)}`).join(", ")})
+    update ${a} x set (${editable.join(", ")}) = (${editable.map((c) => `v_row.${c}`).join(", ")})
     where x.${ca("id")} = v_row.${ca("id")}
     returning * into v_row;
   end if;
   ${announcementEvent("announcement.saved", "v_row." + ca("id"))}
-  return to_jsonb(v_row);
+  return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;
 

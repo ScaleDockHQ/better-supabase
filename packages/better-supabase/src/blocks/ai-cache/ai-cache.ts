@@ -1,8 +1,11 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
@@ -41,6 +44,10 @@ export interface AiCacheSetOptions {
 }
 
 export interface AiCacheOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AiCache>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the service role: entries hold prompts and outputs. */
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
@@ -135,7 +142,7 @@ export function createAiCache(options: AiCacheOptions): AiCache {
     call("purge_ai_cache", { batch: purgeOptions.batch }, (value) =>
       Number(value ?? 0),
     );
-  return {
+  const client: AiCache = {
     get: <T>(key: string) =>
       call("ai_cache_get", { key }, (value) =>
         value === null || value === undefined ? undefined : entryOf<T>(value),
@@ -167,4 +174,8 @@ export function createAiCache(options: AiCacheOptions): AiCache {
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "ai-cache",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
