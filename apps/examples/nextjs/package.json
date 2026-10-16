@@ -29,6 +29,7 @@
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@valibot/to-json-schema": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@wrksz/themes": "catalog:",

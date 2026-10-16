@@ -200,6 +200,83 @@ const meters = await usage.overview(organizationId).orThrow();
 // [{ meter: "api_calls", used: 420, limit: 1000, remaining: 580, unlimited: false, ... }]
 ```
 
+### A usage meter in the browser
+
+`useUsageMeter` from `better-supabase/blocks/usage/react` reads the
+overview through the provider's client and adds `fraction` (used over the
+limit, from 0 to 1, `undefined` without a limit) and `exceeded` to each
+meter. `meters` keeps only the meters you name, in that order, and
+`refresh()` reads them again after the app records usage. The same hook
+runs in React DOM and React Native.
+
+```tsx title="components/usage-meter.tsx"
+import { useUsageMeter } from "better-supabase/blocks/usage/react";
+
+const { meters } = useUsageMeter({
+  organizationId,
+  meters: ["api_calls"],
+  schema: "api",
+});
+// meters?.[0]: { meter: "api_calls", used: 420, limit: 1000, fraction: 0.42, exceeded: false, ... }
+```
+
+`createUsageMeterController` from `better-supabase/blocks/usage` is the
+same logic without React, and `better-supabase/blocks/usage/vue`, `/svelte`
+and `/solid` export `useUsageMeter` over it, taking `createUsage(...)` as
+`client`. The [usage meter recipe](/docs/registry/ui-recipes) shows it in
+the Next.js and Expo examples.
+
+```vue title="UsageMeter.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
+import { useUsageMeter } from "better-supabase/blocks/usage/vue";
+
+const supabase = useSupabase();
+const { state } = useUsageMeter({
+  client: createUsage({ transport: rpcTransport(supabase) }),
+  organizationId: "org-id",
+});
+</script>
+
+<template>
+  <p v-for="meter in state.meters" :key="meter.meter">
+    {{ meter.meter }}: {{ meter.used }} of {{ meter.limit }}
+  </p>
+</template>
+```
+
+```svelte title="UsageMeter.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
+  import { useUsageMeter } from "better-supabase/blocks/usage/svelte";
+
+  const { supabase } = getBetterSupabase();
+  const usage = useUsageMeter({
+    client: createUsage({ transport: rpcTransport(supabase) }),
+    organizationId: "org-id",
+  });
+</script>
+
+{#each $usage.meters ?? [] as meter}<p>{meter.meter}: {meter.used}</p>{/each}
+```
+
+```tsx title="UsageMeter.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
+import { useUsageMeter } from "better-supabase/blocks/usage/solid";
+
+export function UsageMeter() {
+  const supabase = useSupabase();
+  const { state } = useUsageMeter({
+    client: createUsage({ transport: rpcTransport(supabase) }),
+    organizationId: "org-id",
+  });
+  return <p>{state().meters?.length ?? 0} meters</p>;
+}
+```
+
 ### Several meters at once
 
 `recordMany` and `consumeMany` record several meters in one transaction, all

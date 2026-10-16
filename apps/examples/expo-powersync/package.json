@@ -25,6 +25,7 @@
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
+    "@valibot/to-json-schema": "catalog:",
     "better-supabase": "workspace:*",
     "expo": "catalog:",
     "expo-constants": "catalog:",

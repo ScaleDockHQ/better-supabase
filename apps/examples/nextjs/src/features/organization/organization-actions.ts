@@ -204,29 +204,6 @@ export const removeMember = bs.action(
   },
 );
 
-/** Settings from `settings-definition.ts`; the settings module checks `settings.update`. */
-export const updateOrganizationSettings = bs.action(
-  {
-    input: v.object({
-      defaultRole: v.picklist(["member", "admin"]),
-      weekStart: v.picklist(["monday", "sunday"]),
-    }),
-    requireTenant: true,
-    authorize: (session) => can(session, "settings.update"),
-  },
-  async ({ defaultRole, weekStart }, { tenant: organizationId, supabase }) => {
-    const { settings } = blocks(supabase);
-    const [role, week] = await Promise.all([
-      settings.organization.set(organizationId, "defaultRole", defaultRole),
-      settings.organization.set(organizationId, "weekStart", weekStart),
-    ]);
-    if (!role.ok) return role;
-    if (!week.ok) return week;
-    refresh();
-    return ok(true);
-  },
-);
-
 /** Leaves the active organization; the owner has to transfer ownership first. */
 export const leaveOrganization = bs.action(
   { requireTenant: true },

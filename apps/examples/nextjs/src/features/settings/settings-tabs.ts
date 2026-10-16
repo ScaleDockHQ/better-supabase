@@ -2,6 +2,7 @@ import type { Permission } from "@/features/user/user-permissions";
 
 export type SettingsTabId =
   | "profile"
+  | "preferences"
   | "security"
   | "organization"
   | "members"
@@ -18,6 +19,7 @@ export interface SettingsTab {
 /** The proxy reads the same permissions from `navItems` for the organization tabs. */
 export const settingsTabs: readonly SettingsTab[] = [
   { id: "profile", href: "/settings/profile" },
+  { id: "preferences", href: "/settings/preferences" },
   { id: "security", href: "/settings/security" },
   {
     id: "organization",
