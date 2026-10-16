@@ -19,4 +19,4 @@ pre-push:
     - name: affected
       env:
         TURBO_SCM_BASE: origin/main
-      run: pnpm exec turbo run lint typecheck test --affected
+      run: pnpm exec turbo run lint lint:root typecheck test --affected

@@ -107,8 +107,10 @@ backlogs too large to clear in the upgrade.
 ### Workflow
 
 - Dependabot targets `main` until a `develop` branch exists.
-- `actionlint` is not installed; the workflows are checked by parsing them,
-  and zizmor runs on workflow changes (`security.yml`).
+- Workflow lockfiles (`gh actions-lock`) are not committed while they are a
+  public preview. Actions stay pinned by major tag or commit SHA, which
+  zizmor and actionlint check on workflow changes (`security.yml`). It ends
+  when the lockfiles are generally available.
 - `pnpm audit` ignores GHSA-vfj7-8cjw-p6xm (`auditConfig` in
   `pnpm-workspace.yaml`). The `braces` advisory has no patched release, and
   `braces` arrives only through `shadcn` in `apps/marketing`, which is dev

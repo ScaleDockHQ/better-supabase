@@ -13,7 +13,7 @@
     "catalog": "node scripts/build-catalog.ts",
     "catalog:check": "node scripts/build-catalog.ts --check",
     "changeset": "changeset",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "check": "ultracite check",
     "check:no-permdock": "node scripts/check-no-permdock.ts",
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
