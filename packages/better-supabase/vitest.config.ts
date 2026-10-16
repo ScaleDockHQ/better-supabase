@@ -12,6 +12,9 @@ export default defineConfig({
           name: "unit",
           include: ["tests/**/*.test.ts"],
           exclude: ["tests/**/*.integration.test.ts"],
+          // The first test in a CLI file pays the lazy command imports; with coverage on and
+          // every workspace testing in parallel, that passes the 5 second default.
+          testTimeout: 20_000,
           typecheck: {
             enabled: true,
             include: ["tests/**/*.test-d.ts"],
