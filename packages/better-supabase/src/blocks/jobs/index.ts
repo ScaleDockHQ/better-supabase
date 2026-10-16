@@ -13,6 +13,8 @@ export { withLease } from "./lease.ts";
 export type {
   Idempotency,
   IdempotencyOptions,
+  IdempotencySettings,
+  IdempotencySource,
   IdempotencyState,
 } from "./idempotency.ts";
 export type { Lease, LeaseOptions, LeaseOutcome } from "./lease.ts";

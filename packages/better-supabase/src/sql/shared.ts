@@ -30,6 +30,65 @@ export const columnsObject = (
     .map((name) => `${sqlString(name)}, ${alias}.${sqlIdent(name)}`)
     .join(", ")})`;
 
+/**
+ * `, 'fields', jsonb_build_object(...)` of the extra columns of row
+ * `alias`, for a read built with `jsonb_build_object`; empty without any.
+ */
+export const extraFieldsJson = (
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string =>
+  extras.length === 0
+    ? ""
+    : `, 'fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )}`;
+
+/**
+ * PL/pgSQL that copies the extra columns from `source`, a `jsonb` object
+ * keyed by column name, onto the rows of `table` (alias `x`) that `where`
+ * matches. A key `source` leaves out keeps the column's value, so it runs
+ * after an insert (the defaults stay) and on a partial update. Empty
+ * without extra columns.
+ */
+export const writeExtraColumns = (
+  table: string,
+  extras: readonly ExtraColumn[],
+  source: string,
+  where: string,
+  into?: string,
+): string =>
+  extras.length === 0
+    ? ""
+    : `
+  update ${table} x set ${extras
+    .map(
+      (extra) =>
+        `${extra.ident} = case when ${source} ? ${sqlString(extra.name)} then r.${extra.ident} else x.${extra.ident} end`,
+    )
+    .join(", ")}
+  from jsonb_populate_record(null::${table}, (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(${source}) e where e.key in (${extras
+    .map((extra) => sqlString(extra.name))
+    .join(", ")}))) r
+  where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
+
+/**
+ * `json` (a `jsonb` expression of row `alias`) with the extra columns
+ * under `fields`, or `json` itself without any.
+ */
+export const withExtraFields = (
+  json: string,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string =>
+  extras.length === 0
+    ? json
+    : `(${json} || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )}))`;
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 

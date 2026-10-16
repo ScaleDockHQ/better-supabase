@@ -1,5 +1,10 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTransport } from "../../core/block-transport.ts";
+import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 /** How a delivery proves it came from the sender. */
@@ -11,6 +16,22 @@ export type IncomingVerify =
 
 export interface IncomingWebhooksOptions
   extends BlockProblemOptions, BlockTemporalOptions {
+  /**
+   * A service SQL connection (`postgres.admin`): `receive` looks endpoints
+   * up by token, counts the rate limit and stores deliveries with it.
+   */
+  readonly sql: SqlClient;
+  /**
+   * The caller's transport for `create`, `list`, `update` and the other
+   * management calls, so `webhooks.manage` is checked for them. Defaults
+   * to `sqlTransport(sql)`.
+   */
+  readonly transport?: BlockTransport;
+  readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the management methods. */
+  readonly hooks?: BlockHooks<IncomingWebhooks>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
   /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** The webhook inbox source deliveries are stored under. Defaults to `webhook-in`. */

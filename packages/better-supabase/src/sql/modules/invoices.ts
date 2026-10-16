@@ -162,7 +162,7 @@ create table if not exists ${t("invoices")} (
 create index if not exists invoices_tenant_status_idx on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});
 create index if not exists invoices_origin_idx on ${t("invoices")} (${i("originType")}, ${i("originId")});
 create index if not exists invoices_original_idx on ${t("invoices")} (${i("original")});
-create index if not exists invoices_company_idx on ${t("invoices")} (${i("companyType")}, ${i("companyId")});${addExtraColumns(t("invoices"), ctx.extraColumns("invoices"))}
+create index if not exists invoices_company_idx on ${t("invoices")} (${i("companyType")}, ${i("companyId")});${addExtraColumns(t("invoices"), n.extras)}
 ${lockTable(t("invoices"), { read: true })}
 drop policy if exists invoices_read on ${t("invoices")};
 create policy invoices_read on ${t("invoices")} for select to authenticated
@@ -210,6 +210,12 @@ function build(ctx: ModuleContext): string {
     creditPrefix: ctx.text("creditPrefix", "CN-"),
     termsDays,
     service: "(auth.role() = 'service_role')",
+    extras: ctx.extraColumns("invoices", [
+      "lines",
+      "payments",
+      "balance",
+      "overdue",
+    ]),
   };
   return `${schemaPreamble(ctx)}
 -- Invoices an organization sends its own customers: drafts with lines, a

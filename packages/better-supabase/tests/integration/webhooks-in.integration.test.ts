@@ -99,7 +99,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')",
         [organization, owner],
       );
-      const hooks = createIncomingWebhooks(sql, {
+      const hooks = createIncomingWebhooks({
+        sql,
         source,
         rateLimit: { max: 3, period: 60 },
         keepHeaders: ["x-request-id"],
@@ -266,7 +267,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const admin = await s.user("admin");
       const member = await s.user("member");
       const organization = await s.organization(owner, { admin, member });
-      const hooks = createIncomingWebhooks(s.sql);
+      const hooks = createIncomingWebhooks({ sql: s.sql });
       const vaulted = (id: string) =>
         s.value<string | null>(
           `(select ds.decrypted_secret from better_supabase.incoming_webhooks e
@@ -373,7 +374,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
-      const hooks = createIncomingWebhooks(s.sql, {
+      const hooks = createIncomingWebhooks({
+        sql: s.sql,
         source: `rotate-${organization.slice(0, 8)}`,
       });
       const vaultCount = () =>
@@ -457,7 +459,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       await s.install(["organizations", "webhooks-in"]);
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
-      const hooks = createIncomingWebhooks(s.sql, {
+      const hooks = createIncomingWebhooks({
+        sql: s.sql,
         source: `shared-${organization.slice(0, 8)}`,
         keepHeaders: ["x-api-key"],
       });
@@ -545,7 +548,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         "insert into public.bs_test_flows (organization_id, private) values ($1, false), ($1, true) returning id",
         [organization],
       );
-      const hooks = createIncomingWebhooks(s.sql);
+      const hooks = createIncomingWebhooks({ sql: s.sql });
       await s.asRole(owner);
       for (const flow of [open!, hidden!]) {
         await hooks
@@ -719,7 +722,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')",
         [organization, owner],
       );
-      const hooks = createIncomingWebhooks(sql, { source });
+      const hooks = createIncomingWebhooks({ sql, source });
       const endpoint = await hooks
         .create({
           tenant: organization,
@@ -767,10 +770,14 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         source,
       });
 
-      const jobs = createJobs(sql, {
-        [queue]: v.object({ route: v.string() }),
+      const jobs = createJobs({
+        sql,
+        queues: {
+          [queue]: v.object({ route: v.string() }),
+        },
       });
-      const queued = createIncomingWebhooks(sql, {
+      const queued = createIncomingWebhooks({
+        sql,
         source,
         destination: jobsDestination(jobs, {
           queue,

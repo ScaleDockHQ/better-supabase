@@ -19,13 +19,20 @@ import type {
 } from "./types.ts";
 
 import {
+  blockCall,
   budget,
   leaseHeartbeat,
   type Budget,
 } from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
-import { dbError, type DbError } from "../../core/errors.ts";
+import {
+  dbError,
+  type DbError,
+  DbException,
+  type ErrorMapper,
+} from "../../core/errors.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
 import {
   AsyncResult,
@@ -95,33 +102,46 @@ export type JobsSource =
   | BlockTransport
   | QueueBackend;
 
-function isBackend(source: JobsSource): source is QueueBackend {
-  return "apiVersion" in source;
-}
-
-function isTransport(
-  source: SqlClient | QueueRpcClient | BlockTransport,
-): source is BlockTransport {
-  return "call" in source;
-}
-
-function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
-  // SAFETY: reading queryRaw from either client is safe; only a SqlClient has
-  // it as a function.
-  return typeof (source as Partial<SqlClient>).queryRaw === "function";
+/**
+ * `transport` with every call made through `blockCall`, so a rejection is
+ * mapped to a `DbError` (with the app's `mappers` first), as in every block.
+ */
+function mappedTransport(
+  transport: BlockTransport,
+  mappers: readonly ErrorMapper[] | undefined,
+): BlockTransport {
+  return {
+    async call(schema, fn, args) {
+      const result = await blockCall(transport, schema, mappers)(
+        fn,
+        args,
+        (value) => value,
+      );
+      if (!result.ok) throw new DbException(result.error);
+      return result.data;
+    },
+  };
 }
 
 function backendOf(
-  source: JobsSource,
+  options: Pick<
+    JobsOptions,
+    "backend" | "sql" | "client" | "transport" | "schema" | "mappers"
+  >,
   now: () => Temporal.Instant,
 ): QueueBackend {
-  if (isBackend(source)) {
-    return source;
+  if (options.backend) return options.backend;
+  if (options.sql) return sqlQueueBackend(options.sql, now);
+  if (options.client) return pgmqPublicBackend(options.client);
+  if (options.transport) {
+    return transportQueueBackend(
+      mappedTransport(options.transport, options.mappers),
+      { now, ...(options.schema ? { schema: options.schema } : {}) },
+    );
   }
-  if (isTransport(source)) return transportQueueBackend(source, { now });
-  return isSqlClient(source)
-    ? sqlQueueBackend(source, now)
-    : pgmqPublicBackend(source);
+  throw new TypeError(
+    "createJobs needs a backend, sql, client or transport to store jobs",
+  );
 }
 
 const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
@@ -137,11 +157,11 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
  */
 export function createJobs<const Q extends QueueSchemas>(
-  source: JobsSource,
-  queues: Q,
-  options: JobsOptions = {},
+  options: JobsOptions<Q>,
 ): Jobs<Q> {
   applyTemporal(options);
+  // SAFETY: without `queues` Q is the default, which `{}` satisfies.
+  const queues = options.queues ?? ({} as Q);
   const now = options.now ?? nowInstant;
   for (const name of Object.keys(queues)) {
     if (!QUEUE_NAME.test(name)) {
@@ -150,7 +170,7 @@ export function createJobs<const Q extends QueueSchemas>(
       );
     }
   }
-  const transport = backendOf(source, now);
+  const transport = backendOf(options, now);
 
   const schemaOf = (queue: string): StandardSchemaV1 => {
     const schema = queues[queue];
@@ -472,7 +492,7 @@ export function createJobs<const Q extends QueueSchemas>(
     return ok({ message: message.data, delay: delay.data });
   };
 
-  return {
+  const client: Jobs<Q> = {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
@@ -728,4 +748,8 @@ export function createJobs<const Q extends QueueSchemas>(
       );
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "jobs",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

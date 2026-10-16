@@ -119,3 +119,9 @@ blocks: {
   identities: { options: { codeMinutes: 5 } },
 },
 ```
+
+## Hooks
+
+`createIdentities` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).

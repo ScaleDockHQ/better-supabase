@@ -32,7 +32,7 @@ describe("the temporal option of block creators", () => {
       () => createAuditLog({ transport, temporal: namespace }),
       () => createOutbox(sql, { source: "s", temporal: namespace }),
       () => createRateLimit(sql, { temporal: namespace }),
-      () => createJobs(sql, {}, { temporal: namespace }),
+      () => createJobs({ sql, queues: {}, temporal: namespace }),
       () => defineSettings({}).connect({ transport, temporal: namespace }),
     ];
     for (const create of creators) {
