@@ -99,14 +99,23 @@ const NO_FIELDS: readonly string[] = [
   "comments",
   "connectors",
   "custom-fields",
+  // Export and deletion requests are the module's bookkeeping, not app records.
   "data-lifecycle",
+  // A document row is the Yjs container of one subject's field; app columns belong on the subject.
   "documents",
+  // Linked accounts and verification codes are auth bookkeeping.
   "identities",
+  // Runs log an import; the imported rows land in the app's own tables.
   "imports",
+  // chat-sdk-state is the Chat SDK's state store, which takes no app columns.
   "inbox",
+  // Endpoints carry app data in metadata, which deliveries hand to the destination.
   "incoming-webhooks",
+  // Documents carry app data in metadata, which search filters on.
   "knowledge",
+  // The model writes memories through memory commands, which carry no app columns.
   "memory",
+  // Points are metric samples written by the sink.
   "metrics",
   "notifications",
   "number-sequences",

@@ -63,7 +63,7 @@ export interface InboxOptions extends BlockTemporalOptions {
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the methods (ADR 0015). */
-  readonly hooks?: NoInfer<BlockHooks<Inbox>>;
+  readonly hooks?: InboxHooks;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
 }
@@ -175,6 +175,17 @@ export interface TemplateInput {
 }
 
 /** The `inbox` SQL module as typed calls. */
+/** Hooks for `Inbox`: the top-level methods, and each group's under its name. */
+export type InboxHooks = BlockHooks<Inbox> & {
+  readonly inboxes?: BlockHooks<Inbox["inboxes"]>;
+  readonly contacts?: BlockHooks<Inbox["contacts"]>;
+  readonly conversations?: BlockHooks<Inbox["conversations"]>;
+  readonly messages?: BlockHooks<Inbox["messages"]>;
+  readonly deliveries?: BlockHooks<Inbox["deliveries"]>;
+  readonly templates?: BlockHooks<Inbox["templates"]>;
+  readonly inbound?: BlockHooks<Inbox["inbound"]>;
+};
+
 export interface Inbox {
   readonly inboxes: {
     create(input: CreateInboxInput): AsyncResult<InboxRow>;
@@ -731,8 +742,63 @@ export function createInbox(options: InboxOptions): Inbox {
     purgeContact: (contactId) =>
       call("purge_contact", { contact: contactId }, purgedOf),
   };
-  return withBlockHooks(client, options.hooks, {
-    block: "inbox",
-    ...(options.logger ? { logger: options.logger } : {}),
-  });
+  const {
+    inboxes,
+    contacts,
+    conversations,
+    messages,
+    deliveries,
+    templates,
+    inbound,
+    ...hooks
+  } = options.hooks ?? {};
+  const groups = {
+    inboxes,
+    contacts,
+    conversations,
+    messages,
+    deliveries,
+    templates,
+    inbound,
+  };
+  const logger = options.logger ? { logger: options.logger } : {};
+  return withBlockHooks(
+    {
+      ...client,
+      inboxes: withBlockHooks(client.inboxes, groups.inboxes, {
+        block: "inbox.inboxes",
+        ...logger,
+      }),
+      contacts: withBlockHooks(client.contacts, groups.contacts, {
+        block: "inbox.contacts",
+        ...logger,
+      }),
+      conversations: withBlockHooks(
+        client.conversations,
+        groups.conversations,
+        {
+          block: "inbox.conversations",
+          ...logger,
+        },
+      ),
+      messages: withBlockHooks(client.messages, groups.messages, {
+        block: "inbox.messages",
+        ...logger,
+      }),
+      deliveries: withBlockHooks(client.deliveries, groups.deliveries, {
+        block: "inbox.deliveries",
+        ...logger,
+      }),
+      templates: withBlockHooks(client.templates, groups.templates, {
+        block: "inbox.templates",
+        ...logger,
+      }),
+      inbound: withBlockHooks(client.inbound, groups.inbound, {
+        block: "inbox.inbound",
+        ...logger,
+      }),
+    },
+    hooks,
+    { block: "inbox", ...logger },
+  );
 }

@@ -144,11 +144,17 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   readonly chunking?: ChunkOptions;
   /** Chunks per embedding call. Default 64. */
   readonly batchSize?: number;
-  /** `withBlockHooks` hooks around the methods (ADR 0015). */
-  readonly hooks?: NoInfer<BlockHooks<Knowledge>>;
+  /** `withBlockHooks` hooks around the methods, and around each group's under its name (ADR 0015). */
+  readonly hooks?: KnowledgeHooks;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
 }
+
+/** Hooks for `Knowledge`: the top-level methods, and `documents` and `ingest` by group. */
+export type KnowledgeHooks = BlockHooks<Knowledge> & {
+  readonly documents?: BlockHooks<Knowledge["documents"]>;
+  readonly ingest?: BlockHooks<Knowledge["ingest"]>;
+};
 
 export interface Knowledge {
   readonly documents: {
@@ -649,8 +655,21 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         Number,
       ),
   };
-  return withBlockHooks(client, options.hooks, {
-    block: "knowledge",
-    ...(options.logger ? { logger: options.logger } : {}),
-  });
+  const { documents, ingest, ...hooks } = options.hooks ?? {};
+  const logger = options.logger ? { logger: options.logger } : {};
+  return withBlockHooks(
+    {
+      ...client,
+      documents: withBlockHooks(client.documents, documents, {
+        block: "knowledge.documents",
+        ...logger,
+      }),
+      ingest: withBlockHooks(client.ingest, ingest, {
+        block: "knowledge.ingest",
+        ...logger,
+      }),
+    },
+    hooks,
+    { block: "knowledge", ...logger },
+  );
 }
