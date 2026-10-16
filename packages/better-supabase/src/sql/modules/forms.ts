@@ -14,13 +14,13 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { DURATION } from "./approvals-policies.ts";
 import { formSchemaFunctions } from "./forms-schema.ts";
+import { liveShareLink } from "./share-links.ts";
 
 /** The share-links subject type of a public form link. */
 const FORM_SUBJECT = "form";
@@ -260,11 +260,8 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
     return `select x.${f("id")} into v_form_id
   from ${links.table("links")} k
   join ${forms} x on x.${f("id")}::text = k.${l("subjectId")} and x.${f("tenant")} = k.${l("tenant")}
-  where k.${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
-    and k.${l("subjectType")} = ${sqlString(FORM_SUBJECT)}
-    and k.${l("role")} = ${sqlString(FORM_LINK_ROLE)}
-    and k.${l("revokedAt")} is null
-    and (k.${l("expiresAt")} is null or k.${l("expiresAt")} > now());
+  where ${liveShareLink(links, "k", token, sqlString(FORM_SUBJECT))}
+    and k.${l("role")} = ${sqlString(FORM_LINK_ROLE)};
   if v_form_id is null then
     ${fail("FORM_LINK_INVALID", "this form link isn't valid", "P0002")}
   end if;`;
