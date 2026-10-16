@@ -278,7 +278,7 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
  * access model: the role helpers then answer membership from the provider,
  * and the memberships table only names roles.
  */
-function providerMembers(
+export function providerMembers(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ): { readonly ids?: string; readonly idsFor?: (user: string) => string } {

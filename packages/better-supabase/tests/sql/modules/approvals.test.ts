@@ -214,7 +214,21 @@ describe("approvals approvers from the provider", () => {
     );
   });
 
+  it("passes the requester as {requester}", () => {
+    expect(
+      eligible("authz.is_approver({kind}, {subject}, {tenant}, {requester})"),
+    ).toContain(
+      `authz.is_approver(v_req."subject_type" || '.' || v_req."action", v_req."subject_id"::text, v_req."tenant_id", v_req."requested_by")`,
+    );
+  });
+
   it("keeps the built-in approvers without isApprover", () => {
     expect(eligible()).not.toContain("is_approver");
+  });
+
+  it("checks a delegate's membership with the provider's memberIdsFor", () => {
+    expect(eligible()).toContain(
+      "select t.id::text from authz.member_organization_ids_for(delegate_approval.to_user) as t(id)",
+    );
   });
 });
