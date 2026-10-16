@@ -14,6 +14,7 @@ import { configIssues } from "./config-schema.ts";
 import { CliError } from "./errors.ts";
 import { importFresh } from "./fresh-import.ts";
 import { type CliIo, display } from "./io.ts";
+import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
 const CONFIG_FILES = [
@@ -201,7 +202,8 @@ export async function stdinDatabaseUrl(
 
 /**
  * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then the
- * local stack.
+ * local stack: the `[db] port` in `config.toml`, else the running stack's
+ * `DB_URL`, else port 54322.
  */
 export async function databaseUrl(
   config: ResolvedConfig,
@@ -212,6 +214,15 @@ export async function databaseUrl(
   if (config.source.dbUrl) return config.source.dbUrl;
   if (env.DATABASE_URL) return env.DATABASE_URL;
   if (env.SUPABASE_DB_URL) return env.SUPABASE_DB_URL;
-  const port = (await readSupabasePort(config.root, "db")) ?? 54322;
-  return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
+  const port = await readSupabasePort(config.root, "db");
+  if (port === undefined && (await readSupabaseToml(config.root))) {
+    // The stack engine (`[experimental] stack`) picks the ports per checkout,
+    // so only its status knows them.
+    const stack = await readStackStatus(config.root, env).catch(
+      () => undefined,
+    );
+    const url = stack?.ok ? stack.status["DB_URL"] : undefined;
+    if (typeof url === "string" && url.length > 0) return url;
+  }
+  return `postgresql://postgres:postgres@127.0.0.1:${port ?? 54322}/postgres`;
 }
