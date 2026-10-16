@@ -232,16 +232,19 @@ export function createAnnouncements<
   const save = (
     id: string | null,
     input: Partial<AnnouncementInput>,
-  ): AsyncResult<ManagedAnnouncement & F> =>
-    AsyncResult.from(() => fields.write(extraOf(input, INPUT_KEYS)))
+  ): AsyncResult<ManagedAnnouncement & F> => {
+    // An unknown audience throws here, before the call, as it always has.
+    const columns = fieldsOf(input);
+    return AsyncResult.from(() => fields.write(extraOf(input, INPUT_KEYS)))
       .andThen((extra) =>
         call(
           "save_announcement",
-          { id, fields: { ...extra, ...fieldsOf(input) } },
+          { id, fields: { ...extra, ...columns } },
           (value) => value,
         ),
       )
       .andThen((value) => withFields(fields, value, managedOf(value)));
+  };
   const client: Announcements<F> = {
     listActive: (organizationId) =>
       call(
