@@ -171,7 +171,8 @@ create trigger bs_application_guard before update of "state" on "better_supabase
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -640,7 +641,8 @@ create trigger bs_application_guard before update of "state" on "better_supabase
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -1111,7 +1113,8 @@ create trigger bs_application_guard before update of "state" on "app_private"."a
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function "app_private"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -1580,7 +1583,8 @@ create trigger bs_application_guard before update of "state" on "better_supabase
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql

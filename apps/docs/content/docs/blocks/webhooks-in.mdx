@@ -344,3 +344,13 @@ reads as the managed table's default. The functions stay in
 `better_supabase`, and `receive_webhook` takes a lock per message before it
 looks the message up, so the adopted table needs no particular unique
 constraint, though one on source, tenant and message id is a good guard.
+
+## Hooks and transports
+
+`createIncomingWebhooks` takes the service connection as `sql`, which
+`receive` uses. The management calls (`create`, `list`, `update`, `rotate`,
+`rotateSecret`, `setEnabled`, `remove`) go through `transport` when you pass
+one, such as the member's `sqlTransport(postgres.asUser(claims))`, so
+`webhooks.manage` is checked for the caller, and through `sql` otherwise.
+`hooks` runs your code around those calls (see
+[extending blocks](/docs/extending/blocks#hooks)).

@@ -82,6 +82,11 @@ blocks: {
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
 
+Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
+as `fields` to `createDrive`: every node the client returns has its `fields`
+parsed, and `createFolder` and `upload` validate the ones you set before the
+call (see [extending blocks](/docs/extending/blocks#your-own-fields)).
+
 ## Files and revisions
 
 `upload` creates the file node and a pending attachment, then signs an upload URL. After the upload, `commit` makes the attachment the file's content. `uploadRevision` uploads new content for an existing file the same way; with versions installed, each commit saves a revision, `revisions(id)` lists them and `restoreRevision(id, revisionId)` makes an old one current again.

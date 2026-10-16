@@ -46,6 +46,29 @@ await hiring
   .orThrow();
 ```
 
+## Your own fields
+
+`blocks.hiring.options.extraColumns` adds columns to the `jobs` table,
+keyed by column name with their SQL type. `saveJob` writes them from `fields` and returns them under `fields`. Pass a
+[Standard Schema](https://standardschema.dev) as `fields` to type them,
+parse them on reads and validate them on writes; a bad value is a
+`validation` error before anything reaches the database (see
+[extending blocks](/docs/extending/blocks#your-own-fields)):
+
+```ts
+import { z } from "zod";
+
+const hiring = createHiring({
+  transport,
+  fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
+});
+
+await hiring.saveJob(organizationId, {
+  title: "Engineer",
+  fields: { region: "emea" },
+});
+```
+
 ## Applications
 
 `apply(jobId, candidate, { source, ownerId })` adds a candidate to an open job (`HIRING_JOB_NOT_OPEN`); applying again returns the same application. The candidate must be in the organization and readable by the caller (`HIRING_CANDIDATE_FORBIDDEN`). Move it between stages with a stage update or [rank](/docs/blocks/rank) on a board, as any pipeline record.

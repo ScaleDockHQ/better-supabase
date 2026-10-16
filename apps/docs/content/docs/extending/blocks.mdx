@@ -84,20 +84,20 @@ keys it doesn't name.
 Notifications type their `data` the same way, per notification type: see
 [typed data](/docs/blocks/notifications#reading).
 
-| Block         | Columns from                                    | `fields` types                                              |
-| ------------- | ----------------------------------------------- | ----------------------------------------------------------- |
-| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`                                |
-| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`                                      |
-| notifications | the `data` of each type                         | `send`, `get`, `list`, `page`                               |
-| deals         | `options.extraColumns` on `deals`               | every deal it returns, `create`, `update`                   |
-| drive         | `options.extraColumns` on `drive_nodes`         | every node it returns, `createFolder`, `upload`             |
-| employees     | `options.extraColumns` on `employees`           | every employee it returns, `create`, `update`               |
-| engagements   | `options.extraColumns` on `engagements`         | every engagement it returns, `log`, `update`                |
-| flags         | `options.extraColumns` on `flags`               | `list`, `save`                                              |
-| forms         | `options.extraColumns` on `forms`               | `create`, `update`, `get`, `list`                           |
-| hiring        | `options.extraColumns` on `jobs`                | `saveJob`                                                   |
-| inventory     | `options.extraColumns` on `inventory_locations` | `saveLocation`                                              |
-| invoices      | `options.extraColumns` on `invoices`            | every invoice it returns, `create`                          |
+| Block         | Columns from                                    | `fields` types                                  |
+| ------------- | ----------------------------------------------- | ----------------------------------------------- |
+| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`                    |
+| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`                          |
+| notifications | the `data` of each type                         | `send`, `get`, `list`, `page`                   |
+| deals         | `options.extraColumns` on `deals`               | every deal it returns, `create`, `update`       |
+| drive         | `options.extraColumns` on `drive_nodes`         | every node it returns, `createFolder`, `upload` |
+| employees     | `options.extraColumns` on `employees`           | every employee it returns, `create`, `update`   |
+| engagements   | `options.extraColumns` on `engagements`         | every engagement it returns, `log`, `update`    |
+| flags         | `options.extraColumns` on `flags`               | `list`, `save`                                  |
+| forms         | `options.extraColumns` on `forms`               | `create`, `update`, `get`, `list`               |
+| hiring        | `options.extraColumns` on `jobs`                | `saveJob`                                       |
+| inventory     | `options.extraColumns` on `inventory_locations` | `saveLocation`                                  |
+| invoices      | `options.extraColumns` on `invoices`            | every invoice it returns, `create`              |
 
 Deals, employees and invoices take the columns next to their own fields
 (`create(id, { name, region })` writes `region`); the others take them
