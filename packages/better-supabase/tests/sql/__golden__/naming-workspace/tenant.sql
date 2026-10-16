@@ -32,7 +32,7 @@ grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
 
 -- Disabled tenants and users get no permissions and no membership claims
--- (modules.access.disabled; with the managed organizations module, its
+-- (blocks.access.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant uuid)
 returns boolean
@@ -146,7 +146,7 @@ grant execute on function better_supabase.workspace_member_role(uuid, uuid) to s
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
--- Disabled users and tenants (modules.access.disabled) are left out.
+-- Disabled users and tenants (blocks.access.disabled) are left out.
 create or replace function better_supabase.membership_claims(user_id uuid)
 returns jsonb
 language sql

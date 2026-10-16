@@ -215,7 +215,7 @@ begin
 end;
 $$;
 
--- Deletes an organization (modules.organizations.options.deleteMode: hard, with its memberships).
+-- Deletes an organization (blocks.organizations.options.deleteMode: hard, with its memberships).
 create or replace function "better_supabase"."delete_organization"(organization uuid)
 returns boolean
 language plpgsql
@@ -443,7 +443,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language plpgsql
@@ -629,7 +629,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -1002,7 +1002,7 @@ begin
 end;
 $$;
 
--- Deletes an organization (modules.organizations.options.deleteMode: hard, with its memberships).
+-- Deletes an organization (blocks.organizations.options.deleteMode: hard, with its memberships).
 create or replace function "better_supabase"."delete_organization"(organization uuid)
 returns boolean
 language plpgsql
@@ -1262,7 +1262,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language plpgsql
@@ -1472,7 +1472,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -1838,7 +1838,7 @@ begin
 end;
 $$;
 
--- Deletes an organization (modules.organizations.options.deleteMode: hard, with its memberships).
+-- Deletes an organization (blocks.organizations.options.deleteMode: hard, with its memberships).
 create or replace function "app_private"."delete_organization"(organization uuid)
 returns boolean
 language plpgsql
@@ -2066,7 +2066,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "app_private"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language plpgsql
@@ -2252,7 +2252,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function "app_private"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -2590,7 +2590,7 @@ begin
 end;
 $$;
 
--- Deletes an organization (modules.organizations.options.deleteMode: hard, with its memberships).
+-- Deletes an organization (blocks.organizations.options.deleteMode: hard, with its memberships).
 create or replace function "better_supabase"."delete_organization"(organization uuid)
 returns boolean
 language plpgsql
@@ -2818,7 +2818,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language plpgsql
@@ -3004,7 +3004,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -3328,7 +3328,7 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- Adopted: "better_supabase"."organizations" belongs to the app (modules.organizations.tables.organizations).
+-- Adopted: "better_supabase"."organizations" belongs to the app (blocks.organizations.tables.organizations).
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
@@ -3463,7 +3463,7 @@ begin
 end;
 $$;
 
--- Deletes an organization (modules.organizations.options.deleteMode: hard, with its memberships).
+-- Deletes an organization (blocks.organizations.options.deleteMode: hard, with its memberships).
 create or replace function "better_supabase"."delete_organization"(organization uuid)
 returns boolean
 language plpgsql
@@ -3691,7 +3691,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (modules.organizations.options.formerOwnerRole).
+-- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language plpgsql
@@ -3877,7 +3877,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (modules.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
