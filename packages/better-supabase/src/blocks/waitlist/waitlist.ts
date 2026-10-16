@@ -1,10 +1,20 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { VerifyOptions } from "../webhooks/verify.ts";
 
 import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
   blockCall,
+  type BlockOptions,
   instantArg,
   isRecord,
   optionalInstant,
@@ -13,14 +23,14 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 import { authHook, hookError } from "../webhooks/verify.ts";
 
 export type WaitlistStatus = "waiting" | "approved" | "rejected" | "joined";
 
-export interface WaitlistEntry {
+/** An entry. `F` types the extra columns the `fields` schema describes. */
+export interface WaitlistEntry<F extends object = Record<never, never>> {
   readonly id: string;
   readonly email: string;
   readonly status: WaitlistStatus;
@@ -31,6 +41,8 @@ export interface WaitlistEntry {
   readonly decidedBy: string | undefined;
   readonly decidedAt: Temporal.Instant | undefined;
   readonly createdAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 /**
@@ -77,20 +89,34 @@ export interface Redemption {
   readonly role: string | undefined;
 }
 
-export interface WaitlistOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface WaitlistOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the entry's extra columns
+   * (`blocks.waitlist.options.extraColumns`), keyed by database name, such
+   * as a company or a use case from the sign-up form. It types and parses
+   * them on `entries`, `approve` and `reject`, and validates them on `join`.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Waitlist<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface Waitlist {
-  /** Adds an address, or returns its place when it is already there. Works signed out; see `WaitlistPlace`. */
+export interface Waitlist<F extends object = Record<never, never>> {
+  /**
+   * Adds an address, or returns its place when it is already there. Works
+   * signed out; see `WaitlistPlace`. `fields` is written only when the
+   * address is new.
+   */
   join(
     email: string,
     options?: {
       readonly referrer?: string;
       readonly metadata?: Readonly<Record<string, unknown>>;
+      readonly fields?: Partial<F>;
     },
   ): AsyncResult<WaitlistPlace>;
   /** Entries by position; needs `waitlist.manage` on the platform. */
@@ -98,10 +124,10 @@ export interface Waitlist {
     readonly status?: WaitlistStatus | null;
     readonly limit?: number;
     readonly afterPosition?: number;
-  }): AsyncResult<readonly WaitlistEntry[]>;
+  }): AsyncResult<readonly WaitlistEntry<F>[]>;
   /** Lets the address sign up and emits `waitlist.approved`. */
-  approve(entryId: string): AsyncResult<WaitlistEntry>;
-  reject(entryId: string): AsyncResult<WaitlistEntry>;
+  approve(entryId: string): AsyncResult<WaitlistEntry<F>>;
+  reject(entryId: string): AsyncResult<WaitlistEntry<F>>;
   /** Creates a code; `code` is shown once, the database keeps its hash. */
   createCode(
     input?: CreateInviteCodeInput,
@@ -145,6 +171,7 @@ function entryOf(value: unknown): WaitlistEntry {
     decidedBy: optionalText(row["decided_by"]),
     decidedAt: optionalInstant(row["decided_at"]),
     createdAt: toInstant(textOf(row["created_at"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -172,28 +199,41 @@ export function generateInviteCode(): string {
   return [0, 4, 8, 12].map((at) => chars.slice(at, at + 4).join("")).join("-");
 }
 
-export function createWaitlist(options: WaitlistOptions): Waitlist {
+/** The `waitlist` SQL module as typed calls. */
+export function createWaitlist<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: WaitlistOptions<S>): Waitlist<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "waitlist entry fields",
+  );
   const decide = (entryId: string, approve: boolean) =>
-    call("decide_waitlist_entry", { id: entryId, approve }, entryOf);
-  return {
+    call("decide_waitlist_entry", { id: entryId, approve }, entryOf).andThen(
+      fields.row,
+    );
+  const client: Waitlist<F> = {
     join: (email, more = {}) =>
-      call(
-        "join_waitlist",
-        {
-          email,
-          referrer: more.referrer ?? null,
-          metadata: more.metadata ?? {},
-        },
-        (value) => {
-          const row = recordOf(value, "join_waitlist");
-          const status = statusOf(row["status"]);
-          return {
-            position: optionalNumber(row["position"]),
-            status: status === "rejected" ? "waiting" : status,
-          };
-        },
+      fields.args(more.fields).andThen((checked) =>
+        call(
+          "join_waitlist",
+          {
+            email,
+            referrer: more.referrer ?? null,
+            metadata: more.metadata ?? {},
+            fields: checked,
+          },
+          (value) => {
+            const row = recordOf(value, "join_waitlist");
+            const status = statusOf(row["status"]);
+            return {
+              position: optionalNumber(row["position"]),
+              status: status === "rejected" ? "waiting" : status,
+            };
+          },
+        ),
       ),
     entries: (query = {}) =>
       call(
@@ -204,7 +244,7 @@ export function createWaitlist(options: WaitlistOptions): Waitlist {
           after_position: query.afterPosition ?? null,
         },
         (value) => recordsOf(value, "list_waitlist").map(entryOf),
-      ),
+      ).andThen(fields.rows),
     approve: (entryId) => decide(entryId, true),
     reject: (entryId) => decide(entryId, false),
     createCode: (input = {}) => {
@@ -236,6 +276,10 @@ export function createWaitlist(options: WaitlistOptions): Waitlist {
         };
       }),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "waitlist",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 export interface WaitlistHookOptions {

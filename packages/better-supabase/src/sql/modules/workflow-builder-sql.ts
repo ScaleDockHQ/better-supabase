@@ -8,10 +8,11 @@ import {
 import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
-  SERVICE_CALLER,
   activeMembership,
-  serviceGrant,
   fail,
+  SERVICE_CALLER,
+  serviceGrant,
+  withExtraFields,
 } from "../shared.ts";
 import { moduleOperations, type ModuleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
@@ -218,7 +219,9 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const optedOut = (definition: string, tenantId: string): string =>
     `exists (select 1 from ${o} oo where oo.${co("tenant")} = ${tenantId} and oo.${co("definition")} = ${definition})`;
 
-  const definitionJson = (alias: string): string => `jsonb_build_object(
+  const definitionJson = (alias: string): string =>
+    withExtraFields(
+      `jsonb_build_object(
     'id', ${alias}.${cd("id")},
     'tenant', ${alias}.${cd("tenant")},
     'slug', ${alias}.${cd("slug")},
@@ -232,7 +235,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${cd("createdBy")},
     'createdAt', ${alias}.${cd("createdAt")},
     'updatedAt', ${alias}.${cd("updatedAt")}
-  )`;
+  )`,
+      alias,
+      ctx.extraColumns("definitions", ["fields"]),
+    );
   const versionJson = (
     alias: string,
     full: boolean,

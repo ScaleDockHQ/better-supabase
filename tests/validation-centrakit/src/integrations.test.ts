@@ -97,15 +97,16 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
 
       const receive = () =>
         s.rows<{ duplicate: boolean }>(
-          `select duplicate from better_supabase.receive_webhook('stripe', 'evt_1', 'invoice.paid',
-             '{"amount": 100}', tenant => $1)`,
+          `select (better_supabase.receive_webhook('stripe', 'evt_1', 'invoice.paid',
+             '{"amount": 100}', tenant => $1) ->> 'duplicate')::boolean as duplicate`,
           [organization],
         );
       expect(await receive()).toEqual([{ duplicate: false }]);
       expect(await receive()).toEqual([{ duplicate: true }]);
       expect(
         await s.rows(
-          `select source, event_type, tenant, status from better_supabase.list_webhooks($1)`,
+          `select m ->> 'source' as source, m ->> 'event_type' as event_type, m ->> 'tenant' as tenant, m ->> 'status' as status
+           from jsonb_array_elements(better_supabase.list_webhooks($1)) m`,
           [organization],
         ),
       ).toEqual([
@@ -118,7 +119,7 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
       ]);
 
       const [claimed] = await s.rows<{ id: string; attempts: number }>(
-        "select id, attempts from better_supabase.claim_webhooks('stripe', 'worker-1')",
+        "select m ->> 'id' as id, (m ->> 'attempts')::integer as attempts from jsonb_array_elements(better_supabase.claim_webhooks('stripe', 'worker-1')) m",
       );
       expect(
         await s.value<boolean>(

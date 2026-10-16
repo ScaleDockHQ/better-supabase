@@ -408,3 +408,9 @@ optional peer; pass a Stripe client instead of `secretKey` to use your own.
 | `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                                                          |
 | `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                                                  |
 | `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                                              |
+
+## Hooks
+
+`createUsage` takes `hooks` around its methods, such as a rule before
+`consume` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).

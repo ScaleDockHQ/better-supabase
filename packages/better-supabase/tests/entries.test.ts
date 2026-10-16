@@ -49,7 +49,7 @@ const PURE_BARRELS = [
   "blocks/undo",
   "blocks/search",
   "blocks/metrics",
-  "blocks/commerce",
+  "commerce",
   "blocks/calendar",
   "blocks/bookings",
   "blocks/versions",

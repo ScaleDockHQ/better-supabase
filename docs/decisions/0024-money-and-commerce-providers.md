@@ -16,11 +16,11 @@ versioned contract wherever a third party plugs in. ADR 0009 already makes
 
 ## Decision
 
-`better-supabase/blocks/commerce` holds money as
+`better-supabase/commerce` holds money as
 `{ amount: bigint, currency }`, where `amount` counts the currency's minor
 units. The minor units come from ISO 4217 List One, vendored in
 `tests/standards/schemas/iso-4217-list-one-2026-09-17.xml`, copied into
-`src/blocks/commerce/iso4217.ts` and pinned as `SPEC_PINS.iso4217`; the
+`src/commerce/iso4217.ts` and pinned as `SPEC_PINS.iso4217`; the
 standards test checks the table against the XML. Arithmetic refuses mixed
 currencies, and rates are decimal strings applied with half-to-even
 rounding. JSON carries the amount as a string.

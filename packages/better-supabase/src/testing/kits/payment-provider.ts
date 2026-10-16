@@ -1,12 +1,9 @@
-import type { Money } from "../../blocks/commerce/money.ts";
-import type {
-  Payment,
-  PaymentProvider,
-} from "../../blocks/commerce/payments.ts";
+import type { Money } from "../../commerce/money.ts";
+import type { Payment, PaymentProvider } from "../../commerce/payments.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 
-import { money } from "../../blocks/commerce/money.ts";
+import { money } from "../../commerce/money.ts";
 import { type ConformanceReport, conform, expect } from "../conformance.ts";
 
 export interface TestPaymentProviderOptions {

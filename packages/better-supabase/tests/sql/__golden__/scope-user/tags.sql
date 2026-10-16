@@ -70,6 +70,8 @@ revoke all on "better_supabase"."taggings" from anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
+-- fields: the extra columns (blocks.tags.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -166,6 +168,7 @@ $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql

@@ -204,7 +204,8 @@ for each row execute function better_supabase.bs_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function "better_supabase"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
@@ -250,6 +251,9 @@ begin
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
   end;
+  update "better_supabase"."work_items" x set "app_note" = case when (create_work_item.attrs -> 'fields') ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."work_items", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((create_work_item.attrs -> 'fields')) e where e.key in ('app_note'))) r
+  where x."id" = v_id;
   if cardinality(coalesce(create_work_item.assignees, '{}')) > 0 then
     perform "better_supabase"."set_work_item_assignees"(v_id, create_work_item.assignees);
   end if;
@@ -339,6 +343,8 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'app_note' then
+        update "better_supabase"."work_items" x set "app_note" = (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('app_note', v_change -> 'value')))."app_note" where x."id" = v_item;
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'WORK_ITEM_FIELD_UNKNOWN';
       end case;

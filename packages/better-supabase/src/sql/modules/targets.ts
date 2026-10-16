@@ -6,11 +6,19 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  fail,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+  withExtraFields,
+  writeExtraColumns,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: [],
+  options: ["extraColumns"],
   tables: {
     targets: {
       name: "targets",
@@ -95,6 +103,16 @@ ${Object.entries(known)
   .join("\n")}
         else x.${c("actual")}
       end`;
+  // The target's extra columns: attrs.fields writes them, reads return them under fields.
+  const extras = ctx.extraColumns("targets", [
+    "fields",
+    "progress",
+    "attainment",
+  ]);
+  const progressRow =
+    extras.length === 0
+      ? "to_jsonb(p)"
+      : withExtraFields("to_jsonb(p)", "p", extras);
   return `${schemaPreamble(ctx)}
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
@@ -116,7 +134,7 @@ ${
   ${c("createdAt")} timestamptz not null default now(),
   ${c("updatedAt")} timestamptz not null default now(),
   check (${c("periodEnd")} >= ${c("periodStart")})
-);
+);${addExtraColumns(t, extras)}
 create index if not exists targets_period_idx on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")}) where ${c("archivedAt")} is null;
 ${lockTable(t, { read: true })}
 drop policy if exists targets_read on ${t};
@@ -163,8 +181,8 @@ begin
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("TARGET_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
-  end;
-  return (select to_jsonb(x) from ${t} x where x.${c("id")} = v_id);
+  end;${writeExtraColumns(t, extras, "(save_target.attrs -> 'fields')", `x.${c("id")} = v_id`)}
+  return (select ${withExtraFields("to_jsonb(x)", "x", extras)} from ${t} x where x.${c("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_target")}(${ctx.idType}, uuid, jsonb)`)}
@@ -178,7 +196,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg(${progressRow} - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x.${c("goal")}, 4) as attainment, x.${c("periodStart")} as period_start_order, x.${c("name")} as name_order
     from ${t} x

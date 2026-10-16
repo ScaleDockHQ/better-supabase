@@ -5,7 +5,7 @@ import {
   createCatalog,
   type Catalog,
 } from "../../../src/blocks/catalog/index.ts";
-import { money } from "../../../src/blocks/commerce/index.ts";
+import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];

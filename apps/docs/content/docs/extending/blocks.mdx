@@ -121,6 +121,34 @@ collections merge the parsed values into the row they return. Except
 organizations, profiles, employees, drive and attachments, a block copies
 the columns right after its insert, so give a `not null` column a default.
 
+The other blocks with a managed table that apps extend take the same pair:
+`options.extraColumns` on the table below and `fields` on the creator. A
+read returns the columns under `fields`, keyed by database name, and a
+write takes them as `fields` and copies only the columns it names, so the
+others keep their default.
+
+| Block            | Table                  | `fields` on writes                |
+| ---------------- | ---------------------- | --------------------------------- |
+| share-links      | `share_links`          | `create`                          |
+| signatures       | `signature_requests`   | `request`                         |
+| sla              | `sla_policies`         | `savePolicy`                      |
+| tags             | `tags`                 | `create`, `update`                |
+| targets          | `targets`              | `save`                            |
+| teams            | `teams`                | `create`, `update`                |
+| templates        | `templates`            | `save`                            |
+| time-tracking    | `time_entries`         | `start`, `log`, `update`          |
+| trash            | `trash_items`          | `trash`                           |
+| versions         | `versions`             | `snapshot`                        |
+| waitlist         | `waitlist_entries`     | `join`, for a new address only    |
+| webhook-inbox    | `webhook_inbox`        | `store`                           |
+| work-items       | `work_items`           | `create`, `update` by column name |
+| workflow-builder | `workflow_definitions` | `definitions.save`                |
+
+sso, state-machine, usage, webhooks and workflows take `hooks` but no
+`fields`: their rows mirror another system (Supabase Auth, the IdP, an
+engine's run registry), are written by triggers on the app's own table, or
+are a metering log whose per-event data goes in `metadata`.
+
 ## Hooks
 
 `hooks` runs your code around a block's methods, keyed by method name. A

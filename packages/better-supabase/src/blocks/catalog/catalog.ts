@@ -13,12 +13,12 @@ import {
   type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
+import { type Money, money } from "../../commerce/money.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { type Money, money } from "../commerce/money.ts";
 import {
   applyTemporal,
   blockCall,

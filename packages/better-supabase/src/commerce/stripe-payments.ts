@@ -1,10 +1,10 @@
 import type { Money } from "./money.ts";
 
-import { dbError } from "../../core/errors.ts";
-import { err, ok, type Result } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
-import { lazyStripe, type StripeSource } from "../stripe.ts";
-import { verifyStripeWebhook } from "../webhooks/verify.ts";
+import { lazyStripe, type StripeSource } from "../blocks/stripe.ts";
+import { verifyStripeWebhook } from "../blocks/webhooks/verify.ts";
+import { dbError } from "../core/errors.ts";
+import { err, ok, type Result } from "../core/result.ts";
+import { temporal } from "../core/temporal-required.ts";
 import {
   invalidPaymentAmount,
   type Payment,

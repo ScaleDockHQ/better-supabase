@@ -207,7 +207,7 @@ Turns a `credential_ref` into a token. It has `apiVersion: 1`, a `name`,
 
 ## PaymentProvider
 
-Takes payments for orders in [commerce](/docs/blocks/commerce#payments). It
+Takes payments for orders in [commerce](/docs/concepts/commerce#payments). It
 has `apiVersion: 1`, a `name`, `createPayment`, `capture`, `refund` and
 `parseWebhook`, and optionally `cancel` and `get`. Amounts are `Money` in
 bigint minor units. Every method returns a `Result`: `invalid_input` for an
@@ -219,7 +219,7 @@ repeated `idempotencyKey` returns the first call's result.
 
 ## TaxProvider
 
-Computes and records sales tax in [commerce](/docs/blocks/commerce#tax). It
+Computes and records sales tax in [commerce](/docs/concepts/commerce#tax). It
 has `apiVersion: 1`, a `name`, `quote(cart)`, `commit({ quote, reference })`
 and `reverse({ transaction, reference, lines })`. A quote has one line per
 cart line in cart order, then shipping, and a total that is their sum. A

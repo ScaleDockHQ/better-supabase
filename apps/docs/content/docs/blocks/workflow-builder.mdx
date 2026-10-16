@@ -616,3 +616,21 @@ match a definition on their `bs.definition` attribute, which
 | `record_workflow_node_run(...)`, `workflow_node_runs_list(run)`                                                                                        | `service_role`, `authenticated` | Node status                                      |
 | `save_workflow_alert`, `workflow_alerts_list`, `remove_workflow_alert`                                                                                 | `authenticated`, `service_role` | Alerts                                           |
 | `check_workflow_alerts(batch)`                                                                                                                         | `service_role`                  | Fires the slow alerts that are due               |
+
+## Your own columns
+
+Add columns to the workflow definition table with `blocks.workflow-builder.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`definitions.save` validates and writes them, and `definitions.save`, `list`, `get` and `fork` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWorkflowBuilder } from "better-supabase/blocks/workflow-builder";
+import { z } from "zod";
+
+const client = createWorkflowBuilder({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

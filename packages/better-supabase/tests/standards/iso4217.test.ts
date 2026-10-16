@@ -1,12 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-import { ISO_4217_MINOR_UNITS } from "../../src/blocks/commerce/iso4217.ts";
-import {
-  minorUnits,
-  money,
-  toDecimal,
-} from "../../src/blocks/commerce/money.ts";
+import { ISO_4217_MINOR_UNITS } from "../../src/commerce/iso4217.ts";
+import { minorUnits, money, toDecimal } from "../../src/commerce/money.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const listOne = await readFile(

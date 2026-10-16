@@ -8,12 +8,15 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  ensureCheck,
+  extraFieldsArg,
+  fail,
+  lockTable,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
-  ensureCheck,
-  revokeTable,
-  lockTable,
-  fail,
+  writeExtraColumns,
 } from "../shared.ts";
 import { builderPublisherSql } from "./workflow-builder-publisher.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
@@ -47,6 +50,7 @@ const EVENTS: ModuleEvents<WorkflowBuilderEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  options: ["extraColumns"],
   tables: {
     definitions: {
       name: "workflow_definitions",
@@ -257,6 +261,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     definitionJson,
     versionJson,
   } = s;
+  const extras = ctx.extraColumns("definitions", ["fields"]);
+  const extra = extraFieldsArg(extras);
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
@@ -291,7 +297,7 @@ alter table ${d} add column if not exists ${cd("forkedFromVersion")} integer che
 alter table ${d} add column if not exists ${cd("restricted")} boolean not null default false;
 ${ensureCheck(d, "workflow_definitions_system_check", `${cd("scope")} = 'tenant' or ${cd("tenant")} is null`)}
 ${ensureCheck(d, "workflow_definitions_subject_types_check", `cardinality(${cd("subjectTypes")}) <= 50 and array_position(${cd("subjectTypes")}, null) is null`)}
-create index if not exists workflow_definitions_forked_from_idx on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;
+create index if not exists workflow_definitions_forked_from_idx on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;${addExtraColumns(d, extras)}
 alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select on ${d} to authenticated;
@@ -558,6 +564,8 @@ ${callable(`${fn("validate_workflow_graph")}(jsonb)`)}
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 drop function if exists ${fn("save_workflow_definition")}(${id}, text, text, text);
+-- fields: the extra columns (blocks.workflow-builder.options.extraColumns) to set.
+${extra.drop(fn("save_workflow_definition"), `${id}, text, text, text, text[], text, boolean`)}
 create or replace function ${fn("save_workflow_definition")}(
   tenant ${id},
   slug text,
@@ -565,7 +573,7 @@ create or replace function ${fn("save_workflow_definition")}(
   description text default null,
   subject_types text[] default null,
   scope text default null,
-  restricted boolean default null
+  restricted boolean default null${extra.param}
 )
 returns jsonb
 language plpgsql
@@ -617,11 +625,11 @@ begin
     insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}, ${cd("subjectTypes")}, ${cd("scope")}, ${cd("restricted")}, ${cd("createdBy")})
     values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
     returning * into v_row;
-  end if;
+  end if;${writeExtraColumns(d, extras, "save_workflow_definition.fields", `x.${cd("id")} = v_row.${cd("id")}`, "v_row")}
   return ${definitionJson("v_row")};
 end;
 $$;
-${callable(`${fn("save_workflow_definition")}(${id}, text, text, text, text[], text, boolean)`)}
+${callable(`${fn("save_workflow_definition")}(${id}, text, text, text, text[], text, boolean${extra.type})`)}
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -849,12 +857,24 @@ ${builderStartsSql(ctx, s)}
 ${builderRuntimeSql(s)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("definitions", ["fields"]),
+  ).contract;
   return [
     { name: "validate_workflow_graph", args: ["jsonb"], returns: "jsonb" },
     {
       name: "save_workflow_definition",
-      args: ["{id}", "text", "text", "text", "text[]", "text", "boolean"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text[]",
+        "text",
+        "boolean",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     {

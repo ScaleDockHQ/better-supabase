@@ -2,7 +2,15 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  SCHEMA,
+  serviceOnly,
+  withExtraFields,
+  writeExtraColumns,
+} from "../shared.ts";
 
 const MESSAGE_COLUMNS = {
   id: "id",
@@ -26,7 +34,7 @@ const MESSAGE_COLUMNS = {
 
 type MessageColumn = keyof typeof MESSAGE_COLUMNS;
 
-/** The row `claim_webhooks` and `list_webhooks` return, in the managed table's order. */
+/** The keys of a row `claim_webhooks` and `list_webhooks` return, in the managed table's order. */
 const ROW: readonly (readonly [MessageColumn, string, string])[] = [
   ["id", "id", "bigint"],
   ["source", "source", "text"],
@@ -128,25 +136,32 @@ function webhookInboxSql(ctx: ModuleContext): string {
     has("tenant")
       ? `${tenantText(alias)} is not distinct from ${value}`
       : `${value} is null`;
-  const rowType = managed
-    ? `setof ${t}`
-    : `table (${ROW.map(([, name, type]) => `${name} ${type}`).join(", ")})`;
+  // The extra columns (options.extraColumns): receive_webhook writes them
+  // from fields on a new message, the reads return them under fields.
+  const extras = ctx.extraColumns("messages", ["fields"]);
+  const extra = extraFieldsArg(extras);
   // A column the adopted table lacks reads as the managed table's default.
   const missing: Partial<Record<MessageColumn, string>> = {
     headers: "'{}'::jsonb",
     maxAttempts: "8",
     checkpoint: "'{}'::jsonb",
   };
+  // A message as jsonb, keyed by the managed table's column names.
   const rowOf = (alias: string) =>
-    managed
-      ? `${alias}.*`
-      : ROW.map(([logical, , type]) =>
-          has(logical)
-            ? logical === "tenant"
-              ? tenantText(alias)
-              : `${alias}.${c(logical)}`
-            : (missing[logical] ?? `null::${type}`),
-        ).join(", ");
+    withExtraFields(
+      `jsonb_build_object(${ROW.map(
+        ([logical, name, type]) =>
+          `'${name}', ${
+            has(logical)
+              ? logical === "tenant"
+                ? tenantText(alias)
+                : `${alias}.${c(logical)}`
+              : (missing[logical] ?? `null::${type}`)
+          }`,
+      ).join(", ")})`,
+      alias,
+      extras,
+    );
   const maxAttempts = (alias: string) =>
     has("maxAttempts") ? `${alias}${c("maxAttempts")}` : "8";
   const inserted = (
@@ -167,19 +182,19 @@ function webhookInboxSql(ctx: ModuleContext): string {
   ).filter(([logical]) => has(logical));
   const insert = `insert into ${t} (${inserted.map(([logical]) => c(logical)).join(", ")})
   values (${inserted.map(([, value]) => value).join(", ")})`;
+  const stored = `${writeExtraColumns(t, extras, "receive_webhook.fields", `x.${c("id")} = inbox_id`)}
+  return jsonb_build_object('id', inbox_id, 'duplicate', false);`;
   const receive = managed
     ? `  ${insert}
   on conflict on constraint webhook_inbox_source_tenant_message_id_key do nothing
   returning webhook_inbox.id into inbox_id;
-  if inbox_id is not null then
-    return query select inbox_id, false;
-    return;
+  if inbox_id is not null then${stored.replaceAll("\n", "\n  ")}
   end if;
-  return query
-    select w.id, true from better_supabase.webhook_inbox w
-    where w.source = receive_webhook.source
-      and w.tenant is not distinct from receive_webhook.tenant
-      and w.message_id = receive_webhook.message_id;`
+  select w.id into inbox_id from better_supabase.webhook_inbox w
+  where w.source = receive_webhook.source
+    and w.tenant is not distinct from receive_webhook.tenant
+    and w.message_id = receive_webhook.message_id;
+  return jsonb_build_object('id', inbox_id, 'duplicate', true);`
     : `  -- The adopted table's unique constraint is unknown, so a lock per
   -- message serializes the lookup and the insert.
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('webhook-inbox'), pg_catalog.hashtext(concat_ws(':', source, receive_webhook.tenant, message_id)));
@@ -189,12 +204,10 @@ function webhookInboxSql(ctx: ModuleContext): string {
     and w.${c("messageId")} = receive_webhook.message_id
   limit 1;
   if inbox_id is not null then
-    return query select inbox_id, true;
-    return;
+    return jsonb_build_object('id', inbox_id, 'duplicate', true);
   end if;
   ${insert}
-  returning ${c("id")} into inbox_id;
-  return query select inbox_id, false;`;
+  returning ${c("id")} into inbox_id;${stored}`;
   const leased = `${c("id")} = inbox_id and ${c("lockedBy")} = worker and ${c("status")} = 'processing'`;
   const attemptIs = `${c("attempts")} = attempt`;
   const checkpoint = has("checkpoint")
@@ -202,15 +215,15 @@ function webhookInboxSql(ctx: ModuleContext): string {
     : `set ${c("lockedBy")} = ${c("lockedBy")}`;
   const tenantFilter = (alias: string, value: string) =>
     has("tenant") ? `${tenantText(alias)} = ${value}` : "false";
-  const adoptedDrops = managed
-    ? ""
-    : `
--- claim_webhooks and list_webhooks return a table over an adopted table, not
--- the managed table's row type.
+  // Every function a transport calls returns jsonb, so the earlier ones
+  // that returned rows go first; receive_webhook with and without fields.
+  const jsonbDrops = `
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
+${extra.drop("better_supabase.receive_webhook", "text, text, text, jsonb, jsonb, text, integer")}
 drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
   return `${SCHEMA}
-${managed ? TABLE : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
+${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
@@ -218,10 +231,11 @@ drop function if exists better_supabase.purge_webhooks(interval, boolean, intege
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 drop function if exists better_supabase.complete_webhook(bigint, text);
 drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);${adoptedDrops}
+drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);${jsonbDrops}
 
--- duplicate = true when the source and tenant saw the message id before (the sender retried).
--- max_attempts is the source's limit, 8 when null.
+-- { id, duplicate }: duplicate = true when the source and tenant saw the
+-- message id before (the sender retried). max_attempts is the source's
+-- limit, 8 when null. fields: the extra columns of a new message.
 create or replace function better_supabase.receive_webhook(
   source text,
   message_id text,
@@ -229,9 +243,9 @@ create or replace function better_supabase.receive_webhook(
   payload jsonb,
   headers jsonb default '{}',
   tenant text default null,
-  max_attempts integer default null
+  max_attempts integer default null${extra.param}
 )
-returns table (id bigint, duplicate boolean)
+returns jsonb
 language plpgsql
 set search_path = ''
 as $$
@@ -243,15 +257,16 @@ ${receive}
 end;
 $$;
 
--- A message whose lease ran out on its last attempt lost its worker
--- (fail_webhook marks it dead otherwise), so the claim marks it dead.
+-- The claimed messages, a jsonb array. A message whose lease ran out on its
+-- last attempt lost its worker (fail_webhook marks it dead otherwise), so the
+-- claim marks it dead.
 create or replace function better_supabase.claim_webhooks(
   source text,
   worker text,
   batch integer default 10,
   lease interval default '5 minutes'
 )
-returns ${rowType}
+returns jsonb
 language sql
 set search_path = ''
 as $$
@@ -274,12 +289,15 @@ as $$
     order by c.${c("availableAt")}, c.${c("id")}
     for update skip locked
     limit batch
+  ),
+  claimed as (
+    update ${t} w
+    set ${c("status")} = 'processing', ${c("attempts")} = w.${c("attempts")} + 1, ${c("lockedBy")} = worker, ${c("lockedUntil")} = now() + lease
+    from next
+    where w.${c("id")} = next.${c("id")}
+    returning w.${c("id")} as id, ${rowOf("w")} as message
   )
-  update ${t} w
-  set ${c("status")} = 'processing', ${c("attempts")} = w.${c("attempts")} + 1, ${c("lockedBy")} = worker, ${c("lockedUntil")} = now() + lease
-  from next
-  where w.${c("id")} = next.${c("id")}
-  returning ${rowOf("w")}
+  select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
 
 -- attempt is the attempts value the claim returned: it is the lease token,
@@ -373,24 +391,29 @@ as $$
   select exists (select 1 from saved)
 $$;
 
--- A tenant's messages, newest first, optionally of one source or status.
+-- A tenant's messages, newest first, optionally of one source or status, as
+-- a jsonb array.
 create or replace function better_supabase.list_webhooks(
   for_tenant text,
   for_source text default null,
   for_status text default null,
   max_rows integer default 100
 )
-returns ${rowType}
+returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select ${rowOf("w")} from ${t} w
-  where ${tenantFilter("w", "for_tenant")}
-    and (for_source is null or w.${c("source")} = for_source)
-    and (for_status is null or w.${c("status")} = for_status)
-  order by w.${c("receivedAt")} desc, w.${c("id")} desc
-  limit least(greatest(max_rows, 1), 1000)
+  select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
+  from (
+    select ${rowOf("w")} as message, row_number() over (order by w.${c("receivedAt")} desc, w.${c("id")} desc) as n
+    from ${t} w
+    where ${tenantFilter("w", "for_tenant")}
+      and (for_source is null or w.${c("source")} = for_source)
+      and (for_status is null or w.${c("status")} = for_status)
+    order by w.${c("receivedAt")} desc, w.${c("id")} desc
+    limit least(greatest(max_rows, 1), 1000)
+  ) x
 $$;
 
 -- Deletes up to batch processed messages (and dead ones with include_dead)
@@ -425,7 +448,7 @@ as $$
 $$;
 
 ${serviceOnly([
-  "receive_webhook(text, text, text, jsonb, jsonb, text, integer)",
+  `receive_webhook(text, text, text, jsonb, jsonb, text, integer${extra.type})`,
   "claim_webhooks(text, text, integer, interval)",
   "complete_webhook(bigint, text, integer)",
   "fail_webhook(bigint, text, text, interval, integer)",
@@ -445,6 +468,7 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
   target: "schema",
   modes: ["managed", "adopt"],
   names: {
+    options: ["extraColumns"],
     tables: {
       messages: {
         name: "webhook_inbox",
@@ -461,7 +485,7 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
       },
     },
   },
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -498,6 +522,12 @@ export const WEBHOOK_INBOX: ModuleDefinition = {
       from: 5,
       description:
         "Adopt mode stores messages in an app's table; the functions stay in better_supabase.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; options.extraColumns adds columns to the messages.",
       sql: () => "",
     },
   ],

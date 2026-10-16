@@ -1,11 +1,11 @@
-import { type DbError, dbError } from "../../core/errors.ts";
+import { type DbError, dbError } from "../core/errors.ts";
 import {
   AsyncResult,
   err,
   ok,
   type Result,
   toDbError,
-} from "../../core/result.ts";
+} from "../core/result.ts";
 import { type Money, minorUnits, money } from "./money.ts";
 
 /**

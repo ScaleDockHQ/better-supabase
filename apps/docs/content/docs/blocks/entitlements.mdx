@@ -378,9 +378,10 @@ import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
 } from "better-supabase/blocks/entitlements";
-import { createWebhookInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
 
-const inbox = createWebhookInbox(postgres.admin, {
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "stripe-entitlements",
   verify: async (request, body) => {
     try {

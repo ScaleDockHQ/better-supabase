@@ -78,4 +78,37 @@ describe("blockFields", () => {
     expect((await fields.read({ locale: "nl", id: "u" })).ok).toBe(true);
     expect((await fields.write({ locale: "fr" })).ok).toBe(false);
   });
+
+  it("parses the fields of rows the block read", async () => {
+    const fields = blockFields(Fields, "fields");
+    expect(
+      await fields.row({ id: "o1", fields: { plan: "pro", seats: "2" } }),
+    ).toMatchObject({
+      ok: true,
+      data: { id: "o1", fields: { plan: "pro", seats: 2 } },
+    });
+    expect(
+      await fields.rows([
+        { id: "o1", fields: { plan: "pro", seats: 1 } },
+        { id: "o2", fields: { plan: "gold", seats: 1 } },
+      ]),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+  });
+
+  it("validates write fields and leaves out an empty set", async () => {
+    const fields = blockFields(Fields, "fields");
+    expect(await fields.args(undefined)).toMatchObject({
+      ok: true,
+      data: undefined,
+    });
+    expect(await fields.args({})).toMatchObject({ ok: true, data: undefined });
+    expect(await fields.args({ plan: "pro", seats: "3" })).toMatchObject({
+      ok: true,
+      data: { plan: "pro", seats: 3 },
+    });
+    expect(await fields.args({ plan: "gold" })).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
+  });
 });

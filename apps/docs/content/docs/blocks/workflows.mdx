@@ -316,3 +316,10 @@ idempotency key `admission:<id>`. Both are service-role functions.
 | `claim_due_workflow_schedules`, `advance_workflow_schedule`                                   | `service_role`                  | The schedule tick                                                                      |
 | `acquire_workflow_semaphore`, `release_workflow_semaphore`                                    | `service_role`                  | Semaphores                                                                             |
 | `request_workflow_start`, `claim_workflow_start_requests`, `mark_*`                           | `service_role`                  | Admission control                                                                      |
+
+## Hooks
+
+`createWorkflows` takes `hooks` keyed by group, then method, such as
+`{ schedules: { create: { before } } }` for a rule that returns a
+`DbError` to refuse a schedule; see
+[extending blocks](/docs/extending/blocks).

@@ -98,3 +98,21 @@ The ReUI Support Escalations board shows each ticket's SLA timer and turns it to
 | `SLA_SUBJECT_INVALID`  | the record isn't in `config.subjects`                     |
 | `SLA_EVENT_INVALID`    | not one of the events                                     |
 | `SLA_HOURS_INVALID`    | the business hours never open                             |
+
+## Your own columns
+
+Add columns to the policy table with `blocks.sla.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`savePolicy` validates and writes them, and `savePolicy` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createSla } from "better-supabase/blocks/sla";
+import { z } from "zod";
+
+const client = createSla({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

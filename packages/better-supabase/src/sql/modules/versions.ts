@@ -9,6 +9,8 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
   fail,
   lockTable,
   pageSize,
@@ -17,6 +19,8 @@ import {
   serviceGrant,
   sha256Hex,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
 import {
@@ -53,7 +57,7 @@ const NAMES: ModuleNames = {
     "before_version_restore",
     "after_version_restore",
   ],
-  options: ["subjects", "keep", "debounce"],
+  options: ["subjects", "keep", "debounce", "extraColumns"],
   tables: {
     versions: {
       name: "versions",
@@ -314,8 +318,17 @@ function build(ctx: ModuleContext): string {
     "not allowed to read these versions",
   );
   const notFound = fail("VERSION_NOT_FOUND", "version not found", "P0002");
-  const summary = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`;
+  // The version's extra columns: snapshot_version sets them, reads by
+  // members return them under fields; the anon read of a shared version
+  // leaves them out.
+  const extras = ctx.extraColumns("versions", ["fields", "content"]);
+  const extra = extraFieldsArg(extras);
+  const summary = (row: string, withFields = true): string =>
+    withExtraFields(
+      `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`,
+      row,
+      withFields ? extras : [],
+    );
   const tables = ctx.manages
     ? `create table if not exists ${versions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -333,7 +346,7 @@ function build(ctx: ModuleContext): string {
   ${c("createdAt")} timestamptz not null default now(),
   unique (${c("subjectType")}, ${c("subjectId")}, ${c("number")}),
   check (${c("content")} is not null or ${c("storagePath")} is not null)
-);
+);${addExtraColumns(versions, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${versions} (${c("tenant")});
 ${lockTable(versions, { read: true })}
 drop policy if exists "versions_read" on ${versions};
@@ -413,7 +426,10 @@ end;
 $$;
 ${serviceGrant(`${fn("version_insert")}(${ctx.idType}, text, text, jsonb, text, text, text, boolean, uuid)`)}
 
-create or replace function ${fn("snapshot_version")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+${extra.drop(fn("snapshot_version"), `${ctx.idType}, text, text, jsonb, text, text`)}
+create or replace function ${fn("snapshot_version")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -437,7 +453,7 @@ begin
     ["text", "snapshot_version.subject_type"],
     ["text", "snapshot_version.subject_id"],
   ])}
-  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());${writeExtraColumns(versions, extras, "snapshot_version.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`)}
   ${ctx.hook("after_version_snapshot", [
     ["uuid", "(v_result ->> 'id')::uuid"],
     ["text", "snapshot_version.subject_type"],
@@ -446,7 +462,7 @@ begin
   return v_result;
 end;
 $$;
-${userGrant(`${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text)`)}
+${userGrant(`${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text${extra.type})`)}
 
 create or replace function ${fn("list_versions")}(tenant ${ctx.idType}, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -527,7 +543,7 @@ begin
   if not found then
     return null;
   end if;
-  return (${summary("v_row")} - 'createdBy') || jsonb_build_object('content', v_row.${c("content")});
+  return (${summary("v_row", false)} - 'createdBy') || jsonb_build_object('content', v_row.${c("content")});
 end;
 $$;
 revoke all on function ${fn("get_shared_version")}(text) from public, anon, authenticated;
@@ -705,7 +721,10 @@ ${captureTriggers(ctx, list)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("versions", ["fields", "content"]),
+  ).contract;
   return [
     {
       name: "version_insert",
@@ -724,7 +743,7 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "snapshot_version",
-      args: ["{id}", "text", "text", "jsonb", "text", "text"],
+      args: ["{id}", "text", "text", "jsonb", "text", "text", ...extra],
       returns: "jsonb",
     },
     { name: "get_version", args: ["uuid"], returns: "jsonb" },

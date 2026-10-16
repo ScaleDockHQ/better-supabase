@@ -3,6 +3,7 @@ export {
   type CreatedShareLink,
   type CreateShareLinkOptions,
   type ResolvedShareLink,
+  type ShareLink,
   type ShareLinks,
   type ShareLinksOptions,
 } from "./share-links.ts";
