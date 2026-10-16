@@ -123,7 +123,7 @@ function rolesFunctions(ctx: ModuleContext): string {
     else '{}'::text[]
   end`;
   return `
--- The roles model (modules.access.roles): each role's permission keys.
+-- The roles model (blocks.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
 language sql
@@ -662,7 +662,7 @@ $$;
 revoke execute on function better_supabase.can_assign_as(uuid, ${ctx.idType}, text) from public, anon, authenticated;`;
 }
 
-const CALLER_ONLY = `raise exception 'The provider access model answers for the caller only (modules.access.model)'
+const CALLER_ONLY = `raise exception 'The provider access model answers for the caller only (blocks.access.model)'
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';`;
 
 function notSuspended(
@@ -996,7 +996,7 @@ export const ACCESS: ModuleDefinition = {
   name: "access",
   title: "Access contract",
   description:
-    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).",
+    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.access.model).",
   requires: ["tenant"],
   integrates: ["invitations", "organizations", "tenant"],
   dependencies: (layout) => {

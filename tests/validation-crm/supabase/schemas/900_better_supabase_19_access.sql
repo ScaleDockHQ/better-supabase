@@ -1,6 +1,6 @@
 -- better-supabase module: access (0.8.0)
 -- @bs-module access@1 adopt
--- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).
+-- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.access.model).
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -9,7 +9,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
--- (modules.access.disabled; with the managed organizations module, its
+-- (blocks.access.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant uuid)
 returns boolean
@@ -116,7 +116,7 @@ as $$
   end
 $$;
 
--- The roles model (modules.access.roles): each role's permission keys.
+-- The roles model (blocks.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
 language sql
