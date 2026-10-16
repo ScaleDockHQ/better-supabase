@@ -98,6 +98,18 @@ describe.skipIf(!live)("blocks without organizations", () => {
       expect(await tags.tag(bob.id, "note", "n1", bobs.id).orThrow()).toBe(
         true,
       );
+      // Reads also stay in the caller's own set.
+      expect(
+        (await tags.list(bob.id, "label").orThrow()).map((tag) => tag.id),
+      ).toEqual([bobs.id]);
+      expect((await tags.list(ann.id).orThrow()).map((tag) => tag.id)).toEqual([
+        bobs.id,
+      ]);
+      expect(
+        (await tags.forSubject(bob.id, "note", "n1").orThrow()).map(
+          (tag) => tag.name,
+        ),
+      ).toEqual(["Urgent"]);
     });
 
     it("shows comments only to their author's scope", async () => {

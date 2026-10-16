@@ -7,12 +7,11 @@ import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
-import { can, canAssign } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { Role } from "@/lib/claims";
 import { bs } from "@/lib/supabase/server";
 
-import { toOrganizationSummaries } from "./organization-queries";
+import { toMembers, toOrganizationSummaries } from "./organization-queries";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(2), v.maxLength(80));
@@ -93,37 +92,36 @@ export const updateOrganization = bs.action(
 );
 
 /**
- * Invites `email` to the active organization. There is no mailer in the
- * example: the token comes back so the page can show the accept link.
+ * Runs after `useInvitations` sent an invitation from the browser (the
+ * invitations module checks and audits the invite itself): completes the
+ * onboarding step and renders the pending invitations again.
  */
-export const inviteMember = bs.action(
+export const invitationSent = bs.action(
   {
-    input: v.object({
-      email: v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email()),
-      role: Role,
-    }),
     requireTenant: true,
-    authorize: (session, { role }) => canAssign(session, role),
+    authorize: (session) => can(session, "members.invite"),
   },
-  async ({ email, role }, { tenant: organizationId, supabase }) => {
-    const { organizations, onboarding } = blocks(supabase);
-    const sent = await organizations.invite({ organizationId, email, role });
-    if (!sent.ok) return sent;
-    after(() =>
-      recordAudit(supabase, {
-        eventType: "invitation.created",
-        category: "membership",
-        organizationId,
-        targetType: "invitation",
-        record: sent.data.invitation.id,
-        targetLabel: email,
-        metadata: { role },
-      }),
+  async (_input, { tenant: organizationId, supabase }) => {
+    await blocks(supabase).onboarding.complete(
+      gettingStarted,
+      "invite",
+      organizationId,
     );
-    await onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
-    return ok({ token: sent.data.token });
+    return ok(true);
   },
+);
+
+/**
+ * The active organization's members with their profiles, loaded by
+ * `useMembers` in the members table after a removal.
+ */
+export const loadMembers = bs.action(
+  { requireTenant: true },
+  async (_input, { tenant: organizationId, db, supabase }) =>
+    db
+      .$rpc("organization_members", { organization: organizationId })
+      .map((rows) => toMembers(rows, supabase)),
 );
 
 export const revokeInvitation = bs.action(
@@ -150,56 +148,19 @@ export const revokeInvitation = bs.action(
   },
 );
 
-export const updateMemberRole = bs.action(
-  {
-    input: v.object({ userId: Id, role: Role }),
-    requireTenant: true,
-    authorize: (session, { role }) => canAssign(session, role),
-  },
-  async ({ userId, role }, { tenant: organizationId, supabase }) => {
-    const updated = await blocks(supabase).organizations.updateMemberRole(
-      organizationId,
-      userId,
-      role,
-    );
-    if (!updated.ok) return updated;
-    after(() =>
-      recordAudit(supabase, {
-        eventType: "membership.role_changed",
-        category: "membership",
-        organizationId,
-        targetType: "user",
-        record: userId,
-        metadata: { role },
-      }),
-    );
-    // The member's token still carries the old role until it refreshes.
-    bs.invalidateSession(userId);
-    return ok(true);
-  },
-);
-
-export const removeMember = bs.action(
+/**
+ * Runs after `useMembers` changed a member's role or removed them from the
+ * browser (the organizations module checks and audits the change itself).
+ * The member's token still carries the old role until it refreshes.
+ */
+export const memberChanged = bs.action(
   {
     input: v.object({ userId: Id }),
     requireTenant: true,
-    authorize: (session) => can(session, "members.remove"),
+    authorize: (session) =>
+      can(session, "members.update_role") || can(session, "members.remove"),
   },
-  async ({ userId }, { tenant: organizationId, supabase }) => {
-    const removed = await blocks(supabase).organizations.removeMember(
-      organizationId,
-      userId,
-    );
-    if (!removed.ok) return removed;
-    after(() =>
-      recordAudit(supabase, {
-        eventType: "membership.removed",
-        category: "membership",
-        organizationId,
-        targetType: "user",
-        record: userId,
-      }),
-    );
+  ({ userId }) => {
     bs.invalidateSession(userId);
     return ok(true);
   },

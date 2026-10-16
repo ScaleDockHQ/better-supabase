@@ -44,6 +44,10 @@ export interface Tag<F extends object = Record<never, never>> {
   readonly slug: string;
   /** Its rank key among the tenant's tags of the same kind, when it has one. */
   readonly rank?: string;
+  /** Set on the tags `list` and `forSubject` return. */
+  readonly kind?: string;
+  readonly color?: string;
+  readonly description?: string;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -82,19 +86,36 @@ export interface Tags<F extends object = Record<never, never>> {
     subjectId: string,
     tagId: string,
   ): AsyncResult<boolean>;
+  /** The tenant's tags of `kind` (every kind without it), in rank order. */
+  list(organizationId: string, kind?: string): AsyncResult<readonly Tag<F>[]>;
+  /** The tags on one subject, in rank order; the caller must be able to read it. */
+  forSubject(
+    organizationId: string,
+    subjectType: string,
+    subjectId: string,
+  ): AsyncResult<readonly Tag<F>[]>;
 }
 
 function tagOf(value: unknown): Tag {
   const row = recordOf(value, "tag");
-  const rank = optionalText(row["rank"]);
+  const optional = (key: "rank" | "kind" | "color" | "description") => {
+    const found = optionalText(row[key]);
+    return found === undefined ? {} : { [key]: found };
+  };
   return {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
     slug: optionalText(row["slug"]) ?? "",
-    ...(rank === undefined ? {} : { rank }),
+    ...optional("rank"),
+    ...optional("kind"),
+    ...optional("color"),
+    ...optional("description"),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
+
+const tagsOf = (value: unknown): Tag[] =>
+  (Array.isArray(value) ? value : []).map(tagOf);
 
 /** The `tags` SQL module as typed calls. */
 export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
@@ -159,6 +180,22 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => value === true,
       ),
+    list: (organizationId, kind) =>
+      call(
+        "list_tags",
+        { tenant: organizationId, kind: kind ?? null },
+        tagsOf,
+      ).andThen(fields.rows),
+    forSubject: (organizationId, subjectType, subjectId) =>
+      call(
+        "subject_tags",
+        {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_id: subjectId,
+        },
+        tagsOf,
+      ).andThen(fields.rows),
   };
   return withBlockHooks(client, options.hooks, {
     block: "tags",

@@ -72,14 +72,24 @@ export async function getMyOrganizations(): Promise<
   return toOrganizationSummaries(await db.$rpc("my_organizations").orThrow());
 }
 
-export async function getMembers(
-  organizationId: string,
-): Promise<readonly Member[]> {
-  "use cache: private";
-  const { db, supabase } = await bs.cached();
-  const rows = await db
-    .$rpc("organization_members", { organization: organizationId })
-    .orThrow();
+interface MemberRow {
+  readonly userId: string | null;
+  readonly role: string | null;
+  readonly fullName: string | null;
+  readonly email: string | null;
+  readonly avatarPath: string | null;
+  readonly avatarUrl: string | null;
+  readonly joinedAt: string | null;
+}
+
+/**
+ * Rows of `public.organization_members(organization)` with their avatar
+ * URLs, skipping incomplete ones. The members table's server action uses it too.
+ */
+export function toMembers(
+  rows: readonly MemberRow[],
+  supabase: Parameters<typeof avatars.connect>[0],
+): readonly Member[] {
   const storage = avatars.connect(supabase);
   return rows.flatMap((row) =>
     row.userId
@@ -95,6 +105,17 @@ export async function getMembers(
         ]
       : [],
   );
+}
+
+export async function getMembers(
+  organizationId: string,
+): Promise<readonly Member[]> {
+  "use cache: private";
+  const { db, supabase } = await bs.cached();
+  const rows = await db
+    .$rpc("organization_members", { organization: organizationId })
+    .orThrow();
+  return toMembers(rows, supabase);
 }
 
 /** Pending invitations. The function refuses callers without `members.invite`. */

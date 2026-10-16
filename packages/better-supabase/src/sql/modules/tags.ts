@@ -1,5 +1,6 @@
 import type { TagsEvents } from "../../blocks/tags/events.ts";
 import type {
+  ExtraColumn,
   ModuleContext,
   ModuleContractFunction,
   ModuleEvents,
@@ -131,18 +132,18 @@ function untagBody(
   const polymorphic =
     taggings === ""
       ? fail("TAG_SUBJECT_UNKNOWN", "this subject has no link table", "22023")
-      : `delete from ${taggings}
-      where ${ctx.scope.eq(ctx.col("taggings", "tenant"), "untag.tenant")}
-        and ${ctx.col("taggings", "tag")} = untag.tag_id
-        and ${ctx.col("taggings", "subjectType")} = untag.subject_type
-        and ${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
+      : `delete from ${taggings} g
+      where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "untag.tenant")}
+        and g.${ctx.col("taggings", "tag")} = untag.tag_id
+        and g.${ctx.col("taggings", "subjectType")} = untag.subject_type
+        and g.${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
   if (bound.length === 0) return polymorphic;
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
       const tagCol = link.columns["tag"] ?? "tag";
       return `    when ${sqlString(link.type)} then
-      delete from ${link.qualified} where ${sqlIdent(subject)}::text = untag.subject_id and ${sqlIdent(tagCol)} = untag.tag_id;`;
+      delete from ${link.qualified} l where l.${sqlIdent(subject)}::text = untag.subject_id and l.${sqlIdent(tagCol)} = untag.tag_id;`;
     })
     .join("\n");
   return `case untag.subject_type
@@ -168,6 +169,7 @@ function build(ctx: ModuleContext): string {
   const createdAt = ctx.col("tags", "createdAt");
   const updatedAt = ctx.col("tags", "updatedAt");
   const manage = ctx.permission("manage", OPERATIONS["tags.manage"]);
+  const read = ctx.permission("read", OPERATIONS["tags.read"]);
   const bound = links(ctx);
   const list = subjects(ctx);
   // Outside tenant scope the scope column can be null, and a null tenant
@@ -405,7 +407,97 @@ begin
 end;
 $$;
 ${userGrant(`${fn("untag")}(${ctx.idType}, text, text, uuid)`)}
+
+-- The tenant's tags of one kind (every kind when it is null), in rank order.
+create or replace function ${fn("list_tags")}(tenant ${ctx.idType}, kind text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  ${ctx.scope.bind("list_tags.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("list_tags.tenant", read)} or ${ctx.scope.can("list_tags.tenant", manage)}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
+  end if;
+  return coalesce((
+    select jsonb_agg(${tagJson(ctx, "t", extras)} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
+    from ${tags} t
+    where ${ctx.scope.eq(`t.${tenant}`, "list_tags.tenant")}
+      and (list_tags.kind is null or t.${kind} = list_tags.kind)
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("list_tags")}(${ctx.idType}, text)`)}
+
+-- The tags on one subject, for a caller who can read the tenant's tags and the subject.
+create or replace function ${fn("subject_tags")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  ${ctx.scope.bind("subject_tags.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("subject_tags.tenant", read)} or ${ctx.scope.can("subject_tags.tenant", manage)}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
+  end if;
+  if not (${subjectReadable(ctx, list, { type: "subject_tags.subject_type", id: "subject_tags.subject_id", tenant: "subject_tags.tenant" })}) then
+    ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to read this record's tags")}
+  end if;
+  ${subjectTagIds(ctx, bound, taggings)}
+  return coalesce((
+    select jsonb_agg(${tagJson(ctx, "t", extras)} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
+    from ${tags} t
+    where ${ctx.scope.eq(`t.${tenant}`, "subject_tags.tenant")}
+      and t.${id} = any (v_ids)
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}
 `;
+}
+
+/** One tag row as the JSON `list_tags` and `subject_tags` return. */
+function tagJson(
+  ctx: ModuleContext,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string {
+  const col = (logical: string): string =>
+    `${alias}.${ctx.col("tags", logical)}`;
+  return `jsonb_build_object('id', ${col("id")}, 'kind', ${col("kind")}, 'name', ${col("name")}, 'slug', ${col("slug")}, 'color', ${col("color")}, 'description', ${col("description")}${ctx.has("tags", "rank") ? `, 'rank', ${col("rank")}` : ""}${extraFieldsJson(alias, extras)})`;
+}
+
+/** Fills `v_ids` with the tag ids on `subject_tags`' subject, from its link table. */
+function subjectTagIds(
+  ctx: ModuleContext,
+  bound: readonly SubjectTableBinding[],
+  taggings: string,
+): string {
+  const polymorphic =
+    taggings === ""
+      ? fail("TAG_SUBJECT_UNKNOWN", "this subject has no link table", "22023")
+      : `select array_agg(g.${ctx.col("taggings", "tag")}) into v_ids from ${taggings} g
+      where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "subject_tags.tenant")}
+        and g.${ctx.col("taggings", "subjectType")} = subject_tags.subject_type
+        and g.${ctx.col("taggings", "subjectId")} = subject_tags.subject_id;`;
+  if (bound.length === 0) return polymorphic;
+  const whens = bound
+    .map((link) => {
+      const subject = link.columns["subject"] ?? "subject";
+      const tagCol = link.columns["tag"] ?? "tag";
+      return `    when ${sqlString(link.type)} then
+      select array_agg(l.${sqlIdent(tagCol)}) into v_ids from ${link.qualified} l where l.${sqlIdent(subject)}::text = subject_tags.subject_id;`;
+    })
+    .join("\n");
+  return `case subject_tags.subject_type
+${whens}
+    else
+      ${polymorphic}
+  end case;`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -417,6 +509,12 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
+    { name: "list_tags", args: ["{id}", "text"], returns: "jsonb" },
+    {
+      name: "subject_tags",
+      args: ["{id}", "text", "text"],
+      returns: "jsonb",
+    },
     ...(ctx.has("tags", "rank")
       ? [{ name: "rank_tag", args: ["uuid", "text"], returns: "boolean" }]
       : []),

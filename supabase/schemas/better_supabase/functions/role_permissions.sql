@@ -3,7 +3,8 @@
 -- A user can belong to several organizations (public.memberships);
 -- the active one is the `tenant_id` claim that switch_organization writes.
 -- Owners hold every permission, admins everything but deleting and handing
--- over the organization, members read, comment, keep their own API keys,
+-- over the organization, members read, comment, tag customers with the
+-- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
@@ -25,6 +26,7 @@ as $$
       'settings.read', 'settings.update', 'settings.manage',
       'api_keys.manage', 'api_keys.own',
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
+      'tags.read', 'tags.manage',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
       'search.read', 'metrics.read',
       'notifications.send', 'notifications.read',
@@ -36,7 +38,7 @@ as $$
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
-      'onboarding.read', 'usage.read', 'usage.record', 'search.read', 'metrics.read',
+      'tags.read', 'onboarding.read', 'usage.read', 'usage.record', 'search.read', 'metrics.read',
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
       'ai_chat.read', 'ai_chat.create', 'ai_chat.share',

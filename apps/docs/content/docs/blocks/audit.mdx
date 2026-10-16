@@ -262,6 +262,86 @@ const page = await auditList
   .orThrow();
 ```
 
+### In the browser
+
+`useAuditLog` from `better-supabase/blocks/audit/react` loads the newest
+page through the provider's client, as the caller, so the read policy
+applies as it does for `list`. `setFilters({ actorId, eventType, search })`
+narrows the table and loads the first page again (an empty value matches
+every entry), and `loadMore()` appends the next, older page while
+`hasMore` is `true`. The same hook runs in React DOM and React Native.
+
+```tsx title="components/audit-log-table.tsx"
+import { useAuditLog } from "better-supabase/blocks/audit/react";
+
+const { entries, filters, hasMore, setFilters, loadMore } = useAuditLog({
+  organizationId,
+  schema: "api",
+});
+```
+
+`createAuditLogController` from `better-supabase/blocks/audit` is the same
+logic without React, and `better-supabase/blocks/audit/vue`, `/svelte` and
+`/solid` export `useAuditLog` over it, taking a `client` from
+`createAudit` and `auth` from the provider. The
+[audit log table recipe](/docs/registry/ui-recipes) shows it in the Next.js
+and Expo examples.
+
+```vue title="AuditLog.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useAuditLog } from "better-supabase/blocks/audit/vue";
+import { createAudit, rpcTransport } from "better-supabase/blocks/audit";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useAuditLog({
+  client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
+  organizationId: props.organizationId,
+});
+</script>
+
+<template>
+  <p v-for="entry in state.entries" :key="entry.id">{{ entry.eventType }}</p>
+  <button v-if="state.hasMore" @click="actions.loadMore()">Load more</button>
+</template>
+```
+
+```svelte title="AuditLog.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useAuditLog } from "better-supabase/blocks/audit/svelte";
+  import { createAudit, rpcTransport } from "better-supabase/blocks/audit";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const audit = useAuditLog({
+    client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId,
+  });
+</script>
+
+<p>{$audit.entries?.length ?? 0} entries</p>
+```
+
+```tsx title="AuditLog.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useAuditLog } from "better-supabase/blocks/audit/solid";
+import { createAudit, rpcTransport } from "better-supabase/blocks/audit";
+
+export function AuditLog(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useAuditLog({
+    client: createAudit({
+      transport: rpcTransport(supabase),
+      schema: "api",
+    }),
+    organizationId: props.organizationId,
+  });
+  return <p>{state().entries?.length ?? 0} entries</p>;
+}
+```
+
 ## Reverting changes
 
 `audit.revert(entryIds)` writes the old values of row changes back, newest

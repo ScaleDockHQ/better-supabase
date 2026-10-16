@@ -1720,6 +1720,7 @@
       "auditListQuery",
       "auditSink",
       "createAudit",
+      "createAuditLogController",
       "dbTransport",
       "exportAuditLog",
       "purgeAuditLog",
@@ -1741,10 +1742,15 @@
       "AuditExportOptions",
       "AuditExportToStorageOptions",
       "AuditFacet",
+      "AuditFilters",
       "AuditListDefinition",
       "AuditListOptions",
       "AuditLog",
+      "AuditLogActions",
+      "AuditLogController",
+      "AuditLogControllerOptions",
       "AuditLogOptions",
+      "AuditLogSnapshot",
       "AuditPage",
       "AuditRecord",
       "AuditRetentionSource",
@@ -1786,6 +1792,8 @@
   },
   "./blocks/organizations": {
     "values": [
+      "createInvitationsController",
+      "createMembersController",
       "createOrganizations",
       "createOrganizationsController",
       "dbTransport",
@@ -1803,16 +1811,28 @@
       "BlockTransportMiddleware",
       "CreateOrganizationOptions",
       "Invitation",
+      "InvitationChange",
       "InvitationChanges",
+      "InvitationDraft",
       "InvitationErrorHint",
       "InvitationPreview",
+      "InvitationsActions",
+      "InvitationsController",
+      "InvitationsControllerOptions",
       "InvitationSent",
+      "InvitationsSnapshot",
       "InvitationStatus",
       "InviteRequest",
+      "MemberChange",
+      "MembersActions",
+      "MembersController",
+      "MembersControllerOptions",
+      "MembersSnapshot",
       "OrganizationAttributes",
       "OrganizationInvitationRow",
       "OrganizationMember",
       "OrganizationMembership",
+      "OrganizationRowSource",
       "Organizations",
       "OrganizationsActions",
       "OrganizationsController",
@@ -2470,6 +2490,7 @@
       "apiKeysBlock",
       "apiKeysEvents",
       "createApiKeys",
+      "createApiKeysController",
       "dbTransport",
       "parseApiKey",
       "rpcTransport",
@@ -2479,14 +2500,20 @@
     "types": [
       "ApiKey",
       "ApiKeyAuth",
+      "ApiKeyChange",
       "ApiKeyCheck",
       "ApiKeyClaimsOptions",
       "ApiKeyContributions",
+      "ApiKeyDraft",
       "ApiKeyExtraClaim",
       "ApiKeyResolverOptions",
       "ApiKeys",
+      "ApiKeysActions",
+      "ApiKeysController",
+      "ApiKeysControllerOptions",
       "ApiKeysEvents",
       "ApiKeysOptions",
+      "ApiKeysSnapshot",
       "ApiKeyState",
       "BlockTransport",
       "CreateApiKeyInput",
@@ -4495,12 +4522,18 @@
   },
   "./blocks/tags": {
     "values": [
+      "createTagInputController",
       "createTags",
       "tagsBlock",
       "tagsEvents"
     ],
     "types": [
       "Tag",
+      "TagChange",
+      "TagInputActions",
+      "TagInputController",
+      "TagInputControllerOptions",
+      "TagInputSnapshot",
       "Tags",
       "TagsEvents",
       "TagsOptions"
@@ -6024,20 +6057,40 @@
   },
   "./blocks/organizations/react": {
     "values": [
+      "useInvitations",
+      "useMembers",
       "useOrganizations"
     ],
     "types": [
+      "InvitationChange",
+      "InvitationDraft",
+      "InvitationsState",
+      "MemberChange",
+      "MembersState",
+      "OrganizationRowSource",
       "OrganizationSource",
       "OrganizationsState",
+      "UseInvitationsOptions",
+      "UseMembersOptions",
       "UseOrganizationsOptions"
     ]
   },
   "./blocks/organizations/vue": {
     "values": [
+      "useInvitations",
+      "useMembers",
       "useOrganizations"
     ],
     "types": [
       "BlockOptions",
+      "InvitationsActions",
+      "InvitationsControllerOptions",
+      "InvitationsSnapshot",
+      "MembersActions",
+      "MembersControllerOptions",
+      "MembersSnapshot",
+      "OrganizationInvitationRow",
+      "OrganizationMember",
       "OrganizationMembership",
       "OrganizationsActions",
       "OrganizationsControllerOptions",
@@ -6047,10 +6100,20 @@
   },
   "./blocks/organizations/svelte": {
     "values": [
+      "useInvitations",
+      "useMembers",
       "useOrganizations"
     ],
     "types": [
       "BlockOptions",
+      "InvitationsActions",
+      "InvitationsControllerOptions",
+      "InvitationsSnapshot",
+      "MembersActions",
+      "MembersControllerOptions",
+      "MembersSnapshot",
+      "OrganizationInvitationRow",
+      "OrganizationMember",
       "OrganizationMembership",
       "OrganizationsActions",
       "OrganizationsControllerOptions",
@@ -6060,15 +6123,164 @@
   },
   "./blocks/organizations/solid": {
     "values": [
+      "useInvitations",
+      "useMembers",
       "useOrganizations"
     ],
     "types": [
       "BlockOptions",
+      "InvitationsActions",
+      "InvitationsControllerOptions",
+      "InvitationsSnapshot",
+      "MembersActions",
+      "MembersControllerOptions",
+      "MembersSnapshot",
+      "OrganizationInvitationRow",
+      "OrganizationMember",
       "OrganizationMembership",
       "OrganizationsActions",
       "OrganizationsControllerOptions",
       "OrganizationsSnapshot",
       "SolidController"
+    ]
+  },
+  "./blocks/audit/react": {
+    "values": [
+      "useAuditLog"
+    ],
+    "types": [
+      "AuditFilters",
+      "AuditLogState",
+      "UseAuditLogOptions"
+    ]
+  },
+  "./blocks/audit/vue": {
+    "values": [
+      "useAuditLog"
+    ],
+    "types": [
+      "AuditLogActions",
+      "AuditLogControllerOptions",
+      "AuditLogSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/audit/svelte": {
+    "values": [
+      "useAuditLog"
+    ],
+    "types": [
+      "AuditLogActions",
+      "AuditLogControllerOptions",
+      "AuditLogSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/audit/solid": {
+    "values": [
+      "useAuditLog"
+    ],
+    "types": [
+      "AuditLogActions",
+      "AuditLogControllerOptions",
+      "AuditLogSnapshot",
+      "BlockOptions",
+      "SolidController"
+    ]
+  },
+  "./blocks/api-keys/react": {
+    "values": [
+      "useApiKeys"
+    ],
+    "types": [
+      "ApiKeyChange",
+      "ApiKeyDraft",
+      "ApiKeysState",
+      "UseApiKeysOptions"
+    ]
+  },
+  "./blocks/api-keys/vue": {
+    "values": [
+      "useApiKeys"
+    ],
+    "types": [
+      "ApiKeysActions",
+      "ApiKeysControllerOptions",
+      "ApiKeysSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/api-keys/svelte": {
+    "values": [
+      "useApiKeys"
+    ],
+    "types": [
+      "ApiKeysActions",
+      "ApiKeysControllerOptions",
+      "ApiKeysSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/api-keys/solid": {
+    "values": [
+      "useApiKeys"
+    ],
+    "types": [
+      "ApiKeysActions",
+      "ApiKeysControllerOptions",
+      "ApiKeysSnapshot",
+      "BlockOptions",
+      "SolidController"
+    ]
+  },
+  "./blocks/tags/react": {
+    "values": [
+      "useTagInput"
+    ],
+    "types": [
+      "TagChange",
+      "TagInputState",
+      "UseTagInputOptions"
+    ]
+  },
+  "./blocks/tags/vue": {
+    "values": [
+      "useTagInput"
+    ],
+    "types": [
+      "BlockOptions",
+      "TagInputActions",
+      "TagInputControllerOptions",
+      "TagInputSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/tags/svelte": {
+    "values": [
+      "useTagInput"
+    ],
+    "types": [
+      "BlockOptions",
+      "SvelteController",
+      "TagInputActions",
+      "TagInputControllerOptions",
+      "TagInputSnapshot"
+    ]
+  },
+  "./blocks/tags/solid": {
+    "values": [
+      "useTagInput"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "TagInputActions",
+      "TagInputControllerOptions",
+      "TagInputSnapshot"
     ]
   },
   "./blocks/catalog": {

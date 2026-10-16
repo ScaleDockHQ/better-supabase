@@ -286,47 +286,135 @@ const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
-  ...(
-    [
-      [
-        "members-table",
-        "Members table",
-        "organizations",
-        "An organization's members with their roles and actions.",
+  {
+    slug: "members-table",
+    title: "Members table",
+    block: "organizations",
+    description:
+      "An organization's members with their roles, where a role change shows at once and a member can be removed.",
+    hook: {
+      name: "useMembers",
+      entry: "better-supabase/blocks/organizations/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/organization/components/member-table.tsx`,
+      components: ["avatar", "button", "select", "table"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/members-table.tsx`,
+      components: ["ActivityIndicator", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "invite-dialog",
+    title: "Invite dialog",
+    block: "invitations",
+    description:
+      "A form that invites a teammate by email with a role, then shows the token for the accept link.",
+    hook: {
+      name: "useInvitations",
+      entry: "better-supabase/blocks/organizations/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/organization/components/invite-member-dialog.tsx`,
+      components: ["button", "dialog", "field", "input", "select"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/invite-dialog.tsx`,
+      components: ["Button", "Modal", "Pressable", "Text", "TextInput", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "api-keys-table",
+    title: "API keys table",
+    block: "api-keys",
+    description:
+      "The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key.",
+    hook: {
+      name: "useApiKeys",
+      entry: "better-supabase/blocks/api-keys/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/api-keys/components/api-key-table.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "skeleton",
+        "table",
       ],
-      [
-        "invite-dialog",
-        "Invite dialog",
-        "invitations",
-        "A form that invites a teammate by email with a role.",
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/api-keys-table.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Button",
+        "Pressable",
+        "Text",
+        "TextInput",
+        "View",
       ],
-      [
-        "api-keys-table",
-        "API keys table",
-        "api-keys",
-        "The organization's API keys, with create and revoke.",
+      glue: [],
+    },
+  },
+  {
+    slug: "audit-log-table",
+    title: "Audit log table",
+    block: "audit",
+    description:
+      "The audit trail, newest first, with filters by actor and action and older pages on demand.",
+    hook: {
+      name: "useAuditLog",
+      entry: "better-supabase/blocks/audit/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/audit/components/audit-log-table.tsx`,
+      components: ["button", "select", "skeleton", "table"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/audit-log-table.tsx`,
+      components: ["ActivityIndicator", "Button", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "tag-input",
+    title: "Tag input",
+    block: "tags",
+    description:
+      "A record's tags with suggestions, where typing a name adds a tag or creates it.",
+    hook: {
+      name: "useTagInput",
+      entry: "better-supabase/blocks/tags/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/customers/components/tag-input.tsx`,
+      components: ["badge", "button", "input", "skeleton"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/tag-input.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Button",
+        "Pressable",
+        "Text",
+        "TextInput",
+        "View",
       ],
-      [
-        "audit-log-table",
-        "Audit log table",
-        "audit",
-        "The audit trail with filters by actor and action.",
-      ],
-      [
-        "tag-input",
-        "Tag input",
-        "tags",
-        "An input that adds and removes tags on a record.",
-      ],
-    ] as const
-  ).map(([slug, title, block, description]): RecipeSource => ({
-    slug,
-    title,
-    block,
-    description,
-    hook: { name: "", entry: `better-supabase/blocks/${block}/react` },
-    missing: `a client controller and React hook for the ${block} block (plan 003, workstream 4)`,
-  })),
+      glue: [],
+    },
+  },
 ];
 
 interface Snippet {
@@ -516,17 +604,27 @@ function table(rows: readonly (readonly string[])[]): string {
   ].join("\n");
 }
 
-function plannedTable(recipes: readonly Recipe[]): string {
-  return table([
-    ["Recipe", "Block", "Waits for"],
-    ...recipes
-      .filter((recipe) => recipe.status === "planned")
-      .map((recipe) => [
+/** The "Planned" section, or nothing while every recipe is available. */
+function plannedSection(
+  recipes: readonly Recipe[],
+  lead: readonly string[] = [],
+): readonly string[] {
+  const planned = recipes.filter((recipe) => recipe.status === "planned");
+  if (planned.length === 0) return [];
+  return [
+    "## Planned",
+    "",
+    ...lead,
+    table([
+      ["Recipe", "Block", "Waits for"],
+      ...planned.map((recipe) => [
         recipe.title,
         `\`${recipe.block}\``,
         recipe.missing ?? "",
       ]),
-  ]);
+    ]),
+    "",
+  ];
 }
 
 const INTRO = `better-supabase ships no visible UI components. A recipe builds one interface from your own shadcn components (web) or React Native primitives (native) and a block's hook. The web and native code call the same hook, and both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
@@ -536,7 +634,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
   return [
     "---",
     "title: UI recipes",
-    "description: Build notifications, search, onboarding, comments, an organization switcher, a plan picker, a usage meter, a feature gate and settings pages from shadcn or React Native components and the blocks' hooks.",
+    "description: Build notifications, search, onboarding, comments, an organization switcher, members, invitations, API keys, the audit log, tags, a plan picker, a usage meter, a feature gate and settings pages from shadcn or React Native components and the blocks' hooks.",
     "---",
     "",
     "{/* Generated by scripts/build-recipes.ts from the example apps. Edit the examples or the script, then run `pnpm recipes`. */}",
@@ -546,10 +644,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
     `Each recipe also has a page at [bettersupabase.com/recipes](${SITE}/recipes) with a screenshot. The native snippets use plain React Native primitives, so they run without a styling library; [React Native Reusables](https://reactnativereusables.com) serves shadcn-style native components from a working registry if you want them.`,
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
-    "## Planned",
-    "",
-    plannedTable(recipes),
-    "",
+    ...plannedSection(recipes),
   ].join("\n");
 }
 
@@ -565,12 +660,10 @@ function renderSkill(recipes: readonly Recipe[]): string {
     "Build the UI this way: add the shadcn components the recipe lists, install the glue items, then adapt the snippet to the app (its i18n, routes and API schema). Never add a better-supabase UI package; there is none.",
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
-    "## Planned",
-    "",
-    "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
-    "",
-    plannedTable(recipes),
-    "",
+    ...plannedSection(recipes, [
+      "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
+      "",
+    ]),
   ].join("\n");
 }
 

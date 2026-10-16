@@ -60,39 +60,41 @@ export default function RecipesPage() {
         </ul>
       </section>
 
-      <section aria-labelledby="planned" className="flex flex-col gap-4">
-        <div className="flex max-w-2xl flex-col gap-2">
-          <h2 id="planned" className="text-xl font-semibold tracking-tight">
-            Planned
-          </h2>
-          <p className="text-muted-foreground text-sm leading-6">
-            These wait for their block&apos;s hook. Until it ships, build them
-            from the block&apos;s TypeScript client in a server action or
-            loader.
-          </p>
-        </div>
-        <ul className="border-border divide-border divide-y rounded-xl border">
-          {plannedRecipes.map((recipe) => (
-            <li
-              key={recipe.slug}
-              className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-            >
-              <span className="text-sm font-medium sm:w-48">
-                {recipe.title}
-              </span>
-              <span className="text-muted-foreground flex-1 text-sm">
-                {recipe.description}
-              </span>
-              <SiteLink
-                href={`/blocks/${recipe.block}`}
-                className="text-muted-foreground hover:text-foreground font-mono text-xs"
+      {plannedRecipes.length === 0 ? null : (
+        <section aria-labelledby="planned" className="flex flex-col gap-4">
+          <div className="flex max-w-2xl flex-col gap-2">
+            <h2 id="planned" className="text-xl font-semibold tracking-tight">
+              Planned
+            </h2>
+            <p className="text-muted-foreground text-sm leading-6">
+              These wait for their block&apos;s hook. Until it ships, build them
+              from the block&apos;s TypeScript client in a server action or
+              loader.
+            </p>
+          </div>
+          <ul className="border-border divide-border divide-y rounded-xl border">
+            {plannedRecipes.map((recipe) => (
+              <li
+                key={recipe.slug}
+                className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
               >
-                {recipe.block}
-              </SiteLink>
-            </li>
-          ))}
-        </ul>
-      </section>
+                <span className="text-sm font-medium sm:w-48">
+                  {recipe.title}
+                </span>
+                <span className="text-muted-foreground flex-1 text-sm">
+                  {recipe.description}
+                </span>
+                <SiteLink
+                  href={`/blocks/${recipe.block}`}
+                  className="text-muted-foreground hover:text-foreground font-mono text-xs"
+                >
+                  {recipe.block}
+                </SiteLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ export const PERMISSIONS = [
   "api_keys.own",
   "comments.create",
   "comments.moderate",
+  "tags.manage",
   "onboarding.complete",
   "workflow.read",
   "workflow.run",
@@ -66,6 +67,7 @@ const grants = {
     "api_keys.own",
     "comments.create",
     "comments.moderate",
+    "tags.manage",
     "onboarding.complete",
     "workflow.read",
     "workflow.run",
@@ -127,15 +129,5 @@ export function can(
 export function assignableRoles(role: Role): readonly Role[] {
   return (["member", "admin", "owner"] as const).filter(
     (candidate) => RANK[candidate] <= RANK[role],
-  );
-}
-
-/** Whether the caller may give `role` to someone: as in `better_supabase.can_assign_as`. */
-export function canAssign(session: AuthSession<Claims>, role: Role): boolean {
-  const own = roleOf(session);
-  return (
-    own !== undefined &&
-    (can(session, "members.invite") || can(session, "members.update_role")) &&
-    RANK[own] >= RANK[role]
   );
 }

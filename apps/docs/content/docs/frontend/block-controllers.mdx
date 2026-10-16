@@ -51,6 +51,8 @@ build them from the provider's client.
 | ------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `ai-chat`          | `createAiChatsController`, `createAiChatTreeController`, `createAiModelsController`, `createAiShareController` | `useAiChats`, `useAiChatTree`, `useAiModels`, `useAiShare` |
 | `announcements`    | `createAnnouncementsController`                                                                                | `useAnnouncements`                                         |
+| `api-keys`         | `createApiKeysController`                                                                                      | `useApiKeys`                                               |
+| `audit`            | `createAuditLogController`                                                                                     | `useAuditLog`                                              |
 | `billing`          | `createPlanPickerController`                                                                                   | `usePlanPicker`                                            |
 | `bookings`         | `createAvailableSlotsController`                                                                               | `useAvailableSlots`                                        |
 | `calendar`         | `createCalendarController`                                                                                     | `useCalendar`                                              |
@@ -60,11 +62,12 @@ build them from the provider's client.
 | `inbox`            | `createInboxController`, `createConversationController`, `createInboxWidgetController`                         | `useInbox`, `useConversation`, `useInboxWidget`            |
 | `notifications`    | `createNotificationsController`                                                                                | `useNotifications`                                         |
 | `onboarding`       | `createOnboardingController`                                                                                   | `useOnboarding`                                            |
-| `organizations`    | `createOrganizationsController`                                                                                | `useOrganizations`                                         |
+| `organizations`    | `createOrganizationsController`, `createMembersController`, `createInvitationsController`                      | `useOrganizations`, `useMembers`, `useInvitations`         |
 | `reactions`        | `createReactionsController`                                                                                    | `useReactions`                                             |
 | `saved-views`      | `createSavedViewsController`, `matchSavedViews`                                                                | `useSavedViews`                                            |
 | `search`           | `createCommandSearchController`                                                                                | `useCommandSearch`                                         |
 | `settings`         | `createSettingsController`, `settingFields`                                                                    | `useSettings`                                              |
+| `tags`             | `createTagInputController`                                                                                     | `useTagInput`                                              |
 | `undo`             | `createUndoController`                                                                                         | `useUndoStack`                                             |
 | `usage`            | `createUsageMeterController`                                                                                   | `useUsageMeter`                                            |
 | `workflows`        | `createWorkflowRunsController`, `createWorkflowRunController`                                                  | `useWorkflowRuns`, `useWorkflowRun`                        |

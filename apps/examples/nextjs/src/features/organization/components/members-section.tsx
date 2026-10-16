@@ -42,13 +42,17 @@ export async function MembersSection() {
           </CardDescription>
           {canInvite ? (
             <CardAction>
-              <InviteMemberDialog myRole={role} />
+              <InviteMemberDialog
+                organizationId={organizationId}
+                myRole={role}
+              />
             </CardAction>
           ) : null}
         </CardHeader>
         <CardContent>
           <MemberTable
-            members={members}
+            organizationId={organizationId}
+            initial={members}
             currentUserId={session.user.id}
             myRole={role}
             canUpdateRole={can(session, "members.update_role")}

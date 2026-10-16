@@ -1,12 +1,12 @@
+// #region recipe:invite-dialog
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import { toast } from "sonner";
-
-import type { Role } from "@/lib/claims";
+import * as v from "valibot";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,38 +34,65 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { assignableRoles } from "@/features/user/user-permissions";
+import { Role } from "@/lib/claims";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { inviteMember } from "../organization-actions";
+import { invitationSent } from "../organization-actions";
 import { useInviteLink } from "../use-invite-link";
 import { useRoleLabel } from "../use-role-label";
 
-export function InviteMemberDialog({ myRole }: { myRole: Role }) {
+/**
+ * Invites a teammate through `invite_member` in the browser, then shows the
+ * accept link: the example has no mailer.
+ */
+export function InviteMemberDialog({
+  organizationId,
+  myRole,
+}: {
+  organizationId: string;
+  myRole: Role;
+}) {
   const t = useExtracted("organization");
   const fieldId = useId();
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const inviteLink = useInviteLink();
   const [open, setOpen] = useState(false);
-  const roles = assignableRoles(myRole).map((role) => ({
-    value: role,
-    label: roleLabel(role),
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<Role>("member");
+  const roles = assignableRoles(myRole).map((each) => ({
+    value: each,
+    label: roleLabel(each),
   }));
-  const form = useActionForm(inviteMember);
-  const link = form.data ? inviteLink(form.data.token) : null;
-  const error =
-    form.error === undefined
+  // The server renders the pending list; `invitationSent` renders it again.
+  const { invite, inviting, sent, error, clear } = useInvitations({
+    organizationId,
+    schema: blockConfig.organizations.api,
+    onChanged: async ({ kind }) => {
+      if (kind === "invited") await invitationSent({});
+    },
+  });
+  const link = sent ? inviteLink(sent.token) : null;
+  const message =
+    error === undefined
       ? null
-      : form.error.kind === "conflict"
+      : error.kind === "conflict"
         ? t("That person is already a member or invited.")
-        : errorMessage(form.error);
+        : errorMessage(error);
+
+  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await invite({ email: email.trim().toLowerCase(), role });
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) form.reset();
+        setEmail("");
+        if (!next) clear();
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -106,7 +133,7 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
             </DialogFooter>
           </div>
         ) : (
-          <form {...form.formProps} className="grid gap-6">
+          <form onSubmit={(event) => void submit(event)} className="grid gap-6">
             <DialogHeader>
               <DialogTitle>{t("Invite a teammate")}</DialogTitle>
               <DialogDescription>
@@ -116,7 +143,7 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
               </DialogDescription>
             </DialogHeader>
             <FieldGroup>
-              <Field data-invalid={error ? true : undefined}>
+              <Field data-invalid={message ? true : undefined}>
                 <FieldLabel htmlFor={`${fieldId}-invite-email`}>
                   {t("Email")}
                 </FieldLabel>
@@ -124,23 +151,33 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
                   id={`${fieldId}-invite-email`}
                   name="email"
                   type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                  }}
                   required
                   autoComplete="off"
                 />
-                {error ? <FieldError>{error}</FieldError> : null}
+                {message ? <FieldError>{message}</FieldError> : null}
               </Field>
               <Field>
                 <FieldLabel htmlFor={`${fieldId}-invite-role`}>
                   {t("Role")}
                 </FieldLabel>
-                <Select name="role" defaultValue="member" items={roles}>
+                <Select
+                  value={role}
+                  items={roles}
+                  onValueChange={(value) => {
+                    if (v.is(Role, value)) setRole(value);
+                  }}
+                >
                   <SelectTrigger id={`${fieldId}-invite-role`} className="w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
+                    {roles.map((each) => (
+                      <SelectItem key={each.value} value={each.value}>
+                        {each.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -151,7 +188,7 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
               <DialogClose render={<Button type="button" variant="outline" />}>
                 {t("Cancel")}
               </DialogClose>
-              <Button type="submit" disabled={form.pending}>
+              <Button type="submit" disabled={inviting}>
                 {t("Send invitation")}
               </Button>
             </DialogFooter>
@@ -161,3 +198,4 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
     </Dialog>
   );
 }
+// #endregion recipe:invite-dialog

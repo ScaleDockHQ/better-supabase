@@ -35,7 +35,21 @@ export { organizationsBlock } from "./manifest.ts";
 export { organizationsEvents } from "./events.ts";
 export type { OrganizationsEvents } from "./events.ts";
 export {
+  createInvitationsController,
+  createMembersController,
   createOrganizationsController,
+  type InvitationChange,
+  type InvitationDraft,
+  type InvitationsActions,
+  type InvitationsController,
+  type InvitationsControllerOptions,
+  type InvitationsSnapshot,
+  type MemberChange,
+  type MembersActions,
+  type MembersController,
+  type MembersControllerOptions,
+  type MembersSnapshot,
+  type OrganizationRowSource,
   type OrganizationSource,
   type OrganizationsActions,
   type OrganizationsController,

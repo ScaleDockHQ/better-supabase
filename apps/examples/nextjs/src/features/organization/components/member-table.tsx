@@ -1,6 +1,8 @@
+// #region recipe:members-table
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { DbException } from "better-supabase";
+import { useMembers } from "better-supabase/blocks/organizations/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
@@ -27,21 +29,34 @@ import { RoleBadge } from "@/features/user/components/role-badge";
 import { assignableRoles } from "@/features/user/user-permissions";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Member } from "../organization-queries";
 
-import { removeMember, updateMemberRole } from "../organization-actions";
+import { loadMembers, memberChanged } from "../organization-actions";
 import { useRoleLabel } from "../use-role-label";
 
+async function loadOrganizationMembers(): Promise<readonly Member[]> {
+  const result = await loadMembers({});
+  if (!result.ok) throw new DbException(result.error);
+  return result.data;
+}
+
+/**
+ * The organization's members. The server renders the rows; a role change
+ * shows at once and goes through `update_member_role` in the browser.
+ */
 export function MemberTable({
-  members,
+  organizationId,
+  initial,
   currentUserId,
   myRole,
   canUpdateRole,
   canRemove,
 }: {
-  members: readonly Member[];
+  organizationId: string;
+  initial: readonly Member[];
   currentUserId: string;
   myRole: Role;
   canUpdateRole: boolean;
@@ -51,28 +66,15 @@ export function MemberTable({
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const format = useFormatter();
-  const roleChange = useAction(updateMemberRole, {
-    onSuccess: () => {
-      toast.success(t("Role updated"));
-    },
-    onError: (error) => {
-      toast.error(errorMessage(error));
-    },
-  });
-  const removal = useAction(removeMember, {
-    onSuccess: () => {
-      toast.success(t("Member removed"));
-    },
-    onError: (error) => {
-      toast.error(errorMessage(error));
+  const { members, pending, setRole, remove } = useMembers({
+    organizationId,
+    load: loadOrganizationMembers,
+    initial,
+    schema: blockConfig.organizations.api,
+    onChanged: async ({ userId }) => {
+      await memberChanged({ userId });
     },
   });
-  // Rows show a pending change before the server confirms it.
-  const roleOf = (member: Member): Role =>
-    roleChange.pendingInputs.findLast((input) => input.userId === member.userId)
-      ?.role ?? member.role;
-  const removing = (member: Member) =>
-    removal.pendingInputs.some((input) => input.userId === member.userId);
   const assignable = assignableRoles(myRole);
   const roleItems = assignable.map((role) => ({
     value: role,
@@ -83,6 +85,18 @@ export function MemberTable({
     member.userId !== currentUserId &&
     member.role !== "owner" &&
     assignable.includes(member.role);
+  const busy = (member: Member) => pending.includes(member.userId);
+
+  const changeRole = async (member: Member, role: Role) => {
+    const result = await setRole(member.userId, role);
+    if (result.ok) toast.success(t("Role updated"));
+    else toast.error(errorMessage(result.error));
+  };
+  const removeMember = async (member: Member) => {
+    const result = await remove(member.userId);
+    if (result.ok) toast.success(t("Member removed"));
+    else toast.error(errorMessage(result.error));
+  };
 
   return (
     <Table data-testid="members">
@@ -95,11 +109,11 @@ export function MemberTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {members.map((member) => (
+        {(members ?? initial).map((member) => (
           <TableRow
             key={member.userId}
-            aria-busy={removing(member) ? true : undefined}
-            className={removing(member) ? "opacity-50" : undefined}
+            aria-busy={busy(member) ? true : undefined}
+            className={busy(member) ? "opacity-50" : undefined}
           >
             <TableCell>
               <div className="flex items-center gap-3">
@@ -130,12 +144,11 @@ export function MemberTable({
             <TableCell>
               {canUpdateRole && editable(member) ? (
                 <Select
-                  value={roleOf(member)}
+                  value={member.role}
                   items={roleItems}
-                  disabled={removing(member)}
+                  disabled={busy(member)}
                   onValueChange={(value) => {
-                    if (!v.is(Role, value)) return;
-                    void roleChange.run({ userId: member.userId, role: value });
+                    if (v.is(Role, value)) void changeRole(member, value);
                   }}
                 >
                   <SelectTrigger
@@ -169,12 +182,12 @@ export function MemberTable({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  disabled={removing(member)}
+                  disabled={busy(member)}
                   aria-label={t("Remove {name}", {
                     name: member.name ?? member.email ?? "",
                   })}
                   onClick={() => {
-                    void removal.run({ userId: member.userId });
+                    void removeMember(member);
                   }}
                 >
                   <UserMinusIcon />
@@ -187,3 +200,4 @@ export function MemberTable({
     </Table>
   );
 }
+// #endregion recipe:members-table

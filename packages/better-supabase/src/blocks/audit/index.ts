@@ -40,6 +40,14 @@ export {
   sqlTransport,
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
+export {
+  createAuditLogController,
+  type AuditFilters,
+  type AuditLogActions,
+  type AuditLogController,
+  type AuditLogControllerOptions,
+  type AuditLogSnapshot,
+} from "./client.ts";
 export { auditBlock } from "./manifest.ts";
 export { auditEvents } from "./events.ts";
 export type { AuditEvents } from "./events.ts";
