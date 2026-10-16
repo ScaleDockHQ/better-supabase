@@ -1,16 +1,22 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { compact } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
+  type BlockOptions,
   enumOrThrow,
+  isRecord,
   instantArg,
   optionalInstant,
   optionalText,
@@ -37,7 +43,8 @@ const METRICS: readonly SlaMetric[] = [
 ];
 const STATES: readonly SlaState[] = ["running", "paused", "met", "breached"];
 
-export interface SlaPolicy {
+/** A policy. `F` types the extra columns the `fields` schema describes. */
+export interface SlaPolicy<F extends object = Record<never, never>> {
   readonly id: string;
   readonly subjectType: string;
   readonly name: string;
@@ -50,6 +57,8 @@ export interface SlaPolicy {
   readonly warnAtPercent: number;
   /** Count only the module's business hours. */
   readonly businessHours: boolean;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface SlaClock {
@@ -68,7 +77,7 @@ export interface SlaClock {
   readonly metAt?: Temporal.Instant;
 }
 
-export interface SlaPolicyInput {
+export interface SlaPolicyInput<F extends object = Record<never, never>> {
   readonly id?: string;
   readonly subjectType?: string;
   readonly name?: string;
@@ -79,13 +88,15 @@ export interface SlaPolicyInput {
   readonly warnAtPercent?: number;
   readonly businessHours?: boolean;
   readonly archived?: boolean;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
-export interface Sla {
+export interface Sla<F extends object = Record<never, never>> {
   savePolicy(
     organizationId: string,
-    policy: SlaPolicyInput,
-  ): AsyncResult<SlaPolicy>;
+    policy: SlaPolicyInput<F>,
+  ): AsyncResult<SlaPolicy<F>>;
   /** Starts a record's clocks, or recomputes them for a new priority. */
   start(
     subject: { readonly type: string; readonly id: string },
@@ -110,12 +121,17 @@ export interface Sla {
   ): AsyncResult<Temporal.Instant>;
 }
 
-export interface SlaOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  readonly schema?: string;
-  readonly hooks?: NoInfer<BlockHooks<Sla>>;
+export interface SlaOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the policy's extra columns
+   * (`blocks.sla.options.extraColumns`), keyed by database name. It types
+   * and parses them on `savePolicy`, and validates them before the write.
+   */
+  readonly fields?: S;
+  readonly hooks?: NoInfer<BlockHooks<Sla<FieldsOf<S>>>>;
   readonly logger?: Logger;
-  readonly mappers?: readonly ErrorMapper[];
 }
 
 const minutes = (value: unknown): number | undefined =>
@@ -133,6 +149,7 @@ function policyOf(value: unknown): SlaPolicy {
     resolutionMinutes: minutes(row["resolution_minutes"]),
     warnAtPercent: minutes(row["warn_at_percent"]) ?? 80,
     businessHours: row["business_hours"] === true,
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   });
 }
 
@@ -161,16 +178,30 @@ const clocks = (value: unknown): SlaClock[] =>
  * The sla block: response and resolution clocks on any record, from a
  * policy per record type and priority.
  */
-export function createSla(options: SlaOptions): Sla {
+export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
+  options: SlaOptions<S>,
+): Sla<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Sla = {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "sla policy fields",
+  );
+  const client: Sla<F> = {
     savePolicy: (organizationId, policy) => {
-      const { id, ...attrs } = policy;
-      return call(
-        "save_sla_policy",
-        { tenant: organizationId, policy: id ?? null, attrs },
-        policyOf,
+      const { id, fields: extra, ...attrs } = policy;
+      return fields.args(extra).andThen((checked) =>
+        call(
+          "save_sla_policy",
+          {
+            tenant: organizationId,
+            policy: id ?? null,
+            attrs:
+              checked === undefined ? attrs : { ...attrs, fields: checked },
+          },
+          policyOf,
+        ).andThen(fields.row),
       );
     },
     start: (subject, priority) =>

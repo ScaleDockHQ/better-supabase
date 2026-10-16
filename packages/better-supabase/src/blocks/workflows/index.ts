@@ -7,6 +7,7 @@ export {
   type Workflows,
   type WorkflowSchedule,
   type WorkflowScheduleInput,
+  type WorkflowsHooks,
   type WorkflowsOptions,
   type WorkflowStartCall,
   type WorkflowStarter,

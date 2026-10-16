@@ -49,7 +49,7 @@ describe("saas block clients", () => {
     expect(await teams.addMember("t1", "u1").orThrow()).toBe(true);
     expect(await teams.removeMember("t1", "u1").orThrow()).toBe(false);
     expect(await teams.list("org").orThrow()).toEqual([
-      { id: "t1", name: "Ops", slug: "ops" },
+      { id: "t1", name: "Ops", slug: "ops", fields: {} },
     ]);
   });
 
@@ -184,6 +184,7 @@ describe("saas block clients", () => {
         slug: "gold",
         color: "#fff",
         rank: "V",
+        fields: {},
       },
     ]);
     expect(await tags.forSubject("org", "deals", "d1").orThrow()).toEqual([]);

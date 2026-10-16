@@ -1,11 +1,12 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
+  type BlockOptions,
   type CursorPageOptions,
   instantArg,
   optionalInstant,
@@ -18,10 +19,13 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface StateMachineOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface StateMachineOptions<
+  S extends string = string,
+> extends BlockOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<StateMachine<S>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 /** Where a record is in its machine, from `state()`. */
@@ -166,13 +170,14 @@ function stageOf(row: Record<string, unknown>): StatusStage {
   };
 }
 
+/** The `state-machine` SQL module as typed calls. */
 export function createStateMachine<S extends string = string>(
-  options: StateMachineOptions,
+  options: StateMachineOptions<S>,
 ): StateMachine<S> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const isTrue = (value: unknown): boolean => value === true;
-  return {
+  const client: StateMachine<S> = {
     transition: (subjectType, subjectId, to, reason) =>
       call(
         "transition",
@@ -231,4 +236,8 @@ export function createStateMachine<S extends string = string>(
         (value) => recordsOf(value, "list_status_stages").map(stageOf),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "state-machine",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

@@ -1,6 +1,9 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import {
@@ -64,6 +67,10 @@ export interface SsoOptions extends BlockTemporalOptions {
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the client's methods, such as a rule on which domains an organization may claim. */
+  readonly hooks?: BlockHooks<Sso>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface Sso {
@@ -137,7 +144,7 @@ function ssoDomainOf(value: unknown): SsoDomain | undefined {
 export function createSso(options: SsoOptions): Sso {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const client: Sso = {
     addDomain: (organizationId, domain) =>
       call(
         "add_organization_domain",
@@ -183,6 +190,10 @@ export function createSso(options: SsoOptions): Sso {
       ),
     domainFor: (email) => call("sso_domain_for", { email }, ssoDomainOf),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "sso",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /** Looks up the TXT strings at a name; an empty list when it has none. */

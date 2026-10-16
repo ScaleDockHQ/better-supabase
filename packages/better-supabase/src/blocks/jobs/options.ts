@@ -21,3 +21,13 @@ export const rateLimitSqlOptions: BlockOptionsSchema<RateLimitSqlOptions> =
   blockOptions<RateLimitSqlOptions>({
     preRequest: option.boolean({ default: true }),
   });
+
+/** `blocks.webhook-inbox.options`. */
+export type WebhookInboxSqlOptions = {
+  readonly extraColumns?: unknown;
+};
+
+export const webhookInboxSqlOptions: BlockOptionsSchema<WebhookInboxSqlOptions> =
+  blockOptions<WebhookInboxSqlOptions>({
+    extraColumns: option.unknown(),
+  });

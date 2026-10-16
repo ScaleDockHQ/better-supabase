@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../../src/sql/module-types.ts";
 
-import { ISO_4217_MINOR_UNITS } from "../../../src/blocks/commerce/index.ts";
+import { ISO_4217_MINOR_UNITS } from "../../../src/commerce/index.ts";
 import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (layout: ModuleLayout = {}, names = ["catalog"]): string =>

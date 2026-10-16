@@ -23,12 +23,7 @@ const RECIPES = join(
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = ["audit"];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
-const NO_CREATOR: readonly string[] = [
-  "onboarding",
-  "outbox",
-  "settings",
-  "webhook-inbox",
-];
+const NO_CREATOR: readonly string[] = ["onboarding", "outbox", "settings"];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
 const NO_HOOKS: readonly string[] = [
   "agents",
@@ -56,26 +51,9 @@ const NO_HOOKS: readonly string[] = [
   "reminders",
   "saved-views",
   "service-principals",
-  "share-links",
-  "sso",
-  "state-machine",
-  "tags",
-  "teams",
-  "undo",
-  "usage",
-  "waitlist",
-  "webhooks",
-  "workflow-builder",
-  "workflows",
 ];
 /** Blocks with calls that skip `blockCall`. */
-const NO_BLOCK_CALL: readonly string[] = [
-  "audit",
-  "comments",
-  "notifications",
-  "usage",
-  "webhooks",
-];
+const NO_BLOCK_CALL: readonly string[] = ["audit", "comments", "notifications"];
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
   "access-requests",
@@ -133,23 +111,15 @@ const NO_FIELDS: readonly string[] = [
   "saved-views",
   "search",
   "service-principals",
-  "share-links",
-  "signatures",
-  "sla",
+  // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.
   "sso",
+  // Triggers on the app's own record table write its history; the app's columns live on that table.
   "state-machine",
-  "tags",
-  "targets",
-  "teams",
-  "templates",
-  "time-tracking",
-  "trash",
+  // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.
   "usage",
-  "versions",
-  "waitlist",
+  // The app writes and reads endpoints over its own Data API; the client only handles deliveries.
   "webhooks",
-  "work-items",
-  "workflow-builder",
+  // Engines write the run registry; per-run data goes in `attributes`.
   "workflows",
 ];
 /** Blocks that build a sibling block's client. */

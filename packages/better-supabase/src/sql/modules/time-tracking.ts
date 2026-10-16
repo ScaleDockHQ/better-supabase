@@ -9,12 +9,16 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
@@ -70,7 +74,7 @@ const NAMES: ModuleNames = {
     "before_timesheet_submit",
     "after_timesheet_submit",
   ],
-  options: ["subjects", "policy", "timeZone"],
+  options: ["subjects", "policy", "timeZone", "extraColumns"],
   tables: {
     entries: {
       name: "time_entries",
@@ -110,6 +114,9 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.timeZone`: the IANA zone weeks start in. Default `UTC`. */
+/** The keys the entry reads return next to the extra columns. */
+const RESERVED = ["fields"] as const;
+
 function weekTimeZone(ctx: ModuleContext): string {
   const raw = ctx.option("timeZone") ?? "UTC";
   if (typeof raw !== "string" || raw.length === 0) {
@@ -183,10 +190,20 @@ function build(ctx: ModuleContext): string {
     "timesheet not found",
     "P0002",
   );
+  const extras = ctx.extraColumns("entries", RESERVED);
+  const extra = extraFieldsArg(extras);
+  const setExtras = (source: string): string =>
+    writeExtraColumns(
+      entries,
+      extras,
+      source,
+      `x.${e("id")} = v_row.${e("id")}`,
+      "v_row",
+    );
   const seconds = (row: string): string =>
     `case when ${row}.${e("endedAt")} is null then null else extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})::bigint end`;
   const entryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
   const status = (row: string, approval: string): string =>
     `case when ${row}.${t("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} = 'rejected' then 'rejected' else 'open' end`;
   const timesheetJson = (row: string, approval: string): string =>
@@ -272,7 +289,7 @@ create table if not exists ${entries} (
     ${e("user")} with =,
     tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
   )
-);
+);${addExtraColumns(entries, extras)}
 create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)} on ${entries} (${e("tenant")}, ${e("user")}) where ${e("endedAt")} is null;
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_user_idx`)} on ${entries} (${e("tenant")}, ${e("user")}, ${e("startedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_idx`)} on ${entries} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")}) where ${e("subjectType")} is not null;
@@ -357,8 +374,10 @@ create trigger bs_time_entry_guard
   before insert or update or delete on ${entries}
   for each row execute function ${fn("time_entry_guard")}();
 
--- Starts a timer for the caller, stopping the one that runs.
-create or replace function ${fn("start_timer")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null)
+-- Starts a timer for the caller, stopping the one that runs. fields: the
+-- extra columns (blocks.time-tracking.options.extraColumns) to set.
+${extra.drop(fn("start_timer"), `${ctx.idType}, text, text, boolean, numeric, text`)}
+create or replace function ${fn("start_timer")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -395,13 +414,13 @@ begin
   ${save("v_row")}
   insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("billable")}, ${e("rate")}, ${e("note")})
   values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("note")})
-  returning * into v_row;
+  returning * into v_row;${setExtras("start_timer.fields")}
   ${entryRecord("time_entry.started", "v_row", false)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("start_timer")}(${ctx.idType}, text, text, boolean, numeric, text)`)}
+${userGrant(`${fn("start_timer")}(${ctx.idType}, text, text, boolean, numeric, text${extra.type})`)}
 
 create or replace function ${fn("stop_timer")}(tenant ${ctx.idType})
 returns jsonb
@@ -445,7 +464,8 @@ $$;
 ${userGrant(`${fn("running_timer")}(${ctx.idType})`)}
 
 -- Records finished time. Logging for another member needs the manage permission.
-create or replace function ${fn("log_time")}(tenant ${ctx.idType}, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, user_id uuid default null)
+${extra.drop(fn("log_time"), `${ctx.idType}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid`)}
+create or replace function ${fn("log_time")}(tenant ${ctx.idType}, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, user_id uuid default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -488,16 +508,16 @@ begin
   ${save("v_row")}
   insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("endedAt")}, ${e("billable")}, ${e("rate")}, ${e("note")})
   values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("endedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("note")})
-  returning * into v_row;
+  returning * into v_row;${setExtras("log_time.fields")}
   ${entryRecord("time_entry.recorded", "v_row", true)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("log_time")}(${ctx.idType}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid)`)}
+${userGrant(`${fn("log_time")}(${ctx.idType}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid${extra.type})`)}
 
 -- Changes the keys in patch: startedAt, endedAt, subjectType and subjectId
--- together, billable, rate and note.
+-- together, billable, rate, note and fields (the extra columns).
 create or replace function ${fn("update_time_entry")}(entry_id uuid, patch jsonb)
 returns jsonb
 language plpgsql
@@ -556,7 +576,7 @@ begin
       ${e("note")} = v_row.${e("note")},
       ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
-  returning * into v_row;
+  returning * into v_row;${setExtras("(v_patch -> 'fields')")}
   ${entryRecord("time_entry.updated", "v_row", true, "v_previous_started_at")}
   ${saved("v_row")}
   return ${entryJson("v_row")};
@@ -819,11 +839,12 @@ ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("entries", RESERVED)).contract;
   return [
     {
       name: "start_timer",
-      args: ["{id}", "text", "text", "boolean", "numeric", "text"],
+      args: ["{id}", "text", "text", "boolean", "numeric", "text", ...extra],
       returns: "jsonb",
     },
     { name: "stop_timer", args: ["{id}"], returns: "jsonb" },
@@ -839,6 +860,7 @@ function contract(): readonly ModuleContractFunction[] {
         "numeric",
         "text",
         "uuid",
+        ...extra,
       ],
       returns: "jsonb",
     },

@@ -92,4 +92,9 @@ export type {
   WithBlockHooksOptions,
 } from "../core/block-hooks.ts";
 export { blockFields } from "../core/block-fields.ts";
-export type { BlockFields, FieldsOf } from "../core/block-fields.ts";
+export type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+  WithExtraFields,
+} from "../core/block-fields.ts";

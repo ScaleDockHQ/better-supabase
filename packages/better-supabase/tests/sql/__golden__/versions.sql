@@ -125,6 +125,9 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
 
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
 returns jsonb
 language plpgsql
@@ -536,6 +539,9 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
 
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
 returns jsonb
 language plpgsql
@@ -1000,6 +1006,9 @@ $$;
 revoke execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
 
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
 create or replace function "app_private"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
 returns jsonb
 language plpgsql
@@ -1411,6 +1420,9 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
 
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
 returns jsonb
 language plpgsql
@@ -1674,6 +1686,8 @@ revoke execute on function "better_supabase"."versions_capture"() from public, a
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -1882,6 +1896,9 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
 
+-- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
 returns jsonb
 language plpgsql

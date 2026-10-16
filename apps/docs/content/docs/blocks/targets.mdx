@@ -54,3 +54,21 @@ const running = await targets
 | `TARGET_FORBIDDEN` | the caller lacks `targets.manage`                             |
 | `TARGET_INVALID`   | a target needs a name, a metric, a period and a positive goal |
 | `TARGET_NOT_FOUND` | no such target                                                |
+
+## Your own columns
+
+Add columns to the target table with `blocks.targets.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`save` validates and writes them, and `save` and `progress` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTargets } from "better-supabase/blocks/targets";
+import { z } from "zod";
+
+const client = createTargets({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

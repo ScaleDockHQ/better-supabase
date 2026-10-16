@@ -89,6 +89,36 @@ export const withExtraFields = (
         extras.map((extra) => extra.name),
       )}))`;
 
+/** The `fields jsonb` parameter of a function that writes extra columns. */
+export interface ExtraFieldsArg {
+  /** `, fields jsonb default null`, or nothing without extra columns. */
+  readonly param: string;
+  /** `, jsonb` for the signature, or nothing. */
+  readonly type: string;
+  /** The contract's argument types to append. */
+  readonly contract: readonly string[];
+  /**
+   * Drops the signature this build doesn't create (with the parameter when
+   * there are no extra columns, without it when there are), so turning
+   * `extraColumns` on or off never leaves two overloads a call matches.
+   */
+  drop(fn: string, types: string): string;
+}
+
+/** The `fields jsonb` parameter for `columns`; see `ExtraFieldsArg`. */
+export function extraFieldsArg(
+  columns: readonly ExtraColumn[],
+): ExtraFieldsArg {
+  const on = columns.length > 0;
+  return {
+    param: on ? ", fields jsonb default null" : "",
+    type: on ? ", jsonb" : "",
+    contract: on ? ["jsonb"] : [],
+    drop: (fn, types) =>
+      `drop function if exists ${fn}(${on ? types : [types, "jsonb"].filter((type) => type !== "").join(", ")});`,
+  };
+}
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 

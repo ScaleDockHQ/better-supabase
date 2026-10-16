@@ -1,16 +1,22 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JsonPatchOperation, JsonValue } from "./json-patch.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
+  type BlockOptions,
   enumOrThrow,
+  isRecord,
   optionalText,
   recordOf,
   recordsOf,
@@ -19,15 +25,20 @@ import {
 } from "../shared.ts";
 import { createPatch } from "./json-patch.ts";
 
-export interface VersionsOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
-  readonly schema?: string;
+export interface VersionsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the version's extra columns
+   * (`blocks.versions.options.extraColumns`), keyed by database name. It
+   * types and parses them on `list` and `get`, and validates them on
+   * `snapshot`. `getShared` leaves them out.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Versions>;
+  readonly hooks?: NoInfer<BlockHooks<Versions<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-  readonly mappers?: readonly ErrorMapper[];
 }
 
 export type VersionSource = "manual" | "auto" | "restore";
@@ -35,7 +46,7 @@ export type VersionSource = "manual" | "auto" | "restore";
 const SOURCES: readonly VersionSource[] = ["manual", "auto", "restore"];
 
 /** One version of a subject. `content` is there when it was read with `get`. */
-export interface Version {
+export interface Version<F extends object = Record<never, never>> {
   readonly id: string;
   readonly number: number;
   readonly subjectType: string;
@@ -51,9 +62,11 @@ export interface Version {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly content?: JsonValue;
+  /** The extra columns, keyed by database name; empty from `getShared`. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface SnapshotInput {
+export interface SnapshotInput<F extends object = Record<never, never>> {
   readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
@@ -64,6 +77,8 @@ export interface SnapshotInput {
   readonly content?: JsonValue;
   readonly label?: string;
   readonly storagePath?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export interface SnapshotResult {
@@ -86,16 +101,16 @@ export interface VersionListOptions {
   readonly before?: number;
 }
 
-export interface Versions {
-  snapshot(input: SnapshotInput): AsyncResult<SnapshotResult>;
+export interface Versions<F extends object = Record<never, never>> {
+  snapshot(input: SnapshotInput<F>): AsyncResult<SnapshotResult>;
   /** Newest first, without content. */
   list(
     organizationId: string,
     subjectType: string,
     subjectId: string,
     options?: VersionListOptions,
-  ): AsyncResult<readonly Version[]>;
-  get(id: string): AsyncResult<Version>;
+  ): AsyncResult<readonly Version<F>[]>;
+  get(id: string): AsyncResult<Version<F>>;
   /**
    * The version a share link is pinned to, with its content, read with the
    * token alone (anon). `null` for an unknown, revoked or expired token, or
@@ -129,6 +144,7 @@ function versionOf(value: unknown, fn: string): Version {
     ...(storagePath === undefined ? {} : { storagePath }),
     ...(createdBy === undefined ? {} : { createdBy }),
     ...("content" in row ? { content: jsonOf(row["content"]) } : {}),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -146,14 +162,18 @@ function snapshotOf(value: unknown, fn: string): SnapshotResult {
 }
 
 /** The `versions` SQL module as typed calls. */
-export function createVersions(options: VersionsOptions): Versions {
+export function createVersions<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: VersionsOptions<S>): Versions<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const get = (id: string): AsyncResult<Version> =>
+  const fields: BlockFields<F> = blockFields(options.fields, "version fields");
+  const get = (id: string): AsyncResult<Version<F>> =>
     call("get_version", { version_id: id }, (value) =>
       versionOf(value, "get_version"),
-    );
-  const client: Versions = {
+    ).andThen(fields.row);
+  const client: Versions<F> = {
     getShared: (token) =>
       call("get_shared_version", { token }, (value) =>
         value === null || value === undefined
@@ -161,17 +181,20 @@ export function createVersions(options: VersionsOptions): Versions {
           : versionOf(value, "get_shared_version"),
       ),
     snapshot: (input) =>
-      call(
-        "snapshot_version",
-        {
-          tenant: input.organizationId,
-          subject_type: input.subjectType,
-          subject_id: input.subjectId,
-          content: input.content ?? null,
-          label: input.label ?? null,
-          storage_path: input.storagePath ?? null,
-        },
-        (value) => snapshotOf(value, "snapshot_version"),
+      fields.args(input.fields).andThen((checked) =>
+        call(
+          "snapshot_version",
+          {
+            tenant: input.organizationId,
+            subject_type: input.subjectType,
+            subject_id: input.subjectId,
+            content: input.content ?? null,
+            label: input.label ?? null,
+            storage_path: input.storagePath ?? null,
+            fields: checked,
+          },
+          (value) => snapshotOf(value, "snapshot_version"),
+        ),
       ),
     list: (organizationId, subjectType, subjectId, page = {}) =>
       call(
@@ -187,7 +210,7 @@ export function createVersions(options: VersionsOptions): Versions {
           recordsOf(value, "list_versions").map((row) =>
             versionOf(row, "list_versions"),
           ),
-      ),
+      ).andThen(fields.rows),
     get,
     restore: (id) =>
       call("restore_version", { version_id: id }, (value) => {

@@ -5,12 +5,12 @@ import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { type Money, money } from "../../commerce/money.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { type Money, money } from "../commerce/money.ts";
 import {
   applyTemporal,
   blockCall,

@@ -8,11 +8,16 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
   sha256Hex,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -33,7 +38,7 @@ const EVENTS: ModuleEvents<ShareLinksEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["subjects"],
+  options: ["subjects", "extraColumns"],
   tables: {
     links: {
       name: "share_links",
@@ -84,6 +89,9 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** The keys the share link reads return next to the extra columns. */
+const RESERVED = ["fields", "token"] as const;
 
 /**
  * The conditions a live link meets, for the functions that open a link of
@@ -138,6 +146,9 @@ function build(ctx: ModuleContext): string {
   const create = ctx.permission("create", OPERATIONS["share-links.create"]);
   const read = ctx.permission("read", OPERATIONS["share-links.read"]);
   const pinned = ctx.has("links", "versionId");
+  const extras = ctx.extraColumns("links", RESERVED);
+  const extra = extraFieldsArg(extras);
+  const linkId = ctx.col("links", "id");
   const tables = ctx.manages
     ? `create table if not exists ${links} (
   ${ctx.col("links", "id")} uuid primary key default gen_random_uuid(),
@@ -152,7 +163,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("links", "maxUses")} integer,
   ${ctx.col("links", "createdBy")} uuid${ctx.has("links", "leaf") ? `,` : ""}
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
-);
+);${addExtraColumns(links, extras)}
 ${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${lockTable(links, { read: true })}
 ${
   ctx.hasTable("views")
@@ -267,7 +278,9 @@ $$;
 ${tables}
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text);
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid);
-create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+${extra.drop(ctx.fn("create_share_link"), `${ctx.idType}, text, text, text, uuid, timestamptz`)}
+create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -286,7 +299,7 @@ begin
   ${versionCheck(ctx)}
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
   values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
-  returning ${ctx.col("links", "id")} into v_id;
+  returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",
     payload: `jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id)`,
@@ -294,10 +307,10 @@ begin
     tenant: "create_share_link.tenant",
     audit: false,
   })}
-  return jsonb_build_object('id', v_id, 'token', v_token);
+  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'token', v_token)" : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'token', v_token)", "x", extras)} from ${links} x where x.${linkId} = v_id)`};
 end;
 $$;
-${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz)`)}
+${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz${extra.type})`)}
 
 -- The link's creator, or a caller who may create links in its tenant, may
 -- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
@@ -391,14 +404,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', ${ctx.col("links", "id")}, 'role', ${ctx.col("links", "role")}, 'expiresAt', ${ctx.col("links", "expiresAt")}, 'revokedAt', ${ctx.col("links", "revokedAt")})), '[]'::jsonb)
-  from ${links}
-  where ${ctx.col("links", "subjectType")} = list_share_links.subject_type
-    and ${ctx.col("links", "subjectId")} = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l.${ctx.col("links", "id")}, 'role', l.${ctx.col("links", "role")}, 'expiresAt', l.${ctx.col("links", "expiresAt")}, 'revokedAt', l.${ctx.col("links", "revokedAt")}${extraFieldsJson("l", extras)})), '[]'::jsonb)
+  from ${links} l
+  where l.${ctx.col("links", "subjectType")} = list_share_links.subject_type
+    and l.${ctx.col("links", "subjectId")} = list_share_links.subject_id
     and (
       auth.role() = 'service_role'
-      or ${ctx.col("links", "createdBy")} = (select auth.uid())
-      or ${ctx.scope.check(ctx.col("links", "tenant"), read)}
+      or l.${ctx.col("links", "createdBy")} = (select auth.uid())
+      or ${ctx.scope.check(`l.${ctx.col("links", "tenant")}`, read)}
     )
 $$;
 ${userGrant(`${ctx.fn("list_share_links")}(text, text)`)}
@@ -426,11 +439,12 @@ ${chat}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("links", RESERVED)).contract;
   return [
     {
       name: "create_share_link",
-      args: ["{id}", "text", "text", "text", "uuid", "timestamptz"],
+      args: ["{id}", "text", "text", "text", "uuid", "timestamptz", ...extra],
       returns: "jsonb",
     },
     { name: "revoke_share_link", args: ["uuid"], returns: "boolean" },

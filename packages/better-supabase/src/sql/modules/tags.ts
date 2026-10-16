@@ -1,5 +1,6 @@
 import type { TagsEvents } from "../../blocks/tags/events.ts";
 import type {
+  ExtraColumn,
   ModuleContext,
   ModuleContractFunction,
   ModuleEvents,
@@ -9,7 +10,16 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import {
   type SubjectTableBinding,
   subjectReadable,
@@ -44,7 +54,7 @@ const EVENTS: ModuleEvents<TagsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
-  options: ["subjects"],
+  options: ["subjects", "extraColumns"],
   tables: {
     tags: {
       name: "tags",
@@ -79,6 +89,9 @@ const NAMES: ModuleNames = {
 };
 
 const LINK_COLUMNS = ["subject", "tag"] as const;
+
+/** The keys the tag reads return next to the extra columns. */
+const RESERVED = ["fields"] as const;
 
 function subjects(ctx: ModuleContext) {
   return subjectsOption(ctx, ["links", "kinds"]);
@@ -162,6 +175,8 @@ function build(ctx: ModuleContext): string {
   // Outside tenant scope the scope column can be null, and a null tenant
   // still names one set of tags.
   const shared = ctx.scope.kind !== "tenant";
+  const extras = ctx.extraColumns("tags", RESERVED);
+  const extra = extraFieldsArg(extras);
   const tables = ctx.manages
     ? `create table if not exists ${tags} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -174,7 +189,7 @@ function build(ctx: ModuleContext): string {
 ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique${shared ? " nulls not distinct" : ""} (${tenant}, ${kind}, ${slug})
-);
+);${addExtraColumns(tags, extras)}
 ${lockTable(tags, { read: true })}
 create table if not exists ${taggings} (
   ${ctx.col("taggings", "tenant")} ${ctx.scope.column()},
@@ -211,7 +226,9 @@ ${lockTable(taggings, { read: true })}
   const fn = (value: string): string => ctx.fn(value);
   return `${schemaPreamble(ctx)}
 ${tables}
-create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text)
+-- fields: the extra columns (blocks.tags.options.extraColumns) to set.
+${extra.drop(fn("create_tag"), `${ctx.idType}, text, text, text, text`)}
+create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -236,7 +253,7 @@ ${
     : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
   values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
 }
-  returning ${id} into v_id;
+  returning ${id} into v_id;${writeExtraColumns(tags, extras, "create_tag.fields", `x.${id} = v_id`)}
   ${ctx.record({
     type: "tag.created",
     payload: `jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name)`,
@@ -244,10 +261,10 @@ ${
     tenant: "create_tag.tenant",
     audit: false,
   })}
-  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)" : `(select jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank${extraFieldsJson("x", extras)}) from ${tags} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text)`)}
+${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text${extra.type})`)}
 
 create or replace function ${fn("tag")}(tenant ${ctx.idType}, subject_type text, subject_id text, tag_id uuid)
 returns boolean
@@ -309,7 +326,8 @@ end;
 $$;
 ${userGrant(`${fn("tag")}(${ctx.idType}, text, text, uuid)`)}
 
-create or replace function ${fn("update_tag")}(tag_id uuid, name text)
+${extra.drop(fn("update_tag"), "uuid, text")}
+create or replace function ${fn("update_tag")}(tag_id uuid, name text${extra.param})
 returns boolean
 language plpgsql
 security definer
@@ -325,7 +343,7 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;
+  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
   ${ctx.record({
     type: "tag.updated",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name)`,
@@ -336,7 +354,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("update_tag")}(uuid, text)`)}
+${userGrant(`${fn("update_tag")}(uuid, text${extra.type})`)}
 ${ranked ? rankTag(ctx, { tags, id, tenant, rank, updatedAt, manage }) : ""}
 create or replace function ${fn("delete_tag")}(tag_id uuid)
 returns boolean
@@ -403,7 +421,7 @@ begin
     ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
   end if;
   return coalesce((
-    select jsonb_agg(${tagJson(ctx, "t")} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
+    select jsonb_agg(${tagJson(ctx, "t", extras)} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
     from ${tags} t
     where ${ctx.scope.eq(`t.${tenant}`, "list_tags.tenant")}
       and (list_tags.kind is null or t.${kind} = list_tags.kind)
@@ -431,7 +449,7 @@ begin
   end if;
   ${subjectTagIds(ctx, bound, taggings)}
   return coalesce((
-    select jsonb_agg(${tagJson(ctx, "t")} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
+    select jsonb_agg(${tagJson(ctx, "t", extras)} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
     from ${tags} t
     where ${ctx.scope.eq(`t.${tenant}`, "subject_tags.tenant")}
       and t.${id} = any (v_ids)
@@ -443,10 +461,14 @@ ${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}
 }
 
 /** One tag row as the JSON `list_tags` and `subject_tags` return. */
-function tagJson(ctx: ModuleContext, alias: string): string {
+function tagJson(
+  ctx: ModuleContext,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string {
   const col = (logical: string): string =>
     `${alias}.${ctx.col("tags", logical)}`;
-  return `jsonb_build_object('id', ${col("id")}, 'kind', ${col("kind")}, 'name', ${col("name")}, 'slug', ${col("slug")}, 'color', ${col("color")}, 'description', ${col("description")}${ctx.has("tags", "rank") ? `, 'rank', ${col("rank")}` : ""})`;
+  return `jsonb_build_object('id', ${col("id")}, 'kind', ${col("kind")}, 'name', ${col("name")}, 'slug', ${col("slug")}, 'color', ${col("color")}, 'description', ${col("description")}${ctx.has("tags", "rank") ? `, 'rank', ${col("rank")}` : ""}${extraFieldsJson(alias, extras)})`;
 }
 
 /** Fills `v_ids` with the tag ids on `subject_tags`' subject, from its link table. */
@@ -479,10 +501,11 @@ ${whens}
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("tags", RESERVED)).contract;
   return [
     {
       name: "create_tag",
-      args: ["{id}", "text", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },

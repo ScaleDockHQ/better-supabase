@@ -5,6 +5,7 @@ export type TimeTrackingSqlOptions = {
   readonly subjects?: unknown;
   readonly policy?: unknown;
   readonly timeZone?: string;
+  readonly extraColumns?: unknown;
 };
 
 export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> =
@@ -12,4 +13,5 @@ export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> 
     subjects: option.unknown(),
     policy: option.unknown(),
     timeZone: option.string({ default: "UTC", client: true }),
+    extraColumns: option.unknown(),
   });

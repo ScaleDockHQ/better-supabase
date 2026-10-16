@@ -28,7 +28,8 @@ describe("webhook-inbox module", () => {
     expect(sql).toContain(
       "create table if not exists better_supabase.webhook_inbox",
     );
-    expect(sql).toContain("returns setof better_supabase.webhook_inbox");
+    expect(sql).toContain("returns jsonb");
+    expect(sql).toContain("'id', w.id, 'source', w.source");
     expect(() =>
       moduleBody("webhook-inbox", {
         modules: {
@@ -49,9 +50,9 @@ describe("webhook-inbox module", () => {
     expect(sql).toContain(
       `(jsonb_populate_record(null::"public"."inbound_events", jsonb_build_object('organization_id', receive_webhook.tenant)))."organization_id"`,
     );
-    expect(sql).toContain("returns table (id bigint, source text");
+    expect(sql).not.toContain("returns table");
     expect(sql).toContain(
-      `w."external_id", w."event_type", w."payload", '{}'::jsonb`,
+      `'message_id', w."external_id", 'event_type', w."event_type", 'payload', w."payload", 'headers', '{}'::jsonb`,
     );
     expect(sql).toContain("then 'dead' else 'pending' end");
     expect(sql).toContain(">= 8");

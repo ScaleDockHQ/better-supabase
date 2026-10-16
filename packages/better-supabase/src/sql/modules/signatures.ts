@@ -9,6 +9,9 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
@@ -16,6 +19,7 @@ import {
   SERVICE_CALLER,
   sha256Hex,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
@@ -53,7 +57,7 @@ const NAMES: ModuleNames = {
     "before_signature_sign",
     "after_signature_sign",
   ],
-  options: ["subjects"],
+  options: ["subjects", "extraColumns"],
   tables: {
     requests: {
       name: "signature_requests",
@@ -154,8 +158,12 @@ function build(ctx: ModuleContext): string {
   );
   const forbidden = (message: string): string =>
     fail("SIGNATURE_FORBIDDEN", message);
+  // The request's extra columns: create_signature_request sets them, the
+  // request reads return them under fields.
+  const extras = ctx.extraColumns("requests", ["fields"]);
+  const extra = extraFieldsArg(extras);
   const requestJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")}${extraFieldsJson(row, extras)})`;
   const signatureJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'requestId', ${row}.${s("request")}, 'signer', ${row}.${s("signer")}, 'method', ${row}.${s("method")}, 'typedName', ${row}.${s("typedName")}, 'imageAttachmentId', ${row}.${s("image")}, 'signedHash', ${row}.${s("signedHash")}, 'ip', ${row}.${s("ip")}, 'userAgent', ${row}.${s("userAgent")}, 'signedAt', ${row}.${s("signedAt")})`;
   const requestRecord = (
@@ -239,7 +247,7 @@ function build(ctx: ModuleContext): string {
   ${r("requestedBy")} uuid,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("completedAt")} timestamptz
-);
+);${addExtraColumns(requests, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
@@ -284,8 +292,10 @@ create policy "signatures_read" on ${signatures} for select to authenticated
 ${tables}
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
-create or replace function ${fn("create_signature_request")}(tenant ${ctx.idType}, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+${extra.drop(fn("create_signature_request"), `${ctx.idType}, text, text, uuid[], uuid, text, uuid, text`)}
+create or replace function ${fn("create_signature_request")}(tenant ${ctx.idType}, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -347,13 +357,13 @@ begin
   update ${vt} x set ${v("frozen")} = true where x.${v("id")} = v_version and not x.${v("frozen")};
   insert into ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("version")}, ${r("contentHash")}, ${r("signers")}, ${r("order")}, ${r("approval")}, ${r("message")}, ${r("requestedBy")})
   values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), auth.uid())
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(requests, extras, "create_signature_request.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   ${requestRecord("signature.requested", "v_row", `, 'versionId', v_row.${r("version")}`, `'requested signatures on ' || v_row.${r("subjectType")} || ' ' || v_row.${r("subjectId")}`)}
   ${ctx.hook("after_signature_request", [["uuid", `v_row.${r("id")}`]])}
   return ${requestJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_signature_request")}(${ctx.idType}, text, text, uuid[], uuid, text, uuid, text)`)}
+${userGrant(`${fn("create_signature_request")}(${ctx.idType}, text, text, uuid[], uuid, text, uuid, text${extra.type})`)}
 
 -- Recomputes the signed version's hash from its content and each signature's
 -- hash, and reports whether the record has a newer version since.
@@ -606,11 +616,21 @@ ${userGrant(`${fn("list_signature_requests")}(${ctx.idType}, text, text, text, b
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_signature_request",
-      args: ["{id}", "text", "text", "uuid[]", "uuid", "text", "uuid", "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "uuid[]",
+        "uuid",
+        "text",
+        "uuid",
+        "text",
+        ...extraFieldsArg(ctx.extraColumns("requests", ["fields"])).contract,
+      ],
       returns: "jsonb",
     },
     {

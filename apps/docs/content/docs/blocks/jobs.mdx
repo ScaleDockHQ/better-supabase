@@ -690,9 +690,10 @@ worker then processes it, with the same retries as jobs. This way your
 provider never times out, and a redelivered webhook is only handled once.
 
 ```ts
-import { createWebhookInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
 
-const inbox = createWebhookInbox(postgres.admin, {
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "billing",
   secrets: process.env.BILLING_WEBHOOK_SECRET!,
 });
@@ -727,7 +728,8 @@ the first) and `maxAttempts`, so it can tell its last attempt, for example
 to notify someone before the message is given up:
 
 ```ts
-const crm = createWebhookInbox(postgres.admin, {
+const crm = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "crm",
   secrets,
   maxAttempts: 3,
@@ -791,7 +793,8 @@ over a service SQL connection or a service-role transport, and
 `inbox.purgeJob(options)` returns it as a job handler.
 
 ```ts
-const inbox = createWebhookInbox(postgres.admin, {
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "chat-provider",
   secrets: process.env.CHAT_WEBHOOK_SECRET!,
   tenantOf: (payload) => connectionTenant(payload),
@@ -846,7 +849,28 @@ requests, needs neither `secrets` nor `verify`. Its `process`, `list` and
 request is never stored:
 
 ```ts
-const chat = createWebhookInbox(postgres.admin, { source: "chat" });
+const chat = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "chat",
+});
 
 await chat.store({ id: event.id, type: event.type, payload: event });
+```
+
+## Your own columns
+
+Add columns to the webhook inbox message table with `blocks.webhook-inbox.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`store` validates and writes them, and `list` and the messages `process` hands the handler return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
+import { z } from "zod";
+
+const client = createWebhookInbox({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
 ```

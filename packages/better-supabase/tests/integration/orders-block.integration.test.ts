@@ -3,13 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
+import { createOrders, sqlTransport } from "../../src/blocks/orders/index.ts";
 import {
   fixedRates,
   money,
   type Payment,
   type PaymentProvider,
-} from "../../src/blocks/commerce/index.ts";
-import { createOrders, sqlTransport } from "../../src/blocks/orders/index.ts";
+} from "../../src/commerce/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import {
   BlockSession,

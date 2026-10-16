@@ -366,6 +366,8 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);
+-- fields: the extra columns (blocks.workflow-builder.options.extraColumns) to set.
+drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean, jsonb);
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,
   slug text,

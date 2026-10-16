@@ -105,6 +105,9 @@ and listed in `src/blocks/registry.ts` and `tests/blocks/all-blocks.ts`. A
 block with only SQL gets a directory with just the manifest (and
 `events.ts` when it records events).
 
+- Code several blocks share but that has no SQL module of its own (money
+  and the providers in `src/commerce`) lives outside `src/blocks`, which
+  holds only blocks.
 - `sql` lists the SQL modules it installs; every module belongs to exactly
   one block. `options` holds the module's schema from the block's
   `options.ts` (`blockOptions`), with one `option.*` per key in

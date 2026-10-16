@@ -1,5 +1,5 @@
-import { type DbError, dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { type DbError, dbError } from "../core/errors.ts";
+import { AsyncResult, err, ok, type Result } from "../core/result.ts";
 import {
   applyRate,
   isMoney,

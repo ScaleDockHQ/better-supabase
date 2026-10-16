@@ -57,7 +57,7 @@ describe("createIncomingWebhooks", () => {
   it("stores non-JSON bodies, keeps headers and skips disabled endpoints", async () => {
     const fake = fakeSql([
       ["incoming_webhook_by_token", [endpoint({ max_body_bytes: 100 })]],
-      ["receive_webhook", [{ id: 4, duplicate: false }]],
+      ["receive_webhook", [{ value: { id: 4, duplicate: false } }]],
     ]);
     const hooks = createIncomingWebhooks({
       sql: fake.sql,
@@ -104,7 +104,7 @@ describe("createIncomingWebhooks", () => {
   it("deduplicates unverified deliveries on webhook-id or svix-id", async () => {
     const fake = fakeSql([
       ["incoming_webhook_by_token", [endpoint()]],
-      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      ["receive_webhook", [{ value: { id: 1, duplicate: false } }]],
     ]);
     const hooks = createIncomingWebhooks({ sql: fake.sql });
     await hooks.receive(post("{}", { "webhook-id": "msg_std" }), "tok");
@@ -134,7 +134,7 @@ describe("createIncomingWebhooks", () => {
     const fake = fakeSql([
       ["incoming_webhook_by_token", [endpoint({ max_body_bytes: 100 })]],
       ["hit_rate_limit", [{ allowed: true, retry_after: 0 }]],
-      ["receive_webhook", [{ id: 1, duplicate: true }]],
+      ["receive_webhook", [{ value: { id: 1, duplicate: true } }]],
     ]);
     const hooks = createIncomingWebhooks({
       sql: fake.sql,
@@ -284,7 +284,7 @@ describe("createIncomingWebhooks", () => {
           }),
         ],
       ],
-      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      ["receive_webhook", [{ value: { id: 1, duplicate: false } }]],
     ]);
     const hooks = createIncomingWebhooks({
       sql: fake.sql,
@@ -340,7 +340,7 @@ describe("createIncomingWebhooks", () => {
               }),
         ],
       ],
-      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      ["receive_webhook", [{ value: { id: 1, duplicate: false } }]],
       [
         "rotate_incoming_webhook_secret",
         (call) => [
@@ -504,7 +504,7 @@ describe("createIncomingWebhooks", () => {
               }),
         ],
       ],
-      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      ["receive_webhook", [{ value: { id: 1, duplicate: false } }]],
     ]);
     const hooks = createIncomingWebhooks({ sql: fake.sql });
     const headers = await signWebhook(secret, { id: "w1", body });

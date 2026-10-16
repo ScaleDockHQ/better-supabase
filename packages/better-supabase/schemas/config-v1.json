@@ -3996,7 +3996,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -4009,7 +4010,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -4023,7 +4025,8 @@
             "additionalProperties": false,
             "properties": {
               "businessHours": {},
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -4123,7 +4126,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -4135,7 +4139,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4147,7 +4153,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "teamIdType": {}
+              "teamIdType": {},
+              "extraColumns": {}
             }
           }
         }
@@ -4159,7 +4166,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4194,7 +4203,8 @@
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -4211,7 +4221,8 @@
               "retentionDays": {
                 "type": "number",
                 "default": 30
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -4273,7 +4284,8 @@
               "debounce": {
                 "type": "number",
                 "default": 300
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -4299,7 +4311,8 @@
                 "items": {
                   "type": "string"
                 }
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -4311,7 +4324,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4391,7 +4406,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },

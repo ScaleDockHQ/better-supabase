@@ -16,6 +16,7 @@ const tag = (id: string, name: string): Tag => ({
   id,
   name,
   slug: name.toLowerCase(),
+  fields: {},
 });
 
 function setup(organizationId: string | null = "org-1") {
@@ -36,7 +37,7 @@ function setup(organizationId: string | null = "org-1") {
       resolved(true),
   );
   const create = vi.fn((_organizationId: string, _kind: string, name: string) =>
-    resolved<Tag>({ id: "t3", name, slug: name.toLowerCase() }),
+    resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),
   );
   const onChanged = vi.fn();
   const controller = createTagInputController({

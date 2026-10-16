@@ -1,3 +1,4 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   AuthorizationHooks,
@@ -131,6 +132,8 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly responseBodyLimit?: number;
   /** `betterSupabase.events`, for `webhook.*` block events. */
   readonly events?: EventHub;
+  /** `withBlockHooks` hooks around the client's methods, such as a check before `publish`. */
+  readonly hooks?: BlockHooks<Webhooks>;
   readonly context?: RequestContext;
   /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
   readonly mappers?: readonly ErrorMapper[];

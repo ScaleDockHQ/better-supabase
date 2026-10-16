@@ -3,12 +3,6 @@ import { createBlocks, sqlTransport } from "better-supabase/blocks";
 import { createApprovals } from "better-supabase/blocks/approvals";
 import { createCatalog } from "better-supabase/blocks/catalog";
 import {
-  fixedRates,
-  money,
-  type Payment,
-  type PaymentProvider,
-} from "better-supabase/blocks/commerce";
-import {
   createImports,
   defineImport,
   runImport,
@@ -22,6 +16,12 @@ import {
 import { createPromotions } from "better-supabase/blocks/promotions";
 import { createSavedViews } from "better-supabase/blocks/saved-views";
 import { createSearch } from "better-supabase/blocks/search";
+import {
+  fixedRates,
+  money,
+  type Payment,
+  type PaymentProvider,
+} from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
