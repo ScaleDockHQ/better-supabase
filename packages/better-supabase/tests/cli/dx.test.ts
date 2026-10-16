@@ -468,6 +468,30 @@ describe("env", () => {
     expect(result.stdout).toContain("SUPABASE_URL=http://127.0.0.1:54321");
   });
 
+  it("rejects a --from file without status JSON", async () => {
+    await project({}, { "status.txt": "Stopped\n" });
+    const result = await run(["env", "--from", "status.txt", "--cwd", dir], {
+      io: { stdout: () => {}, stderr: () => {} },
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      "status.txt holds no supabase status JSON.",
+    );
+  });
+
+  it("names the exit code when supabase status fails", async () => {
+    await project({});
+    const bin = join(dir, "fake-supabase");
+    await writeFile(bin, "#!/bin/sh\nexit 2\n");
+    await chmod(bin, 0o755);
+    const result = await run(["env", "--print", "--cwd", dir], {
+      env: { SUPABASE_BIN: bin },
+      io: { stdout: () => {}, stderr: () => {} },
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("supabase status failed (2)");
+  });
+
   it("keeps comments and export lines when merging", () => {
     expect(mergeEnv("# mine\nexport A=1\n", { A: "2", B: "3" })).toBe(
       "# mine\nA=2\n\n# Local Supabase stack (better-supabase env)\nB=3\n",

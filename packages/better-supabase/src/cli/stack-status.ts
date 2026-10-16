@@ -15,9 +15,9 @@ export function parseStackStatus(stdout: string): StackStatus | undefined {
   const start = stdout.indexOf("{");
   if (start === -1) return undefined;
   const parsed: unknown = JSON.parse(stdout.slice(start));
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-    return undefined;
-  return { ...parsed };
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    ? { ...parsed }
+    : undefined;
 }
 
 /**
