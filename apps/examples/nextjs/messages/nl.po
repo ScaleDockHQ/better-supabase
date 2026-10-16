@@ -811,6 +811,7 @@ msgid "Already have an account?"
 msgstr "Heb je al een account?"
 
 #: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-picker.tsx
 msgctxt "billing.ZBALng"
 msgid "Current plan"
 msgstr "Huidig abonnement"
@@ -831,47 +832,14 @@ msgid "None"
 msgstr "Geen"
 
 #: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.n1Whvj"
-msgid "Switch"
-msgstr "Overstappen"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.tf1lIh"
-msgid "Free"
-msgstr "Gratis"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.MdFvGX"
-msgid "{price} per month"
-msgstr "{price} per maand"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.kW-_4r"
-msgid "{seats} seats"
-msgstr "{seats} plaatsen"
-
-#: src/features/billing/components/billing-overview.tsx
-#: src/features/billing/components/plan-features.tsx
-msgctxt "billing.ICR82m"
-msgid "CSV exports"
-msgstr "CSV-exports"
-
-#: src/features/billing/components/billing-overview.tsx
-#: src/features/billing/components/plan-features.tsx
-msgctxt "billing.ED9RG5"
-msgid "Audit log"
-msgstr "Auditlog"
-
-#: src/features/billing/components/billing-overview.tsx
-#: src/features/billing/components/plan-features.tsx
-msgctxt "billing.YQJkxw"
-msgid "Single sign-on"
-msgstr "Single sign-on"
-
-#: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.1Z5h3H"
 msgid "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
 msgstr "Abonnementswijzigingen lopen via Stripe Checkout met de billing-SQL-module, die dit voorbeeld niet installeert."
+
+#: src/features/billing/components/feature-gate.tsx
+msgctxt "billing.BE3P0M"
+msgid "Upgrade to unlock"
+msgstr ""
 
 #: src/features/billing/components/mark-plan-reviewed-button.tsx
 msgctxt "billing.TNms_8"
@@ -882,6 +850,24 @@ msgstr "Onboardingstap afgerond"
 msgctxt "billing.5u9EI1"
 msgid "Mark as reviewed"
 msgstr "Markeren als bekeken"
+
+#: src/features/billing/components/plan-features.tsx
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.ICR82m"
+msgid "CSV exports"
+msgstr "CSV-exports"
+
+#: src/features/billing/components/plan-features.tsx
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/billing/components/plan-features.tsx
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.YQJkxw"
+msgid "Single sign-on"
+msgstr "Single sign-on"
 
 #: src/features/billing/components/plan-features.tsx
 msgctxt "billing.0LfhAK"
@@ -897,6 +883,31 @@ msgstr "inbegrepen"
 msgctxt "billing.Im0KqV"
 msgid "not in your plan"
 msgstr "niet in je abonnement"
+
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.tf1lIh"
+msgid "Free"
+msgstr "Gratis"
+
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.MdFvGX"
+msgid "{price} per month"
+msgstr "{price} per maand"
+
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.kW-_4r"
+msgid "{seats} seats"
+msgstr "{seats} plaatsen"
+
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.os_xzJ"
+msgid "Opening checkout"
+msgstr ""
+
+#: src/features/billing/components/plan-picker.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Overstappen"
 
 #: src/features/customers/components/comment-thread.tsx
 msgctxt "customers.ZTbdfB"
@@ -1940,49 +1951,9 @@ msgid "Managed by the organizations module."
 msgstr "Beheerd door de organizations-module."
 
 #: src/features/organization/components/organization-general.tsx
-msgctxt "organization.x6K-Ry"
-msgid "Defaults"
-msgstr "Standaarden"
-
-#: src/features/organization/components/organization-general.tsx
 msgctxt "organization._aWPNo"
 msgid "Owners transfer ownership before they can leave."
 msgstr "Eigenaren dragen het eigendom over voordat ze kunnen vertrekken."
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.2G6Qs7"
-msgid "Settings saved"
-msgstr "Instellingen opgeslagen"
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.azMsfM"
-msgid "Monday"
-msgstr "Maandag"
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.mJR06P"
-msgid "Sunday"
-msgstr "Zondag"
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.iEdIXH"
-msgid "Default role for invitations"
-msgstr "Standaardrol voor uitnodigingen"
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.ytO0XE"
-msgid "Week starts on"
-msgstr "Week begint op"
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.eRCBo1"
-msgid "Stored per organization by the settings module."
-msgstr "Per organisatie opgeslagen door de settings-module."
-
-#: src/features/organization/components/organization-settings-form.tsx
-msgctxt "organization.muqizb"
-msgid "Save settings"
-msgstr "Instellingen opslaan"
 
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.qQ6ahH"
@@ -2064,10 +2035,40 @@ msgctxt "search.wLCEuv"
 msgid "No matches."
 msgstr "Geen resultaten."
 
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.7ccWHk"
+msgid "Only admins can change this."
+msgstr ""
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.xIOlmn"
+msgid "Your preferences"
+msgstr ""
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.hZcxFt"
+msgid "Only you see these."
+msgstr ""
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.Lbq9gJ"
+msgid "Organization defaults"
+msgstr ""
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.zvMP6-"
+msgid "Shared by everyone in the organization."
+msgstr ""
+
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.itPgxd"
 msgid "Profile"
 msgstr "Profiel"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.PCSt5T"
+msgid "Preferences"
+msgstr ""
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Py189G"
@@ -2220,11 +2221,6 @@ msgstr "Profiel"
 msgctxt "user.Y0jjJp"
 msgid "How your teammates see you."
 msgstr "Hoe je teamgenoten je zien."
-
-#: src/features/user/components/profile-details.tsx
-msgctxt "user.PCSt5T"
-msgid "Preferences"
-msgstr "Voorkeuren"
 
 #: src/features/user/components/profile-details.tsx
 msgctxt "user.qxg3uo"
@@ -2396,16 +2392,6 @@ msgstr "Taal"
 msgctxt "user.xXbJso"
 msgid "Sign out"
 msgstr "Uitloggen"
-
-#: src/features/user/components/weekly-digest-switch.tsx
-msgctxt "user.kaIjsz"
-msgid "Weekly digest"
-msgstr "Wekelijks overzicht"
-
-#: src/features/user/components/weekly-digest-switch.tsx
-msgctxt "user.pY7RRr"
-msgid "A Monday summary of your customers. Saved by the settings module."
-msgstr "Elke maandag een overzicht van je klanten. Opgeslagen door de settings-module."
 
 #: src/features/workflows/builder/components/create-definition-form.tsx
 msgctxt "workflows.OX3pPf"

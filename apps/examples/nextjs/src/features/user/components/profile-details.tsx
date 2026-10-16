@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUserSettings } from "@/features/settings/settings-queries";
 
 import { getPermissionSnapshot } from "../permission-snapshot";
 import { roleOf } from "../user-permissions";
@@ -17,15 +16,13 @@ import { getMyProfile, getSession } from "../user-queries";
 import { AvatarForm } from "./avatar-form";
 import { ProfileForm } from "./profile-form";
 import { RoleBadge } from "./role-badge";
-import { WeeklyDigestSwitch } from "./weekly-digest-switch";
 
 /** Render inside `<Suspense>`; the fallback is `ProfileDetailsSkeleton`. */
 export async function ProfileDetails() {
-  const [session, profile, snapshot, settings, t, format] = await Promise.all([
+  const [session, profile, snapshot, t, format] = await Promise.all([
     getSession(),
     getMyProfile(),
     getPermissionSnapshot(),
-    getUserSettings(),
     getExtracted("user"),
     getFormatter(),
   ]);
@@ -48,14 +45,6 @@ export async function ProfileDetails() {
             fullName={profile?.fullName ?? null}
             email={session.user.email ?? null}
           />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("Preferences")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <WeeklyDigestSwitch enabled={settings.weeklyDigest} />
         </CardContent>
       </Card>
       <Card>

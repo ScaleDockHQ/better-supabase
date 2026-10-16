@@ -5,3 +5,10 @@ export {
 export type { EntitlementKey } from "../../auth/entitlements.ts";
 export { entitlementMembers, ENTITLEMENTS_UPDATED } from "./entitlements.ts";
 export { entitlementsBlock } from "./manifest.ts";
+export { createFeatureGateController } from "./client.ts";
+export type {
+  FeatureGateActions,
+  FeatureGateController,
+  FeatureGateControllerOptions,
+  FeatureGateSnapshot,
+} from "./client.ts";
