@@ -1,5 +1,7 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
   CredentialProvider,
@@ -125,6 +127,10 @@ export interface AiBatchItemInput {
 }
 
 export interface AiProvidersOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AiProviders>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /** Calls as the service role, for resolving keys, polling and the idle stop. */

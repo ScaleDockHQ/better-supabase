@@ -164,7 +164,9 @@ function stepOf(value: unknown): AiRunStep {
  * Run lookups, run steps and the approval inbox: what a durable chat needs
  * to stop or resume a run, and what an activity console shows.
  */
-export function aiRunLookups(options: AiChatOptions): AiRuns {
+export function aiRunLookups(
+  options: Pick<AiChatOptions, "transport" | "service" | "schema" | "mappers">,
+): AiRuns {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,

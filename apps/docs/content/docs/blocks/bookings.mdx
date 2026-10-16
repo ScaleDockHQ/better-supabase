@@ -352,3 +352,19 @@ slots. For the staff side, the Event Calendar's resource view renders
 category build full booking pages, such as a Calendly-style month calendar
 with a slot picker; their source is licensed per user, so copy them into your
 app from [reui.io](https://reui.io).
+
+## Your own fields
+
+`blocks.bookings.options.extraColumns` adds columns to the `bookings` table,
+keyed by column name with their SQL type. Pass `createBookings` a Standard Schema
+for them as `fields`: the customer object of `hold` and `public.hold` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every booking read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createBookings({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

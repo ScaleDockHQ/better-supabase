@@ -9,7 +9,11 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
   ensureCheck,
+  withExtraFields,
+  extraFieldsParam,
+  extraFieldsType,
   SERVICE_CALLER,
   schemaPreamble,
   revokeTable,
@@ -59,6 +63,7 @@ const NAMES: ModuleNames = {
     "subjects",
     "path",
     "scanBuckets",
+    "extraColumns",
   ],
   tables: {
     attachments: {
@@ -277,6 +282,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
   ];
   const bucketList = buckets.map(sqlString).join(", ");
+  const extras = ctx.extraColumns("attachments", ["fields"]);
+  const json = (row: string): string =>
+    withExtraFields(`to_jsonb(${row})`, row, extras);
   const bucketFor = perSubject.some((entry) => entry.bucket !== bucket)
     ? `case create_attachment.subject_type ${perSubject
         .filter((entry) => entry.bucket !== bucket)
@@ -286,6 +294,45 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         )
         .join(" ")} else ${sqlString(bucket)} end`
     : sqlString(bucket);
+  // Inserts only the extra columns attrs names, so the others keep their
+  // default, under the caller's column grants and policies.
+  const insertColumns = [
+    c("tenant"),
+    c("bucket"),
+    c("name"),
+    c("mimeType"),
+    c("size"),
+    c("subjectType"),
+    c("subjectId"),
+    ...(metadata ? [c("metadata")] : []),
+  ];
+  const createWithExtras = `
+declare
+  v_row ${t};
+  v_columns text;
+begin
+  v_row := jsonb_populate_record(null::${t}, (
+    select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
+    from jsonb_each(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as e (field_key, field_value)
+    where e.field_key = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}])
+  ));
+  v_row.${c("tenant")} := create_attachment.tenant;
+  v_row.${c("bucket")} := ${bucketFor};
+  v_row.${c("name")} := create_attachment.name;
+  v_row.${c("mimeType")} := lower(create_attachment.mime_type);
+  v_row.${c("size")} := create_attachment.size;
+  v_row.${c("subjectType")} := create_attachment.subject_type;
+  v_row.${c("subjectId")} := create_attachment.subject_id;${metadata ? `\n  v_row.${c("metadata")} := coalesce(create_attachment.metadata, '{}');` : ""}
+  select string_agg(column_name, ', ')
+  into v_columns
+  from unnest(array[${insertColumns.map((column) => sqlString(column)).join(", ")}]
+    || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.extra_fields, '{}'::jsonb)) as k
+      where k = any (array[${extras.map((extra) => sqlString(extra.name)).join(", ")}]))) as column_name;
+  execute format('insert into ${t.replaceAll("'", "''")} as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
+  into v_row
+  using v_row;
+  return ${json("v_row")};
+end;`;
   const mimeRules = [
     ...(mimeTypes.length === 0 ? [] : [mimeMatch(c("mimeType"), mimeTypes)]),
     ...perSubject
@@ -409,11 +456,11 @@ ${ensureCheck(t, "bs_attachments_size", `${c("size")} between 0 and ${String(max
 ${mimeCheck}
 create unique index if not exists attachments_object_idx on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists attachments_subject_idx on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
-create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});
+create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
-grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : [])].join(", ")}) on ${t} to authenticated;
+grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -506,7 +553,12 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
   using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'delete'));
 
 -- The caller's new record, for a signed upload URL to its object_path.
-drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);${
+    extras.length === 0
+      ? ""
+      : `
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb);`
+  }
 create or replace function ${fn("create_attachment")}(
   tenant ${id},
   name text,
@@ -514,16 +566,20 @@ create or replace function ${fn("create_attachment")}(
   size bigint,
   subject_type text default null,
   subject_id text default null,
-  metadata jsonb default null
+  metadata jsonb default null${extraFieldsParam(extras)}
 )
 returns jsonb
-language sql
+language ${extras.length === 0 ? "sql" : "plpgsql"}
 security invoker
 set search_path = ''
-as $$
+as $$${
+    extras.length === 0
+      ? `
   insert into ${t} as x (${[c("tenant"), c("bucket"), c("name"), c("mimeType"), c("size"), c("subjectType"), c("subjectId"), ...(metadata ? [c("metadata")] : [])].join(", ")})
   values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""})
-  returning to_jsonb(x.*)
+  returning to_jsonb(x.*)`
+      : createWithExtras
+  }
 $$;
 
 -- Marks the upload done once the object exists, taking its size and type
@@ -543,7 +599,7 @@ begin
     ${fail("ATTACHMENT_NOT_FOUND", "No pending attachment of yours has this id", "P0002")}
   end if;
   if v_row.${c("uploadedAt")} is not null then
-    return to_jsonb(v_row);
+    return ${json("v_row")};
   end if;
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row.${c("bucket")} and o.name = v_row.${c("path")};
@@ -557,7 +613,7 @@ begin
   where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;
   ${uploaded}
-  return to_jsonb(v_row);
+  return ${json("v_row")};
 end;
 $$;
 
@@ -588,14 +644,14 @@ begin
   returning * into v_row;
   if v_row.${c("id")} is null then
     select * into v_row from ${t} a where a.${c("id")} = set_attachment_status.id;
-    return case when v_row.${c("id")} is null then null else to_jsonb(v_row) end;
+    return case when v_row.${c("id")} is null then null else ${json("v_row")} end;
   end if;
   insert into ${scans} (${sc("bucket")}, ${sc("path")}, ${sc("status")}, ${sc("detail")}, ${sc("scannedAt")})
   values (v_row.${c("bucket")}, v_row.${c("path")}, v_row.${c("status")}, v_row.${c("detail")}, now())
   on conflict (${sc("bucket")}, ${sc("path")}) do update
     set ${sc("status")} = excluded.${sc("status")}, ${sc("detail")} = excluded.${sc("detail")}, ${sc("scannedAt")} = excluded.${sc("scannedAt")};
   ${scanned}
-  return to_jsonb(v_row);
+  return ${json("v_row")};
 end;
 $$;
 
@@ -606,7 +662,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(a.*) order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${withExtraFields("to_jsonb(a.*)", "a", extras)} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
   from ${t} a
   where a.${c("tenant")} is not distinct from list_attachments.tenant
     and (list_attachments.subject_type is null or a.${c("subjectType")} = list_attachments.subject_type)
@@ -620,7 +676,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(a.*) from ${t} a where a.${c("id")} = get_attachment.id
+  select ${withExtraFields("to_jsonb(a.*)", "a", extras)} from ${t} a where a.${c("id")} = get_attachment.id
 $$;
 
 create or replace function ${fn("delete_attachment")}(id uuid)
@@ -740,13 +796,13 @@ revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from
 grant execute on function ${fn("object_clean")}(text, text) to authenticated, service_role;
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
-revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb) from public, anon;
+revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsType(extras)}) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
-grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb) to authenticated, service_role;
+grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsType(extras)}) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;

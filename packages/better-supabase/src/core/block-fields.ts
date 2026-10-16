@@ -204,3 +204,59 @@ export function blockFields<T extends object = Record<never, never>>(
   };
   return fields;
 }
+
+/** The keys of a write the block doesn't type itself: its extra fields. */
+export const extraOf = (
+  input: object,
+  known: ReadonlySet<string>,
+): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(input).filter(([key]) => !known.has(key)));
+
+/** The extra columns a block read returns under its `fields` key. */
+const extraFieldsOf = (value: unknown): Record<string, unknown> =>
+  isObject(value) && isObject(value["fields"]) ? value["fields"] : {};
+
+/**
+ * Parses the extra columns of `raw` (a row a block function returned) and
+ * adds them to `row`, the block's typed row. The row's own keys win, so an
+ * extra column never replaces one the block types.
+ */
+export async function withFields<R extends object, T extends object>(
+  fields: BlockFields<T>,
+  raw: unknown,
+  row: R,
+): Promise<Result<R & T>> {
+  const parsed = await fields.read(extraFieldsOf(raw));
+  if (!parsed.ok) return parsed;
+  return ok({ ...parsed.data, ...row });
+}
+
+/** `withFields` over a list of pairs: the raw row and the typed row. */
+export async function allWithFields<R extends object, T extends object>(
+  fields: BlockFields<T>,
+  rows: readonly (readonly [unknown, R])[],
+): Promise<Result<(R & T)[]>> {
+  const out: (R & T)[] = [];
+  for (const [raw, row] of rows) {
+    const parsed = await withFields(fields, raw, row);
+    if (!parsed.ok) return parsed;
+    out.push(parsed.data);
+  }
+  return ok(out);
+}
+
+/**
+ * Validates the extra fields of a write: `{ extra_fields }` to spread into
+ * the call's arguments, or `{}` when the write sets none, so a module
+ * without extra columns is called as before.
+ */
+export async function extraFieldsArg(
+  fields: BlockFields<object>,
+  extra: Readonly<Record<string, unknown>>,
+): Promise<
+  Result<{ readonly extra_fields?: Readonly<Record<string, unknown>> }>
+> {
+  if (Object.keys(extra).length === 0) return ok({});
+  const valid = await fields.write(extra);
+  return valid.ok ? ok({ extra_fields: valid.data }) : valid;
+}

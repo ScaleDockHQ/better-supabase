@@ -4,6 +4,7 @@ import type { BookingsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createBookings } from "./bookings.ts";
 import { bookingsEvents } from "./events.ts";
+import { bookingsSqlOptions } from "./options.ts";
 
 /** The `bookings` block's manifest (ADR 0029). */
 export const bookingsBlock: BlockOf<
@@ -13,6 +14,9 @@ export const bookingsBlock: BlockOf<
 > = defineBlock({
   name: "bookings",
   sql: ["bookings"],
+  options: {
+    bookings: bookingsSqlOptions,
+  },
   events: bookingsEvents,
   create: createBookings,
   client: "bookings",

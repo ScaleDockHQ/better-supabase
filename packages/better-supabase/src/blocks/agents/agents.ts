@@ -1,7 +1,19 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { KnowledgeScope } from "../knowledge/knowledge.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -84,7 +96,20 @@ export type NewAgent = AgentFields & {
 
 export type AgentFilter = "store" | "mine" | "installed";
 
-export interface AgentsOptions extends BlockTemporalOptions {
+export interface AgentsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the agent columns the app adds
+   * (`blocks.agents.options.extraColumns`), keyed by column name. It types
+   * and parses them on every read, and validates them on `create` and
+   * `update`, which return a `validation` error for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Agents<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
@@ -92,15 +117,20 @@ export interface AgentsOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
 }
 
-export interface Agents {
-  create(organizationId: string, agent: NewAgent): AsyncResult<Agent>;
+/** `F` is the extra fields `options.fields` describes. */
+export interface Agents<F extends object = Record<never, never>> {
+  /** Keys besides the agent's own are its extra columns. */
+  create(
+    organizationId: string,
+    agent: NewAgent & Partial<F>,
+  ): AsyncResult<Agent & F>;
   update(
     organizationId: string,
     agentId: string,
-    fields: AgentFields,
-  ): AsyncResult<Agent>;
-  get(agentId: string): AsyncResult<Agent>;
-  bySlug(organizationId: string, slug: string): AsyncResult<Agent>;
+    fields: AgentFields & Partial<F>,
+  ): AsyncResult<Agent & F>;
+  get(agentId: string): AsyncResult<Agent & F>;
+  bySlug(organizationId: string, slug: string): AsyncResult<Agent & F>;
   /** The store (published to the tenant or public), the caller's own, or the installed ones. */
   list(
     organizationId: string,
@@ -109,8 +139,8 @@ export interface Agents {
       readonly search?: string;
       readonly limit?: number;
     },
-  ): AsyncResult<readonly Agent[]>;
-  publish(agentId: string, visibility: AgentVisibility): AsyncResult<Agent>;
+  ): AsyncResult<readonly (Agent & F)[]>;
+  publish(agentId: string, visibility: AgentVisibility): AsyncResult<Agent & F>;
   install(
     organizationId: string,
     agentId: string,
@@ -121,7 +151,7 @@ export interface Agents {
     agentId: string,
     rating: number | null,
     comment?: string,
-  ): AsyncResult<Agent>;
+  ): AsyncResult<Agent & F>;
   setSkills(
     agentId: string,
     skills: readonly Omit<AgentSkill, "id">[],
@@ -200,6 +230,18 @@ function agentOf(value: unknown): Agent {
 const notFound = (): DbError =>
   notFoundError("No agent you can see has this id", "AGENT_NOT_FOUND");
 
+const AGENT_FIELDS: ReadonlySet<string> = new Set([
+  "slug",
+  "name",
+  "description",
+  "instructions",
+  "model",
+  "tools",
+  "connectorIds",
+  "knowledgeScopes",
+  "starters",
+]);
+
 function fieldsArg(fields: AgentFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (fields.slug !== undefined) out["slug"] = fields.slug;
@@ -221,25 +263,36 @@ function fieldsArg(fields: AgentFields): Record<string, unknown> {
 }
 
 /** Custom assistants: build, publish to a store, install and rate. */
-export function createAgents(options: AgentsOptions): Agents {
+export function createAgents<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: AgentsOptions<S>): Agents<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const found = (value: unknown): AsyncResult<Agent> =>
-    isRecord(value)
-      ? AsyncResult.ok(agentOf(value))
-      : AsyncResult.err(notFound());
+  const fields: BlockFields<F> = blockFields(options.fields, "agent fields");
+  const typed = (value: unknown): AsyncResult<Agent & F> =>
+    AsyncResult.from(() => withFields(fields, value, agentOf(value)));
+  const one = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): AsyncResult<Agent & F> => call(fn, args, (value) => value).andThen(typed);
+  const found = (value: unknown): AsyncResult<Agent & F> =>
+    isRecord(value) ? typed(value) : AsyncResult.err(notFound());
   const save = (
     organizationId: string,
     agentId: string | undefined,
-    fields: AgentFields,
-  ): AsyncResult<Agent> =>
-    call(
-      "save_agent",
-      { tenant: organizationId, id: agentId, fields: fieldsArg(fields) },
-      agentOf,
+    agent: AgentFields,
+  ): AsyncResult<Agent & F> =>
+    AsyncResult.from(() => fields.write(extraOf(agent, AGENT_FIELDS))).andThen(
+      (extra) =>
+        one("save_agent", {
+          tenant: organizationId,
+          id: agentId,
+          fields: { ...extra, ...fieldsArg(agent) },
+        }),
     );
 
-  return {
+  const client: Agents<F> = {
     create: (organizationId, agent) => save(organizationId, undefined, agent),
     update: (organizationId, agentId, fields) =>
       save(organizationId, agentId, fields),
@@ -260,10 +313,13 @@ export function createAgents(options: AgentsOptions): Agents {
           search: listOptions.search,
           max_rows: listOptions.limit,
         },
-        (value) => recordsOf(value, "list_agents").map(agentOf),
-      ),
+        (value) =>
+          recordsOf(value, "list_agents").map(
+            (raw) => [raw, agentOf(raw)] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     publish: (agentId, visibility) =>
-      call("publish_agent", { id: agentId, visibility }, agentOf),
+      one("publish_agent", { id: agentId, visibility }),
     install: (organizationId, agentId, installed = true) =>
       call(
         "install_agent",
@@ -271,7 +327,7 @@ export function createAgents(options: AgentsOptions): Agents {
         (value) => value === true,
       ),
     rate: (agentId, rating, comment) =>
-      call("rate_agent", { agent_id: agentId, rating, comment }, agentOf),
+      one("rate_agent", { agent_id: agentId, rating, comment }),
     setSkills: (agentId, skills) =>
       call(
         "set_agent_skills",
@@ -281,4 +337,8 @@ export function createAgents(options: AgentsOptions): Agents {
     remove: (agentId) =>
       call("delete_agent", { id: agentId }, (value) => value === true),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "agents",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

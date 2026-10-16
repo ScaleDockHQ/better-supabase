@@ -42,11 +42,23 @@ import {
   type BillingSqlOptions,
   billingSqlOptions,
 } from "./billing/options.ts";
+import {
+  type BookingsSqlOptions,
+  bookingsSqlOptions,
+} from "./bookings/options.ts";
 import { type BulkSqlOptions, bulkSqlOptions } from "./bulk/options.ts";
+import {
+  type CalendarSqlOptions,
+  calendarSqlOptions,
+} from "./calendar/options.ts";
 import {
   type CatalogSqlOptions,
   catalogSqlOptions,
 } from "./catalog/options.ts";
+import {
+  type CollectionsSqlOptions,
+  collectionsSqlOptions,
+} from "./collections/options.ts";
 import {
   type CommentsSqlOptions,
   commentsSqlOptions,
@@ -281,12 +293,12 @@ export interface BlockOptionsRegistry {
   readonly attachments: AttachmentsSqlOptions;
   readonly audit: AuditSqlOptions;
   readonly billing: BillingSqlOptions;
-  readonly bookings: None;
+  readonly bookings: BookingsSqlOptions;
   readonly bulk: BulkSqlOptions;
-  readonly calendar: None;
+  readonly calendar: CalendarSqlOptions;
   readonly catalog: CatalogSqlOptions;
   readonly "chat-sdk-state": None;
-  readonly collections: None;
+  readonly collections: CollectionsSqlOptions;
   readonly comments: CommentsSqlOptions;
   readonly connectors: ConnectorsSqlOptions;
   readonly credentials: CredentialsSqlOptions;
@@ -393,12 +405,12 @@ export const BLOCK_OPTION_SCHEMAS: {
   attachments: attachmentsSqlOptions,
   audit: auditSqlOptions,
   billing: billingSqlOptions,
-  bookings: NO_OPTIONS,
+  bookings: bookingsSqlOptions,
   bulk: bulkSqlOptions,
-  calendar: NO_OPTIONS,
+  calendar: calendarSqlOptions,
   catalog: catalogSqlOptions,
   "chat-sdk-state": NO_OPTIONS,
-  collections: NO_OPTIONS,
+  collections: collectionsSqlOptions,
   comments: commentsSqlOptions,
   connectors: connectorsSqlOptions,
   credentials: credentialsSqlOptions,

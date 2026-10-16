@@ -93,3 +93,19 @@ every outcome, for a notification or an email. Without it, a `notification`
 type sends each outcome through the `notifier` port, the notifications block
 that [`createBlocks`](/docs/blocks/create-blocks#ports) passes:
 `aiTasksBlock.with({ notification: "ai_task.finished" })`.
+
+## Your own fields
+
+`blocks.ai-tasks.options.extraColumns` adds columns to the `ai_scheduled_tasks` table,
+keyed by column name with their SQL type. Pass `createAiTasks` a Standard Schema
+for them as `fields`: `create`, `update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `create`, `update`, `pause`, `resume`, `list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAiTasks({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

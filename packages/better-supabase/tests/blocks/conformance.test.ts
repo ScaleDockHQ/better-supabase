@@ -21,53 +21,29 @@ const RECIPES = join(
 );
 
 /** Blocks whose creator is not `create<Name>(options)`. */
-const CREATOR_NAME: readonly string[] = ["audit"];
+const CREATOR_NAME: readonly string[] = [];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
-const NO_HOOKS: readonly string[] = [
-  "agents",
-  "ai-cache",
-  "ai-chat",
-  "ai-files",
-  "ai-providers",
-  "ai-tasks",
-  "announcements",
-  "api-keys",
-  "attachments",
-  "audit",
-  "billing",
-  "bookings",
-  "bulk",
-  "calendar",
-  "comments",
-  "connectors",
-  "custom-fields",
-];
+const NO_HOOKS: readonly string[] = [];
 /** Blocks with calls that skip `blockCall`. */
-const NO_BLOCK_CALL: readonly string[] = ["audit", "comments"];
+const NO_BLOCK_CALL: readonly string[] = [];
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
-  "access-requests",
-  "agents",
+  // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
-  "ai-chat",
-  "ai-files",
+  // Provider keys and batch jobs the block writes itself.
   "ai-providers",
-  "ai-tasks",
-  "announcements",
-  "api-keys",
-  "approvals",
-  "attachments",
+  // An append-only log written by audit_event and triggers; adopted
+  // columns already come back under `columns`.
   "audit",
+  // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
-  "bookings",
+  // Run records of the block's own bulk jobs.
   "bulk",
-  "calendar",
-  "catalog",
-  "collections",
   "comments",
   "connectors",
+  // The block is itself the app's extra fields.
   "custom-fields",
   // Export and deletion requests are the module's bookkeeping, not app records.
   "data-lifecycle",

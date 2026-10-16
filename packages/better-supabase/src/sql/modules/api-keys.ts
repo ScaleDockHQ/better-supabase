@@ -8,7 +8,18 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, fail, lockTable } from "../shared.ts";
+import {
+  addExtraColumns,
+  dropWithoutExtraFields,
+  extraFieldsJson,
+  extraFieldsParam,
+  extraFieldsType,
+  schemaPreamble,
+  SERVICE_CALLER,
+  fail,
+  lockTable,
+  writeExtraColumns,
+} from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<ApiKeysEvents> = {
@@ -33,9 +44,32 @@ const EVENTS: ModuleEvents<ApiKeysEvents> = {
   },
 };
 
+/** The keys a key read returns, which no extra column may shadow. */
+const KEY_KEYS: readonly string[] = [
+  "id",
+  "organization_id",
+  "user_id",
+  "name",
+  "prefix",
+  "public_id",
+  "scopes",
+  "rate_limit",
+  "expires_at",
+  "last_used_at",
+  "revoked_at",
+  "rotated_from",
+  "created_by",
+  "created_at",
+  "state",
+  "successor_id",
+  "status",
+  "key",
+  "fields",
+];
+
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["scopes", "touchInterval", "prefix"],
+  options: ["scopes", "touchInterval", "prefix", "extraColumns"],
   tables: {
     keys: {
       name: "api_keys",
@@ -143,6 +177,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     end`;
   const successor = (alias: string): string =>
     `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`;
+  const extras = ctx.extraColumns("keys", KEY_KEYS);
+  const createArgs = `text, text, text, ${id}, boolean, text[], timestamptz, integer, text`;
   const json = (
     alias: string,
     withSuccessor = true,
@@ -161,7 +197,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     'rotated_from', ${alias}.${c("rotatedFrom")},
     'created_by', ${alias}.${c("createdBy")},
     'created_at', ${alias}.${c("createdAt")},
-    'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}
+    'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}${extraFieldsJson(alias, extras)}
   )`;
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
@@ -210,13 +246,13 @@ alter table ${t} set (fillfactor = 80);
 create index if not exists api_keys_tenant_idx on ${t} (${c("tenant")});
 create index if not exists api_keys_user_idx on ${t} (${c("user")});
 create index if not exists api_keys_rotated_from_idx on ${t} (${c("rotatedFrom")});
-create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});
+create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});${addExtraColumns(t, extras)}
 ${lockTable(t)}
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-create or replace function ${fn("create_api_key")}(
+${dropWithoutExtraFields(extras, `${fn("create_api_key")}(${createArgs})`)}create or replace function ${fn("create_api_key")}(
   name text,
   public_id text,
   secret_hash text,
@@ -225,7 +261,7 @@ create or replace function ${fn("create_api_key")}(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default ${prefix}
+  prefix text default ${prefix}${extraFieldsParam(extras)}
 )
 returns jsonb
 language plpgsql
@@ -261,7 +297,7 @@ begin
   end if;
   insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")})
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
-  returning * into created;
+  returning * into created;${writeExtraColumns(t, extras, "create_api_key.extra_fields", `x.${c("id")} = created.${c("id")}`, "created")}
   ${keyEvent("api_key.created", "created")}
   return ${json("created")};
 end;
@@ -340,8 +376,8 @@ begin
   if grace is null or grace < interval '0' then
     ${fail("API_KEY_GRACE", "grace must be zero or more", "22023")}
   end if;
-  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")}, ${c("rotatedFrom")})
-  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")})
+  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")}, ${c("rotatedFrom")}${extras.map((extra) => `, ${extra.ident}`).join("")})
+  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")}${extras.map((extra) => `, old.${extra.ident}`).join("")})
   returning * into created;
   update ${t} k set ${c("revokedAt")} = now() + grace where k.${c("id")} = old.${c("id")};
   ${keyEvent("api_key.rotated", "created", `, 'previousKeyId', old.${c("id")}`)}
@@ -426,12 +462,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::${id}
 $$;
 
-revoke execute on function ${fn("create_api_key")}(text, text, text, ${id}, boolean, text[], timestamptz, integer, text) from public, anon;
+revoke execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsType(extras)}) from public, anon;
 revoke execute on function ${fn("list_api_keys")}(${id}) from public, anon;
 revoke execute on function ${fn("revoke_api_key")}(uuid) from public, anon;
 revoke execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) from public, anon;
 revoke execute on function ${fn("verify_api_key")}(text, text) from public, anon, authenticated;
-grant execute on function ${fn("create_api_key")}(text, text, text, ${id}, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+grant execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsType(extras)}) to authenticated, service_role;
 grant execute on function ${fn("list_api_keys")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("revoke_api_key")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) to authenticated, service_role;

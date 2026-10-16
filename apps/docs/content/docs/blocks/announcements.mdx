@@ -211,3 +211,19 @@ export function Component(props: { organizationId: string }) {
 | `list_announcements()`          | `authenticated`, `service_role` | Every announcement, for staff                 |
 | `save_announcement(id, fields)` | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff |
 | `delete_announcement(id)`       | `authenticated`, `service_role` | Removes one, for staff                        |
+
+## Your own fields
+
+`blocks.announcements.options.extraColumns` adds columns to the `announcements` table,
+keyed by column name with their SQL type. Pass `createAnnouncements` a Standard Schema
+for them as `fields`: `publish`, `update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `listActive`, `list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAnnouncements({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

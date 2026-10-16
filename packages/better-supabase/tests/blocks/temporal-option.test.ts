@@ -6,7 +6,7 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
-import { createAuditLog } from "../../src/blocks/audit/index.ts";
+import { createAudit } from "../../src/blocks/audit/index.ts";
 import { createJobs, createRateLimit } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
 import {
@@ -32,7 +32,7 @@ describe("the temporal option of block creators", () => {
     const before: unknown = globalThis.Temporal;
     const creators = [
       () => createAnnouncements({ transport, temporal: namespace }),
-      () => createAuditLog({ transport, temporal: namespace }),
+      () => createAudit({ transport, temporal: namespace }),
       () => createOutbox({ transport, source: "s", temporal: namespace }),
       () => createRateLimit(sql, { temporal: namespace }),
       () => createJobs({ sql, queues: {}, temporal: namespace }),

@@ -281,3 +281,19 @@ day and agenda views, drag to move and resize, and resource views from
 in the `application/event-calendar` category build full scheduling screens on
 it; their source is licensed per user, so copy them into your app from
 [reui.io](https://reui.io).
+
+## Your own fields
+
+`blocks.calendar.options.extraColumns` adds columns to the `calendar_events` table,
+keyed by column name with their SQL type. Pass `createCalendar` a Standard Schema
+for them as `fields`: `save` and the occurrence edits take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `events` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createCalendar({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

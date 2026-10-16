@@ -1,9 +1,12 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { UndoToken } from "../undo/undo.ts";
 import type { AuditEntry, OcsfProduct } from "./audit.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -196,7 +199,13 @@ export interface AuditEventInput {
   readonly impersonationReason?: string;
 }
 
-export interface AuditLogOptions extends BlockTemporalOptions {
+export interface AuditLogOptions<
+  Columns extends AuditColumns = AuditColumns,
+> extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<AuditLog<Columns>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API schema. */
   readonly transport: BlockTransport;
   /** The audit module's schema, or its API schema. Default `better_supabase`. */
@@ -381,8 +390,8 @@ function detailsOf(value: unknown, entryId: string): AuditDetails {
  * read policy decides what `list` and `export` return, and column mappings
  * of an adopted log are already applied.
  */
-export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
-  options: AuditLogOptions,
+export function createAudit<Columns extends AuditColumns = AuditColumns>(
+  options: AuditLogOptions<Columns>,
 ): AuditLog<Columns> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -462,7 +471,7 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
     const product = exporting.product;
     if (format === "ocsf" && !product) {
       throw new TypeError(
-        "createAuditLog().export: the ocsf format needs product",
+        "createAudit().export: the ocsf format needs product",
       );
     }
     const encoder = new TextEncoder();
@@ -566,7 +575,7 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
       textOf,
     );
 
-  return {
+  const client: AuditLog<Columns> = {
     record,
     sink: (sinkOptions) => auditSink(record, sinkOptions),
     list,
@@ -623,4 +632,8 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
         return ok({ path: target.path, url });
       }),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "audit",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

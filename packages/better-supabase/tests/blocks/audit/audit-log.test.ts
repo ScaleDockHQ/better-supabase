@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
-import { createAuditLog } from "../../../src/blocks/audit/index.ts";
+import { createAudit } from "../../../src/blocks/audit/index.ts";
 
 const entry = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -43,7 +43,7 @@ function fake(pages: unknown[][], fail = false) {
   return { transport, calls };
 }
 
-describe("createAuditLog", () => {
+describe("createAudit", () => {
   it("records an event with audit_event and returns the entry id", async () => {
     const calls: [string, Record<string, unknown>][] = [];
     const transport: BlockTransport = {
@@ -52,7 +52,7 @@ describe("createAuditLog", () => {
         return Promise.resolve(42);
       },
     };
-    const id = await createAuditLog({ transport })
+    const id = await createAudit({ transport })
       .record({
         eventType: "invoice.sent",
         organizationId: "org",
@@ -96,7 +96,7 @@ describe("createAuditLog", () => {
       ],
       [entry("0")],
     ]);
-    const audit = createAuditLog<{ ticket_id: string }>({
+    const audit = createAudit<{ ticket_id: string }>({
       transport,
       schema: "api",
     });
@@ -132,7 +132,7 @@ describe("createAuditLog", () => {
 
   it("filters on several values, searches, sorts and counts", async () => {
     const { transport, calls } = fake([[entry("1")]]);
-    const audit = createAuditLog({ transport });
+    const audit = createAudit({ transport });
     const counted = await audit
       .list({
         organizationId: ["a", "b"],
@@ -169,7 +169,7 @@ describe("createAuditLog", () => {
 
   it("opens page N by offset, with a total, and starts an export there", async () => {
     const { transport, calls } = fake([[entry("3")], [entry("2")], []]);
-    const audit = createAuditLog({ transport });
+    const audit = createAudit({ transport });
     const page = await audit
       .list({ organizationId: "org", limit: 1, offset: 2, count: true })
       .orThrow();
@@ -186,7 +186,7 @@ describe("createAuditLog", () => {
 
   it("reverts entries and returns an undo token for the writes", async () => {
     const { transport, calls } = fake([]);
-    const audit = createAuditLog({ transport });
+    const audit = createAudit({ transport });
     expect(await audit.revert(["1", "2"]).orThrow()).toEqual({
       reverted: 2,
       undo: {
@@ -205,14 +205,14 @@ describe("createAuditLog", () => {
   });
 
   it("reveals details and maps errors", async () => {
-    const audit = createAuditLog({ transport: fake([]).transport });
+    const audit = createAudit({ transport: fake([]).transport });
     expect(await audit.reveal("7").orThrow()).toEqual({
       entry: "7",
       old: { a: 1 },
       ip: "1.2.3.4",
       changes: { a: { old: 1, new: 2 } },
     });
-    const denied = createAuditLog({ transport: fake([], true).transport });
+    const denied = createAudit({ transport: fake([], true).transport });
     expect((await denied.list()).ok).toBe(false);
   });
 
@@ -223,7 +223,7 @@ describe("createAuditLog", () => {
     ];
     const text = (format: "ndjson" | "csv" | "ocsf") =>
       new Response(
-        createAuditLog({ transport: fake(pages()).transport }).export({
+        createAudit({ transport: fake(pages()).transport }).export({
           format,
           batch: 2,
           product: { name: "Example" },
@@ -239,13 +239,13 @@ describe("createAuditLog", () => {
     >;
     expect(ocsf["class_uid"]).toBe(6003);
     expect(() =>
-      createAuditLog({ transport: fake([]).transport }).export({
+      createAudit({ transport: fake([]).transport }).export({
         format: "ocsf",
       }),
     ).toThrow(/needs product/);
     await expect(
       new Response(
-        createAuditLog({ transport: fake([], true).transport }).export(),
+        createAudit({ transport: fake([], true).transport }).export(),
       ).text(),
     ).rejects.toThrow(/denied/);
   });
@@ -259,7 +259,7 @@ describe("createAuditLog", () => {
       [entry("0", { columns: { ticket_id: "t0" } })],
     ]);
     const csv = await new Response(
-      createAuditLog<{ ticket_id: string }>({ transport }).export({
+      createAudit<{ ticket_id: string }>({ transport }).export({
         format: "csv",
         batch: 2,
         preamble: ["Audit export", "=org"],
@@ -292,7 +292,7 @@ describe("createAuditLog", () => {
     const plain = fake([[entry("1")]]);
     const header = (
       await new Response(
-        createAuditLog({ transport: plain.transport }).export({
+        createAudit({ transport: plain.transport }).export({
           format: "csv",
         }),
       ).text()
@@ -310,7 +310,7 @@ describe("createAuditLog", () => {
     };
     await expect(
       new Response(
-        createAuditLog({ transport: failing }).export({
+        createAudit({ transport: failing }).export({
           format: "csv",
           columns: ["restricted.ip"],
         }),
@@ -320,7 +320,7 @@ describe("createAuditLog", () => {
 
   it("stores an export and reports upload failures", async () => {
     const audit = (fail = false) =>
-      createAuditLog({ transport: fake([[entry("1")]], fail).transport });
+      createAudit({ transport: fake([[entry("1")]], fail).transport });
     const storage = (error: unknown) => ({
       from: () => ({
         upload: async () => ({ data: null, error }),

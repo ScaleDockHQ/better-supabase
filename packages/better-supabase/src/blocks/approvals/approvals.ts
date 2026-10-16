@@ -6,11 +6,19 @@ import type {
 } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraFieldsArg,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { err } from "../../core/result.ts";
+import { AsyncResult, err } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -22,12 +30,21 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface ApprovalsOptions extends BlockTemporalOptions {
+export interface ApprovalsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the request columns the app adds
+   * (`blocks.approvals.options.extraColumns`), keyed by column name. It
+   * types and parses them on every read, and validates them on `request`,
+   * which returns a `validation` error for a bad value.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Approvals>;
+  readonly hooks?: NoInfer<BlockHooks<Approvals<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -120,27 +137,31 @@ export interface ApprovalListOptions {
   readonly before?: Temporal.Instant;
 }
 
-export interface Approvals {
+/** `F` is the extra request fields `options.fields` describes. */
+export interface Approvals<F extends object = Record<never, never>> {
   /** Files a request under the subject type's policy for the action. */
-  request(input: ApprovalRequestInput): AsyncResult<ApprovalRequest>;
+  /** Keys besides the input's own are the request's extra columns. */
+  request(
+    input: ApprovalRequestInput & Partial<F>,
+  ): AsyncResult<ApprovalRequest & F>;
   /** Approves the current step; the last step runs the policy's action. */
-  approve(id: string, comment?: string): AsyncResult<ApprovalRequest>;
+  approve(id: string, comment?: string): AsyncResult<ApprovalRequest & F>;
   /** Rejects the request. */
-  reject(id: string, comment?: string): AsyncResult<ApprovalRequest>;
+  reject(id: string, comment?: string): AsyncResult<ApprovalRequest & F>;
   /** Hands the caller's place on the current step to another member. */
   delegate(
     id: string,
     userId: string,
     comment?: string,
-  ): AsyncResult<ApprovalRequest>;
+  ): AsyncResult<ApprovalRequest & F>;
   /** The requester or a manager closes a pending request. */
-  cancel(id: string): AsyncResult<ApprovalRequest>;
-  get(id: string): AsyncResult<ApprovalRequestDetail>;
+  cancel(id: string): AsyncResult<ApprovalRequest & F>;
+  get(id: string): AsyncResult<ApprovalRequestDetail & F>;
   /** Newest first. */
   list(
     organizationId: string,
     options?: ApprovalListOptions,
-  ): AsyncResult<readonly ApprovalRequest[]>;
+  ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
   isApproved(
     subjectType: string,
@@ -249,9 +270,23 @@ function decisionOf(
 }
 
 /** The `approvals` SQL module as typed calls. */
-export function createApprovals(options: ApprovalsOptions): Approvals {
+export function createApprovals<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ApprovalsOptions<S>): Approvals<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "approval request fields",
+  );
+  const one = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): AsyncResult<ApprovalRequest & F> =>
+    call(fn, args, (value) => value).andThen((value) =>
+      withFields(fields, value, requestOf(value, fn)),
+    );
   const approverOf = options.authorization?.approverOf;
   if (approverOf !== undefined && options.approver === undefined) {
     throw new TypeError(
@@ -286,53 +321,59 @@ export function createApprovals(options: ApprovalsOptions): Approvals {
       return allowed ? then() : err(refused);
     });
   };
-  const getRequest = (id: string): AsyncResult<ApprovalRequestDetail> =>
-    call("get_approval", { request_id: id }, (value) => {
-      const row = recordOf(value, "get_approval");
-      return {
-        ...requestOf(row, "get_approval"),
-        canDecide: row["canDecide"] === true,
-        decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
-          decisionOf,
-        ),
-      };
-    });
+  const getRequest = (id: string): AsyncResult<ApprovalRequestDetail & F> =>
+    call("get_approval", { request_id: id }, (value) => value).andThen(
+      (value) => {
+        const row = recordOf(value, "get_approval");
+        return withFields(fields, row, {
+          ...requestOf(row, "get_approval"),
+          canDecide: row["canDecide"] === true,
+          decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
+            decisionOf,
+          ),
+        });
+      },
+    );
   const decide = (id: string, decision: string, comment?: string) =>
     asApprover(id, () =>
-      call(
-        "decide_approval",
-        { request_id: id, decision, comment: comment ?? null },
-        (value) => requestOf(value, "decide_approval"),
-      ),
+      one("decide_approval", {
+        request_id: id,
+        decision,
+        comment: comment ?? null,
+      }),
     );
-  const client: Approvals = {
-    request: (input) =>
-      call(
-        "request_approval",
-        {
-          tenant: input.organizationId,
-          subject_type: input.subjectType,
-          subject_id: input.subjectId,
-          action: input.action,
-          reason: input.reason ?? null,
-          payload: input.payload ?? {},
-        },
-        (value) => requestOf(value, "request_approval"),
+  const client: Approvals<F> = {
+    request: ({
+      organizationId,
+      subjectType,
+      subjectId,
+      action,
+      reason,
+      payload,
+      ...extra
+    }) =>
+      AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
+        one("request_approval", {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_id: subjectId,
+          action,
+          reason: reason ?? null,
+          payload: payload ?? {},
+          ...more,
+        }),
       ),
     approve: (id, comment) => decide(id, "approved", comment),
     reject: (id, comment) => decide(id, "rejected", comment),
     delegate: (id, userId, comment) =>
       asApprover(id, () =>
-        call(
-          "delegate_approval",
-          { request_id: id, to_user: userId, comment: comment ?? null },
-          (value) => requestOf(value, "delegate_approval"),
-        ),
+        one("delegate_approval", {
+          request_id: id,
+          to_user: userId,
+          comment: comment ?? null,
+        }),
       ),
-    cancel: (id) =>
-      call("cancel_approval", { request_id: id }, (value) =>
-        requestOf(value, "cancel_approval"),
-      ),
+    cancel: (id) => one("cancel_approval", { request_id: id }),
     get: getRequest,
     list: (organizationId, list = {}) =>
       call(
@@ -347,10 +388,10 @@ export function createApprovals(options: ApprovalsOptions): Approvals {
           before: list.before?.toString() ?? null,
         },
         (value) =>
-          recordsOf(value, "list_approvals").map((row) =>
-            requestOf(row, "list_approvals"),
+          recordsOf(value, "list_approvals").map(
+            (row) => [row, requestOf(row, "list_approvals")] as const,
           ),
-      ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     isApproved: (subjectType, subjectId, action) =>
       call(
         "is_approved",

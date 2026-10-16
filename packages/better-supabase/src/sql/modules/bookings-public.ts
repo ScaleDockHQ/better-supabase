@@ -1,3 +1,4 @@
+import type { ExtraColumn } from "../context.ts";
 import type { ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
@@ -25,6 +26,8 @@ export interface Parts {
   readonly manage: string;
   readonly create: string;
   readonly read: string;
+  /** `options.extraColumns`, which the bookings table gets. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 export const allowed = (

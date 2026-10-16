@@ -8,12 +8,13 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { type Subject, subjectCascades } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   type CollectionNames,
+  collectionExtras,
   collectionFunctions,
   starFunctions,
 } from "./collections-functions.ts";
@@ -52,6 +53,7 @@ const NAMES: ModuleNames = {
     "before_collection_add",
     "after_collection_add",
   ],
+  options: ["extraColumns"],
   tables: {
     collections: {
       name: "subject_collections",
@@ -126,7 +128,7 @@ create table if not exists ${t("collections")} (
   check (${co("scope")} <> 'team' or ${co("team")} is not null)
 );
 create index if not exists subject_collections_tenant_type_idx on ${t("collections")} (${co("tenant")}, ${co("subjectType")}, lower(${co("name")}));
-create index if not exists subject_collections_owner_idx on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;
+create index if not exists subject_collections_owner_idx on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;${addExtraColumns(t("collections"), collectionExtras(ctx))}
 ${lockTable(t("collections"), { read: true })}
 
 create table if not exists ${t("entries")} (

@@ -105,6 +105,24 @@ export const fieldsArg = (columns: readonly ExtraColumn[]): string =>
 export const fieldsArgs = (columns: readonly ExtraColumn[]): string[] =>
   columns.length === 0 ? [] : ["jsonb"];
 
+/** The `extra_fields` parameter a write takes when the table has extra columns. */
+export const extraFieldsParam = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", extra_fields jsonb default null";
+
+/**
+ * `drop function if exists` for a write's signature without `extra_fields`,
+ * so adding extra columns replaces the function instead of overloading it.
+ * Empty without extra columns.
+ */
+export const dropWithoutExtraFields = (
+  columns: readonly ExtraColumn[],
+  signature: string,
+): string =>
+  columns.length === 0 ? "" : `drop function if exists ${signature};\n`;
+
+/** The `extra_fields` type in a signature, as `extraFieldsParam` adds it. */
+export const extraFieldsType = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", jsonb";
 /** The `fields jsonb` parameter of a function that writes extra columns. */
 export interface ExtraFieldsArg {
   /** `, fields jsonb default null`, or nothing without extra columns. */

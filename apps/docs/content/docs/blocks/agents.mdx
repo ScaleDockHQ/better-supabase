@@ -73,3 +73,19 @@ organization fails with a `conflict` error.
 
 [`better-supabase/ai-sdk/agents`](/docs/ai-sdk/agents) turns an agent into
 a `ToolLoopAgent` with its tools, approvals and knowledge search.
+
+## Your own fields
+
+`blocks.agents.options.extraColumns` adds columns to the `agents` table,
+keyed by column name with their SQL type. Pass `createAgents` a Standard Schema
+for them as `fields`: `create`, `update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every agent read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAgents({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

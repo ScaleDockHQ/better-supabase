@@ -2,9 +2,17 @@ import type { SubjectsConfig } from "../../config/types/subjects.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  extraFieldsArg,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
 import { type Money, money } from "../../commerce/money.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -29,9 +37,19 @@ export type ProductKind = (typeof PRODUCT_KINDS)[number];
 export const PRODUCT_STATUSES = ["draft", "active", "archived"] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
-export interface CatalogOptions extends BlockOptions {
+export interface CatalogOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the product columns the app adds
+   * (`blocks.catalog.options.extraColumns`), keyed by column name. It
+   * validates them on `createProduct` and `updateProduct`, which return a
+   * `validation` error for a bad value, and types and parses them on the
+   * saved product they return.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around any catalog method. */
-  readonly hooks?: NoInfer<BlockHooks<Catalog>>;
+  readonly hooks?: NoInfer<BlockHooks<Catalog<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -168,16 +186,18 @@ export interface SavedCollection {
   readonly kind: "manual" | "rule";
 }
 
-export interface Catalog {
+/** `F` is the extra product fields `options.fields` describes. */
+export interface Catalog<F extends object = Record<never, never>> {
+  /** Keys besides the input's own are the product's extra columns. */
   createProduct(
     organizationId: string,
-    input: ProductInput,
-  ): AsyncResult<SavedProduct>;
+    input: ProductInput & Partial<F>,
+  ): AsyncResult<SavedProduct & F>;
   updateProduct(
     organizationId: string,
     productId: string,
-    input: ProductInput,
-  ): AsyncResult<SavedProduct>;
+    input: ProductInput & Partial<F>,
+  ): AsyncResult<SavedProduct & F>;
   /** Moves a product between `draft`, `active` and `archived`. */
   setProductStatus(
     productId: string,
@@ -310,34 +330,41 @@ function variantArgs(
   };
 }
 
-function productArgs(
-  organizationId: string,
-  productId: string | null,
-  input: ProductInput,
-): Record<string, unknown> {
-  return {
-    tenant: organizationId,
-    product: productId,
-    title: input.title,
-    slug: input.slug ?? null,
-    description: input.description ?? null,
-    kind: input.kind ?? null,
-  };
-}
-
 /** Products, variants, prices, categories and collections over the `catalog` SQL module. */
-export function createCatalog(options: CatalogOptions): Catalog {
+export function createCatalog<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: CatalogOptions<S>): Catalog<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const catalog: Catalog = {
+  const fields: BlockFields<F> = blockFields(options.fields, "product fields");
+  const saveProduct = (
+    organizationId: string,
+    productId: string | null,
+    { title, slug, description, kind, ...extra }: ProductInput,
+  ): AsyncResult<SavedProduct & F> =>
+    AsyncResult.from(() => extraFieldsArg(fields, extra))
+      .andThen((more) =>
+        call(
+          "save_product",
+          {
+            tenant: organizationId,
+            product: productId,
+            title,
+            slug: slug ?? null,
+            description: description ?? null,
+            kind: kind ?? null,
+            ...more,
+          },
+          (value) => value,
+        ),
+      )
+      .andThen((value) => withFields(fields, value, productOf(value)));
+  const catalog: Catalog<F> = {
     createProduct: (organizationId, input) =>
-      call("save_product", productArgs(organizationId, null, input), productOf),
+      saveProduct(organizationId, null, input),
     updateProduct: (organizationId, productId, input) =>
-      call(
-        "save_product",
-        productArgs(organizationId, productId, input),
-        productOf,
-      ),
+      saveProduct(organizationId, productId, input),
     setProductStatus: (productId, status) =>
       call("set_product_status", { product: productId, status }, (value) => {
         const row = recordOf(value, "set_product_status");
