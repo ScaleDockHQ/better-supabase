@@ -709,7 +709,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         },
       };
       for (const file of renderModules(
-        ["webhooks-in", "webhook-inbox", "jobs"],
+        ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
       ))
         if (file.kind === "schema") await client.query(file.contents);
