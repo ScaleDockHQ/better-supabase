@@ -34,7 +34,7 @@ Supabase CLI, an ORM that bypasses PostgREST and RLS, and a permission model
 
 Plain, complete sentences that say what a feature does and what the reader
 runs next. Name the command, the option and the error. The writing rules in
-`AGENTS.md` apply to the docs, the READMEs, the skills, the changesets and
+`.agents/rules/writing.mdc` apply to the docs, the READMEs, the skills, the changesets and
 the CLI.
 
 ## What we never claim

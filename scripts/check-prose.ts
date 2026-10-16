@@ -1,4 +1,4 @@
-// Flags the writing patterns AGENTS.md bans in published prose: docs pages,
+// Flags the writing patterns .agents/rules/writing.mdc bans in published prose: docs pages,
 // READMEs, skills and changesets. Code blocks, inline code, URLs and JSX are
 // skipped. Run with `node scripts/check-prose.ts [files...]`.
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -14,6 +14,7 @@ interface Finding {
 const roots = [
   "README.md",
   "AGENTS.md",
+  ".agents/rules",
   "PRODUCT.md",
   "DESIGN.md",
   "docs",
@@ -55,7 +56,7 @@ function collect(path: string, into: string[]): void {
     return;
   }
   if (stats.isFile()) {
-    if (/\.mdx?$/u.test(path) && !path.endsWith(".changeset/README.md"))
+    if (/\.mdx?$|\.mdc$/u.test(path) && !path.endsWith(".changeset/README.md"))
       into.push(path);
     return;
   }
@@ -115,7 +116,7 @@ for (const { file, line, message } of findings)
   console.error(`${relative(cwd(), file)}:${line}: ${message}`);
 if (findings.length > 0) {
   console.error(
-    `\n${findings.length} prose finding(s). See "Writing" in AGENTS.md.`,
+    `\n${findings.length} prose finding(s). See .agents/rules/writing.mdc.`,
   );
   exit(1);
 }

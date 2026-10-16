@@ -112,4 +112,4 @@ looping animation.
 - A second accent hue, or `brand` on more than one element per section.
 - Stock illustrations, emojis and icon-only buttons without a label.
 - Components from Radix or vaul; the repo uses Base UI (lint rejects the imports).
-- Copy that praises the product instead of saying what it does (`AGENTS.md`, Writing).
+- Copy that praises the product instead of saying what it does (`.agents/rules/writing.mdc`).

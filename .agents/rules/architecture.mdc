@@ -1,0 +1,65 @@
+---
+description: "The better-supabase invariants: what the core may depend on, what generated code and repositories may do, and which entries stay Node-free."
+alwaysApply: true
+---
+
+# Architecture invariants
+
+`AGENTS.md` lists these in one line each; this is the full text.
+
+1. The core (`better-supabase`) has no runtime dependency beyond
+   `@standard-schema/spec` and the Supabase packages. Everything else is an
+   optional peer, loaded lazily, or typed structurally without importing it.
+   CLI-only dependencies are devDependencies that the CLI build inlines
+   (`deps.onlyBundle` in `tsdown.config.ts`), so apps never install them.
+2. Generated code never uses `declare module` augmentation. It calls inferring
+   functions (`defineSchema`) that carry the types.
+3. Rows keep the configured casing everywhere: `casing: 'snake'` returns
+   database names, `casing: 'camel'` renames inside the PostgREST query. The raw
+   escape hatches (`$client`, `queryRaw`) always use database names.
+4. Repository methods never throw for database errors. They return a `Result`
+   whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
+   only way to turn one into an exception.
+5. Event handlers (`sb.on`) and sinks can never change a result.
+6. Runtime entries (everything except `cli`, `node`, `nestjs`, `postgres` and
+   `testing`) import no Node built-ins, so they run on every WinterTC runtime.
+   The CLI is Node-only. SDK adapters whose SDK needs Node join that list
+   (`NODE_ENTRIES` in `tests/bundle/bundle.test.ts` and
+   `tests/standards/wintertc.test.ts`): `workflow-sdk/world` (it imports
+   `pg`) and `eve` (eve runs on Node; ADR 0013).
+   `streams/redis` stays a runtime entry: it imports nothing from Node and
+   loads `redis` only for its `url` option.
+7. Auth never calls the Auth server when the access token is still valid,
+   unless the app turns on the proxy's `endedSession` check. Refresh happens
+   only in the proxy, never in Server Components.
+8. Every draft or versioned spec the code follows is pinned in `SPEC_PINS`
+   (`src/core/spec-pins.ts`) and listed on the docs standards page.
+9. Every public API has a docs page and an example. When you add a subpath,
+   also update the exports map, `tsdown.config.ts`, the size baseline, the
+   export-names snapshot test and `apps/docs/content/docs`.
+10. Plugins and extension interfaces are versioned (`apiVersion: 1`). Breaking
+    their contract needs a new `apiVersion`, never a silent change.
+11. `@supabase/postgrest-typegen` is an optional peer that only the CLI
+    loads, through `src/cli/introspect/typegen.ts`. The published types use
+    the copy of `GeneratorMetadata` in `src/config/generator-metadata.ts`,
+    never the package. The default catalog and `TYPEGEN_VERSION` pin one
+    exact version so `database.types.ts` matches `supabase gen types`; the
+    peers catalog declares a range around it, and `gen` prints a notice for
+    any other installed release (ADR 0016). Bumping it needs the parity
+    test, the copy's type test and a changeset.
+12. Imports stay at the top of the module. The only exceptions are optional
+    peers and CLI startup work loaded lazily, each with a comment and a
+    fallback; the full list is in `.agents/rules/lazy-imports.mdc`.
+13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
+    them at the commit in `SPLINTER_COMMIT` and rejects them unless they
+    match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
+14. Don't bypass the supply-chain policy (`minimumReleaseAge` in
+    `pnpm-workspace.yaml`). If a release is too new, pin the previous one.
+15. better-supabase never depends on or names an authorization library.
+    Libraries plug in through the versioned `AuthorizationProvider` in the
+    `authorization` config key (`src/config/authorization.ts`) and ship
+    their own adapter. `pnpm check:no-permdock` fails on the name or one
+    of its shapes (`pdk_` keys, `permitted_*` helpers, `permissions.catalog`)
+    in the library and its tests, skills, READMEs, plugin manifests, the docs,
+    marketing, the examples, `tests/*` and `supabase`; the provider page and
+    the 0.5 to 0.6 guide are the exceptions.

@@ -1,378 +1,180 @@
 # better-supabase agent guide
 
-This guide is for agents and humans changing this repository. It is not the
-consumer skill: apps that use better-supabase get the skills in
-`packages/better-supabase/skills` (`npx skills add ScaleDockHQ/better-supabase`
-or `better-supabase skills install`). `CLAUDE.md` is the one line `@AGENTS.md`
-so tools that read both names load this file once; put everything here.
+This guide is for agents and humans changing this repository. Apps that use
+better-supabase get the consumer skills in `packages/better-supabase/skills`
+instead. `CLAUDE.md` is the one line `@AGENTS.md`; put everything here or in
+a rule.
 
-`better-supabase` is an ESM package (`packages/better-supabase`) with subpath
-exports, plugins and blocks (`better-supabase/blocks/*`). Its CLI (the `better-supabase` bin) ships in the same
-package, from `src/cli`, with its dependencies inlined at build time. Docs live in `apps/docs`
-(Fumadocs), examples in `apps/examples/*`, cross-package tests in `tests/*`.
-
-## Repo layout
-
-```
-packages/
-  better-supabase/     the published library and its CLI (src/cli, tests/cli, bin/), skills/, schemas/, api/exports.json
-  next-config/         createNextConfig() and the security headers for docs and marketing
-  typescript-config/   tsconfig presets (base, library, react-library, next)
-apps/
-  docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
-  marketing/           bettersupabase.com (everything outside /docs)
-  examples/*           one app per adapter, generated from supabase/
-  examples/monorepo/*  runtime, crm, billing and api as separate workspace packages
-tests/
-  bundle/              size baselines, export snapshot, WinterTC import check
-  types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
-   validation-*/        six validation projects: centrakit, crm, monorepo, presets, recipes, request-context
-supabase/              the local stack every example and integration test uses
-  schemas/             the declarative schema; pg-delta orders the files by dependency
-  migrations/          migrations generated from schemas/ and reviewed
-  tests/               pgTAP tests (`pnpm supabase:test`)
-scripts/               repo checks and release scripts that run with Node type stripping
-docs/
-  agents/              corrections agents needed more than once, by topic
-  decisions/           architecture decision records (ADRs)
-.claude-plugin/        plugin and marketplace manifests that expose the skills
-.cursor-plugin/        Cursor plugin manifest
-```
+`better-supabase` is an ESM package with subpath exports, plugins and blocks
+(`better-supabase/blocks/*`). Its CLI ships in the same package, from
+`src/cli`, with its dependencies inlined at build time. Docs live in
+`apps/docs` (Fumadocs), examples in `apps/examples/*`, cross-package tests in
+`tests/*`.
 
 ## Commands
 
-- `pnpm install`: install (pnpm 12, Node 24).
-- `pnpm verify`: the gate before every push. It runs the format check, lint
-  (type-aware Oxlint on the Ultracite presets in the root `oxlint.config.ts`), the prose check, the PermDock name check, typecheck,
-  Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
-  the format check, boundaries and audit is a cached Turbo task with
-  `inputs` in `turbo.json`, so a second run only repeats what changed.
-- `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm knip` and `pnpm boundaries` run one step of `verify`.
-- `pnpm build`: tsdown build of every package and app.
-- `pnpm test`: unit and type tests (vitest, `expectTypeOf`). Tests live in each
-  workspace's `tests/` folder, and the root `vitest.config.ts` lists the projects.
-  Each published package's unit tests alone must hold the coverage thresholds
-  in its `vitest.config.ts` (never below 90% lines, statements and functions,
-  80% branches); `autoUpdate` raises them locally, never in CI.
-- `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
-  `.localhost` URLs (see Local development).
-- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
-- `pnpm supabase:sync <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
-- `pnpm db:gen`: regenerate the typed client in every example and validation project.
-- `pnpm typecheck:matrix`: published types against TypeScript 6 and 7 (5.9 has no Temporal lib).
-- `pnpm size`: gzip size baselines per entry, min+gzip baselines for three app-shaped consumers (`CONSUMERS` in `tests/bundle/bundle.test.ts`), and the WinterTC import check.
-- `pnpm test:integration`: integration suite against the running stack; it loads `SUPABASE_URL` and `SUPABASE_DB_URL` from `.env.development.local`.
-- `pnpm --filter @better-supabase/example-nextjs test:e2e`: resets the local stack, builds the Next.js example with the testing API and runs its `instant()` specs (local only; see `docs/agents/nextjs.md`).
-- `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
-- `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
-- `tests/validation-*`: six validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`), the five apps on the docs Presets pages installed and driven end to end against the local stack (`recipes`), and every named preset installed as one migration with its generated `lib/blocks.ts` typechecked (`presets`; `gen` rewrites the wiring). `recipes` and `presets` are also part of `pnpm test:integration`.
-- `pnpm --filter marketing test:e2e`: builds the marketing site and runs its Playwright smoke test of `/create` (local only).
-- `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
+- `pnpm install` (pnpm 12, Node 24), then `pnpm verify`: the gate before
+  every push (format, lint, prose, typecheck, Knip, boundaries, tests,
+  doctor, audit), cached per task in Turbo.
+- `pnpm fix` (`ultracite fix`), `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+- `pnpm supabase:start`, `pnpm supabase:reset`, `pnpm supabase:test`, then
+  `pnpm test:integration` against the running stack.
+- `pnpm db:gen` regenerates the typed clients; `pnpm dev:portless` serves the
+  apps on HTTPS `.localhost` URLs.
 
-## Local development
+Every other script, with what it checks, is in
+[`docs/agents/commands.md`](docs/agents/commands.md).
 
-`pnpm dev:portless` serves each app on a stable HTTPS URL through Portless
-(`portless.json`). The first run asks to trust the Portless certificate
-authority.
+## Layout
 
-| App             | URL                           |
-| --------------- | ----------------------------- |
-| Marketing       | `https://www.localhost`       |
-| Docs            | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost`   |
+```
+packages/better-supabase/  the library and its CLI, skills/, schemas/, api/exports.json
+packages/next-config/      createNextConfig() and the security headers
+packages/typescript-config/ tsconfig presets
+apps/docs/, apps/marketing/ bettersupabase.com/docs and bettersupabase.com
+apps/examples/*            one app per adapter (examples/monorepo/*: one package each)
+tests/*                    bundle size, type matrix and benchmark, validation projects
+supabase/                  the local stack: schemas/, migrations/, tests/ (pgTAP)
+scripts/                   repo checks and release scripts (Node type stripping)
+docs/agents/, docs/decisions/ agent corrections by topic, and the ADRs
+.agents/rules/, .agents/skills/ rules (linked from .cursor and .claude) and maintainer skills
+```
 
-The seed (`supabase/seed.sql`) creates two Acme users with the password
-`password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role
-`member`).
+The root `oxlint.config.ts` and `oxfmt.config.ts` extend Ultracite and hold
+every lint and format rule; each workspace config extends the root one.
 
 ## Invariants
 
-1. The core (`better-supabase`) has no runtime dependency beyond
-   `@standard-schema/spec` and the Supabase packages. Everything else is an
-   optional peer, loaded lazily, or typed structurally without importing it.
-   CLI-only dependencies are devDependencies that the CLI build inlines
-   (`deps.onlyBundle` in `tsdown.config.ts`), so apps never install them.
-2. Generated code never uses `declare module` augmentation. It calls inferring
-   functions (`defineSchema`) that carry the types.
-3. Rows keep the configured casing everywhere: `casing: 'snake'` returns
-   database names, `casing: 'camel'` renames inside the PostgREST query. The raw
-   escape hatches (`$client`, `queryRaw`) always use database names.
-4. Repository methods never throw for database errors. They return a `Result`
-   whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
-   only way to turn one into an exception.
-5. Event handlers (`sb.on`) and sinks can never change a result.
-6. Runtime entries (everything except `cli`, `node`, `nestjs`, `postgres` and
-   `testing`) import no Node built-ins, so they run on every WinterTC runtime.
-   The CLI is Node-only. SDK adapters whose SDK needs Node join that list
-   (`NODE_ENTRIES` in `tests/bundle/bundle.test.ts` and
-   `tests/standards/wintertc.test.ts`): `workflow-sdk/world` (it imports
-   `pg`) and `eve` (eve runs on Node; ADR 0013).
-   `streams/redis` stays a runtime entry: it imports nothing from Node and
-   loads `redis` only for its `url` option.
-7. Auth never calls the Auth server when the access token is still valid,
-   unless the app turns on the proxy's `endedSession` check. Refresh happens
-   only in the proxy, never in Server Components.
-8. Every draft or versioned spec the code follows is pinned in `SPEC_PINS`
-   (`src/core/spec-pins.ts`) and listed on the docs standards page.
-9. Every public API has a docs page and an example. When you add a subpath,
-   also update the exports map, `tsdown.config.ts`, the size baseline, the
-   export-names snapshot test and `apps/docs/content/docs`.
-10. Plugins and extension interfaces are versioned (`apiVersion: 1`). Breaking
-    their contract needs a new `apiVersion`, never a silent change.
-11. `@supabase/postgrest-typegen` is an optional peer that only the CLI
-    loads, through `src/cli/introspect/typegen.ts`. The published types use
-    the copy of `GeneratorMetadata` in `src/config/generator-metadata.ts`,
-    never the package. The default catalog and `TYPEGEN_VERSION` pin one
-    exact version so `database.types.ts` matches `supabase gen types`; the
-    peers catalog declares a range around it, and `gen` prints a notice for
-    any other installed release (ADR 0016). Bumping it needs the parity
-    test, the copy's type test and a changeset.
-12. Imports stay at the top of the module. The exceptions are optional
-    peers loaded lazily, each with a comment and a fallback:
-    `@supabase/config/io` through a variable specifier in
-    `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
-    without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
-    in `src/cli/introspect/typegen.ts` (an install message when they are
-    missing), `oxfmt` in the same file (unformatted output with a
-    notice), `stripe` through a variable specifier in
-    `src/blocks/stripe.ts` (an install message, or pass a client),
-    `redis` through a variable specifier in `src/streams/redis/redis.ts`
-    (an install message, or pass a client), `jsonpath-rfc9535` through a
-    variable specifier in `src/overlay/load.ts` (an install message, or pass
-    an engine), `@vercel/connect` through a
-    variable specifier in `src/vercel-connect/vercel-connect.ts` (an
-    install message), `@supabase/mcp-server-supabase` through variable
-    specifiers in `src/core/supabase-mcp.ts` (an install message),
-    `@next/playwright` through a variable specifier in
-    `src/testing/instant.ts` (an install message), `eve/tools` through a
-    variable specifier in `src/eve/eve.ts` (the memory provider builds no
-    tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`
-    (an install message, or pass the module), `@supabase/lite` through variable specifiers in
-    `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
-    `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
-    `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
-    the class is defined (an install message; ADR 0014). CLI startup work
-    also loads on demand, each with a comment: the commands, config loading
-    and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
-    unknown-command suggestion in the same file, the prompts in
-    `src/cli/bin.ts`, the arktype-backed typegen entries in
-    `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas
-    that only `spec validate` needs (`src/cli/spec/render.ts` and
-    `src/cli/spec/schemas.ts`), and `jsonpath-rfc9535` for spec overlay
-    files in `src/cli/spec/render.ts`.
-13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
-    them at the commit in `SPLINTER_COMMIT` and rejects them unless they
-    match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
-14. Don't bypass the supply-chain policy (`minimumReleaseAge` in
-    `pnpm-workspace.yaml`). If a release is too new, pin the previous one.
-15. better-supabase never depends on or names an authorization library.
-    Libraries plug in through the versioned `AuthorizationProvider` in the
-    `authorization` config key (`src/config/authorization.ts`) and ship
-    their own adapter. `pnpm check:no-permdock` fails on the name or one
-    of its shapes (`pdk_` keys, `permitted_*` helpers, `permissions.catalog`)
-    in the library and its tests, skills, READMEs, plugin manifests, the docs,
-    marketing, the examples, `tests/*` and `supabase`; the provider page and
-    the 0.5 to 0.6 guide are the exceptions.
+The full text is in `.agents/rules/architecture.mdc`.
 
-## Code conventions
+1. The core depends only on `@standard-schema/spec` and the Supabase packages.
+2. Generated code never uses `declare module`; it calls inferring functions.
+3. Rows keep the configured casing; `$client` and `queryRaw` use database names.
+4. Repository methods return a `Result` with plain `DbError`s; only `.orThrow()` throws.
+5. Event handlers and sinks can never change a result.
+6. Runtime entries import no Node built-ins (`NODE_ENTRIES` lists the exceptions).
+7. Auth never calls the Auth server for a valid token; refresh happens only in the proxy.
+8. Every followed spec version is pinned in `SPEC_PINS`.
+9. Every public API has a docs page and an example.
+10. Plugins and extension interfaces are versioned (`apiVersion: 1`).
+11. `@supabase/postgrest-typegen` is an optional peer that only the CLI loads.
+12. Imports stay at the top; lazy loads are listed in `.agents/rules/lazy-imports.mdc`.
+13. Splinter lints are fetched at a pinned commit and hash, never vendored.
+14. Never bypass `minimumReleaseAge`.
+15. better-supabase never depends on or names an authorization library.
+
+## Conventions
 
 - Exhaustive `switch` over unions ends in a `never` check.
-- Tests sit in the workspace's `tests/` folder and mirror the `src/` path
-  (`src/core/result.ts` is tested in `tests/core/result.test.ts`).
-- Oxfmt uses double quotes and sorts `@/` and `@better-supabase/` imports as internal.
-- A new type assertion (`as T`) carries a `SAFETY:` comment saying why it is
-  safe (`anti-slop/require-safety-comment-for-type-assertion`, off in tests).
-  Prefer a type guard or a schema parse.
-  `as unknown as T` is rejected outside tests
-  (`anti-slop/no-chained-type-assertions`); the remaining library sites
-  carry a disable comment with the reason.
-- Oxlint rules that are off carry a comment with the reason, and the
-  finding count when it was measured.
-- TypeScript 7 is the compiler (`tsc` is the native one) in every workspace
-  except `tests/types/ts-6`. Next.js apps set `typescript.ignoreBuildErrors`
-  and rely on the Turbo `typecheck` task instead.
-- Only erasable syntax (`erasableSyntaxOnly`): no enums, namespaces or
-  parameter properties. Packages use `isolatedDeclarations`, so exported
+- Tests sit in the workspace's `tests/` folder and mirror the `src/` path.
+- A type assertion carries a `SAFETY:` comment; `as unknown as T` is rejected
+  outside tests. Prefer a type guard or a schema parse.
+- Only erasable syntax, and `isolatedDeclarations` in packages: exported
   functions have explicit return types.
-- Deploys use Vercel Services from `vercel.json` (docs and marketing on one
-  domain). It stays JSON until `@vercel/config` types `services` and
-  per-service rewrites; each service's `turbo-ignore` skips its build when its app is unaffected.
-
-## Docs conventions (`apps/docs/content/docs`)
-
-- Every page has frontmatter `title` and `description` and no `# h1`. Fenced
-  code blocks carry a language tag, and a `title="path"` when they show a file.
-- Every folder has a `meta.json` with an explicit `pages` order
-  (`---Section---` separators allowed). Adding a page means adding it there.
-- Links between pages are `/docs/<path>` URLs, never `.mdx` file paths.
-  `README.md` files, which render on GitHub and npm, use absolute
-  `https://bettersupabase.com/docs/...` URLs.
-- Fumadocs components (`Steps`, `Cards`, `Tabs`) are fine; keep everything
-  else plain Markdown so `/llms.txt` and the `.md` routes stay readable.
-- No bare `{`, `}` or `<` in prose (MDX parses them); use backticks.
-- Every page is also served as Markdown at `/docs/<path>.md`, through the
-  docs MCP server at `/mcp`, and in `/llms-full.txt`.
-
-## Writing
-
-This applies to docs, READMEs, skills, changesets and CLI messages.
-`scripts/check-prose.ts` enforces the mechanical parts in `pnpm verify`.
-
-- Write plain, complete sentences. Lead with what the reader can do, then
-  the detail.
-- Use commas, colons or parentheses instead of em dashes. Write "then" or
-  "and" instead of arrow chains (`A → B`) in prose; arrows belong in code.
-- Name the concrete thing. Say what a feature does ("verifies the token
-  locally") instead of praising it (`seamless`, `robust`, `powerful`,
-  `leverage`, `effortless`, `blazing fast`, `delve`).
-- Prefer a sentence to a list of bold labels. Use a table for short,
-  enumerable facts and a list for steps.
-- No emojis, no exclamation marks, no `simply` or `just` in instructions.
-  The script flags `simply`; `just` has legitimate uses, so review it by hand.
-- A code comment states a constraint the code can't show. It never narrates
-  the next line.
-
-## When you change X, also update Y
-
-| Change                               | Also update                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A generated-file shape               | `packages/better-supabase/tests/fixtures` (`pnpm --filter better-supabase gen:fixtures`), `apps/examples/*/src/lib/supabase/*`                                                                                                                                                                                                                                                             |
-| A doctor finding                     | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`)                                                                                                                                                                                                                                                                             |
-| The splinter pin                     | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                                                                                                                                                                                                                                                           |
-| A rule in `plugins/rules` or `lint`  | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                                                                                                                                                                                                                                                            |
-| A SQL module                         | `src/sql/registry.ts` registry (module code in `src/sql/modules`, the `SqlModule` type in `src/sql/module-types.ts`), its block's manifest (`sql` and `options`), `PRESET_BLOCKS` (append only; a removed module stays as `null`) and `pnpm catalog`, `sql-modules.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`) |
-| A preset field or value              | append it to `PRESET_FIELDS` (`src/preset/fields.ts`) with the next `since` for a new field, raise `PRESET_VERSION`, add `tests/preset/fixtures/codes-v<n>.json`, `presets/codes.mdx`; never edit a released fixture                                                                                                                                                                       |
-| A permission a module checks         | its row in `OPERATIONS` (`src/sql/modules/access-model.ts`), keyed `<module>.<action>`, and the module's permissions table in its docs page                                                                                                                                                                                                                                                |
-| A block's methods, hooks or fields   | its `BlockHooks` typing and `withBlockHooks` wrap, its SQL `before_`/`after_` hooks (`tests/sql/block-hooks.test.ts`), `extending/blocks.mdx` and the block's page                                                                                                                                                                                                                         |
-| A block's React hook                 | its controller in `src/blocks/<name>/client.ts` (exported from the block entry), the controller's test with fake ports (`tests/fixtures/ports.ts`), `tests/blocks/platform-neutral.test.ts` stays green, `frontend/block-controllers.mdx`                                                                                                                                                  |
-| A block                              | its code in `src/blocks/<name>`, its `manifest.ts` and `events.ts` (listed in `src/blocks/registry.ts` and `tests/blocks/all-blocks.ts`), and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx`                                                                                                                 |
-| A port between blocks                | `BlockPorts` in `src/blocks/ports.ts`, the port list in `src/blocks/create-blocks.ts`, the Ports table in `blocks/create-blocks.mdx`                                                                                                                                                                                                                                                       |
-| A block's events                     | its `events.ts`, `ModuleEvents<NameEvents>` on the SQL module's `EVENTS`, the table on `extending/events.mdx`                                                                                                                                                                                                                                                                              |
-| An SDK adapter subpath               | no SQL and no tables (ADR 0010); its converters tested against `schemas/ai-message-v1.json`; the SDK as an optional peer loaded lazily or typed structurally (invariant 12); see A subpath                                                                                                                                                                                                 |
-| An engine storage module             | its SQL module (see A SQL module), the rows it writes to the run registry, and the engine's conformance tests                                                                                                                                                                                                                                                                              |
-| A world-postgres bump                | regenerate the World DDL, run the drift test, a changeset                                                                                                                                                                                                                                                                                                                                  |
-| A table with a credential_ref column | a lifecycle step that revokes the credential through the `CredentialProvider`, a case in the provider's conformance test, the table's docs page                                                                                                                                                                                                                                            |
-| The canonical AI message             | `src/blocks/ai-chat/message.ts`, `src/core/contracts/ai-message.ts`, `schemas/ai-message-v1.json` (a new version is a new file), `SPEC_PINS.aiMessage`, `tests/standards/ai-message.test.ts`                                                                                                                                                                                               |
-| A `DbError` kind                     | `problem.ts` status map, the errors docs page                                                                                                                                                                                                                                                                                                                                              |
-| A subpath                            | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md`                                                                                                                                                                                                                                                  |
-| A public export                      | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                                                                                                                                                                                                                                                                       |
-| An extension interface               | its kit in `src/testing/kits/<name>.ts` (the shared report types are in `src/testing/conformance.ts`; `AuthorizationProvider`: `src/testing/authorization-provider.ts`), `tests/core/extensibility.test-d.ts`, the interfaces docs page                                                                                                                                                    |
-| A spec version                       | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin                                                                                                                                                                                                                                                                                                       |
-| An adopted standard                  | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both)                                                                                                                                                                                                                               |
-| A vendored official schema           | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                                                                                                                                                                                                                                               |
-| A consumer skill                     | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests                                                                                                                                                                                                                                          |
-| The package version                  | nothing by hand: `pnpm version-packages` writes `VERSION`, the plugin manifests and `server.json` (`scripts/sync-versions.ts`)                                                                                                                                                                                                                                                             |
-| A workflow                           | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`)                                                                                                                                                                                                                                          |
-| A docs route (`/mcp`, `/llms*`)      | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                                                                                                                                                                                                                                                           |
-| A fixture table                      | its file in `supabase/schemas`, a migration from `pnpm supabase:sync` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                                                                                                                                                                                                                                                |
-| An env key                           | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                                                                                                                                                                                                                                                |
-| A route in docs or marketing         | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                                                                                                                                                                                                                                               |
-| A UI primitive in marketing          | `DESIGN.md`                                                                                                                                                                                                                                                                                                                                                                                |
-| A dependency bump                    | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line                                                                                                                                                                                                                                             |
-| A CLI command or flag                | its docs page under `cli/`, the help snapshot (`tests/cli/help.test.ts`), the changeset                                                                                                                                                                                                                                                                                                    |
-| A `typescript` bump                  | `oxlint-tsgolint` in the same commit                                                                                                                                                                                                                                                                                                                                                       |
-| A Next.js bump                       | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored                                                                                                                                                                                                                                                                                       |
-| A user-visible change                | a changeset (`pnpm changeset`)                                                                                                                                                                                                                                                                                                                                                             |
+- TypeScript 7 (`tsc` is the native one) everywhere except `tests/types/ts-6`.
+- Docs pages, prose and comments follow `.agents/rules/writing.mdc` and
+  `.agents/rules/docs-content.mdc`.
 
 ## Agent workflow
 
-- One branch and one PR per chat or plan. Branch from `main`, commit as you
-  go, and push once `pnpm verify` passes.
-- Commit messages follow Conventional Commits: a header of at most 72
-  characters and body lines of at most 100.
-- Never commit `.cursor/hooks/state/*`; it is local hook state.
-- Read the `docs/agents` page for the area first, and add a correction there
-  when an agent needs it twice.
+One branch and one PR per chat or plan, Conventional Commits, and
+`pnpm verify` before every push (`.agents/rules/git-workflow.mdc`). Read the
+`docs/agents` page for the area first, and add a correction there when an
+agent needs it twice.
+
+## When you change X, also update Y
+
+| Change                  | Also update                                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| A subpath               | exports map, `tsdown.config.ts`, size baseline, export snapshot, README table                       |
+| A public export         | `api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                         |
+| An env key              | the app's `env.ts`, all three Vercel environments, `turbo.json`, `.env.example`                     |
+| A CLI command or flag   | its docs page under `cli/`, the help snapshot, the changeset                                        |
+| A dependency bump       | the catalog pin, "Pre-release pins", the changeset or commit note, an ADR                           |
+| A `typescript` bump     | `oxlint-tsgolint` in the same commit                                                                |
+| A Next.js bump          | run `next dev` once in each Next.js app                                                             |
+| A file move             | Knip entries, the `tests/` mirror path, the folder's `meta.json` for a docs page                    |
+| A rename                | the docs Naming page (`docs:drift` checks `lib/supabase/*` names), the changeset's old-to-new table |
+| A perf-sensitive change | the bundle, type and benchmark baselines, before and after numbers in the commit                    |
+| A user-visible change   | a changeset (`pnpm changeset`)                                                                      |
+
+The rows for each area are in `.agents/rules/also-update-library.mdc`,
+`also-update-blocks.mdc` and `also-update-repo.mdc`.
 
 ## Hard rules
 
 - `pnpm verify` passes before every push. Fix the code, not the test.
 - Never commit secrets. Server-only keys never get a `NEXT_PUBLIC_` prefix,
   and `.env.example` lists keys without values.
-- Never edit generated files by hand: `database.types.ts`, the generated
-  `src/lib/supabase/*` in the examples and the `api/exports.json` files come from their generators.
+- Never edit generated files by hand (`database.types.ts`, the examples'
+  `src/lib/supabase/*`, `api/exports.json`).
 - Never change a pushed migration. Edit `supabase/schemas` and generate a new one.
 - Never turn a lint rule off without a comment that gives the reason and the finding count.
 - Pin exact versions in the catalog, and never bypass `minimumReleaseAge`.
-- Commits follow Conventional Commits (`commitlint.config.ts`); the hooks run on every commit and push.
 
 ## Deviations
 
-Each ADR in `docs/decisions` records one decision that departs from the repo
-standard or sets how the repo works.
+One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 
-- 0001: the repo follows the library profile of the repo standard.
-- 0002: the deviations from the standard and the lint backlogs, each with what would end it.
-- 0003: the CLI runs on citty; the MCP SDK spike failed the size check. Its package split is superseded by 0007.
-- 0004: the maintainer skills in `.agents/skills` are committed.
-- 0005: the public API uses Temporal for time values.
-- 0006: the fixture schema diffs with pg-delta (its native stack part is superseded by 0032).
-- 0007: the CLI ships inside `better-supabase` with its dependencies inlined.
-- 0008: the server and the framework adapters run on `@supabase/middleware` entries and bridges.
-- 0009: `stripe` is an optional peer loaded lazily; the flags block types OpenFeature structurally.
-- 0010: AI blocks stay SDK-neutral; each SDK gets an adapter subpath that owns no tables, messages use a canonical format, and tokens live behind a `credential_ref`.
-- 0011: authorization is a neutral, versioned `AuthorizationProvider`; libraries ship their own adapters (invariant 15).
-- 0012: kits are renamed to blocks, and every feature module imports from `better-supabase/blocks/<name>`.
-- 0013: SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries.
-- 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
-- 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
-- 0016: `@supabase/postgrest-typegen` is a peer range; the default catalog and `TYPEGEN_VERSION` stay exact.
-- 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version and serves the routes; `3.3-preview` is opt-in.
-- 0018: a subject binding can name the adopted table its rows live in.
-- 0019: security definer writes refuse a read-only support or impersonation session.
-- 0020: subject types are declared once in `config.subjects`; modules that take subjects fall back to it.
-- 0021: rows are ordered by base-62 fractional rank keys (`rank_between`, `rankBetween`); `move()` runs as the caller.
-- 0022: Yjs documents are an update log and a snapshot in Postgres, compacted in JavaScript; `yjs` is an optional peer of `better-supabase/yjs`.
-- 0023: the bookings block installs `btree_gist` for the exclusion constraint that refuses double bookings.
-- 0024: money is `bigint` minor units from ISO 4217; payments and tax plug in through the versioned `PaymentProvider` and `TaxProvider`, with Stripe adapters.
-- 0025: the drive is two modules on attachments (`drive`, `drive-files`); a module's `before` renders it ahead of the subject checks without renumbering files.
-- 0026: delegated tokens are narrowed inside the access functions (`cap_allows`), and every checked action is a row in one operations table (`OPERATIONS`).
-- 0027: the fixture's migrations are squashed into one pg-delta baseline, and `supabase/schemas` uses the per-schema layout with the module files in `_better_supabase/`.
-- 0028: record stages run on tenant-editable pipelines whose categories map to open, success or failure, separate from the status column.
-- 0029: every block is one `defineBlock` manifest; `createBlocks` wires on what blocks provide and consume, events are declared per block, one contract is checked by a conformance test, and a top-level `blocks` key replaces `blocks`.
-- 0030: block client state lives in headless controllers (`src/blocks/<name>/client.ts`) with thin React (web and native), Vue, Svelte and Solid bindings; they reach the platform only through the ports in `bs.ports`.
-- 0031: presets install a block selection, a shadcn-compatible registry ships glue only, and UI ships as recipes over the app's own shadcn components.
-- 0032: the fixture runs on the CLI's stack engine with ports per checkout and branch; CI uses the native runtime and runs the three Realtime tests it fails on the legacy engine.
+- 0001: the library profile of the repo standard.
+- 0002: the deviations and lint backlogs, each with what ends it.
+- 0003: the CLI runs on citty (package split superseded by 0007).
+- 0004: maintainer skills in `.agents/skills` are committed.
+- 0005: the public API uses Temporal.
+- 0006: the fixture schema diffs with pg-delta.
+- 0007: the CLI ships inside `better-supabase`, dependencies inlined.
+- 0008: the server and adapters run on `@supabase/middleware`.
+- 0009: `stripe` is a lazy optional peer; OpenFeature is typed structurally.
+- 0010: AI blocks stay SDK-neutral; SDK adapters own no tables.
+- 0011: authorization is a versioned `AuthorizationProvider`.
+- 0012: kits are blocks, imported from `better-supabase/blocks/<name>`.
+- 0013: SDK adapters that need Node are Node-only entries.
+- 0014: `better-supabase/nestjs` loads `@nestjs/common` with `createRequire`.
+- 0015: blocks extend through `fields`, `hooks`, middleware and `extendBlock`.
+- 0016: `@supabase/postgrest-typegen` is a peer range; the pin stays exact.
+- 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version.
+- 0018: a subject binding can name the adopted table it lives in.
+- 0019: security definer writes refuse read-only support sessions.
+- 0020: subject types are declared once in `config.subjects`.
+- 0021: rows are ordered by base-62 fractional rank keys.
+- 0022: Yjs documents are an update log and a snapshot in Postgres.
+- 0023: the bookings block installs `btree_gist`.
+- 0024: money is `bigint` minor units; payments and tax are versioned providers.
+- 0025: the drive is two modules on attachments.
+- 0026: delegated tokens are narrowed in the access functions (`OPERATIONS`).
+- 0027: the fixture migrations are one pg-delta baseline.
+- 0028: record stages run on tenant-editable pipelines.
+- 0029: every block is one `defineBlock` manifest wired by `createBlocks`.
+- 0030: block client state lives in headless controllers.
+- 0031: presets install blocks; UI ships as recipes over the app's shadcn components.
+- 0032: the fixture runs on the CLI's stack engine with ports per branch.
 
 ## Pre-release pins
 
-| Package                           | Version       | Why                                                                        |
-| --------------------------------- | ------------- | -------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.42 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.42 | the contract-first tests and example; they move with `@orpc/server`        |
-| `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
+| Package                           | Version       | Why                                                         |
+| --------------------------------- | ------------- | ----------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.43 | `better-supabase/orpc` targets oRPC 2, which has no stable  |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.43 | move with `@orpc/server`                                    |
+| `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003) |
 
-Move each to its stable release when it ships, and update this list with
-every bump.
+Move each to its stable release when it ships, and update this list.
 
-## Agent notes
+## Rules and agent notes
 
-Read the page for the area you are changing. When an agent needs the same
-correction twice, add it to one of these pages.
+| Rule (`.agents/rules`)                    | Applies to                                   |
+| ----------------------------------------- | -------------------------------------------- |
+| `architecture`, `writing`, `git-workflow` | always                                       |
+| `lazy-imports`                            | `packages/better-supabase/src/**`            |
+| `also-update-library`, `-blocks`, `-repo` | the library, blocks and SQL, the repo        |
+| `docs-content`                            | `apps/docs/content/**`                       |
+| `local-dev-portless-agent-browser`        | `apps/**`                                    |
+| `maintainer-skills`                       | skills, `skills-lock.json`, plugin manifests |
 
-- [`docs/agents/adapters.md`](docs/agents/adapters.md): shared guards, Node loading checks, native packages and fixture modules for blocks.
-- [`docs/agents/core.md`](docs/agents/core.md): column casing in queries and per-request work in the core.
-- [`docs/agents/blocks.md`](docs/agents/blocks.md): the checklist for adding a block, its SQL module and its subpath.
-- [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.
-- [`docs/agents/nextjs.md`](docs/agents/nextjs.md): Cache Components and prerender errors in docs and marketing, and the example's `instant()` tests.
-- [`docs/agents/tooling.md`](docs/agents/tooling.md): registry queries, release age, changesets and CI.
-
-Decisions that change how the repo works get an ADR in `docs/decisions`
-(copy `0000-template.md`).
-
-## Consumer skills vs this guide
-
-The skills in `packages/better-supabase/skills` teach apps how to use the
-package. They ship in the npm tarball and are exposed to `npx skills add`
-through `.claude-plugin/marketplace.json`. Keep them short, task-shaped and
-free of repository internals; this file is where maintainer rules go.
-
-Maintainer skills (third-party skills for working on this repo) live in
-`.agents/skills` and are pinned in `skills-lock.json`; both are committed
-(`docs/decisions/0004-commit-maintainer-skills.md`). Add or update one with
-`npx skills add <owner/repo>` and commit the folder and the lock file. That
-folder is a discovery root for `npx skills add`, so keep it to skills
-maintainers need, and never put consumer skills there.
+Agent notes, by topic: [`adapters`](docs/agents/adapters.md),
+[`blocks`](docs/agents/blocks.md), [`commands`](docs/agents/commands.md),
+[`core`](docs/agents/core.md), [`database`](docs/agents/database.md),
+[`formatting`](docs/agents/formatting.md), [`nextjs`](docs/agents/nextjs.md)
+and [`tooling`](docs/agents/tooling.md).
 
 <!-- BEGIN:turborepo-agent-rules -->
 

@@ -1,0 +1,43 @@
+---
+description: "The optional peers and CLI startup work that may load lazily, each with its fallback (invariant 12)."
+globs: packages/better-supabase/src/**
+alwaysApply: false
+paths:
+  - "packages/better-supabase/src/**"
+---
+
+# Lazy imports (invariant 12)
+
+Imports stay at the top of the module. The exceptions are optional
+    peers loaded lazily, each with a comment and a fallback:
+    `@supabase/config/io` through a variable specifier in
+    `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
+    without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
+    in `src/cli/introspect/typegen.ts` (an install message when they are
+    missing), `oxfmt` in the same file (unformatted output with a
+    notice), `stripe` through a variable specifier in
+    `src/blocks/stripe.ts` (an install message, or pass a client),
+    `redis` through a variable specifier in `src/streams/redis/redis.ts`
+    (an install message, or pass a client), `jsonpath-rfc9535` through a
+    variable specifier in `src/overlay/load.ts` (an install message, or pass
+    an engine), `@vercel/connect` through a
+    variable specifier in `src/vercel-connect/vercel-connect.ts` (an
+    install message), `@supabase/mcp-server-supabase` through variable
+    specifiers in `src/core/supabase-mcp.ts` (an install message),
+    `@next/playwright` through a variable specifier in
+    `src/testing/instant.ts` (an install message), `eve/tools` through a
+    variable specifier in `src/eve/eve.ts` (the memory provider builds no
+    tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`
+    (an install message, or pass the module), `@supabase/lite` through variable specifiers in
+    `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
+    `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
+    `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
+    the class is defined (an install message; ADR 0014). CLI startup work
+    also loads on demand, each with a comment: the commands, config loading
+    and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
+    unknown-command suggestion in the same file, the prompts in
+    `src/cli/bin.ts`, the arktype-backed typegen entries in
+    `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas
+    that only `spec validate` needs (`src/cli/spec/render.ts` and
+    `src/cli/spec/schemas.ts`), and `jsonpath-rfc9535` for spec overlay
+    files in `src/cli/spec/render.ts`.

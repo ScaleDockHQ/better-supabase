@@ -91,8 +91,7 @@ catalog:
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.4
-  # 0.72 and later peer on ai ^7.0.128; 0.71.3 is the newest release that
-  # accepts the ai pin above (AGENTS.md "Pre-release pins").
+  # 0.78.0 peers on ai ^7.0.137, so it moves with the ai pin above.
   eve: 0.78.0
   expo: 57.0.26
   expo-constants: 57.0.20

@@ -1,0 +1,22 @@
+---
+description: "Frontmatter, meta.json, links and MDX rules for the docs pages."
+globs: apps/docs/content/**
+alwaysApply: false
+paths:
+  - "apps/docs/content/**"
+---
+
+# Docs pages
+
+- Every page has frontmatter `title` and `description` and no `# h1`. Fenced
+  code blocks carry a language tag, and a `title="path"` when they show a file.
+- Every folder has a `meta.json` with an explicit `pages` order
+  (`---Section---` separators allowed). Adding a page means adding it there.
+- Links between pages are `/docs/<path>` URLs, never `.mdx` file paths.
+  `README.md` files, which render on GitHub and npm, use absolute
+  `https://bettersupabase.com/docs/...` URLs.
+- Fumadocs components (`Steps`, `Cards`, `Tabs`) are fine; keep everything
+  else plain Markdown so `/llms.txt` and the `.md` routes stay readable.
+- No bare `{`, `}` or `<` in prose (MDX parses them); use backticks.
+- Every page is also served as Markdown at `/docs/<path>.md`, through the
+  docs MCP server at `/mcp`, and in `/llms-full.txt`.

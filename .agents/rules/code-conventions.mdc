@@ -1,0 +1,33 @@
+---
+description: "TypeScript conventions: exhaustive switches, test layout, type assertions, erasable syntax, the compiler and deploys."
+globs: **/*.ts,**/*.tsx,**/*.mts
+alwaysApply: false
+paths:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.mts"
+---
+
+# Code conventions
+
+- Exhaustive `switch` over unions ends in a `never` check.
+- Tests sit in the workspace's `tests/` folder and mirror the `src/` path
+  (`src/core/result.ts` is tested in `tests/core/result.test.ts`).
+- Oxfmt uses double quotes and sorts `@/` and `@better-supabase/` imports as internal.
+- A new type assertion (`as T`) carries a `SAFETY:` comment saying why it is
+  safe (`anti-slop/require-safety-comment-for-type-assertion`, off in tests).
+  Prefer a type guard or a schema parse.
+  `as unknown as T` is rejected outside tests
+  (`anti-slop/no-chained-type-assertions`); the remaining library sites
+  carry a disable comment with the reason.
+- Oxlint rules that are off carry a comment with the reason, and the
+  finding count when it was measured.
+- TypeScript 7 is the compiler (`tsc` is the native one) in every workspace
+  except `tests/types/ts-6`. Next.js apps set `typescript.ignoreBuildErrors`
+  and rely on the Turbo `typecheck` task instead.
+- Only erasable syntax (`erasableSyntaxOnly`): no enums, namespaces or
+  parameter properties. Packages use `isolatedDeclarations`, so exported
+  functions have explicit return types.
+- Deploys use Vercel Services from `vercel.json` (docs and marketing on one
+  domain). It stays JSON until `@vercel/config` types `services` and
+  per-service rewrites; each service's `turbo-ignore` skips its build when its app is unaffected.

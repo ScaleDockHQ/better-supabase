@@ -1,0 +1,30 @@
+---
+description: "What else to update when changing the fixture database, env keys, routes, workflows or dependencies."
+globs: supabase/**,apps/**,.github/**,package.json,pnpm-workspace.yaml,turbo.json,vercel.json,**/env.ts
+alwaysApply: false
+paths:
+  - "supabase/**"
+  - "apps/**"
+  - ".github/**"
+  - "package.json"
+  - "pnpm-workspace.yaml"
+  - "turbo.json"
+  - "vercel.json"
+  - "**/env.ts"
+---
+
+# When you change the repo, also update Y
+
+| Change | Also update |
+| --- | --- |
+| The package version | nothing by hand: `pnpm version-packages` writes `VERSION`, the plugin manifests and `server.json` (`scripts/sync-versions.ts`) |
+| A workflow | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`) |
+| A docs route (`/mcp`, `/llms*`) | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts` |
+| A fixture table | its file in `supabase/schemas`, a migration from `pnpm supabase:sync` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen` |
+| An env key | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example` |
+| A route in docs or marketing | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public |
+| A UI primitive in marketing | `DESIGN.md` |
+| A dependency bump | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line |
+| A `typescript` bump | `oxlint-tsgolint` in the same commit |
+| A Next.js bump | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored |
+| A user-visible change | a changeset (`pnpm changeset`) |

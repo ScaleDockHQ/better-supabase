@@ -1,7 +1,9 @@
 ---
-description: Run and browser-test the docs, marketing and nextjs example apps through Portless URLs
+description: "Run and browser-test the docs, marketing and nextjs example apps through Portless URLs"
 globs: apps/**
 alwaysApply: false
+paths:
+  - "apps/**"
 ---
 
 # Local dev through Portless

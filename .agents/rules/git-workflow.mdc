@@ -1,0 +1,21 @@
+---
+description: "Branches, commits, hooks and pull requests: one branch and one PR per chat or plan."
+alwaysApply: true
+---
+
+# Git workflow
+
+- One branch and one PR per chat or plan. Branch from `main`, commit as you
+  go, and push once `pnpm verify` passes.
+- Commit messages follow Conventional Commits (`commitlint.config.ts`): a
+  header of at most 72 characters and body lines of at most 100. Group
+  commits by track (`ci:`, `build:`, `docs:`), not by file.
+- Lefthook runs `ultracite fix` and the affected lint on commit, commitlint
+  on the message, and the affected lint, typecheck and tests on push. Fix
+  what a hook reports instead of skipping it.
+- A user-visible change needs a changeset (`pnpm changeset`). Private
+  workspaces and repo tooling don't; say so in the commit body.
+- Never commit `.cursor/hooks/state/*`; it is local hook state.
+- Never force-push `main`, and never rewrite a pushed migration.
+- The PR description says what changed, how it was verified, and any manual
+  step a maintainer has to take (a dashboard setting, a required check).

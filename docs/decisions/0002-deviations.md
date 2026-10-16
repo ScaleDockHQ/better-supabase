@@ -124,9 +124,6 @@ backlogs too large to clear in the upgrade.
 
 ### Agent files
 
-- `AGENTS.md` is over the 12 KB limit and holds every rule itself, so
-  there is no `.agents/rules` directory with `.cursor/rules` and
-  `.claude/rules` symlinks. Splitting it is its own change.
 - The `AGENTS.md` and `CLAUDE.md` files that `next dev` writes in the
   Next.js apps are gitignored instead of committed. The root `AGENTS.md`
   is the one guide, and three copies of the Next.js block would drift
@@ -229,5 +226,5 @@ rules are cleared and the `off` lines removed.
 
 Each item names what would end it: a page that needs twoslash, a typed
 `services` config in `@vercel/config`, `fumadocs-core/mcp` setting tool
-annotations, a `develop` branch, Vercel honoring `devEngines`, an
-`AGENTS.md` split into rules, or an empty backlog. When one happens, update the config and this record.
+annotations, a `develop` branch, Vercel honoring `devEngines`, or an empty
+backlog. When one happens, update the config and this record.
