@@ -96,6 +96,10 @@ import {
 } from "./identities/options.ts";
 import { type InboxSqlOptions, inboxSqlOptions } from "./inbox/options.ts";
 import {
+  type InventorySqlOptions,
+  inventorySqlOptions,
+} from "./inventory/options.ts";
+import {
   type InvoicesSqlOptions,
   invoicesSqlOptions,
 } from "./invoices/options.ts";
@@ -277,7 +281,7 @@ export interface BlockOptionsRegistry {
   readonly identities: IdentitiesSqlOptions;
   readonly imports: None;
   readonly inbox: InboxSqlOptions;
-  readonly inventory: None;
+  readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
   readonly jobs: JobsSqlOptions;
@@ -389,7 +393,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   identities: identitiesSqlOptions,
   imports: NO_OPTIONS,
   inbox: inboxSqlOptions,
-  inventory: NO_OPTIONS,
+  inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,
   invoices: invoicesSqlOptions,
   jobs: jobsSqlOptions,

@@ -108,7 +108,6 @@ const NO_FIELDS: readonly string[] = [
   "imports",
   "inbox",
   "incoming-webhooks",
-  "inventory",
   "knowledge",
   "memory",
   "metrics",

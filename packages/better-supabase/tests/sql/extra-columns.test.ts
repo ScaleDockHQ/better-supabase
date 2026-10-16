@@ -47,6 +47,14 @@ const CASES: readonly {
     reads: [`'fields', jsonb_build_object('region', x."region")`],
   },
   {
+    module: "inventory",
+    table: "locations",
+    writes: [`"region" = case when save_location.fields ? 'region'`],
+    reads: [
+      `jsonb_build_object('fields', jsonb_build_object('region', x."region"))`,
+    ],
+  },
+  {
     module: "deals",
     table: "deals",
     writes: [
