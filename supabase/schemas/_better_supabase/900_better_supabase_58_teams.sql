@@ -127,6 +127,8 @@ $$;
 revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;
 
+-- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -179,6 +181,7 @@ $$;
 revoke execute on function "better_supabase"."create_team"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."create_team"(uuid, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."update_team"(uuid, text, text, jsonb);
 create or replace function "better_supabase"."update_team"(team uuid, name text, description text)
 returns jsonb
 language plpgsql
