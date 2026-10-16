@@ -5,6 +5,12 @@ import type { Logger } from "../../core/logger.ts";
 import type { WorkflowBuilder } from "../workflow-builder/types.ts";
 import type { MergeFieldCatalog } from "./merge-fields.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
@@ -82,7 +88,8 @@ export function defineTemplateType<Settings = unknown, Body = unknown>(
   return type;
 }
 
-export interface Template {
+/** A template. `F` types the extra columns the `fields` schema describes. */
+export interface Template<F extends object = Record<never, never>> {
   readonly id: string;
   /** `undefined` for a system template. */
   readonly organizationId: string | undefined;
@@ -107,6 +114,8 @@ export interface Template {
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface TemplateVersion {
@@ -123,7 +132,9 @@ export interface TemplateVersion {
   readonly body?: unknown;
 }
 
-export interface TemplateDetail extends Template {
+export interface TemplateDetail<
+  F extends object = Record<never, never>,
+> extends Template<F> {
   readonly published: TemplateVersion | undefined;
   readonly draft: TemplateVersion | undefined;
 }
@@ -150,7 +161,7 @@ export interface TemplateWorkflow {
   readonly createdAt: Temporal.Instant;
 }
 
-export interface TemplateInput {
+export interface TemplateInput<F extends object = Record<never, never>> {
   /** Leave it out to create a template. */
   readonly id?: string;
   /** `null` for a system template, which only the service role saves. */
@@ -161,6 +172,8 @@ export interface TemplateInput {
   /** Default `en`. */
   readonly language?: string;
   readonly settings?: Readonly<Record<string, unknown>>;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 /** A system template `sync` keeps, by key. */
@@ -200,15 +213,15 @@ export interface TemplateApplyResult {
   readonly runs: readonly TemplateRunStart[];
 }
 
-export interface Templates {
-  save(input: TemplateInput): AsyncResult<Template>;
+export interface Templates<F extends object = Record<never, never>> {
+  save(input: TemplateInput<F>): AsyncResult<Template<F>>;
   /** The organization's templates and the system ones (only those with `null`), defaults first. */
   list(
     organizationId: string | null,
     filter?: { readonly type?: string; readonly language?: string },
-  ): AsyncResult<readonly Template[]>;
+  ): AsyncResult<readonly Template<F>[]>;
   /** With its newest published version and its draft; `undefined` when the caller can't read it. */
-  get(id: string): AsyncResult<TemplateDetail | undefined>;
+  get(id: string): AsyncResult<TemplateDetail<F> | undefined>;
   remove(id: string): AsyncResult<boolean>;
   /** Makes it the default for its organization, type and language (or stops it being one). */
   setDefault(id: string, isDefault?: boolean): AsyncResult<boolean>;
@@ -217,7 +230,7 @@ export interface Templates {
    * the organization's) into a new template there, published as version 1,
    * with its workflow attachments.
    */
-  fork(source: string, organizationId: string): AsyncResult<Template>;
+  fork(source: string, organizationId: string): AsyncResult<Template<F>>;
   /**
    * Upserts the system templates by key and publishes a new version of
    * each whose body changed. Service role. Returns how many it published.
@@ -257,16 +270,24 @@ export interface Templates {
   };
 }
 
-export interface TemplatesOptions extends BlockTemporalOptions {
+export interface TemplatesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the template's extra columns
+   * (`blocks.templates.options.extraColumns`), keyed by database name. It
+   * types and parses them on reads, and validates them on `save`.
+   */
+  readonly fields?: S;
   /** The template types, by name. A type without `apply` can't be applied. */
   readonly types?: Readonly<Record<string, TemplateType>>;
   /** Starts the attached workflows; `createWorkflowBuilder` as the caller. */
   readonly workflows?: Pick<WorkflowBuilder, "run">;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Templates>;
+  readonly hooks?: NoInfer<BlockHooks<Templates<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -300,6 +321,7 @@ function templateOf(row: Record<string, unknown>): Template {
     createdBy: optionalText(row["createdBy"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
+    fields: recordOrEmpty(row["fields"]),
   };
 }
 
@@ -380,14 +402,18 @@ async function checked(
  * that create records, system starters and forks, and the workflows each
  * record starts.
  */
-export function createTemplates(options: TemplatesOptions): Templates {
+export function createTemplates<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: TemplatesOptions<S>): Templates<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "template fields");
   const types: Readonly<Record<string, TemplateType>> = options.types ?? {};
   const typeOf = (name: string): TemplateType | undefined =>
     Object.hasOwn(types, name) ? types[name] : undefined;
 
-  const get = (id: string): AsyncResult<TemplateDetail | undefined> =>
+  const get = (id: string): AsyncResult<TemplateDetail<F> | undefined> =>
     call("template_get", { template_id: id }, (value) =>
       isRecord(value)
         ? {
@@ -396,6 +422,8 @@ export function createTemplates(options: TemplatesOptions): Templates {
             draft: optionalVersion(value["draft"]),
           }
         : undefined,
+    ).andThen((detail) =>
+      detail === undefined ? AsyncResult.ok(undefined) : fields.row(detail),
     );
 
   const saveVersion = (template: string, body: unknown) =>
@@ -427,9 +455,11 @@ export function createTemplates(options: TemplatesOptions): Templates {
     return runs;
   };
 
-  const client: Templates = {
+  const client: Templates<F> = {
     save: (input) =>
       AsyncResult.from(async () => {
+        const extra = await fields.args(input.fields);
+        if (!extra.ok) return extra;
         const type = typeOf(input.type);
         let settings: unknown = input.settings;
         if (settings !== undefined) {
@@ -450,9 +480,10 @@ export function createTemplates(options: TemplatesOptions): Templates {
             name: input.name ?? null,
             language: input.language ?? null,
             settings: settings ?? null,
+            fields: extra.data,
           },
           (value) => templateOf(recordOf(value, "save_template")),
-        );
+        ).andThen(fields.row);
       }),
     list: (organizationId, filter = {}) =>
       call(
@@ -463,7 +494,7 @@ export function createTemplates(options: TemplatesOptions): Templates {
           language: filter.language ?? null,
         },
         (value) => recordsOf(value, "templates_list").map(templateOf),
-      ),
+      ).andThen(fields.rows),
     get,
     remove: (id) =>
       call("remove_template", { template_id: id }, (value) => value === true),
@@ -476,7 +507,7 @@ export function createTemplates(options: TemplatesOptions): Templates {
     fork: (source, organizationId) =>
       call("fork_template", { source, tenant: organizationId }, (value) =>
         templateOf(recordOf(value, "fork_template")),
-      ),
+      ).andThen(fields.row),
     sync: (starters) =>
       AsyncResult.from(async () => {
         const rows: Record<string, unknown>[] = [];

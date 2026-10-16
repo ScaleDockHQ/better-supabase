@@ -2,9 +2,16 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -21,18 +28,28 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface TimeTrackingOptions extends BlockTemporalOptions {
+export interface TimeTrackingOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the entry's extra columns
+   * (`blocks.time-tracking.options.extraColumns`), keyed by database name.
+   * It types and parses them on reads, and validates them on `start`, `log`
+   * and `update`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<TimeTracking>;
+  readonly hooks?: NoInfer<BlockHooks<TimeTracking<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
 
-export interface TimeEntry {
+/** A time entry. `F` types the extra columns the `fields` schema describes. */
+export interface TimeEntry<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly userId: string;
@@ -49,18 +66,24 @@ export interface TimeEntry {
   readonly note?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-/** The record time is tracked on, and how it bills. */
-export interface TimeEntryFields {
+/** The record time is tracked on, how it bills, and the extra columns. */
+export interface TimeEntryFields<F extends object = Record<never, never>> {
   readonly subjectType?: string;
   readonly subjectId?: string;
   readonly billable?: boolean;
   readonly rate?: number;
   readonly note?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
-export interface LogTimeInput extends TimeEntryFields {
+export interface LogTimeInput<
+  F extends object = Record<never, never>,
+> extends TimeEntryFields<F> {
   readonly startedAt: Temporal.Instant;
   readonly endedAt: Temporal.Instant;
   /** Another member; needs `time_tracking.manage`. Default: the caller. */
@@ -68,7 +91,7 @@ export interface LogTimeInput extends TimeEntryFields {
 }
 
 /** The fields to change. `null` clears the subject, rate or note. */
-export interface TimeEntryPatch {
+export interface TimeEntryPatch<F extends object = Record<never, never>> {
   readonly startedAt?: Temporal.Instant;
   readonly endedAt?: Temporal.Instant;
   readonly subject?: {
@@ -78,6 +101,8 @@ export interface TimeEntryPatch {
   readonly billable?: boolean;
   readonly rate?: number | null;
   readonly note?: string | null;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export interface TimeEntryListOptions {
@@ -118,9 +143,11 @@ export interface TimesheetTotals {
   readonly amount: number;
 }
 
-export interface TimesheetDetail extends Timesheet {
+export interface TimesheetDetail<
+  F extends object = Record<never, never>,
+> extends Timesheet {
   /** The entries that start in the week, oldest first. */
-  readonly entries: readonly TimeEntry[];
+  readonly entries: readonly TimeEntry<F>[];
   readonly totals: TimesheetTotals;
 }
 
@@ -133,29 +160,32 @@ export interface TimesheetListOptions {
   readonly before?: Temporal.PlainDate;
 }
 
-export interface TimeTracking {
+export interface TimeTracking<F extends object = Record<never, never>> {
   /** Starts a timer for the caller and stops the one that runs. */
   start(
     organizationId: string,
-    fields?: TimeEntryFields,
-  ): AsyncResult<TimeEntry>;
-  stop(organizationId: string): AsyncResult<TimeEntry>;
+    fields?: TimeEntryFields<F>,
+  ): AsyncResult<TimeEntry<F>>;
+  stop(organizationId: string): AsyncResult<TimeEntry<F>>;
   /** The caller's running timer. */
-  running(organizationId: string): AsyncResult<TimeEntry | undefined>;
-  log(organizationId: string, input: LogTimeInput): AsyncResult<TimeEntry>;
-  update(entryId: string, patch: TimeEntryPatch): AsyncResult<TimeEntry>;
-  remove(entryId: string): AsyncResult<TimeEntry>;
+  running(organizationId: string): AsyncResult<TimeEntry<F> | undefined>;
+  log(
+    organizationId: string,
+    input: LogTimeInput<F>,
+  ): AsyncResult<TimeEntry<F>>;
+  update(entryId: string, patch: TimeEntryPatch<F>): AsyncResult<TimeEntry<F>>;
+  remove(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Newest first. */
   list(
     organizationId: string,
     options?: TimeEntryListOptions,
-  ): AsyncResult<readonly TimeEntry[]>;
+  ): AsyncResult<readonly TimeEntry<F>[]>;
   /** A member's week (the caller's by default) with its entries and totals. */
   timesheet(
     organizationId: string,
     week: Temporal.PlainDate,
     userId?: string,
-  ): AsyncResult<TimesheetDetail>;
+  ): AsyncResult<TimesheetDetail<F>>;
   /** Sends the caller's week for approval; it locks until a rejection. */
   submit(
     organizationId: string,
@@ -207,6 +237,7 @@ function entryOf(value: unknown, fn: string): TimeEntry {
     ...optional("seconds", numberOf(row["seconds"])),
     ...optional("rate", numberOf(row["rate"])),
     ...optional("note", optionalText(row["note"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -234,7 +265,7 @@ function totalsOf(value: unknown): TimesheetTotals {
   };
 }
 
-function patchOf(patch: TimeEntryPatch): Record<string, unknown> {
+function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (patch.startedAt !== undefined) {
     out["startedAt"] = patch.startedAt.toString();
@@ -251,59 +282,82 @@ function patchOf(patch: TimeEntryPatch): Record<string, unknown> {
 }
 
 /** The `time-tracking` SQL module as typed calls. */
-export function createTimeTracking(options: TimeTrackingOptions): TimeTracking {
+export function createTimeTracking<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: TimeTrackingOptions<S>): TimeTracking<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: TimeTracking = {
-    start: (organizationId, fields = {}) =>
-      call(
-        "start_timer",
-        {
-          tenant: organizationId,
-          subject_type: fields.subjectType ?? null,
-          subject_id: fields.subjectId ?? null,
-          billable: fields.billable ?? false,
-          rate: fields.rate ?? null,
-          note: fields.note ?? null,
-        },
-        (value) => entryOf(value, "start_timer"),
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "time entry fields",
+  );
+  const client: TimeTracking<F> = {
+    start: (organizationId, entry = {}) =>
+      fields.args(entry.fields).andThen((checked) =>
+        call(
+          "start_timer",
+          {
+            tenant: organizationId,
+            subject_type: entry.subjectType ?? null,
+            subject_id: entry.subjectId ?? null,
+            billable: entry.billable ?? false,
+            rate: entry.rate ?? null,
+            note: entry.note ?? null,
+            fields: checked,
+          },
+          (value) => entryOf(value, "start_timer"),
+        ).andThen(fields.row),
       ),
     stop: (organizationId) =>
       call("stop_timer", { tenant: organizationId }, (value) =>
         entryOf(value, "stop_timer"),
-      ),
+      ).andThen(fields.row),
     running: (organizationId) =>
       call("running_timer", { tenant: organizationId }, (value) =>
         value === null || value === undefined
           ? undefined
           : entryOf(value, "running_timer"),
+      ).andThen((entry) =>
+        entry === undefined ? AsyncResult.ok(undefined) : fields.row(entry),
       ),
     log: (organizationId, input) =>
-      call(
-        "log_time",
-        {
-          tenant: organizationId,
-          started_at: instantArg(input.startedAt),
-          ended_at: instantArg(input.endedAt),
-          subject_type: input.subjectType ?? null,
-          subject_id: input.subjectId ?? null,
-          billable: input.billable ?? false,
-          rate: input.rate ?? null,
-          note: input.note ?? null,
-          user_id: input.userId ?? null,
-        },
-        (value) => entryOf(value, "log_time"),
+      fields.args(input.fields).andThen((checked) =>
+        call(
+          "log_time",
+          {
+            tenant: organizationId,
+            started_at: instantArg(input.startedAt),
+            ended_at: instantArg(input.endedAt),
+            subject_type: input.subjectType ?? null,
+            subject_id: input.subjectId ?? null,
+            billable: input.billable ?? false,
+            rate: input.rate ?? null,
+            note: input.note ?? null,
+            user_id: input.userId ?? null,
+            fields: checked,
+          },
+          (value) => entryOf(value, "log_time"),
+        ).andThen(fields.row),
       ),
     update: (entryId, patch) =>
-      call(
-        "update_time_entry",
-        { entry_id: entryId, patch: patchOf(patch) },
-        (value) => entryOf(value, "update_time_entry"),
+      fields.args(patch.fields).andThen((checked) =>
+        call(
+          "update_time_entry",
+          {
+            entry_id: entryId,
+            patch: {
+              ...patchOf(patch),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+          },
+          (value) => entryOf(value, "update_time_entry"),
+        ).andThen(fields.row),
       ),
     remove: (entryId) =>
       call("delete_time_entry", { entry_id: entryId }, (value) =>
         entryOf(value, "delete_time_entry"),
-      ),
+      ).andThen(fields.row),
     list: (organizationId, list = {}) =>
       call(
         "list_time_entries",
@@ -321,7 +375,7 @@ export function createTimeTracking(options: TimeTrackingOptions): TimeTracking {
           recordsOf(value, "list_time_entries").map((row) =>
             entryOf(row, "list_time_entries"),
           ),
-      ),
+      ).andThen(fields.rows),
     timesheet: (organizationId, week, userId) =>
       call(
         "get_timesheet",
@@ -340,6 +394,8 @@ export function createTimeTracking(options: TimeTrackingOptions): TimeTracking {
             totals: totalsOf(row["totals"]),
           };
         },
+      ).andThen((detail) =>
+        fields.rows(detail.entries).map((entries) => ({ ...detail, entries })),
       ),
     submit: (organizationId, week, note) =>
       call(

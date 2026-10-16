@@ -43,6 +43,7 @@ import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { idempotencyBlock } from "better-supabase/blocks/jobs";
 import { jobsBlock } from "better-supabase/blocks/jobs";
 import { rateLimitBlock } from "better-supabase/blocks/jobs";
+import { webhookInboxBlock } from "better-supabase/blocks/jobs";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { metricsBlock } from "better-supabase/blocks/metrics";
@@ -126,6 +127,7 @@ export const blockSet = defineBlocks(blockConfig, {
   idempotency: idempotencyBlock,
   jobs: jobsBlock,
   rateLimit: rateLimitBlock,
+  webhookInbox: webhookInboxBlock,
   knowledge: knowledgeBlock,
   memory: memoryBlock,
   metrics: metricsBlock,

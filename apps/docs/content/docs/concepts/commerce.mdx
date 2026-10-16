@@ -3,7 +3,7 @@ title: Commerce
 description: Money in bigint minor units, and versioned payment and tax providers with Stripe adapters.
 ---
 
-`better-supabase/blocks/commerce` is the base the commerce blocks build on.
+`better-supabase/commerce` is the base the commerce blocks build on.
 It holds money as a `bigint` count of the currency's minor units, so a price
 never passes through a floating-point number. It also defines two versioned
 extension interfaces, `PaymentProvider` and `TaxProvider`, with adapters for
@@ -16,7 +16,7 @@ import {
   money,
   parseMoney,
   stripePayments,
-} from "better-supabase/blocks/commerce";
+} from "better-supabase/commerce";
 ```
 
 ## Money

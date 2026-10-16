@@ -9,8 +9,8 @@ import {
   type StripeTaxCalculationLine,
   type StripeTaxClient,
   stripeTax,
-} from "../../../src/blocks/commerce/index.ts";
-import { testTaxProvider } from "../../../src/testing/index.ts";
+} from "../../src/commerce/index.ts";
+import { testTaxProvider } from "../../src/testing/index.ts";
 
 type Params = Readonly<Record<string, unknown>>;
 type Line = StripeTaxCalculationLine;

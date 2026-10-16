@@ -8,11 +8,8 @@ import {
   type TaxCart,
   type TaxProvider,
   taxProviderOf,
-} from "../../../src/blocks/commerce/index.ts";
-import {
-  ConformanceError,
-  testTaxProvider,
-} from "../../../src/testing/index.ts";
+} from "../../src/commerce/index.ts";
+import { ConformanceError, testTaxProvider } from "../../src/testing/index.ts";
 
 const eur = (amount: bigint) => money(amount, "EUR");
 

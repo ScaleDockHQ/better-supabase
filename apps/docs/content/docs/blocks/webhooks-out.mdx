@@ -431,3 +431,9 @@ wherever they are.
 | `WEBHOOK_STATUS_UNKNOWN`       | Completing a delivery with a status the block doesn't know   |
 | `WEBHOOK_ATTEMPT_REQUIRED`     | Completing a delivery without the attempt its claim returned |
 | `WEBHOOK_SECRET_TOO_SHORT`     | Importing a secret shorter than 16 characters                |
+
+## Hooks
+
+`createWebhooks` takes `hooks` around its methods, such as a rule before
+`publish` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).

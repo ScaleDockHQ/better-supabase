@@ -2232,7 +2232,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "webhook-inbox"
       ],
       "category": "platform",
-      "client": null,
+      "client": {
+        "export": "webhookInboxBlock",
+        "subpath": "better-supabase/blocks/jobs"
+      },
       "consumes": {},
       "provides": []
     },

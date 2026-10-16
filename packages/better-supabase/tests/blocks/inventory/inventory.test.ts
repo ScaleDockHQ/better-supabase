@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { money } from "../../../src/blocks/commerce/index.ts";
 import {
   createInventory,
   type Inventory,
 } from "../../../src/blocks/inventory/index.ts";
+import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];

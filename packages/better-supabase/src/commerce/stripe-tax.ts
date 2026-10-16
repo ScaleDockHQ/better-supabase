@@ -1,9 +1,9 @@
 import type { Money } from "./money.ts";
 
-import { dbError } from "../../core/errors.ts";
-import { err, ok, type Result } from "../../core/result.ts";
-import { optionalTemporal } from "../../core/temporal.ts";
-import { lazyStripe, type StripeSource } from "../stripe.ts";
+import { lazyStripe, type StripeSource } from "../blocks/stripe.ts";
+import { dbError } from "../core/errors.ts";
+import { err, ok, type Result } from "../core/result.ts";
+import { optionalTemporal } from "../core/temporal.ts";
 import {
   fromStripeAmount,
   idempotency,

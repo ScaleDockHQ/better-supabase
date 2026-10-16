@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from "./standard.ts";
 
 import { dbError, type ValidationIssue } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
+import { AsyncResult, err, ok, type Result } from "./result.ts";
 import { toIssues } from "./standard.ts";
 
 /** The fields a `fields` schema adds, or none when the block has no schema. */
@@ -11,6 +11,17 @@ export type FieldsOf<S> =
       ? O
       : never
     : Record<never, never>;
+
+/** The extra columns of a row, keyed by database name, typed by `F`. */
+export type ExtraFields<F extends object = Record<never, never>> = Readonly<
+  Record<string, unknown>
+> &
+  F;
+
+/** A row whose extra columns a block read under `fields`. */
+export interface WithExtraFields {
+  readonly fields: Readonly<Record<string, unknown>>;
+}
 
 /**
  * Parses and validates the extra fields an app adds to a block's table,
@@ -30,6 +41,24 @@ export interface BlockFields<T extends object> {
    * error, and nothing is sent to the database.
    */
   write<A extends object>(attrs: A): Promise<Result<A>>;
+  /**
+   * Parses the `fields` of a row the block read: the extra columns its SQL
+   * returns under `fields`, keyed by database name.
+   */
+  readonly row: <R extends WithExtraFields>(
+    row: R,
+  ) => AsyncResult<R & { readonly fields: ExtraFields<T> }>;
+  /** `row` for each row, stopping at the first rejected one. */
+  readonly rows: <R extends WithExtraFields>(
+    rows: readonly R[],
+  ) => AsyncResult<(R & { readonly fields: ExtraFields<T> })[]>;
+  /**
+   * Validates the extra fields a write sets, as the jsonb argument the SQL
+   * function takes; `undefined` without any, so the argument is left out.
+   */
+  readonly args: (
+    fields: object | undefined,
+  ) => AsyncResult<Readonly<Record<string, unknown>> | undefined>;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -55,7 +84,7 @@ export function blockFields<T extends object = Record<never, never>>(
   schema: StandardSchemaV1 | undefined,
   label: string,
 ): BlockFields<T> {
-  return {
+  const fields: BlockFields<T> = {
     async read(row) {
       if (schema === undefined) {
         // SAFETY: without a schema T is the empty field set.
@@ -91,5 +120,31 @@ export function blockFields<T extends object = Record<never, never>>(
       if (relevant.length === 0) return ok(attrs);
       return invalid(label, relevant);
     },
+    row: (row) =>
+      AsyncResult.from(() => fields.read(row.fields)).map((parsed) => ({
+        ...row,
+        fields: parsed,
+      })),
+    rows: (rows) =>
+      AsyncResult.from(async () => {
+        const out: ((typeof rows)[number] & {
+          readonly fields: ExtraFields<T>;
+        })[] = [];
+        for (const row of rows) {
+          const parsed = await fields.row(row);
+          if (!parsed.ok) return parsed;
+          out.push(parsed.data);
+        }
+        return ok(out);
+      }),
+    args: (extra) =>
+      AsyncResult.from(async () => {
+        if (extra === undefined || Object.keys(extra).length === 0) {
+          return ok(undefined);
+        }
+        const checked = await fields.write({ ...extra });
+        return checked.ok ? ok(checked.data) : checked;
+      }),
   };
+  return fields;
 }

@@ -4,6 +4,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { type Money } from "../../commerce/money.ts";
 import {
   type BlockFields,
   blockFields,
@@ -12,7 +13,6 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { type Money } from "../commerce/money.ts";
 import {
   applyTemporal,
   blockCall,

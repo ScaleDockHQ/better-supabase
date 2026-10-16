@@ -59,3 +59,21 @@ AI chat sharing uses this block. `share_ai_chat`, `revoke_ai_chat_share`, `list_
 ## Adopt mode
 
 Map `tables.links`, `tables.views` and `tables.state`. CentraKit's `file_share_links` stores plaintext tokens: run `update ... set token = encode(sha256(convert_to(token, 'utf8')), 'hex')` once. `document_views` and `file_node_user_state` map onto `views` and `state` when their columns fit.
+
+## Your own columns
+
+Add columns to the share link table with `blocks.share-links.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`create` (in its options) validates and writes them, and `create` and `list` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createShareLinks } from "better-supabase/blocks/share-links";
+import { z } from "zod";
+
+const client = createShareLinks({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

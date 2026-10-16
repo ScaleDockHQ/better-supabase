@@ -1691,6 +1691,7 @@
       "EventSpec",
       "ExtendBlockOptions",
       "ExtendBlockTools",
+      "ExtraFields",
       "FieldsOf",
       "FinalRunState",
       "GeneratedBlock",
@@ -1707,7 +1708,8 @@
       "RpcClient",
       "RunState",
       "UsingOptions",
-      "WithBlockHooksOptions"
+      "WithBlockHooksOptions",
+      "WithExtraFields"
     ]
   },
   "./blocks/audit": {
@@ -3063,6 +3065,7 @@
       "WorkflowSchedule",
       "WorkflowScheduleInput",
       "WorkflowsEvents",
+      "WorkflowsHooks",
       "WorkflowsOptions",
       "WorkflowStartCall",
       "WorkflowStarter",
@@ -3182,6 +3185,7 @@
       "WorkflowBuilderController",
       "WorkflowBuilderControllerOptions",
       "WorkflowBuilderEvents",
+      "WorkflowBuilderHooks",
       "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunController",
@@ -4536,6 +4540,7 @@
       "CreatedShareLink",
       "CreateShareLinkOptions",
       "ResolvedShareLink",
+      "ShareLink",
       "ShareLinks",
       "ShareLinksEvents",
       "ShareLinksOptions"
@@ -4912,7 +4917,7 @@
       "MetricWhereValue"
     ]
   },
-  "./blocks/commerce": {
+  "./commerce": {
     "values": [
       "addMoney",
       "allocateMoney",

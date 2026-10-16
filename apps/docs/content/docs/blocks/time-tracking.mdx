@@ -148,3 +148,21 @@ const grid = toWeeklyGrid(sheet.entries, {
 ```
 
 Pass `rowKey` to group rows differently, for example by subject only. The header can show `sheet.status` as a badge with a submit button that calls `submit`, disabled while a timer runs, and a timer button that calls `start` and `stop` and shows `running`.
+
+## Your own columns
+
+Add columns to the time entry table with `blocks.time-tracking.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`start`, `log` and `update` validates and writes them, and every method that returns an entry return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTimeTracking } from "better-supabase/blocks/time-tracking";
+import { z } from "zod";
+
+const client = createTimeTracking({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

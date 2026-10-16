@@ -64,6 +64,7 @@ describe("sla block", () => {
       resolutionMinutes: 240,
       warnAtPercent: 50,
       businessHours: true,
+      fields: {},
     });
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",

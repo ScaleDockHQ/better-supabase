@@ -97,3 +97,21 @@ The client has no UI dependency. A history panel lists `list()`, shows `diff()` 
 const rows = await versions.list(organizationId, "quote", quoteId).orThrow();
 // <Timeline> from ReUI: one item per row, labeled with row.label ?? `Version ${row.number}`
 ```
+
+## Your own columns
+
+Add columns to the version table with `blocks.versions.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`snapshot` validates and writes them, and `list` and `get` (`getShared` leaves them out) return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createVersions } from "better-supabase/blocks/versions";
+import { z } from "zod";
+
+const client = createVersions({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

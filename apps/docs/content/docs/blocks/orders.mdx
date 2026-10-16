@@ -17,7 +17,7 @@ better-supabase sql add orders
 ```
 
 ```ts title="lib/orders.ts"
-import { fixedRates, stripePayments } from "better-supabase/blocks/commerce";
+import { fixedRates, stripePayments } from "better-supabase/commerce";
 import { createOrders, sqlTransport } from "better-supabase/blocks/orders";
 
 export const orders = createOrders({
@@ -35,7 +35,7 @@ The module needs `tenant`, `access` and `catalog`. It uses `inventory` for
 reservations and stock movements, `promotions` for discount codes,
 `number-sequences` for order and invoice numbers, `state-machine` for the
 status column, and `outbox` for events, each when it is installed. The
-providers are described on the [commerce](/docs/blocks/commerce) page; both
+providers are described on the [commerce](/docs/concepts/commerce) page; both
 are optional, and without `payments` only free orders can be placed.
 
 ## Permissions

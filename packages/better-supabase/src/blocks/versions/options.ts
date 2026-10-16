@@ -5,6 +5,7 @@ export type VersionsSqlOptions = {
   readonly subjects?: unknown;
   readonly keep?: number;
   readonly debounce?: number;
+  readonly extraColumns?: unknown;
 };
 
 export const versionsSqlOptions: BlockOptionsSchema<VersionsSqlOptions> =
@@ -12,4 +13,5 @@ export const versionsSqlOptions: BlockOptionsSchema<VersionsSqlOptions> =
     subjects: option.unknown(),
     keep: option.number({ default: 50 }),
     debounce: option.number({ default: 300 }),
+    extraColumns: option.unknown(),
   });
