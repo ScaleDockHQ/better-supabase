@@ -269,6 +269,7 @@ create policy storefronts_read on "better_supabase"."storefronts" for select to 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
 language plpgsql
@@ -1591,6 +1592,7 @@ create policy storefronts_read on "better_supabase"."storefronts" for select to 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
 language plpgsql
@@ -2921,6 +2923,7 @@ create policy storefronts_read on "app_private"."storefronts" for select to auth
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
+drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "app_private"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
 language plpgsql
@@ -4243,6 +4246,7 @@ create policy storefronts_read on "better_supabase"."storefronts" for select to 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
 language plpgsql
@@ -5273,6 +5277,8 @@ drop policy if exists collection_products_storefront on "better_supabase"."colle
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -5597,6 +5603,7 @@ $$;
 grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
 language plpgsql

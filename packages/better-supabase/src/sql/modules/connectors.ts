@@ -3,12 +3,15 @@ import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
   revokeTable,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
@@ -87,7 +90,7 @@ const EVENTS: ModuleEvents<ConnectorsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["allowHttp", "trustFirstUse", "sessionTtl"],
+  options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],
   tables: {
     servers: {
       name: "connector_servers",
@@ -118,6 +121,12 @@ const NAMES: ModuleNames = {
 
 const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
 
+/**
+ * The keys a server read returns next to the extra columns, which
+ * `save_connector_server` takes in its `fields` object with the server's own.
+ */
+const RESERVED = ["fields", "grant"] as const;
+
 function build(ctx: ModuleContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
@@ -144,7 +153,9 @@ function build(ctx: ModuleContext): string {
   const urlPattern = allowHttp
     ? "^https?://"
     : "^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))";
-  const serverJson = (row: string): string => rowJson(SERVERS, v, row);
+  const extras = ctx.extraColumns("servers", RESERVED);
+  const serverJson = (row: string): string =>
+    withExtraFields(rowJson(SERVERS, v, row), row, extras);
   const grantJson = (row: string): string => rowJson(GRANTS, g, row);
   const isAdmin = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.scope.can(tenant, manage)})`;
@@ -195,7 +206,7 @@ create table if not exists ${servers} (
   ${v.createdAt} timestamptz not null default now(),
   ${v.updatedAt} timestamptz not null default now(),
   check ((${v.authType} = 'header') = (${v.credentialRef} is not null))
-);
+);${addExtraColumns(servers, extras)}
 create index if not exists connector_servers_tenant_idx on ${servers} (${v.tenant});
 create index if not exists connector_servers_created_by_idx on ${servers} (${v.createdBy});
 alter table ${servers} enable row level security;
@@ -312,7 +323,7 @@ begin
     ${v.enabled} = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x.${v.enabled}),
     ${v.updatedAt} = now()
   where x.${v.id} = v_row.${v.id}
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(servers, extras, "save_connector_server.fields", `x.${v.id} = v_row.${v.id}`, "v_row")}
   ${serverEvent("connector.saved", "v_row")}
   return ${serverJson("v_row")};
 end;

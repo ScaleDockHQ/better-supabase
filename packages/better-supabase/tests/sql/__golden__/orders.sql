@@ -927,6 +927,7 @@ revoke execute on function "better_supabase"."order_json"(uuid) from public, ano
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
+drop function if exists "better_supabase"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
 returns jsonb
 language plpgsql
@@ -2699,6 +2700,7 @@ revoke execute on function "better_supabase"."order_json"(uuid) from public, ano
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
+drop function if exists "better_supabase"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
 returns jsonb
 language plpgsql
@@ -4535,6 +4537,7 @@ revoke execute on function "app_private"."order_json"(uuid) from public, anon, a
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
+drop function if exists "app_private"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 create or replace function "app_private"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
 returns jsonb
 language plpgsql
@@ -6299,6 +6302,7 @@ revoke execute on function "better_supabase"."order_json"(uuid) from public, ano
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
+drop function if exists "better_supabase"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
 returns jsonb
 language plpgsql
@@ -7112,6 +7116,8 @@ grant execute on function "better_supabase"."complete_refund"(uuid, text, text) 
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

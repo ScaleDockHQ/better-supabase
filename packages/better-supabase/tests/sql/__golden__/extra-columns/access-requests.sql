@@ -69,7 +69,7 @@ create policy "access_requests_read" on "better_supabase"."access_requests" for 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
 drop function if exists "better_supabase"."request_access"(uuid, text, text, interval);
-create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null, extra_fields jsonb default null)
+create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -128,8 +128,8 @@ begin
   insert into "better_supabase"."access_requests" ("tenant_id", "user_id", "role", "reason", "duration")
   values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
   returning * into v_row;
-  update "better_supabase"."access_requests" x set "app_note" = case when request_access.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."access_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_access.extra_fields) e where e.key in ('app_note'))) r
+  update "better_supabase"."access_requests" x set "app_note" = case when request_access.fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."access_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_access.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
   v_approval := "better_supabase"."open_approval"(

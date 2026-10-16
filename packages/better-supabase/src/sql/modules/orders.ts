@@ -10,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  fieldsArgs,
+  extraFieldsArg,
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
@@ -609,7 +609,13 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "merge_carts", args: ["uuid", "uuid"], returns: "integer" },
     {
       name: "place_order",
-      args: ["uuid", "jsonb", "bigint", "uuid", ...fieldsArgs(extrasOf(ctx))],
+      args: [
+        "uuid",
+        "jsonb",
+        "bigint",
+        "uuid",
+        ...extraFieldsArg(extrasOf(ctx)).contract,
+      ],
       returns: "jsonb",
     },
     {

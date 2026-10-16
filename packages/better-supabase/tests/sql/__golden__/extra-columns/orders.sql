@@ -928,8 +928,8 @@ revoke execute on function "better_supabase"."order_json"(uuid) from public, ano
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
-create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null,
-  fields jsonb default null)
+drop function if exists "better_supabase"."place_order"(uuid, jsonb, bigint, uuid);
+create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

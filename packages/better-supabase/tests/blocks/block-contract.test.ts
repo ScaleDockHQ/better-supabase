@@ -60,7 +60,8 @@ describe("block hooks", () => {
         "t1",
         {},
       ),
-      createRateLimit(transport, {
+      createRateLimit({
+        transport,
         hooks: { check: { before: refuse } },
       }).check("api", "k"),
       createNumberSequences({
@@ -137,7 +138,8 @@ describe("block hooks", () => {
     );
     expect(rebalance).toHaveBeenCalledOnce();
     const purge = vi.fn();
-    await createRateLimit(transport, {
+    await createRateLimit({
+      transport,
       hooks: { purge: { after: purge } },
     }).purgeJob()({}, undefined as never, new AbortController().signal);
     expect(purge).toHaveBeenCalledOnce();

@@ -76,6 +76,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
+drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -466,6 +467,8 @@ grant execute on function "better_supabase"."api_key_tenant"() to anon, authenti
 -- blocks.api-keys.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

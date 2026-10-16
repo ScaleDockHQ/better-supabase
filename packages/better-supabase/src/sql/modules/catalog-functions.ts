@@ -5,9 +5,7 @@ import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   columnsObject,
-  dropWithoutExtraFields,
-  extraFieldsParam,
-  extraFieldsType,
+  extraFieldsArg,
   fail,
   userGrant,
   writeExtraColumns,
@@ -113,7 +111,8 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
   end if;`;
   return `
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
-${dropWithoutExtraFields(extras, `${fn("save_product")}(${saveArgs})`)}create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${extraFieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("save_product"), saveArgs)}
+create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -151,7 +150,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
-  end;${writeExtraColumns(products, extras, "save_product.extra_fields", `x.${p("id")} = v_id`)}
+  end;${writeExtraColumns(products, extras, "save_product.fields", `x.${p("id")} = v_id`)}
   if v_created then
     ${ctx.record({
       type: "product.created",
@@ -183,7 +182,7 @@ begin
   };
 end;
 $$;
-${userGrant(`${fn("save_product")}(${saveArgs}${extraFieldsType(extras)})`)}
+${userGrant(`${fn("save_product")}(${saveArgs}${extraFieldsArg(extras).type})`)}
 
 -- Moves a product to another status: draft, active or archived.${governed ? "\n-- A state-machine machine owns the transitions of this table." : ""}
 create or replace function ${fn("set_product_status")}(product uuid, status text)

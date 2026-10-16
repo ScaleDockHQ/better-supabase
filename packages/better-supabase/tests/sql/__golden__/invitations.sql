@@ -125,6 +125,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -848,6 +849,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -1666,6 +1668,7 @@ revoke execute on function "app_private"."invitation_extra"(uuid) from public, a
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "app_private"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "app_private"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -2389,6 +2392,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -2967,6 +2971,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."invitation_tenant_ids"();
 
+drop function if exists "api"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 drop function if exists "api"."create_invitation"(uuid, text, text, interval);
 
 create or replace function "api"."actor_may_write"()
@@ -3184,6 +3189,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,

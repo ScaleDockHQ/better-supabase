@@ -67,6 +67,7 @@ create policy "access_requests_read" on "better_supabase"."access_requests" for 
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
+drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql

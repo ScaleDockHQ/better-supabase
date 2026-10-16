@@ -93,6 +93,7 @@ create policy saved_view_preferences_read on "better_supabase"."saved_view_prefe
 using ("user_id" = (select auth.uid()));
 
 
+drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql
@@ -521,6 +522,7 @@ create policy saved_view_preferences_read on "better_supabase"."saved_view_prefe
 using ("user_id" = (select auth.uid()));
 
 
+drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql
@@ -962,6 +964,7 @@ create policy saved_view_preferences_read on "app_private"."saved_view_preferenc
 using ("user_id" = (select auth.uid()));
 
 
+drop function if exists "app_private"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
 create or replace function "app_private"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql
@@ -1390,6 +1393,7 @@ create policy saved_view_preferences_read on "better_supabase"."saved_view_prefe
 using ("user_id" = (select auth.uid()));
 
 
+drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql
@@ -1702,6 +1706,8 @@ grant execute on function "better_supabase"."set_view_preference"(uuid, boolean,
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -1864,6 +1870,7 @@ create policy saved_view_preferences_read on "better_supabase"."saved_view_prefe
 using ("user_id" = (select auth.uid()));
 
 
+drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql

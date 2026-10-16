@@ -4581,7 +4581,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("limits route handler keys with hit_rate_limit", async () => {
     const scope = `route-${RUN}`;
-    const limit = createRateLimit(postgres.admin);
+    const limit = createRateLimit({ sql: postgres.admin });
     try {
       await pool.query(
         "select better_supabase.set_rate_limit($1, 2, interval '1 minute')",
@@ -4614,7 +4614,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           )
         ).rows[0]!.allowed,
       ).toBe(false);
-      const overTransport = createRateLimit(sqlTransport(postgres.admin));
+      const overTransport = createRateLimit({
+        transport: sqlTransport(postgres.admin),
+      });
       expect(await overTransport.check(scope, "token-c").orThrow()).toEqual({
         allowed: true,
         remaining: 1,

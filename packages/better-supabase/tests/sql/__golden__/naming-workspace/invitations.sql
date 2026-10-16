@@ -125,6 +125,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
+drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,

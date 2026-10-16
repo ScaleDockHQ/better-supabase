@@ -11,11 +11,9 @@ import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   columnsObject,
-  fail,
-  fieldsArg,
-  fieldsArgs,
+  extraFieldsArg,
   extraFieldsJson,
-  fieldsParam,
+  fail,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -320,7 +318,8 @@ using (${tenant} in (select ${ctx.scope.ids(read)}));
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-create or replace function ${fn("link")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb${fieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("link"), `${ctx.idType}, text, text, text, text, text, jsonb`)}
+create or replace function ${fn("link")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -419,7 +418,7 @@ ${canonical("link")}
     });
 end;
 $$;
-${userGrant(`${fn("link")}(${ctx.idType}, text, text, text, text, text, jsonb${fieldsArg(extras)})`)}
+${userGrant(`${fn("link")}(${ctx.idType}, text, text, text, text, text, jsonb${extraFieldsArg(extras).type})`)}
 
 create or replace function ${fn("unlink")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text)
 returns jsonb
@@ -672,7 +671,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "text",
         "jsonb",
-        ...fieldsArgs(extrasOf(ctx)),
+        ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",
     },

@@ -11,7 +11,7 @@ describe("createRateLimit", () => {
     const fake = fakeSql([
       ["hit_rate_limit", [{ allowed: false, remaining: 0, retry_after: 42 }]],
     ]);
-    const limit = createRateLimit(fake.sql);
+    const limit = createRateLimit({ sql: fake.sql });
     expect(await limit.check("preview", "token-1").orThrow()).toEqual({
       allowed: false,
       remaining: 0,
@@ -30,7 +30,7 @@ describe("createRateLimit", () => {
 
   it("refuses a bad limit and reads a missing row as refused", async () => {
     const fake = fakeSql([]);
-    const limit = createRateLimit(fake.sql);
+    const limit = createRateLimit({ sql: fake.sql });
     expect(await limit.check("x", "k", { max: 0, period: 1 })).toMatchObject({
       ok: false,
       error: { kind: "invalid_input" },
@@ -48,9 +48,11 @@ describe("createRateLimit over a BlockTransport", () => {
   it("calls check_rate_limit and maps its row", async () => {
     const calls: [string, string, Record<string, unknown>][] = [];
     const limit = createRateLimit({
-      async call(schema, fn, args) {
-        calls.push([schema, fn, { ...args }]);
-        return { allowed: false, remaining: 0, retry_after: 7 };
+      transport: {
+        async call(schema, fn, args) {
+          calls.push([schema, fn, { ...args }]);
+          return { allowed: false, remaining: 0, retry_after: 7 };
+        },
       },
     });
     expect(await limit.check("preview", "token-1").orThrow()).toEqual({
@@ -77,18 +79,36 @@ describe("createRateLimit over a BlockTransport", () => {
       ],
     ]);
     const failing = createRateLimit({
-      call: () =>
-        Promise.reject(
-          Object.assign(new Error("No rate limit"), {
-            code: "22023",
-            hint: "RATE_LIMIT_UNKNOWN",
-          }),
-        ),
+      transport: {
+        call: () =>
+          Promise.reject(
+            Object.assign(new Error("No rate limit"), {
+              code: "22023",
+              hint: "RATE_LIMIT_UNKNOWN",
+            }),
+          ),
+      },
     });
     expect(await failing.check("x", "k")).toMatchObject({
       ok: false,
       error: { hint: "RATE_LIMIT_UNKNOWN" },
     });
+  });
+
+  it("calls the functions in the schema it is given", async () => {
+    const schemas: string[] = [];
+    const limit = createRateLimit({
+      transport: {
+        async call(schema) {
+          schemas.push(schema);
+          return { allowed: true, remaining: 1, retry_after: 0 };
+        },
+      },
+      schema: "api",
+    });
+    await limit.check("preview", "token-1").orThrow();
+    await limit.purge().orThrow();
+    expect(schemas).toEqual(["api", "api"]);
   });
 });
 

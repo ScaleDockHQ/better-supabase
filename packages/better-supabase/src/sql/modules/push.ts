@@ -9,15 +9,13 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  fieldsArg,
-  fieldsArgs,
+  extraFieldsArg,
   extraFieldsJson,
-  fieldsParam,
-  schemaPreamble,
-  SERVICE_CALLER,
-  revokeTable,
   fail,
   raise,
+  revokeTable,
+  schemaPreamble,
+  SERVICE_CALLER,
   writeExtraColumns,
 } from "../shared.ts";
 
@@ -126,12 +124,13 @@ create policy "push_devices_own_delete" on ${d} for delete to authenticated
   using (${c("user")} = (select auth.uid()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+${extraFieldsArg(extras).drop(fn("register_push_device"), "text, text, text, text, text")}
 create or replace function ${fn("register_push_device")}(
   token text,
   platform text,
   provider text default 'expo',
   device_name text default null,
-  app_version text default null${fieldsParam(extras)}
+  app_version text default null${extraFieldsArg(extras).param}
 )
 returns uuid
 language plpgsql
@@ -246,11 +245,11 @@ begin${serviceOnly("prune_push_tokens.tokens")}
 end;
 $$;
 
-revoke execute on function ${fn("register_push_device")}(text, text, text, text, text${fieldsArg(extras)}) from public, anon;
+revoke execute on function ${fn("register_push_device")}(text, text, text, text, text${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("unregister_push_device")}(text) from public, anon;
 revoke execute on function ${fn("push_tokens_for")}(uuid[]) from public, anon, authenticated;
 revoke execute on function ${fn("prune_push_tokens")}(text[]) from public, anon, authenticated;
-grant execute on function ${fn("register_push_device")}(text, text, text, text, text${fieldsArg(extras)}) to authenticated, service_role;
+grant execute on function ${fn("register_push_device")}(text, text, text, text, text${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("unregister_push_device")}(text) to authenticated, service_role;
 grant execute on function ${fn("push_tokens_for")}(uuid[]) to service_role;
 grant execute on function ${fn("prune_push_tokens")}(text[]) to service_role;`;
@@ -266,7 +265,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "text",
         "text",
-        ...fieldsArgs(extrasOf(ctx)),
+        ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "uuid",
     },

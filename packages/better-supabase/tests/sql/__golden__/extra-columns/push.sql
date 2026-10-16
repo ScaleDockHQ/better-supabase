@@ -70,13 +70,13 @@ create policy "push_devices_own_delete" on "better_supabase"."push_devices" for 
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
+drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text);
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
   provider text default 'expo',
   device_name text default null,
-  app_version text default null,
-  fields jsonb default null
+  app_version text default null, fields jsonb default null
 )
 returns uuid
 language plpgsql

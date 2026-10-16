@@ -9,7 +9,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  fieldsArgs,
+  extraFieldsArg,
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
@@ -243,7 +243,12 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_promotion",
-      args: ["{id}", "uuid", "jsonb", ...fieldsArgs(promotionExtras(ctx))],
+      args: [
+        "{id}",
+        "uuid",
+        "jsonb",
+        ...extraFieldsArg(promotionExtras(ctx)).contract,
+      ],
       returns: "jsonb",
     },
     {

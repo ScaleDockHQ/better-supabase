@@ -147,6 +147,8 @@ drop function if exists "better_supabase"."comments_after_write"();
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
+drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 create or replace function "better_supabase"."create_comment"(
   tenant uuid,
   subject_type text,
@@ -647,6 +649,8 @@ create trigger "bs_comments_after_write"
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
+drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 create or replace function "better_supabase"."create_comment"(
   tenant uuid,
   subject_type text,
@@ -1081,6 +1085,8 @@ drop function if exists "app_private"."comments_after_write"();
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "app_private"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "app_private"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "app_private"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
+drop function if exists "app_private"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 create or replace function "app_private"."create_comment"(
   tenant uuid,
   subject_type text,
@@ -1513,6 +1519,8 @@ drop function if exists "better_supabase"."comments_after_write"();
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
+drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 create or replace function "better_supabase"."create_comment"(
   tenant uuid,
   subject_type text,
@@ -1780,6 +1788,8 @@ drop function if exists "api"."comment_subject_readable"(text, text, uuid);
 
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid);
 drop function if exists "api"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
+drop function if exists "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
 
 create or replace function "api"."actor_may_write"()

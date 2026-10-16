@@ -1603,6 +1603,8 @@
       "RateLimitDecision",
       "RateLimitOptions",
       "RateLimitRule",
+      "RateLimitSettings",
+      "RateLimitSource",
       "RetryDeadOptions",
       "RunSchedulesOptions",
       "ScheduleDefinition",

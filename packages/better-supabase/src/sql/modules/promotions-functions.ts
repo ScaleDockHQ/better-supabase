@@ -3,9 +3,8 @@ import type { ModuleScope } from "../scope.ts";
 
 import {
   columnsObject,
+  extraFieldsArg,
   fail,
-  fieldsArg,
-  fieldsParam,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -108,7 +107,8 @@ export function promotionFunctions(
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
-create or replace function ${fn("save_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb${fieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("save_promotion"), `${ctx.idType}, uuid, jsonb`)}
+create or replace function ${fn("save_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -200,7 +200,7 @@ ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
   });
 end;
 $$;
-${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb${fieldsArg(extras)})`)}
+${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb${extraFieldsArg(extras).type})`)}
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.

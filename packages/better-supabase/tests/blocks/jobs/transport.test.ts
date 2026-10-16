@@ -381,10 +381,10 @@ describe("purge", () => {
       await createIdempotency({ transport, schema: "api" }).purge().orThrow(),
     ).toBe(4);
     expect(
-      await createRateLimit(transport).purge({ batch: 100 }).orThrow(),
+      await createRateLimit({ transport }).purge({ batch: 100 }).orThrow(),
     ).toBe(6);
     expect(
-      await createRateLimit(transport).purgeJob()({}, {} as never, signal),
+      await createRateLimit({ transport }).purgeJob()({}, {} as never, signal),
     ).toBe(6);
     expect(
       await purgeWebhookInbox(transport, {
@@ -418,6 +418,6 @@ describe("purge", () => {
     expect(await createIdempotency({ sql: fake.sql }).purge().orThrow()).toBe(
       2,
     );
-    expect(await createRateLimit(fake.sql).purge().orThrow()).toBe(7);
+    expect(await createRateLimit({ sql: fake.sql }).purge().orThrow()).toBe(7);
   });
 });

@@ -17,6 +17,8 @@ import { createBookings } from "../../src/blocks/bookings/index.ts";
 import { createCalendar } from "../../src/blocks/calendar/index.ts";
 import { createCatalog } from "../../src/blocks/catalog/index.ts";
 import { createCollections } from "../../src/blocks/collections/index.ts";
+import { createComments } from "../../src/blocks/comments/index.ts";
+import { createConnectors } from "../../src/blocks/connectors/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -559,6 +561,88 @@ describe.skipIf(!live)("block fields", () => {
       expect(renamed).toMatchObject({ label: "later", priority: 3 });
       const [listed] = await collections.list(tenant).orThrow();
       expect(listed).toMatchObject({ label: "later", priority: 3 });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("comments", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "comments"], extraColumns("comments"));
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        fields: Fields,
+      });
+
+      await s.asRole(owner);
+      const input = {
+        organizationId: tenant,
+        subjectType: "project",
+        subjectId: "p1",
+        body: "Looks good",
+      };
+      expect(
+        await comments.create({ ...input, fields: { priority: 0 } }).then(kind),
+      ).toBe("validation");
+      const created = await comments
+        .create({ ...input, fields: { label: "review" } })
+        .orThrow();
+      expect(created.fields).toMatchObject({ label: "review", priority: null });
+      expect(created.editedAt).toBeUndefined();
+      const edited = await comments
+        .edit(created.id, { body: "Looks great", fields: { priority: 2 } })
+        .orThrow();
+      expect(edited).toMatchObject({
+        body: "Looks great",
+        fields: { label: "review", priority: 2 },
+      });
+      const [listed] = await comments.list(tenant, "project", "p1").orThrow();
+      expect(listed?.fields).toMatchObject({ label: "review", priority: 2 });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("connectors", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(
+        ["organizations", "connectors"],
+        extraColumns("connectors"),
+      );
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      const connectors = createConnectors({
+        transport: sqlTransport(s.sql),
+        fields: Fields,
+      });
+
+      await s.asRole(owner);
+      const input = { name: "GitHub", url: "https://mcp.example.com/mcp" };
+      expect(
+        await connectors.servers
+          .create(tenant, { ...input, fields: { priority: 0 } })
+          .then(kind),
+      ).toBe("validation");
+      const created = await connectors.servers
+        .create(tenant, { ...input, fields: { label: "code" } })
+        .orThrow();
+      expect(created.fields).toMatchObject({ label: "code", priority: null });
+      const updated = await connectors.servers
+        .update(tenant, created.id, { enabled: false, fields: { priority: 4 } })
+        .orThrow();
+      expect(updated).toMatchObject({
+        enabled: false,
+        fields: { label: "code", priority: 4 },
+      });
+      const [listed] = await connectors.servers.list(tenant).orThrow();
+      expect(listed?.fields).toMatchObject({ label: "code", priority: 4 });
+      expect(
+        (await connectors.servers.get(created.id).orThrow()).fields,
+      ).toMatchObject({ label: "code", priority: 4 });
     } finally {
       await s.close();
     }

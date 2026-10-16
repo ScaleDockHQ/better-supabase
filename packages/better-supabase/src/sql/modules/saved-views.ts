@@ -11,11 +11,9 @@ import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   addExtraColumns,
   columnsObject,
-  fail,
-  fieldsArg,
-  fieldsArgs,
+  extraFieldsArg,
   extraFieldsJson,
-  fieldsParam,
+  fail,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -183,7 +181,8 @@ create policy saved_views_read on ${views} for select to authenticated
 using (${visible});
 ${preferences?.ddl ?? ""}
 
-create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid${fieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("save_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
+create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -278,7 +277,7 @@ begin
   });
 end;
 $$;
-${userGrant(`${fn("save_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid${fieldsArg(extras)})`)}
+${userGrant(`${fn("save_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid${extraFieldsArg(extras).type})`)}
 
 create or replace function ${fn("list_views")}(tenant ${ctx.idType}, list text)
 returns jsonb
@@ -560,7 +559,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "jsonb",
         "uuid",
-        ...fieldsArgs(extrasOf(ctx)),
+        ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",
     },

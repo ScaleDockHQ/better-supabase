@@ -2,11 +2,18 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -44,7 +51,8 @@ export interface ConnectorGrant {
   readonly revokedAt: Temporal.Instant | undefined;
 }
 
-export interface ConnectorServer {
+/** An MCP server. `F` types the extra columns the `fields` schema describes. */
+export interface ConnectorServer<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly name: string;
@@ -62,9 +70,13 @@ export interface ConnectorServer {
   readonly grant: ConnectorGrant | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface ConnectorServerFields {
+export interface ConnectorServerFields<
+  F extends object = Record<never, never>,
+> {
   readonly name?: string;
   readonly url?: string;
   readonly transport?: ConnectorTransport;
@@ -73,6 +85,8 @@ export interface ConnectorServerFields {
   readonly scopes?: readonly string[];
   readonly clientMetadata?: Readonly<Record<string, unknown>>;
   readonly enabled?: boolean;
+  /** The extra columns to set, keyed by database name; others keep their value. */
+  readonly fields?: Partial<F>;
 }
 
 export interface ConnectorSession {
@@ -81,9 +95,18 @@ export interface ConnectorSession {
   readonly expiresAt: Temporal.Instant;
 }
 
-export interface ConnectorsOptions extends BlockTemporalOptions {
+export interface ConnectorsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the server's extra columns
+   * (`blocks.connectors.options.extraColumns`), keyed by database name. It
+   * types and parses them on reads, and validates them on `create` and
+   * `update`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Connectors>>;
+  readonly hooks?: NoInfer<BlockHooks<Connectors<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
@@ -97,26 +120,27 @@ export interface ConnectorsOptions extends BlockTemporalOptions {
   readonly credentials?: CredentialProvider;
 }
 
-export interface Connectors {
+/** `F` is the extra fields `options.fields` describes. */
+export interface Connectors<F extends object = Record<never, never>> {
   readonly servers: {
-    list(organizationId: string): AsyncResult<readonly ConnectorServer[]>;
+    list(organizationId: string): AsyncResult<readonly ConnectorServer<F>[]>;
     /** With `ownerId` (service role), the grant is that user's. */
     get(
       serverId: string,
       options?: { readonly ownerId?: string },
-    ): AsyncResult<ConnectorServer>;
+    ): AsyncResult<ConnectorServer<F>>;
     create(
       organizationId: string,
-      server: ConnectorServerFields & {
+      server: ConnectorServerFields<F> & {
         readonly name: string;
         readonly url: string;
       },
-    ): AsyncResult<ConnectorServer>;
+    ): AsyncResult<ConnectorServer<F>>;
     update(
       organizationId: string,
       serverId: string,
-      fields: ConnectorServerFields,
-    ): AsyncResult<ConnectorServer>;
+      fields: ConnectorServerFields<F>,
+    ): AsyncResult<ConnectorServer<F>>;
     /** Deletes a server and revokes its grants' credentials. Returns how many. */
     remove(serverId: string): AsyncResult<number>;
   };
@@ -226,9 +250,11 @@ function serverOf(value: unknown): ConnectorServer {
     grant: isRecord(row["grant"]) ? grantOf(row["grant"]) : undefined,
     createdAt: instant(row["created_at"]),
     updatedAt: instant(row["updated_at"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
+/** The server's own columns a save sets, keyed by database name. */
 function fieldsArg(fields: ConnectorServerFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (fields.name !== undefined) out["name"] = fields.name;
@@ -252,8 +278,15 @@ const notFound = (): DbError =>
   });
 
 /** MCP servers, per-user grants, sessions and tool list fingerprints. */
-export function createConnectors(options: ConnectorsOptions): Connectors {
+export function createConnectors<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ConnectorsOptions<S>): Connectors<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const extraFields: BlockFields<F> = blockFields(
+    options.fields,
+    "connector fields",
+  );
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,
@@ -276,15 +309,23 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
       return ok(grants.length);
     });
 
+  // The extra columns ride in the same `fields` object as the server's own
+  // columns, which they can't shadow (the SQL module refuses that).
   const save = (
     organizationId: string,
     serverId: string | undefined,
-    fields: ConnectorServerFields,
-  ): AsyncResult<ConnectorServer> =>
-    call(
-      "save_connector_server",
-      { tenant: organizationId, id: serverId, fields: fieldsArg(fields) },
-      serverOf,
+    fields: ConnectorServerFields<F>,
+  ): AsyncResult<ConnectorServer<F>> =>
+    extraFields.args(fields.fields).andThen((checked) =>
+      call(
+        "save_connector_server",
+        {
+          tenant: organizationId,
+          id: serverId,
+          fields: { ...checked, ...fieldsArg(fields) },
+        },
+        serverOf,
+      ).andThen(extraFields.row),
     );
 
   const decide = (
@@ -298,12 +339,12 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
       (value) => value === true,
     );
 
-  const client: Connectors = {
+  const client: Connectors<F> = {
     servers: {
       list: (organizationId) =>
         call("list_connector_servers", { tenant: organizationId }, (value) =>
           recordsOf(value, "list_connector_servers").map(serverOf),
-        ),
+        ).andThen(extraFields.rows),
       get: (serverId, getOptions = {}) =>
         (getOptions.ownerId === undefined ? call : service)(
           "get_connector",
@@ -311,7 +352,7 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
           (value) => value,
         ).andThen((value) =>
           isRecord(value)
-            ? AsyncResult.ok(serverOf(value))
+            ? extraFields.row(serverOf(value))
             : AsyncResult.err(notFound()),
         ),
       create: (organizationId, server) =>

@@ -42,8 +42,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 -- app_metadata.bs_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null,
-  fields jsonb default null)
+drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid);
+create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

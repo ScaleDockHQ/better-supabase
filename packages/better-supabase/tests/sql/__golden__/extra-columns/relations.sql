@@ -68,8 +68,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb,
-  fields jsonb default null)
+drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb);
+create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

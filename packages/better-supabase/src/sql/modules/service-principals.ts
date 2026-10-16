@@ -8,16 +8,14 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
-  SERVICE_CALLER,
   addExtraColumns,
   columnsObject,
-  fail,
-  fieldsArg,
-  fieldsArgs,
+  extraFieldsArg,
   extraFieldsJson,
-  fieldsParam,
+  fail,
   lockTable,
   schemaPreamble,
+  SERVICE_CALLER,
   serviceGrant,
   userGrant,
   writeExtraColumns,
@@ -149,7 +147,8 @@ using (${c("tenant")} in (select ${ctx.scope.ids(read)}));
 -- app_metadata.${SERVICE_PRINCIPAL_CLAIM} and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-create or replace function ${fn("register_service_principal")}(principal uuid, tenant ${id}, name text, role text, is_default boolean default false, created_by uuid default null${fieldsParam(extras)})
+${extraFieldsArg(extras).drop(fn("register_service_principal"), `uuid, ${id}, text, text, boolean, uuid`)}
+create or replace function ${fn("register_service_principal")}(principal uuid, tenant ${id}, name text, role text, is_default boolean default false, created_by uuid default null${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -199,7 +198,7 @@ begin
     });
 end;
 $$;
-${serviceGrant(`${fn("register_service_principal")}(uuid, ${id}, text, text, boolean, uuid${fieldsArg(extras)})`)}
+${serviceGrant(`${fn("register_service_principal")}(uuid, ${id}, text, text, boolean, uuid${extraFieldsArg(extras).type})`)}
 
 -- Changes a principal's role and its membership. Service role only; with
 -- created_by, that member needs the manage permission and may assign role.
@@ -318,7 +317,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "boolean",
         "uuid",
-        ...fieldsArgs(extrasOf(ctx)),
+        ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",
     },

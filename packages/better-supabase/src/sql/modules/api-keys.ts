@@ -10,14 +10,12 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  dropWithoutExtraFields,
+  extraFieldsArg,
   extraFieldsJson,
-  extraFieldsParam,
-  extraFieldsType,
-  schemaPreamble,
-  SERVICE_CALLER,
   fail,
   lockTable,
+  schemaPreamble,
+  SERVICE_CALLER,
   writeExtraColumns,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
@@ -252,7 +250,8 @@ ${lockTable(t)}
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-${dropWithoutExtraFields(extras, `${fn("create_api_key")}(${createArgs})`)}create or replace function ${fn("create_api_key")}(
+${extraFieldsArg(extras).drop(fn("create_api_key"), createArgs)}
+create or replace function ${fn("create_api_key")}(
   name text,
   public_id text,
   secret_hash text,
@@ -261,7 +260,7 @@ ${dropWithoutExtraFields(extras, `${fn("create_api_key")}(${createArgs})`)}creat
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default ${prefix}${extraFieldsParam(extras)}
+  prefix text default ${prefix}${extraFieldsArg(extras).param}
 )
 returns jsonb
 language plpgsql
@@ -297,7 +296,7 @@ begin
   end if;
   insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")})
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
-  returning * into created;${writeExtraColumns(t, extras, "create_api_key.extra_fields", `x.${c("id")} = created.${c("id")}`, "created")}
+  returning * into created;${writeExtraColumns(t, extras, "create_api_key.fields", `x.${c("id")} = created.${c("id")}`, "created")}
   ${keyEvent("api_key.created", "created")}
   return ${json("created")};
 end;
@@ -462,12 +461,12 @@ as $$
   select nullif(auth.jwt() -> 'api_key' ->> 'organization_id', '')::${id}
 $$;
 
-revoke execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsType(extras)}) from public, anon;
+revoke execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("list_api_keys")}(${id}) from public, anon;
 revoke execute on function ${fn("revoke_api_key")}(uuid) from public, anon;
 revoke execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) from public, anon;
 revoke execute on function ${fn("verify_api_key")}(text, text) from public, anon, authenticated;
-grant execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsType(extras)}) to authenticated, service_role;
+grant execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("list_api_keys")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("revoke_api_key")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) to authenticated, service_role;
@@ -476,7 +475,8 @@ grant execute on function ${fn("has_scope")}(text) to anon, authenticated, servi
 grant execute on function ${fn("api_key_tenant")}() to anon, authenticated, service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(ctx.extraColumns("keys", KEY_KEYS)).contract;
   return [
     {
       name: "create_api_key",
@@ -490,6 +490,7 @@ function contract(): readonly ModuleContractFunction[] {
         "timestamptz",
         "integer",
         "text",
+        ...extra,
       ],
       returns: "jsonb",
     },

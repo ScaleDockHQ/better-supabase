@@ -147,8 +147,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb,
-  fields jsonb default null)
+drop function if exists "better_supabase"."save_promotion"(uuid, uuid, jsonb);
+create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer

@@ -230,6 +230,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
 
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -970,6 +971,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_settle"(text, text, text, text, uuid, text) from public, anon, authenticated;
 
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1585,6 +1587,7 @@ end;
 $$;
 revoke execute on function "app_private"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
 
+drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 create or replace function "app_private"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -2162,6 +2165,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
 
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -2485,6 +2489,8 @@ grant execute on function "better_supabase"."remind_approvals"(interval, integer
 -- blocks.approvals.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

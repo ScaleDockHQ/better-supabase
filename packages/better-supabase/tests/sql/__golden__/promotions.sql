@@ -146,6 +146,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
+drop function if exists "better_supabase"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
@@ -974,6 +975,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
+drop function if exists "better_supabase"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
@@ -1804,6 +1806,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
+drop function if exists "app_private"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "app_private"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
@@ -2632,6 +2635,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
+drop function if exists "better_supabase"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
@@ -3290,6 +3294,8 @@ revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from 
 -- blocks.promotions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_promotion"(uuid, uuid, jsonb, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

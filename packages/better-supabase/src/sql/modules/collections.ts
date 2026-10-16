@@ -8,7 +8,12 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { type Subject, subjectCascades } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -245,16 +250,17 @@ ${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(
   )}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(collectionExtras(ctx)).contract;
   return [
     {
       name: "create_collection",
-      args: ["{id}", "text", "text", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
     {
       name: "rename_collection",
-      args: ["uuid", "text", "text"],
+      args: ["uuid", "text", "text", ...extra],
       returns: "jsonb",
     },
     {

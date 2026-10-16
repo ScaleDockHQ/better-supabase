@@ -67,6 +67,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
+drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -536,6 +537,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
+drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -1007,6 +1009,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
+drop function if exists "app_private"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 create or replace function "app_private"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -1476,6 +1479,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
+drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -1855,6 +1859,8 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -2029,6 +2035,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read'))
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
+drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
