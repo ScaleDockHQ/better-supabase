@@ -331,6 +331,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  "signing-keys": {
+    schema: "better_supabase",
+    options: {},
+  },
   sla: {
     schema: "better_supabase",
     options: {},

@@ -76,6 +76,7 @@ import type { servicePrincipalsBlock } from "../../src/blocks/service-principals
 import type { sessionsBlock } from "../../src/blocks/sessions/manifest.ts";
 import type { settingsBlock } from "../../src/blocks/settings/manifest.ts";
 import type { shareLinksBlock } from "../../src/blocks/share-links/manifest.ts";
+import type { signingKeysBlock } from "../../src/blocks/signing-keys/manifest.ts";
 import type { slaBlock } from "../../src/blocks/sla/manifest.ts";
 import type { ssoBlock } from "../../src/blocks/sso/manifest.ts";
 import type { stateMachineBlock } from "../../src/blocks/state-machine/manifest.ts";
@@ -181,6 +182,7 @@ export type AllBlocks = {
   readonly sessions: typeof sessionsBlock;
   readonly settings: typeof settingsBlock;
   readonly shareLinks: typeof shareLinksBlock;
+  readonly signingKeys: typeof signingKeysBlock;
   readonly sla: typeof slaBlock;
   readonly sso: typeof ssoBlock;
   readonly stateMachine: typeof stateMachineBlock;

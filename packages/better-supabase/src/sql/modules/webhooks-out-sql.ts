@@ -136,7 +136,7 @@ function userMay(
  * working without the columns.
  */
 export const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
-  endpoints: ["permissions", "batch"],
+  endpoints: ["permissions", "batch", "signing", "format", "credentialRef"],
   deliveries: ["subject"],
 };
 
@@ -497,7 +497,7 @@ begin
     'payload', c.${v("payload")},
     'attempt', c.${v("attempt")},
     'url', d.${d("url")},
-    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${principalField}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}
+    'created_at', c.${v("createdAt")}${optional("tenant", "tenant")}${optional("event", "event_id")}${optional("run", "run_id")}${optional("subject", "subject")}${endpointField("createdBy", "owner")}${principalField}${endpointField("permissions", "permissions")}${endpointField("batch", "batch")}${endpointField("signing", "signing")}${endpointField("format", "format")}${endpointField("credentialRef", "credential_ref")}
   ) order by c.${v("availableAt")}), '[]')
   into result
   from claimed c

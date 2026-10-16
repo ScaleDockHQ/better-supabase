@@ -48,6 +48,8 @@ export const SPEC_PINS: {
   readonly rfc6902: "2013-04";
   /** RFC 9396 `authorization_details` that delegated tokens and job envelopes carry. */
   readonly rfc9396: "2023-05";
+  /** RFC 9864 fully specified JOSE algorithms; `Ed25519` is the alg the signing-keys block can write instead of `EdDSA`. */
+  readonly rfc9864: "2025-10";
   /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
   readonly shadcnRegistry: "4.21.4";
 } = {
@@ -87,5 +89,6 @@ export const SPEC_PINS: {
   iso4217: "2026-09-17",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
+  rfc9864: "2025-10",
   shadcnRegistry: "4.21.4",
 };

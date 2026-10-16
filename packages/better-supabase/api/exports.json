@@ -2351,6 +2351,7 @@
       "sqlSecretStore",
       "sqlTransport",
       "standardWebhooks",
+      "standardWebhooksAsymmetric",
       "stripeInboxVerify",
       "timingSafeEqual",
       "UnsafeUrlError",
@@ -2359,11 +2360,13 @@
       "verifyStripeWebhook",
       "verifyWebhook",
       "WebhookPolicyError",
+      "webhookPublicKey",
       "webhooksBlock",
       "webhooksEvents"
     ],
     "types": [
       "AllowUrl",
+      "AsymmetricWebhooksOptions",
       "AuthHookError",
       "AuthHookKind",
       "AuthHooks",
@@ -2389,6 +2392,7 @@
       "PublicUrlOptions",
       "PublishInput",
       "PurgeWebhookDeliveriesOptions",
+      "RawSigner",
       "ResolveHost",
       "RetryPolicy",
       "RotatedIncomingSecret",
@@ -4583,6 +4587,39 @@
       "ShareLinks",
       "ShareLinksEvents",
       "ShareLinksOptions"
+    ]
+  },
+  "./blocks/signing-keys": {
+    "values": [
+      "createSigningKeys",
+      "jwksOf",
+      "jwkThumbprint",
+      "JwsError",
+      "signingKeysBlock",
+      "signingKeysEvents",
+      "sqlTransport",
+      "verifyCompact"
+    ],
+    "types": [
+      "BlockTransport",
+      "CreatedSigningKey",
+      "Jwk",
+      "Jwks",
+      "JwksOptions",
+      "JwksResponseOptions",
+      "JwsAlgorithm",
+      "Signature",
+      "Signer",
+      "SignerOptions",
+      "SigningAlgorithm",
+      "SigningKeyCreatedEventData",
+      "SigningKeyEventData",
+      "SigningKeyOwner",
+      "SigningKeys",
+      "SigningKeysEvents",
+      "SigningKeysOptions",
+      "VerifiedJws",
+      "VerifyCompactOptions"
     ]
   },
   "./blocks/identities": {

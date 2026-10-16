@@ -208,6 +208,10 @@ import {
   type ShareLinksSqlOptions,
   shareLinksSqlOptions,
 } from "./share-links/options.ts";
+import {
+  type SigningKeysSqlOptions,
+  signingKeysSqlOptions,
+} from "./signing-keys/options.ts";
 import { type SlaSqlOptions, slaSqlOptions } from "./sla/options.ts";
 import { type SsoSqlOptions, ssoSqlOptions } from "./sso/options.ts";
 import {
@@ -357,6 +361,7 @@ export interface BlockOptionsRegistry {
   readonly settings: SettingsSqlOptions;
   readonly "share-links": ShareLinksSqlOptions;
   readonly signatures: SignaturesSqlOptions;
+  readonly "signing-keys": SigningKeysSqlOptions;
   readonly sla: SlaSqlOptions;
   readonly sso: SsoSqlOptions;
   readonly "state-machine": StateMachineSqlOptions;
@@ -469,6 +474,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   settings: settingsSqlOptions,
   "share-links": shareLinksSqlOptions,
   signatures: signaturesSqlOptions,
+  "signing-keys": signingKeysSqlOptions,
   sla: slaSqlOptions,
   sso: ssoSqlOptions,
   "state-machine": stateMachineSqlOptions,

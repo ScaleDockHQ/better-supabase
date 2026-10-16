@@ -42,7 +42,7 @@ const NAMES: ModuleNames = {
   tables: {
     endpoints: {
       name: "webhook_endpoints",
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -52,6 +52,9 @@ const NAMES: ModuleNames = {
         eventTypes: "event_types",
         permissions: "permissions",
         batch: "batch",
+        signing: "signing",
+        format: "format",
+        credentialRef: "credential_ref",
         failingSince: "failing_since",
         disabledAt: "disabled_at",
         disabledReason: "disabled_reason",
@@ -64,6 +67,9 @@ const NAMES: ModuleNames = {
         "name",
         "permissions",
         "batch",
+        "signing",
+        "format",
+        "credentialRef",
         "failingSince",
         "disabledAt",
         "disabledReason",
@@ -154,6 +160,9 @@ function tables(ctx: ModuleContext, n: HookNames): string {
 drop policy if exists ${sqlIdent(name)} on ${n.table(table)};
 create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
   const scoped = n.clientAccess;
+  const signingType = `text not null default 'v1' check (${d("signing")} in ('v1', 'v1a'))`;
+  const formatType = `text not null default 'cloudevents' check (${d("format")} ~ '^[a-z][a-z0-9-]{0,39}$')`;
+  const credentialRefType = `jsonb check (${d("credentialRef")} is null or (jsonb_typeof(${d("credentialRef")}) = 'object' and ${d("credentialRef")} ? 'provider' and ${d("credentialRef")} ? 'name'))`;
   const urlCheck = n.allowHttp
     ? `check (${d("url")} ~* '^https?://')`
     : `check (${d("url")} ~* '^https://')`;
@@ -173,6 +182,9 @@ create table if not exists ${n.table("endpoints")} (
     `${d("eventTypes")} text[] not null default '{}'`,
     ...opt("endpoints", "permissions", "text[]"),
     ...opt("endpoints", "batch", "boolean not null default false"),
+    ...opt("endpoints", "signing", signingType),
+    ...opt("endpoints", "format", formatType),
+    ...opt("endpoints", "credentialRef", credentialRefType),
     ...opt("endpoints", "failingSince", "timestamptz"),
     ...opt("endpoints", "disabledAt", "timestamptz"),
     ...opt("endpoints", "disabledReason", "text"),
@@ -188,6 +200,9 @@ create table if not exists ${n.table("endpoints")} (
 ${added(n, "endpoints", [
   ["permissions", "text[]"],
   ["batch", "boolean not null default false"],
+  ["signing", signingType],
+  ["format", formatType],
+  ["credentialRef", credentialRefType],
 ])}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
 ${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
@@ -396,7 +411,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   adoptOptional: (ctx) => ({
     ...ADDED_COLUMNS,
@@ -416,6 +431,12 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
       from: 2,
       description:
         "publish_webhook_event takes a subject and a read permission and queues an event only for endpoints whose owner may read it; endpoints get permissions and batch, deliveries a subject.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (a vault credential for the receiver), and claim_webhook_deliveries returns them.",
       sql: () => "",
     },
   ],

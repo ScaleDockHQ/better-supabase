@@ -38,3 +38,4 @@ add one, and link it from the code or config it explains.
 | [0030](0030-headless-block-controllers.md)      | Block client state lives in headless controllers with React, Vue, Svelte and Solid bindings              |
 | [0031](0031-presets-registry-recipes.md)        | Presets install blocks, a shadcn registry ships glue only, and UI is a recipe                            |
 | [0032](0032-fixture-on-the-stack-engine.md)     | The fixture runs on the CLI's stack engine with per-checkout ports and the native runtime in CI          |
+| [0033](0033-signing-keys-in-vault.md)           | Signing keys live in Vault; signing runs in TypeScript with WebCrypto                                    |

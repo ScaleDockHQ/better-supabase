@@ -4,8 +4,16 @@ import { describe, expect, it } from "vitest";
 import {
   hmacSigner,
   standardWebhooks,
+  standardWebhooksAsymmetric,
   verifyWebhook,
+  webhookPublicKey,
 } from "../../../src/blocks/webhooks/index.ts";
+import {
+  generateSigningKey,
+  importSigningKey,
+  signBytes,
+} from "../../../src/core/jws.ts";
+import { ok } from "../../../src/core/result.ts";
 import { temporal } from "../../../src/core/temporal-required.ts";
 import { testWebhookSigner } from "../../../src/testing/index.ts";
 
@@ -145,5 +153,75 @@ describe("testWebhookSigner", () => {
     await expect(
       testWebhookSigner(hmacSigner({ signatureHeader: "x-sig" }), { verify }),
     ).rejects.toThrow("the receiver rejected the signature");
+  });
+});
+
+describe("standardWebhooksAsymmetric", () => {
+  const ed25519 = async () => {
+    const key = await generateSigningKey("Ed25519");
+    const signing = await importSigningKey(key.privateKey);
+    return {
+      publicKey: webhookPublicKey(key.publicKey),
+      signer: {
+        sign: async (data: Uint8Array) =>
+          ok({
+            alg: "EdDSA",
+            signature: await signBytes(signing, "Ed25519", data),
+          }),
+      },
+    };
+  };
+
+  it("signs v1a with Ed25519 so receivers verify with the whpk_ key", async () => {
+    const { publicKey, signer } = await ed25519();
+    const headers = await standardWebhooksAsymmetric({ signer }).sign({
+      id: "msg_1",
+      body,
+      timestamp: temporal().Now.instant(),
+      secrets: [],
+    });
+    expect(publicKey).toMatch(/^whpk_[A-Za-z0-9+/]+=*$/);
+    expect(headers["webhook-signature"]).toMatch(/^v1a,/);
+    expect(await verify({ headers, body }, publicKey)).toBe(true);
+    expect(await verify({ headers, body: `${body} ` }, publicKey)).toBe(false);
+    expect(await verify({ headers, body }, SECRET)).toBe(false);
+    const malformed = await verifyWebhook({ headers, body }, "whpk_AAAA");
+    expect(!malformed.ok && malformed.error.code).toBe(
+      "WEBHOOK_INVALID_SECRET",
+    );
+  });
+
+  it("adds v1 signatures while receivers move from secrets to the key", async () => {
+    const { publicKey, signer } = await ed25519();
+    const headers = await standardWebhooksAsymmetric({
+      signer,
+      hmac: true,
+    }).sign({
+      id: "msg_2",
+      body,
+      timestamp: temporal().Now.instant(),
+      secrets: [SECRET],
+    });
+    expect(headers["webhook-signature"]?.split(" ")).toHaveLength(2);
+    expect(await verify({ headers, body }, SECRET)).toBe(true);
+    expect(await verify({ headers, body }, publicKey)).toBe(true);
+  });
+
+  it("refuses a key that is not Ed25519", async () => {
+    const signer = {
+      sign: () =>
+        Promise.resolve(ok({ alg: "ES256", signature: new Uint8Array(64) })),
+    };
+    await expect(
+      standardWebhooksAsymmetric({ signer }).sign({
+        id: "msg_3",
+        body,
+        timestamp: temporal().Now.instant(),
+        secrets: [],
+      }),
+    ).rejects.toThrow(/Ed25519/);
+    expect(() => webhookPublicKey({ kty: "EC", crv: "P-256", x: "a" })).toThrow(
+      TypeError,
+    );
   });
 });

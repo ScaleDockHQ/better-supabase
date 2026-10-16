@@ -58,9 +58,16 @@ export type {
   PurgeWebhookDeliveriesOptions,
   WebhooksRouteOptions,
 } from "./outgoing-types.ts";
-export { hmacSigner, standardWebhooks } from "./signers.ts";
+export {
+  hmacSigner,
+  standardWebhooks,
+  standardWebhooksAsymmetric,
+  webhookPublicKey,
+} from "./signers.ts";
 export type {
+  AsymmetricWebhooksOptions,
   HmacSignerOptions,
+  RawSigner,
   StandardWebhooksOptions,
   WebhookSigner,
   WebhookSignInput,

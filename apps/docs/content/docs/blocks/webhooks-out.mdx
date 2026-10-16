@@ -53,6 +53,35 @@ signing for `overlap` (`'24 hours'` by default), so receivers can switch
 without missing a delivery. Pass `secret` to import one, for example when you
 migrate from another system.
 
+### Ed25519 signatures
+
+An endpoint with `signing` set to `'v1a'` is signed with an Ed25519 key
+instead of its secrets (Standard Webhooks `v1a`), so the receiver holds only
+a public key and can't forge a delivery. Keep the key in the
+[signing keys](/docs/blocks/signing-keys) block and pass a signer as
+`asymmetricSigner`:
+
+```ts title="lib/webhooks.ts"
+import {
+  createWebhooks,
+  standardWebhooksAsymmetric,
+  sqlTransport,
+} from "better-supabase/blocks/webhooks";
+
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  asymmetricSigner: standardWebhooksAsymmetric({
+    signer: signingKeys.signer({ type: "webhooks", id: "default" }),
+  }),
+});
+```
+
+Show receivers `webhookPublicKey(jwk)`, the `whpk_` form that
+`verifyWebhook` takes in place of a secret. A `v1a` endpoint needs no
+secret. Without an `asymmetricSigner`, its deliveries are dead-lettered
+instead of sent unsigned. `hmac: true` also adds the `v1` signatures from
+the endpoint's secrets while receivers move over.
+
 ## Publishing events
 
 `publish` queues the event for every enabled endpoint in the organization
@@ -307,6 +336,7 @@ The DNS caveat above applies here too.
 | Option or hook                | Use                                                                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
 | `signer`                      | `standardWebhooks({ headers })` renames the headers; `hmacSigner` matches other formats |
+| `asymmetricSigner`            | Signs `v1a` endpoints, usually `standardWebhooksAsymmetric({ signer })`                 |
 | `transform`                   | The CloudEvent `data` for a delivery                                                    |
 | `subscribers`                 | A `SubscriberPolicy` that narrows each event's endpoints at send time                   |
 | `headers`                     | Extra headers per delivery, e.g. an `idempotency-key`                                   |

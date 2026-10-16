@@ -73,6 +73,8 @@ const NO_FIELDS: readonly string[] = [
   "search",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
+  // Key rows hold a public JWK and a Vault reference the module writes; nothing for an app to extend.
+  "signing-keys",
   // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.
   "sso",
   // Triggers on the app's own record table write its history; the app's columns live on that table.

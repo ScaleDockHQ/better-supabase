@@ -889,7 +889,7 @@ as $$
     ('organization', 'better_supabase.notification_delivery_events', '"better_supabase"."notification_delivery_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_subscriptions', '"better_supabase"."notification_subscriptions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, array['credential_ref']::text[], true),
     ('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.webhook_deliveries', '"better_supabase"."webhook_deliveries"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.incoming_webhooks', '"better_supabase"."incoming_webhooks"', 'tenant', true, array['token_hash', 'secret', 'secret_id', 'previous_secret', 'previous_secret_id']::text[], true),
@@ -1083,6 +1083,7 @@ immutable
 set search_path = ''
 as $$
   select * from (values
+    ('better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'credential_ref', null::text),
     ('better_supabase.workflow_credentials', '"better_supabase"."workflow_credentials"', 'credential_ref', null::text),
     ('better_supabase.chat_installations', '"better_supabase"."chat_installations"', 'credential_ref', null::text),
     ('better_supabase.connector_servers', '"better_supabase"."connector_servers"', 'credential_ref', null::text),

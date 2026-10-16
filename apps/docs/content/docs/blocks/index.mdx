@@ -165,6 +165,7 @@ expose the module schema itself.
 | [Collections](/docs/blocks/collections)                     | `better-supabase/blocks/collections`                                                                                               | `collections`                          |
 | [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                                                                                | `identities`                           |
 | [Service principals](/docs/blocks/service-principals)       | `better-supabase/blocks/service-principals`                                                                                        | `service-principals`                   |
+| [Signing keys](/docs/blocks/signing-keys)                   | `better-supabase/blocks/signing-keys`                                                                                              | `signing-keys`                         |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -293,6 +294,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `hiring`             | `tenant`, `access`, `subjects`, `pipelines` | `outbox`                                                                                                                                |
 | `employees`          | `tenant`, `access`                          | `outbox`, `relations`, `hiring`                                                                                                         |
 | `collections`        | `tenant`, `access`, `subjects`              | `outbox`, `teams`                                                                                                                       |
+| `signing-keys`       | none                                        | `outbox`, `audit`                                                                                                                       |
 | `ensure-rls`         | none                                        | none                                                                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

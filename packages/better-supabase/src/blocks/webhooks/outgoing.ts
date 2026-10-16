@@ -65,6 +65,7 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
     principal: textOf(row["principal"]),
     permissions: textsOf(row["permissions"]),
     batch: row["batch"] === true,
+    signing: row["signing"] === "v1a" ? "v1a" : "v1",
     createdAt:
       typeof row["created_at"] === "string"
         ? temporal().Instant.from(row["created_at"])
@@ -272,8 +273,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     let body: string;
     let headers: Record<string, string>;
     try {
+      const sign = first.signing === "v1a" ? options.asymmetricSigner : signer;
+      if (sign === undefined)
+        return {
+          outcome: "dead",
+          error: "The endpoint signs with v1a, but no asymmetricSigner is set",
+        };
       const secrets = await store.secrets(first.endpointId);
-      if (secrets.length === 0)
+      if (secrets.length === 0 && first.signing === "v1")
         return {
           outcome: "dead",
           error: "The endpoint has no signing secret",
@@ -287,7 +294,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         ...message!.headers,
         "user-agent": "better-supabase-webhooks",
         ...options.headers?.(first),
-        ...(await signer.sign({
+        ...(await sign.sign({
           id: first.batch ? await batchId(deliveries) : first.id,
           body,
           timestamp: temporal().Now.instant(),

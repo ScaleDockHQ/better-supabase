@@ -1,4 +1,7 @@
-import { toBase64 } from "../../core/base64.ts";
+import type { Result } from "../../core/result.ts";
+
+import { fromBase64, toBase64 } from "../../core/base64.ts";
+import { PUBLIC_KEY_PREFIX } from "../../core/signatures.ts";
 import { signWebhook } from "./verify.ts";
 
 export interface WebhookSignInput {
@@ -68,6 +71,89 @@ export function standardWebhooks(
       };
     },
   };
+}
+
+/**
+ * Signs raw bytes with an Ed25519 key, such as
+ * `createSigningKeys(options).signer(owner)` from `better-supabase/blocks/signing-keys`.
+ */
+export interface RawSigner {
+  sign(
+    data: Uint8Array,
+  ): PromiseLike<
+    Result<{ readonly alg: string; readonly signature: Uint8Array }>
+  >;
+}
+
+export interface AsymmetricWebhooksOptions extends StandardWebhooksOptions {
+  readonly signer: RawSigner;
+  /**
+   * Also sends a `v1,` HMAC signature per endpoint secret, for receivers
+   * that move from secrets to the public key. Default: false.
+   */
+  readonly hmac?: boolean;
+}
+
+/**
+ * Signs with the Standard Webhooks asymmetric scheme: one `v1a,` Ed25519
+ * signature over `id.timestamp.body` in `webhook-signature`. Receivers
+ * verify it with the `whpk_` key `webhookPublicKey` returns, through
+ * `verifyWebhook`. Endpoints opt in with `signing = 'v1a'`.
+ */
+export function standardWebhooksAsymmetric(
+  options: AsymmetricWebhooksOptions,
+): WebhookSigner {
+  const names = {
+    id: options.headers?.id ?? "webhook-id",
+    timestamp: options.headers?.timestamp ?? "webhook-timestamp",
+    signature: options.headers?.signature ?? "webhook-signature",
+  };
+  return {
+    apiVersion: 1,
+    name: "standard-webhooks-v1a",
+    async sign({ id, body, timestamp, secrets }) {
+      const seconds = String(Math.floor(timestamp.epochMilliseconds / 1000));
+      const result = await options.signer.sign(
+        encoder.encode(`${id}.${seconds}.${body}`),
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      if (result.data.alg !== "EdDSA" && result.data.alg !== "Ed25519") {
+        throw new TypeError(
+          `v1a signatures need an Ed25519 key, not ${result.data.alg}`,
+        );
+      }
+      const symmetric = options.hmac
+        ? await Promise.all(
+            secrets.map(
+              async (secret) =>
+                (await signWebhook(secret, { id, body, timestamp }))[
+                  "webhook-signature"
+                ]!,
+            ),
+          )
+        : [];
+      return {
+        [names.id]: id,
+        [names.timestamp]: seconds,
+        [names.signature]: [
+          `v1a,${toBase64(result.data.signature)}`,
+          ...symmetric,
+        ].join(" "),
+      };
+    },
+  };
+}
+
+/** The `whpk_` public key of an Ed25519 JWK, for receivers of `v1a` signatures. */
+export function webhookPublicKey(jwk: {
+  readonly kty: string;
+  readonly crv?: string;
+  readonly x?: string;
+}): string {
+  if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || jwk.x === undefined) {
+    throw new TypeError("A v1a public key is an Ed25519 JWK");
+  }
+  return `${PUBLIC_KEY_PREFIX}${toBase64(fromBase64(jwk.x))}`;
 }
 
 export interface HmacSignerOptions {

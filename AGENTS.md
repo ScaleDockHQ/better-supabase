@@ -148,6 +148,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0030: block client state lives in headless controllers.
 - 0031: presets install blocks; UI ships as recipes over the app's shadcn components.
 - 0032: the fixture runs on the CLI's stack engine with ports per branch.
+- 0033: signing keys live in Vault; signing runs in TypeScript with WebCrypto.
 
 ## Pre-release pins
 

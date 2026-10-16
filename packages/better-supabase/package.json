@@ -806,6 +806,11 @@
       "types": "./dist/blocks/share-links/index.d.ts",
       "default": "./dist/blocks/share-links/index.js"
     },
+    "./blocks/signing-keys": {
+      "@better-supabase/source": "./src/blocks/signing-keys/index.ts",
+      "types": "./dist/blocks/signing-keys/index.d.ts",
+      "default": "./dist/blocks/signing-keys/index.js"
+    },
     "./blocks/identities": {
       "@better-supabase/source": "./src/blocks/identities/index.ts",
       "types": "./dist/blocks/identities/index.d.ts",
@@ -1967,6 +1972,10 @@
       "./blocks/share-links": {
         "types": "./dist/blocks/share-links/index.d.ts",
         "default": "./dist/blocks/share-links/index.js"
+      },
+      "./blocks/signing-keys": {
+        "types": "./dist/blocks/signing-keys/index.d.ts",
+        "default": "./dist/blocks/signing-keys/index.js"
       },
       "./blocks/identities": {
         "types": "./dist/blocks/identities/index.d.ts",

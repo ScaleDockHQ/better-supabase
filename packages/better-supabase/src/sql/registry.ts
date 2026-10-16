@@ -84,6 +84,7 @@ import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
+import { SIGNING_KEYS } from "./modules/signing-keys.ts";
 import { SLA } from "./modules/sla.ts";
 import { SSO } from "./modules/sso.ts";
 import { STATE_MACHINE } from "./modules/state-machine.ts";
@@ -272,6 +273,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(HIRING),
       built(EMPLOYEES),
       built(COLLECTIONS),
+      built(SIGNING_KEYS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

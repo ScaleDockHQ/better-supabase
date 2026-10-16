@@ -379,6 +379,29 @@ describe("createWebhooks: deliver", () => {
     expect(broken.sent).toHaveLength(0);
   });
 
+  it("signs v1a endpoints with the asymmetric signer, without secrets", async () => {
+    const unsigned = setup([row({ signing: "v1a" })]);
+    expect(await unsigned.webhooks.deliver()).toMatchObject({ dead: 1 });
+    expect(unsigned.outcomes()[0]).toMatchObject({
+      error: "The endpoint signs with v1a, but no asymmetricSigner is set",
+    });
+
+    const signed = setup([row({ signing: "v1a" }), row({ id: "del-2" })], ok, {
+      secrets: { apiVersion: 1, secrets: async () => [] },
+      asymmetricSigner: {
+        apiVersion: 1,
+        name: "test-v1a",
+        sign: () => ({ "webhook-signature": "v1a,sig" }),
+      },
+    });
+    expect(await signed.webhooks.deliver()).toMatchObject({
+      succeeded: 1,
+      dead: 1,
+    });
+    expect(signed.sent).toHaveLength(1);
+    expect(signed.sent[0]!.headers["webhook-signature"]).toBe("v1a,sig");
+  });
+
   it("waits as long as Retry-After asks, up to a day", async () => {
     const { webhooks, calls } = setup(
       [row(), row({ id: "del-2" })],

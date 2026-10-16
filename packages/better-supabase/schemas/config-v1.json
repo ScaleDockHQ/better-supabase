@@ -1313,6 +1313,7 @@
               "settings",
               "share-links",
               "signatures",
+              "signing-keys",
               "sla",
               "sso",
               "state-machine",
@@ -1581,6 +1582,9 @@
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
+            },
+            "signing-keys": {
+              "$ref": "#/$defs/blocks/signing-keys"
             },
             "sla": {
               "$ref": "#/$defs/blocks/sla"
@@ -4044,6 +4048,22 @@
             "properties": {
               "subjects": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "signing-keys": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "jwksGrace": {
+                "type": "string",
+                "default": "5 minutes"
+              }
             }
           }
         }

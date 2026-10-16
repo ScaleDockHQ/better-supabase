@@ -75,6 +75,29 @@ function keyFor(secret: string): ImportedKey {
   return key;
 }
 
+/** The prefix of a Standard Webhooks Ed25519 public key (`v1a` signatures). */
+export const PUBLIC_KEY_PREFIX = "whpk_";
+
+const publicKeys = new Map<string, ImportedKey>();
+
+function publicKeyFor(key: string): ImportedKey {
+  let imported = publicKeys.get(key);
+  if (!imported) {
+    imported = crypto.subtle.importKey(
+      "raw",
+      fromBase64(key.slice(PUBLIC_KEY_PREFIX.length)),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    if (publicKeys.size < 16) {
+      publicKeys.set(key, imported);
+      imported.catch(() => publicKeys.delete(key));
+    }
+  }
+  return imported;
+}
+
 async function signature(secret: string, content: string): Promise<string> {
   return toBase64(
     new Uint8Array(
@@ -201,32 +224,46 @@ export async function verifyWebhook<T = unknown>(
 
   const body = input instanceof Request ? await input.text() : input.body;
   const content = encoder.encode(`${id}.${timestamp}.${body}`);
-  const offered = signatures
-    .split(" ")
-    .map((entry) => entry.split(","))
-    .filter(([version, value]) => version === "v1" && value)
-    .flatMap(([, value]) => decodeSignature(value!) ?? []);
+  const entries = signatures.split(" ").map((entry) => entry.split(","));
+  const offered = (version: string) =>
+    entries
+      .filter(([name, value]) => name === version && value)
+      .flatMap(([, value]) => decodeSignature(value!) ?? []);
+  const symmetric = offered("v1");
+  const asymmetric = offered("v1a");
   let valid = false;
   let malformed = false;
   for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
+    const isPublic = secret.startsWith(PUBLIC_KEY_PREFIX);
     let key: Awaited<ImportedKey>;
     try {
-      key = await keyFor(secret);
+      key = await (isPublic ? publicKeyFor(secret) : keyFor(secret));
     } catch {
       malformed = true;
       continue;
     }
-    for (const candidate of offered) {
+    for (const candidate of isPublic ? asymmetric : symmetric) {
       // crypto.subtle.verify compares HMACs in constant time.
-      if (await crypto.subtle.verify("HMAC", key, candidate, content))
+      if (
+        await crypto.subtle.verify(
+          isPublic ? "Ed25519" : "HMAC",
+          key,
+          candidate,
+          content,
+        )
+      )
         valid = true;
     }
   }
   if (!valid && malformed)
     return err(
-      dbError("unexpected", "Webhook secret is not whsec_ followed by base64", {
-        code: "WEBHOOK_INVALID_SECRET",
-      }),
+      dbError(
+        "unexpected",
+        "Webhook secret is not whsec_ or whpk_ followed by base64",
+        {
+          code: "WEBHOOK_INVALID_SECRET",
+        },
+      ),
     );
   if (!valid)
     return err(

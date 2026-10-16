@@ -42,6 +42,8 @@ export interface WebhookDelivery {
   readonly permissions: readonly string[] | null;
   /** The endpoint takes CloudEvents batches. */
   readonly batch: boolean;
+  /** `v1` signs with the endpoint's secrets, `v1a` with `asymmetricSigner`. */
+  readonly signing: "v1" | "v1a";
   readonly createdAt: Temporal.Instant;
 }
 
@@ -79,8 +81,14 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly http?: WebhookTransport;
   /** Used by the default `http`. Defaults to `publicUrl()`. */
   readonly allowUrl?: AllowUrl;
-  /** Defaults to `standardWebhooks()`. */
+  /** Signs deliveries to `v1` endpoints. Defaults to `standardWebhooks()`. */
   readonly signer?: WebhookSigner;
+  /**
+   * Signs deliveries to endpoints with `signing = 'v1a'`, usually
+   * `standardWebhooksAsymmetric({ signer })`. Without it those deliveries
+   * are dead-lettered.
+   */
+  readonly asymmetricSigner?: WebhookSigner;
   /** Defaults to `sqlSecretStore(transport)`. */
   readonly secrets?: WebhookSecretStore;
   readonly retry?: RetryPolicy;

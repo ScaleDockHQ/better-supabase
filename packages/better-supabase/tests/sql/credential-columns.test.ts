@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { moduleBody } from "../../src/sql/render.ts";
 
-/** Modules that own secrets by design: Vault itself and webhook signing. */
+/** Modules that own secrets by design: Vault itself, webhook signing and signing keys. */
 const ALLOWED = (name: string): boolean =>
-  name === "credentials" || name === "vault" || name.startsWith("webhook");
+  name === "credentials" ||
+  name === "vault" ||
+  name === "signing-keys" ||
+  name.startsWith("webhook");
 
 /**
  * Not credentials: the domain challenge is published in a DNS TXT record,

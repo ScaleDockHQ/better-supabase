@@ -1637,6 +1637,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "signing-keys",
+      "title": "Signing keys",
+      "category": "platform",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "signing-keys"
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "platform",
@@ -2628,6 +2639,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "shareLinksBlock",
         "subpath": "better-supabase/blocks/share-links"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "signing-keys",
+      "sql": [
+        "signing-keys"
+      ],
+      "category": "platform",
+      "client": {
+        "export": "signingKeysBlock",
+        "subpath": "better-supabase/blocks/signing-keys"
       },
       "consumes": {},
       "provides": []
