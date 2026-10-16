@@ -372,7 +372,10 @@ describe.skipIf(!live)("profiles", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderModules(["tenant", "access"], {}))
+      for (const file of renderModules(
+        ["organizations", "tenant", "access"],
+        {},
+      ))
         await client.query(file.contents);
       for (const who of ["ada", "bob"] as const) {
         await client.query(

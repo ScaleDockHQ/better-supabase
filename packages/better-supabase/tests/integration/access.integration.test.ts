@@ -77,7 +77,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const row = await inTransaction(
       pool,
       "",
-      ["access"],
+      ["organizations", "access"],
       {},
       async (client) => {
         await client.query(
@@ -121,7 +121,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const rows = await inTransaction(
       pool,
       "",
-      ["access"],
+      ["organizations", "access"],
       { modules: { access: { scopes: { "members:write": ["members.*"] } } } },
       async (client) => {
         await client.query(

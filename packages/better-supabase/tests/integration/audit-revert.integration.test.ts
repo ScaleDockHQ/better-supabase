@@ -26,7 +26,7 @@ describe.skipIf(!live)("audit revert in Postgres", () => {
   const lastEntry = async (): Promise<string> => {
     await db.service();
     return db.value<string>(
-      `(select id::text from better_supabase.audit_events where table_name like 'revert_it.%' order by id desc limit 1)`,
+      `(select max(id)::text from better_supabase.audit_events where table_name like 'revert_it.%')`,
     );
   };
   const title = async (n: number): Promise<string | null> => {
