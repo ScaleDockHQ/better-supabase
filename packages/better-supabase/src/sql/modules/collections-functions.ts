@@ -1,8 +1,17 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { fail, pageSize, userGrant } from "../shared.ts";
+import {
+  dropWithoutExtraFields,
+  extraFieldsJson,
+  extraFieldsParam,
+  extraFieldsType,
+  fail,
+  pageSize,
+  userGrant,
+  writeExtraFields,
+} from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
 export interface CollectionNames {
@@ -26,12 +35,26 @@ export interface CollectionNames {
 
 const SERVICE = "auth.role() = 'service_role'";
 
+/** `options.extraColumns`, which the collections table gets. */
+export const collectionExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
+  ctx.extraColumns("collections", [
+    "id",
+    "scope",
+    "name",
+    "description",
+    "fields",
+  ]);
+
 export function collectionFunctions(
   ctx: ModuleContext,
   names: CollectionNames,
 ): string {
   const { t, fn } = names;
   const co = (column: string): string => names.c("collections", column);
+  const extras = collectionExtras(ctx);
+  const createArgs = `${ctx.idType}, text, text, text, text, text`;
+  const setExtras = (source: string, id: string): string =>
+    writeExtraFields(t("collections"), extras, source, `x.${co("id")} = ${id}`);
   const en = (column: string): string => names.c("entries", column);
   // `subject_collections_read` for a row a security definer function has read.
   const maySee = (alias: string): string =>
@@ -60,7 +83,7 @@ export function collectionFunctions(
     'archivedAt', ${alias}.${co("archivedAt")},
     'createdBy', ${alias}.${co("createdBy")},
     'createdAt', ${alias}.${co("createdAt")},
-    'updatedAt', ${alias}.${co("updatedAt")})`;
+    'updatedAt', ${alias}.${co("updatedAt")})${extraFieldsJson(alias, extras)}`;
   const entryRecord = (event: string): string =>
     ctx.record({
       type: event,
@@ -88,7 +111,7 @@ export function collectionFunctions(
   return `
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
-create or replace function ${fn("create_collection")}(tenant ${ctx.idType}, subject_type text, name text, scope text, team text, description text)
+${dropWithoutExtraFields(extras, `${fn("create_collection")}(${createArgs})`)}create or replace function ${fn("create_collection")}(tenant ${ctx.idType}, subject_type text, name text, scope text, team text, description text${extraFieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -136,7 +159,7 @@ begin
     case when v_scope = 'user' then auth.uid() end,
     case when v_scope = 'team' then create_collection.team end,
     v_name, nullif(trim(create_collection.description), ''), auth.uid())
-  returning ${co("id")} into v_id;
+  returning ${co("id")} into v_id;${setExtras("create_collection.extra_fields", "v_id")}
   ${ctx.record({
     type: "collection.created",
     payload: `jsonb_build_object('organizationId', create_collection.tenant, 'collectionId', v_id, 'subjectType', create_collection.subject_type, 'name', v_name, 'scope', v_scope)`,
@@ -148,10 +171,10 @@ begin
   return (select ${json("x")} from ${t("collections")} x where x.${co("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("create_collection")}(${ctx.idType}, text, text, text, text, text)`)}
+${userGrant(`${fn("create_collection")}(${createArgs}${extraFieldsType(extras)})`)}
 
 -- A null name keeps it; an empty description clears it, a null one keeps it.
-create or replace function ${fn("rename_collection")}(collection uuid, name text, description text)
+${dropWithoutExtraFields(extras, `${fn("rename_collection")}(uuid, text, text)`)}create or replace function ${fn("rename_collection")}(collection uuid, name text, description text${extraFieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -172,11 +195,11 @@ begin
     ${co("description")} = case when rename_collection.description is null then x.${co("description")}
       else nullif(trim(rename_collection.description), '') end,
     ${co("updatedAt")} = now()
-  where x.${co("id")} = v_row.${co("id")};
+  where x.${co("id")} = v_row.${co("id")};${setExtras("rename_collection.extra_fields", `v_row.${co("id")}`)}
   return (select ${json("x")} from ${t("collections")} x where x.${co("id")} = v_row.${co("id")});
 end;
 $$;
-${userGrant(`${fn("rename_collection")}(uuid, text, text)`)}
+${userGrant(`${fn("rename_collection")}(uuid, text, text${extraFieldsType(extras)})`)}
 
 -- Archives a collection (archived true) or restores it. An archived
 -- collection keeps its entries but takes no changes to them.

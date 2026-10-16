@@ -244,3 +244,19 @@ lists.
 A provider's server package can verify the block's keys for its own
 middleware: `keys.verify(token)` resolves to `{ status: "ok", key }` with
 the key's user or tenant and its scopes, `invalid` or `rate_limited`.
+
+## Your own fields
+
+`blocks.api-keys.options.extraColumns` adds columns to the `api_keys` table,
+keyed by column name with their SQL type. Pass `createApiKeys` a Standard Schema
+for them as `fields`: `create` (`rotate` copies them) take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `list`, `verify` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createApiKeys({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

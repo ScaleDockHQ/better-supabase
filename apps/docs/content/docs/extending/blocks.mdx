@@ -84,11 +84,30 @@ keys it doesn't name.
 Notifications type their `data` the same way, per notification type: see
 [typed data](/docs/blocks/notifications#reading).
 
-| Block         | Columns from                                    | `fields` types                |
-| ------------- | ----------------------------------------------- | ----------------------------- |
-| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`  |
-| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`        |
-| notifications | the `data` of each type                         | `send`, `get`, `list`, `page` |
+Blocks that read through their own SQL functions return the extra columns
+under a `fields` key, built with `jsonb_build_object` so a renamed column
+never leaks, and the client merges the parsed values into the row it
+returns. A write sends only the keys the block doesn't type itself, so
+columns a write leaves out keep their value or default.
+
+| Block           | Columns from                                    | `fields` types                                                                     |
+| --------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| organizations   | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`                                                       |
+| profiles        | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`                                                             |
+| notifications   | the `data` of each type                         | `send`, `get`, `list`, `page`                                                      |
+| access-requests | `options.extraColumns` on `access_requests`     | writes: `request`; reads: every read                                               |
+| agents          | `options.extraColumns` on `agents`              | writes: `create`, `update`; reads: every agent read                                |
+| ai-chat         | `options.extraColumns` on `ai_chats`            | writes: `chats.create`, `chats.update`; reads: `chats.get`, `chats.list`           |
+| ai-files        | `options.extraColumns` on `ai_files`            | writes: `files.upload`, `files.store`; reads: the file reads                       |
+| ai-tasks        | `options.extraColumns` on `ai_scheduled_tasks`  | writes: `create`, `update`; reads: `create`, `update`, `pause`, `resume`, `list`   |
+| announcements   | `options.extraColumns` on `announcements`       | writes: `publish`, `update`; reads: `listActive`, `list`                           |
+| api-keys        | `options.extraColumns` on `api_keys`            | writes: `create` (`rotate` copies them); reads: `list`, `verify`                   |
+| approvals       | `options.extraColumns` on `approval_requests`   | writes: `request`; reads: every request read                                       |
+| attachments     | `options.extraColumns` on `attachments`         | writes: `upload`, `put`; reads: every attachment read                              |
+| bookings        | `options.extraColumns` on `bookings`            | writes: the customer object of `hold` and `public.hold`; reads: every booking read |
+| calendar        | `options.extraColumns` on `calendar_events`     | writes: `save` and the occurrence edits; reads: `events`                           |
+| catalog         | `options.extraColumns` on `products`            | writes: `createProduct`, `updateProduct`; reads: the saved product                 |
+| collections     | `options.extraColumns` on `subject_collections` | writes: `create`, `rename`; reads: `create`, `rename`, `list`                      |
 
 ## Hooks
 

@@ -8,12 +8,15 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import {
+  addExtraColumns,
+  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
   serviceGrant,
   sha256Hex,
   userGrant,
+  writeExtraFields,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
@@ -47,7 +50,7 @@ const NAMES: ModuleNames = {
     "after_booking_confirm",
     "after_booking_cancel",
   ],
-  options: [],
+  options: ["extraColumns"],
   tables: {
     resources: {
       name: "booking_resources",
@@ -236,7 +239,7 @@ create table if not exists ${p.bookings} (
 create index if not exists bookings_tenant_during_idx on ${p.bookings} using gist (${b("tenant")}, ${b("during")});
 create index if not exists bookings_resource_idx on ${p.bookings} (${b("resource")});
 create index if not exists bookings_service_idx on ${p.bookings} (${b("service")});
-create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';
+create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';${addExtraColumns(p.bookings, p.extras)}
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};
 create policy bookings_read on ${p.bookings} for select to authenticated
@@ -580,7 +583,7 @@ function lifecycle(p: Parts): string {
     perform ${jobs.fn("enqueue_job")}(queue => '${BOOKING_EXPIRE_QUEUE}', payload => jsonb_build_object('bookingId', v_id), delay => ceil(extract(epoch from (v_expires - now())))::integer + 1, dedupe_key => 'bookings:expire:' || v_id::text, dedupe_running => false);
   end if;`;
   const bookingJson = (alias: string) =>
-    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")})`;
+    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")})${extraFieldsJson(alias, p.extras)}`;
   const declareMirror = `v_calendar uuid;
   v_tz text;
   v_title text;
@@ -688,7 +691,7 @@ begin
   end loop;
   if v_id is null then
     ${fail("BOOKING_SLOT_UNAVAILABLE", "that time was just taken", "23P01")}
-  end if;
+  end if;${writeExtraFields(p.bookings, p.extras, "v_customer", `x.${b("id")} = v_id`, "v_booking")}
   ${record(p, "booking.reserved", "v_id", `v_booking.${b("tenant")}`)}
   if v_status = 'confirmed' then
     ${calendarMirror(p, "confirm")}
@@ -847,6 +850,15 @@ function build(ctx: ModuleContext): string {
     manage: ctx.permission("manage", perms.manage),
     create: ctx.permission("create", perms.create),
     read: ctx.permission("read", perms.read),
+    extras: ctx.extraColumns("bookings", [
+      "id",
+      "seat",
+      "status",
+      "notes",
+      "name",
+      "email",
+      "fields",
+    ]),
   };
   return `${schemaPreamble(ctx)}
 ${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}`;

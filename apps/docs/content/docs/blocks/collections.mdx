@@ -137,3 +137,19 @@ The Pipeline Dashboard's deal cards carry a favorite star. Read `starred(organiz
 | `FAVORITE_INVALID`                 | no signed-in user                                                    |
 | `FAVORITE_RANK_INVALID`            | not a rank key                                                       |
 | `RANK_KEY_INVALID`                 | the neighbours passed to `reorder` or `reorderStar` aren't rank keys |
+
+## Your own fields
+
+`blocks.collections.options.extraColumns` adds columns to the `subject_collections` table,
+keyed by column name with their SQL type. Pass `createCollections` a Standard Schema
+for them as `fields`: `create`, `rename` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `create`, `rename`, `list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createCollections({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

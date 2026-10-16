@@ -74,3 +74,19 @@ The module records `access.requested`, `access.request_approved` and `access.end
 ## With ReUI
 
 An admin page renders `list(organizationId, { status: "pending" })` in a ReUI data grid with approve and reject actions from the approvals client. A member's request form pairs a role select with a duration select and shows their requests from `list(organizationId, { mine: true })`.
+
+## Your own fields
+
+`blocks.access-requests.options.extraColumns` adds columns to the `access_requests` table,
+keyed by column name with their SQL type. Pass `createAccessRequests` a Standard Schema
+for them as `fields`: `request` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAccessRequests({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

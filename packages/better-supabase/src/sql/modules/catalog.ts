@@ -8,12 +8,13 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
-import { lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   type Names,
   SLUG,
   optionFunctions,
+  productExtras,
   productFunctions,
   storefrontOption,
 } from "./catalog-functions.ts";
@@ -87,7 +88,7 @@ const NAMES: ModuleNames = {
     "before_price_set",
     "after_price_set",
   ],
-  options: ["storefront"],
+  options: ["storefront", "extraColumns"],
   tables: {
     products: {
       name: "products",
@@ -274,7 +275,7 @@ create table if not exists ${t("products")} (
   ${c("products", "updatedAt")} timestamptz not null default now(),
   unique (${c("products", "tenant")}, ${c("products", "slug")})
 );
-create index if not exists products_status_idx on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});
+create index if not exists products_status_idx on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});${addExtraColumns(t("products"), productExtras(ctx))}
 ${lockTable(t("products"), { read: true })}
 ${read("products")}
 

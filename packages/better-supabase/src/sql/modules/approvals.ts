@@ -9,6 +9,11 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  dropWithoutExtraFields,
+  extraFieldsJson,
+  extraFieldsParam,
+  extraFieldsType,
   fail,
   lockTable,
   pageSize,
@@ -16,6 +21,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  writeExtraFields,
 } from "../shared.ts";
 import {
   subjectCascades,
@@ -78,7 +84,7 @@ const NAMES: ModuleNames = {
     "before_approval_decide",
     "after_approval_decide",
   ],
-  options: ["subjects", "policies"],
+  options: ["subjects", "policies", "extraColumns"],
   tables: {
     requests: {
       name: "approval_requests",
@@ -218,8 +224,20 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     linked.length === 0
       ? declared(row)
       : `(not ${linkedRow(`${row}.${c("subjectType")}`)} and ${declared(row)})`;
+  const extras = ctx.extraColumns("requests", [
+    "id",
+    "action",
+    "status",
+    "step",
+    "steps",
+    "reason",
+    "payload",
+    "decisions",
+    "fields",
+  ]);
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")})${extraFieldsJson(row, extras)}`;
+  const requestArgs = `${ctx.idType}, text, text, text, text, jsonb`;
   const record = (event: string, row: string, audit: boolean): string =>
     ctx.record({
       type: event,
@@ -427,7 +445,7 @@ ${queues
   ${c("createdAt")} timestamptz not null default now()
 );
 create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 ${lockTable(requests, { read: true })}
 drop policy if exists "approval_requests_read" on ${requests};
 create policy "approval_requests_read" on ${requests} for select to authenticated
@@ -642,14 +660,14 @@ $$;
 revoke execute on function ${fn("approval_settle")}(text, text, text, text, uuid, text) from public, anon, authenticated;
 `
 }
-create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+${dropWithoutExtraFields(extras, `${fn("request_approval")}(${requestArgs})`)}create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb${extraFieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_policy jsonb := ${fn("approval_policy")}(request_approval.subject_type, request_approval.action);
+  v_policy jsonb := ${fn("approval_policy")}(request_approval.subject_type, request_approval.action);${extras.length === 0 ? "" : `\n  v_result jsonb;\n  v_req ${requests}%rowtype;`}
 begin
   if v_policy is null then
     ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
@@ -657,10 +675,18 @@ begin
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(ctx, subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
     ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
   end if;
-  return ${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
+  ${extras.length === 0 ? "return " : "v_result := "}${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
+    extras.length === 0
+      ? ""
+      : `${writeExtraFields(requests, extras, "request_approval.extra_fields", `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}
+  if v_req.${c("id")} is not null then
+    return ${json("v_req")};
+  end if;
+  return v_result;`
+  }
 end;
 $$;
-${userGrant(`${fn("request_approval")}(${ctx.idType}, text, text, text, text, jsonb)`)}
+${userGrant(`${fn("request_approval")}(${requestArgs}${extraFieldsType(extras)})`)}
 
 -- Approves or rejects the current step. Enough approvals move the request
 -- to the next step, and the last step runs the policy's action.

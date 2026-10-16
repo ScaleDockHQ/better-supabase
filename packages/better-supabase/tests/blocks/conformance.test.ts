@@ -73,19 +73,20 @@ const NO_BLOCK_CALL: readonly string[] = [
 ];
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
+  // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
+  // Provider keys and batch jobs the block writes itself.
   "ai-providers",
-  "approvals",
-  "attachments",
+  // An append-only log written by audit_event and triggers; adopted
+  // columns already come back under `columns`.
   "audit",
+  // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
-  "bookings",
+  // Run records of the block's own bulk jobs.
   "bulk",
-  "calendar",
-  "catalog",
-  "collections",
   "comments",
   "connectors",
+  // The block is itself the app's extra fields.
   "custom-fields",
   "data-lifecycle",
   "deals",

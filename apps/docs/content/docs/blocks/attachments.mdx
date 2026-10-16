@@ -281,3 +281,19 @@ the partition key and `attachments/<id>` as the subject:
 | `attachment.uploaded` | `confirm` saw the object                               | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
 | `attachment.scanned`  | a scan result was recorded                             | `attachmentId`, `status`, `uploadedBy`                                       |
 | `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |
+
+## Your own fields
+
+`blocks.attachments.options.extraColumns` adds columns to the `attachments` table,
+keyed by column name with their SQL type. Pass `createAttachments` a Standard Schema
+for them as `fields`: `upload`, `put` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every attachment read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAttachments({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

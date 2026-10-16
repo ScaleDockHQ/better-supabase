@@ -129,3 +129,19 @@ client writes the new version.
 [`better-supabase/ai-sdk/files`](/docs/ai-sdk/files) reads these files in
 `experimental_download`, stores generated files and caches provider file
 references.
+
+## Your own fields
+
+`blocks.ai-files.options.extraColumns` adds columns to the `ai_files` table,
+keyed by column name with their SQL type. Pass `createAiFiles` a Standard Schema
+for them as `fields`: `files.upload`, `files.store` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and the file reads return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAiFiles({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

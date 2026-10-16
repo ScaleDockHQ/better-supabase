@@ -2442,7 +2442,8 @@
               "join": {
                 "type": "boolean",
                 "default": false
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2469,7 +2470,8 @@
               "maxInstructions": {
                 "type": "number",
                 "default": 100000
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2513,7 +2515,8 @@
               "sandboxIdleAfter": {
                 "type": "number",
                 "default": 600
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2543,7 +2546,8 @@
               "pendingTtl": {
                 "type": "string",
                 "default": "1 day"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2583,7 +2587,8 @@
               "maxPrompt": {
                 "type": "number",
                 "default": 20000
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2603,7 +2608,8 @@
               "event": {
                 "type": "string",
                 "default": "announcement_changed"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2624,7 +2630,8 @@
               "prefix": {
                 "type": "string",
                 "default": "bs"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2638,7 +2645,8 @@
             "additionalProperties": false,
             "properties": {
               "subjects": {},
-              "policies": {}
+              "policies": {},
+              "extraColumns": {}
             }
           }
         }
@@ -2680,7 +2688,8 @@
                   "type": "string"
                 },
                 "default": []
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2785,7 +2794,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -2813,7 +2824,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -2828,7 +2841,8 @@
               "storefront": {
                 "type": "string",
                 "default": "private"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -2851,7 +2865,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },

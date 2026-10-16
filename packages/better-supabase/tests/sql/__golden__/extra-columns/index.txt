@@ -1,12 +1,17 @@
 organizations
 profiles
 api-keys
+attachments
 announcements
 ai-chat
 ai-files
 agents
 ai-tasks
+calendar
+bookings
+approvals
 access-requests
+catalog
 drive
 parties
 deals
@@ -15,3 +20,4 @@ quotes
 invoices
 hiring
 employees
+collections

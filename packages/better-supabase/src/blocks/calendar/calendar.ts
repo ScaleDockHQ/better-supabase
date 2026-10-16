@@ -2,6 +2,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   AttendeeResponse,
   AttendeeRole,
@@ -16,6 +17,13 @@ import type {
   OccurrenceRange,
 } from "./occurrences.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraOf,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -32,9 +40,19 @@ import {
 import { parseIcs, toIcs } from "./ics.ts";
 import { expandOccurrences, splitRule } from "./occurrences.ts";
 
-export interface CalendarOptions {
+export interface CalendarOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
+  /**
+   * A Standard Schema for the event columns the app adds
+   * (`blocks.calendar.options.extraColumns`), keyed by column name. It
+   * types and parses them on `events`, and validates them on `save` and
+   * the occurrence edits, which return a `validation` error for a bad
+   * value.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Calendar>>;
+  readonly hooks?: NoInfer<BlockHooks<Calendar<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly transport: BlockTransport;
@@ -84,7 +102,8 @@ export interface CalendarImport {
   readonly skipped: number;
 }
 
-export interface Calendar {
+/** `F` is the extra event fields `options.fields` describes. */
+export interface Calendar<F extends object = Record<never, never>> {
   createCalendar(
     organizationId: string,
     name: string,
@@ -96,17 +115,20 @@ export interface Calendar {
   ): AsyncResult<{ readonly id: string }>;
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
-  /** Inserts an event, or updates the one with `id`. */
+  /**
+   * Inserts an event, or updates the one with `id`. Keys besides the
+   * input's own are the event's extra columns.
+   */
   save(
     calendarId: string,
-    input: CalendarEventInput & { readonly id?: string },
+    input: CalendarEventInput & Partial<F> & { readonly id?: string },
   ): AsyncResult<SavedCalendarEvent>;
   delete(eventId: string): AsyncResult<boolean>;
   /** The rows that can fall in the range: events, series and their overrides. */
   events(
     calendarIds: readonly string[],
     range: OccurrenceRange,
-  ): AsyncResult<CalendarEvent[]>;
+  ): AsyncResult<(CalendarEvent & F)[]>;
   /** The occurrences in the range, series expanded. */
   occurrences(
     calendarIds: readonly string[],
@@ -116,7 +138,7 @@ export interface Calendar {
   /** Changes one occurrence: an override for a series, else the event. */
   editOccurrence(
     occurrence: CalendarOccurrence,
-    changes: CalendarEventInput,
+    changes: CalendarEventInput & Partial<F>,
   ): AsyncResult<SavedCalendarEvent>;
   /**
    * Changes an occurrence and every later one: splits the series, unless the
@@ -124,7 +146,7 @@ export interface Calendar {
    */
   editFollowing(
     occurrence: CalendarOccurrence,
-    changes: CalendarEventInput,
+    changes: CalendarEventInput & Partial<F>,
   ): AsyncResult<{ readonly id: string }>;
   /** Removes one occurrence of a series (an `EXDATE`), or a single event. */
   cancelOccurrence(occurrence: CalendarOccurrence): AsyncResult<boolean>;
@@ -285,8 +307,40 @@ function copyOf(event: CalendarEvent): CalendarEventInput {
 
 const INFINITE = { from: "-infinity", until: "infinity" } as const;
 
-export function createCalendar(options: CalendarOptions): Calendar {
+/** The keys of an event write the block types itself. */
+const EVENT_INPUT: ReadonlySet<string> = new Set([
+  "id",
+  "title",
+  "description",
+  "location",
+  "startsAt",
+  "endsAt",
+  "allDay",
+  "tz",
+  "status",
+  "rrule",
+  "exdates",
+  "subjectType",
+  "subjectId",
+  "color",
+  "uid",
+  "recurrenceId",
+  "originalStart",
+]);
+
+export function createCalendar<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: CalendarOptions<S>): Calendar<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "event fields");
+  /** The item a write sends, with its extra fields validated. */
+  const checked = (
+    input: Parameters<typeof itemOf>[0],
+  ): AsyncResult<Record<string, unknown>> =>
+    AsyncResult.from(() => fields.write(extraOf(input, EVENT_INPUT))).map(
+      (extra) => ({ ...extra, ...itemOf(input) }),
+    );
   const saved = (value: unknown): SavedCalendarEvent => {
     const row = recordOf(value, "save_calendar_event");
     return {
@@ -299,15 +353,13 @@ export function createCalendar(options: CalendarOptions): Calendar {
     calendarId: string,
     input: Parameters<typeof itemOf>[0],
   ): AsyncResult<SavedCalendarEvent> =>
-    call(
-      "save_calendar_event",
-      { calendar_id: calendarId, item: itemOf(input) },
-      saved,
+    checked(input).andThen((item) =>
+      call("save_calendar_event", { calendar_id: calendarId, item }, saved),
     );
   const list = (
     calendarIds: readonly string[],
     range: OccurrenceRange | typeof INFINITE,
-  ): AsyncResult<CalendarEvent[]> =>
+  ): AsyncResult<(CalendarEvent & F)[]> =>
     call(
       "list_calendar_events",
       {
@@ -315,9 +367,12 @@ export function createCalendar(options: CalendarOptions): Calendar {
         range_start: range.from.toString(),
         range_end: range.until.toString(),
       },
-      (value) => recordsOf(value, "list_calendar_events").map(calendarEventOf),
-    );
-  const client: Calendar = {
+      (value) =>
+        recordsOf(value, "list_calendar_events").map(
+          (raw) => [raw, calendarEventOf(raw)] as const,
+        ),
+    ).andThen((rows) => allWithFields(fields, rows));
+  const client: Calendar<F> = {
     createCalendar: (organizationId, name, extra = {}) =>
       call(
         "create_calendar",
@@ -417,23 +472,25 @@ export function createCalendar(options: CalendarOptions): Calendar {
         );
       }
       const length = series.endsAt.since(series.startsAt);
-      return call(
-        "split_calendar_event",
-        {
-          event_id: series.id,
-          split_at: occurrence.originalStart.toString(),
-          before_rrule: rules.before,
-          item: itemOf({
-            ...copyOf(series),
-            startsAt: occurrence.originalStart,
-            endsAt: occurrence.originalStart.add(length),
-            rrule: rules.after,
-            ...changes,
+      return checked({
+        ...copyOf(series),
+        startsAt: occurrence.originalStart,
+        endsAt: occurrence.originalStart.add(length),
+        rrule: rules.after,
+        ...changes,
+      }).andThen((item) =>
+        call(
+          "split_calendar_event",
+          {
+            event_id: series.id,
+            split_at: occurrence.originalStart.toString(),
+            before_rrule: rules.before,
+            item,
+          },
+          (value) => ({
+            id: textOf(recordOf(value, "split_calendar_event")["id"]),
           }),
-        },
-        (value) => ({
-          id: textOf(recordOf(value, "split_calendar_event")["id"]),
-        }),
+        ),
       );
     },
     cancelOccurrence: (occurrence) => {
