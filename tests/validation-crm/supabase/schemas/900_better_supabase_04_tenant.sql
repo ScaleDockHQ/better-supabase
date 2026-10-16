@@ -119,7 +119,7 @@ grant execute on function better_supabase.organization_member_role(uuid, uuid) t
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
--- Disabled users and tenants (modules.access.disabled) are left out.
+-- Disabled users and tenants (blocks.access.disabled) are left out.
 create or replace function better_supabase.membership_claims(user_id uuid)
 returns jsonb
 language sql

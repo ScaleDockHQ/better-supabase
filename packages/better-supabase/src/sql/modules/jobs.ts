@@ -720,7 +720,7 @@ export const JOBS: ModuleDefinition = {
   name: "jobs",
   title: "Job queue",
   description:
-    "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
+    "Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
   version: 7,
