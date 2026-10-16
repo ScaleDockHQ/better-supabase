@@ -1648,6 +1648,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "signing-keys"
     },
     {
+      "name": "shared-signals",
+      "title": "Shared signals",
+      "category": "platform",
+      "requires": [],
+      "integrates": [
+        "webhooks-out",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "shared-signals"
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "platform",
@@ -2639,6 +2651,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "shareLinksBlock",
         "subpath": "better-supabase/blocks/share-links"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "shared-signals",
+      "sql": [
+        "shared-signals"
+      ],
+      "category": "platform",
+      "client": {
+        "export": "sharedSignalsBlock",
+        "subpath": "better-supabase/blocks/shared-signals"
       },
       "consumes": {},
       "provides": []

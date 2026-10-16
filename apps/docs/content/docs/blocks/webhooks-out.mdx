@@ -86,15 +86,20 @@ the endpoint's secrets while receivers move over.
 
 An endpoint's `format` picks the encoder that writes its requests, so the
 same events can go to a log pipeline or a SIEM as well as to webhook
-receivers. `cloudevents` is the default. Two more are built in:
+receivers. `cloudevents` is the default. Three more are built in:
 
 | `format`      | Writes                                                                         | Point the URL at            |
 | ------------- | ------------------------------------------------------------------------------ | --------------------------- |
 | `cloudevents` | CloudEvents over HTTP, one event or a batch, signed per Standard Webhooks      | The receiver                |
 | `otlp-logs`   | OTLP/HTTP logs in JSON, a log record per event with the CloudEvents attributes | A collector's `/v1/logs`    |
 | `splunk-hec`  | Splunk HTTP Event Collector events, the CloudEvent as `event`                  | `/services/collector/event` |
+| `set`         | A Security Event Token pushed per RFC 8935, from `data.set`                    | A Shared Signals receiver   |
 
-`otlp-logs` and `splunk-hec` aren't signed. They authenticate with the
+The [shared-signals](/docs/blocks/shared-signals) block creates the `set`
+endpoints; the SET carries its own signature, and a 400 with `invalid_key`
+retries while other RFC 8935 errors dead-letter.
+
+`otlp-logs`, `splunk-hec` and `set` aren't signed. They authenticate with the
 token in the endpoint's `credential_ref`, which the `credentials` option
 resolves (`Authorization: Splunk <token>` for HEC, the token's own headers
 otherwise). A ref outside the endpoint's organization, or a ref without a

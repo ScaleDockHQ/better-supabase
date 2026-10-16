@@ -87,6 +87,7 @@
     "employees",
     "identities",
     "service-principals",
-    "signing-keys"
+    "signing-keys",
+    "shared-signals"
   ]
 }

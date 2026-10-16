@@ -1,0 +1,250 @@
+---
+title: Shared signals
+description: An OpenID Shared Signals transmitter and receiver, with CAEP and RISC events as signed Security Event Tokens, pushed through outgoing webhooks or polled.
+---
+
+`shared-signals` sends and receives security events between your app and
+the identity providers, SaaS apps and security tools around it, per
+[OpenID Shared Signals Framework 1.0](https://openid.net/specs/openid-sharedsignals-framework-1_0.html).
+An event (a revoked session, a disabled account, a changed credential) is a
+Security Event Token (SET, RFC 8417): a JWT signed with one of your
+[signing keys](/docs/blocks/signing-keys). Receivers create streams through
+a management API, and get SETs pushed to their endpoint (RFC 8935) or poll
+for them (RFC 8936).
+
+```bash
+better-supabase sql add signing-keys webhooks-out shared-signals
+```
+
+```ts
+import {
+  createSsfReceiver,
+  createSsfTransmitter,
+  sqlTransport,
+} from "better-supabase/blocks/shared-signals";
+```
+
+Every function is service-role only. Push delivery needs
+[webhooks-out](/docs/blocks/webhooks-out); without it, streams can only
+poll.
+
+## Transmit
+
+The transmitter takes a signer, the URL of its JWK Set, and an `authorize`
+function that names the receiver behind a management request. Return
+`null` to answer 401:
+
+```ts title="lib/ssf.ts"
+import {
+  CAEP_EVENTS,
+  createSsfTransmitter,
+  sqlTransport,
+} from "better-supabase/blocks/shared-signals";
+import { vaultCredentials } from "better-supabase/credentials";
+
+import { signingKeys } from "@/lib/signing-keys";
+
+export const transmitter = createSsfTransmitter({
+  transport: sqlTransport(postgres.admin),
+  issuer: "https://app.example.com",
+  jwksUri: "https://app.example.com/ssf/jwks",
+  signer: signingKeys.signer(
+    { type: "ssf", id: "transmitter" },
+    { create: "ES256" },
+  ),
+  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
+  authorize: async (request) => {
+    const client = await verifyAccessToken(request, { scope: "ssf.manage" });
+    return client
+      ? { receiver: client.id, tenant: client.organizationId }
+      : null;
+  },
+});
+```
+
+`authorize` returns `receiver`, a stable id such as the OAuth client id,
+and optionally `tenant` and `audience`. A stream with a tenant gets only
+that tenant's events; a stream without one gets every event. The `aud` of
+its SETs is `audience`, or `receiver` when there is none.
+
+Mount the routes under the issuer. `handler()` serves the well-known
+metadata, `/ssf/stream`, `/ssf/status`, `/ssf/verify` and `/ssf/poll/:id`:
+
+```ts title="app/ssf/[...path]/route.ts"
+import { transmitter } from "@/lib/ssf";
+
+const handle = transmitter.handler();
+export {
+  handle as DELETE,
+  handle as GET,
+  handle as PATCH,
+  handle as POST,
+  handle as PUT,
+};
+```
+
+```ts title="app/.well-known/ssf-configuration/route.ts"
+import { transmitter } from "@/lib/ssf";
+
+export const GET = transmitter.handler();
+```
+
+```ts title="app/ssf/jwks/route.ts"
+import { signingKeys } from "@/lib/signing-keys";
+
+export const GET = () =>
+  signingKeys.jwksResponse({ type: "ssf", id: "transmitter" }, { maxAge: 300 });
+```
+
+A receiver can only see and change the streams it created; another
+receiver's stream answers 404.
+
+### Emit events
+
+`emit` mints one SET per stream that delivers the event type and queues it.
+Call it where the change happens, for example after you revoke a user's
+sessions:
+
+```ts
+await transmitter
+  .emit({
+    tenant: organizationId,
+    subject: { format: "email", email: user.email },
+    event: {
+      type: CAEP_EVENTS.sessionRevoked,
+      claims: { event_timestamp: Math.floor(Date.now() / 1000) },
+    },
+  })
+  .orThrow();
+// { streams: 2, dispatched: 1, queued: 1, held: 0 }
+```
+
+`CAEP_EVENTS` and `RISC_EVENTS` hold the event type URIs of CAEP 1.0 and
+RISC 1.0. A stream delivers the requested types that `eventsSupported`
+lists, every CAEP and RISC type by default.
+
+### Push and poll
+
+A push stream gets a webhooks-out endpoint with format `set`. Its SETs go
+through the outbox like any other delivery, with retries, the dead-letter
+queue and the delivery log. The `authorization_header` a receiver sends
+goes into Vault under `ssf/<stream id>` and becomes the endpoint's
+`credential_ref`, so configure the webhooks client with the same
+credentials provider:
+
+```ts title="lib/webhooks.ts"
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
+});
+```
+
+A poll stream keeps its SETs in `ssf_events` until the receiver
+acknowledges them. Run `purge()` from a daily job; it deletes unpolled SETs
+older than the `retention` option (`7 days`).
+
+### Stream status
+
+A paused stream holds its SETs, and enabling it sends them in order. A
+disabled stream drops them. `setStatus` sends a `stream-updated` event
+before it pauses or disables a stream, and after it enables one.
+Verification requests send a `verification` event, at most once per
+`minVerificationInterval` (30 seconds); a request inside that interval
+answers 429 with `Retry-After`.
+
+SETs carry no `exp`. A SET held longer than your
+[JWKS grace](/docs/blocks/signing-keys#publish-the-jwks) after a key
+rotation fails verification at the receiver, so resume or disable paused
+streams before you retire a key.
+
+## Receive
+
+The receiver verifies SETs against the transmitter's keys, drops a replayed
+`(iss, jti)` through the `ssf_received` table, and calls the handler for
+the event type:
+
+```ts title="lib/ssf-receiver.ts"
+import {
+  CAEP_EVENTS,
+  createSsfReceiver,
+  sqlTransport,
+} from "better-supabase/blocks/shared-signals";
+
+export const receiver = createSsfReceiver({
+  transport: sqlTransport(postgres.admin),
+  issuer: "https://idp.example.com",
+  audience: "https://app.example.com",
+  authorization: `Bearer ${process.env.SSF_PUSH_TOKEN}`,
+  handlers: {
+    [CAEP_EVENTS.sessionRevoked]: async (set) => {
+      await signOutEverywhere(set.subject);
+    },
+  },
+});
+```
+
+The receiver reads the transmitter's metadata from
+`/.well-known/ssf-configuration`, checks that it names the same `issuer`,
+and fetches the keys from its `jwks_uri`. It caches both for
+`cacheSeconds` (300), and refetches the keys for an unknown `kid` at most
+every 30 seconds. Pass `jwks` to skip discovery.
+
+A handler that throws leaves the SET unprocessed: the push endpoint answers
+500 and a poll doesn't acknowledge it, so the transmitter sends it again.
+An event without a handler is acknowledged; `"*"` handles the rest.
+
+### Push endpoint
+
+```ts title="app/ssf/events/route.ts"
+import { receiver } from "@/lib/ssf-receiver";
+
+export const POST = receiver.pushHandler();
+```
+
+It answers 202 to a valid SET or a replay, and 400 with the RFC 8935
+`err` and `description` otherwise. With `authorization` set, any other
+`Authorization` header answers 401.
+
+### Poll
+
+```ts
+const result = await receiver
+  .poll({ endpoint: streamConfig.delivery.endpoint_url, authorization: token })
+  .orThrow();
+// { received: 3, rejected: 0, failed: 0, moreAvailable: false }
+```
+
+`poll` requests until the transmitter has no more SETs, up to
+`maxRequests` (10), and acknowledges each SET it processed in the next
+request.
+
+### Manage streams
+
+`streams(authorization)` calls the transmitter's management API:
+
+```ts
+const api = receiver.streams(`Bearer ${accessToken}`);
+const config = await api
+  .create({
+    method: "push",
+    endpointUrl: "https://app.example.com/ssf/events",
+    authorizationHeader: `Bearer ${process.env.SSF_PUSH_TOKEN}`,
+    eventsRequested: [CAEP_EVENTS.sessionRevoked, CAEP_EVENTS.credentialChange],
+  })
+  .orThrow();
+await api.verify(String(config.stream_id)).orThrow();
+```
+
+`create` fails with the hint `SSF_AUDIENCE_MISMATCH` when the new stream's
+`aud` doesn't name this receiver.
+
+## Events
+
+| Type                        | When                                                     |
+| --------------------------- | -------------------------------------------------------- |
+| `ssf_stream.created`        | A receiver created a stream; `data` has `method`         |
+| `ssf_stream.status_changed` | A stream's status changed; `data` has `status`, `reason` |
+| `ssf_stream.deleted`        | A stream was deleted                                     |
+
+Each carries `streamId`, `receiver` and `tenant`, and writes a `security`
+audit entry when the audit block is installed.

@@ -110,4 +110,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "collections",
   "ensure-rls",
   "signing-keys",
+  "shared-signals",
 ];

@@ -1312,6 +1312,7 @@
               "sessions",
               "settings",
               "share-links",
+              "shared-signals",
               "signatures",
               "signing-keys",
               "sla",
@@ -1579,6 +1580,9 @@
             },
             "share-links": {
               "$ref": "#/$defs/blocks/share-links"
+            },
+            "shared-signals": {
+              "$ref": "#/$defs/blocks/shared-signals"
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
@@ -4034,6 +4038,22 @@
             "properties": {
               "subjects": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "shared-signals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retention": {
+                "type": "string",
+                "default": "7 days"
+              }
             }
           }
         }

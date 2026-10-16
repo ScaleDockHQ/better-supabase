@@ -77,6 +77,7 @@ import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
+import { sharedSignalsBlock } from "./shared-signals/manifest.ts";
 import { signingKeysBlock } from "./signing-keys/manifest.ts";
 import { slaBlock } from "./sla/manifest.ts";
 import { ssoBlock } from "./sso/manifest.ts";
@@ -186,6 +187,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   sessionsBlock,
   settingsBlock,
   shareLinksBlock,
+  sharedSignalsBlock,
   signingKeysBlock,
   slaBlock,
   ssoBlock,

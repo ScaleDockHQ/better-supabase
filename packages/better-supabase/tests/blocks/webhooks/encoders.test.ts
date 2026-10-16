@@ -6,6 +6,7 @@ import { encoderRegistry } from "../../../src/blocks/webhooks/encoders.ts";
 import {
   cloudEvents,
   otlpLogs,
+  securityEvents,
   splunkHec,
   type WebhookEncoder,
   type WebhookResponse,
@@ -235,6 +236,48 @@ describe("splunkHec", () => {
   });
 });
 
+describe("securityEvents", () => {
+  it("sends data.set as an RFC 8935 body, unsigned", async () => {
+    const encoder = securityEvents();
+    expect(encoder).toMatchObject({ name: "set", signed: false });
+    const encoded = await encoder.encode(
+      [event({ type: "ssf.set", data: { set: "a.b.c" } })],
+      target,
+    );
+    expect(encoded).toEqual({
+      body: "a.b.c",
+      headers: {
+        "content-type": "application/secevent+jwt",
+        accept: "application/json",
+      },
+    });
+    expect(() => encoder.encode([event()], target)).toThrow(TypeError);
+  });
+
+  it("retries invalid_key and gives up on other RFC 8935 errors", () => {
+    const encoder = securityEvents();
+    const classify = (response: WebhookResponse) =>
+      encoder.classify?.(response);
+    expect(classify({ status: 202, body: "" })).toEqual({
+      outcome: "succeeded",
+    });
+    expect(
+      classify({
+        status: 400,
+        body: '{"err":"invalid_key","description":"kid"}',
+      }),
+    ).toEqual({ outcome: "retry", error: "SET rejected (invalid_key): kid" });
+    expect(
+      classify({ status: 400, body: '{"err":"invalid_audience"}' }),
+    ).toEqual({ outcome: "dead", error: "SET rejected (invalid_audience)" });
+    expect(classify({ status: 400, body: "nope" })).toEqual({
+      outcome: "dead",
+      error: "SET rejected (HTTP 400)",
+    });
+    expect(classify({ status: 503, body: "" })).toBeUndefined();
+  });
+});
+
 describe("encoderRegistry", () => {
   it("holds the built-ins and lets an encoder replace one by name", () => {
     const custom: WebhookEncoder = {
@@ -248,6 +291,7 @@ describe("encoderRegistry", () => {
       "cloudevents",
       "otlp-logs",
       "splunk-hec",
+      "set",
     ]);
     expect(registry.get("otlp-logs")).toBe(custom);
   });

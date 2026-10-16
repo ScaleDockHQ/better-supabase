@@ -32,6 +32,8 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
   // A push token addresses a device; sending to it needs the provider's own credential.
   push: ['"better_supabase"."push_devices".token'],
+  // A SET is a signed, public security event the transmitter mints, not a credential.
+  "shared-signals": ['"better_supabase"."ssf_events".token'],
 };
 
 const SENSITIVE = /token|secret|api_?key/;

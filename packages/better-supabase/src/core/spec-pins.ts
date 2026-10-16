@@ -52,6 +52,18 @@ export const SPEC_PINS: {
   readonly rfc9396: "2023-05";
   /** RFC 9864 fully specified JOSE algorithms; `Ed25519` is the alg the signing-keys block can write instead of `EdDSA`. */
   readonly rfc9864: "2025-10";
+  /** RFC 8417 Security Event Tokens that the shared-signals block mints and verifies. */
+  readonly rfc8417: "2018-07";
+  /** RFC 8935 push delivery of SETs: the `set` webhook format and the receiver's push endpoint. */
+  readonly rfc8935: "2020-11";
+  /** RFC 8936 poll delivery of SETs that the transmitter serves and the receiver runs. */
+  readonly rfc8936: "2020-11";
+  /** OpenID Shared Signals Framework: metadata, streams, status and verification. */
+  readonly ssf: "1.0";
+  /** OpenID CAEP event types in `CAEP_EVENTS`. */
+  readonly caep: "1.0";
+  /** OpenID RISC event types in `RISC_EVENTS`. */
+  readonly risc: "1.0";
   /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
   readonly shadcnRegistry: "4.21.4";
 } = {
@@ -93,5 +105,11 @@ export const SPEC_PINS: {
   rfc6902: "2013-04",
   rfc9396: "2023-05",
   rfc9864: "2025-10",
+  rfc8417: "2018-07",
+  rfc8935: "2020-11",
+  rfc8936: "2020-11",
+  ssf: "1.0",
+  caep: "1.0",
+  risc: "1.0",
   shadcnRegistry: "4.21.4",
 };

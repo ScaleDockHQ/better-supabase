@@ -40,6 +40,7 @@ const PURE_BARRELS = [
   "blocks/custom-fields",
   "blocks/share-links",
   "blocks/signing-keys",
+  "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",
   "blocks/rank",

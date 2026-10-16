@@ -73,6 +73,8 @@ const NO_FIELDS: readonly string[] = [
   "search",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
+  // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.
+  "shared-signals",
   // Key rows hold a public JWK and a Vault reference the module writes; nothing for an app to extend.
   "signing-keys",
   // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.

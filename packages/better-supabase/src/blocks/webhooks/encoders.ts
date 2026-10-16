@@ -265,6 +265,50 @@ export function splunkHec(options: SplunkHecOptions = {}): WebhookEncoder {
   };
 }
 
+/** RFC 8935 error codes a transmitter can't fix by sending the SET again. */
+const SET_RETRYABLE = new Set(["invalid_key"]);
+
+/**
+ * RFC 8935 push delivery of Security Event Tokens: the body is the compact
+ * SET from the delivery's `data.set`, one per request. The shared-signals
+ * block creates these endpoints (`format: 'set'`) and dispatches to them.
+ */
+export function securityEvents(): WebhookEncoder {
+  return {
+    apiVersion: 1,
+    name: "set",
+    signed: false,
+    encode(events) {
+      const data: unknown = events[0]?.data;
+      const set = isRecord(data) ? data["set"] : undefined;
+      if (typeof set !== "string" || set.split(".").length !== 3)
+        throw new TypeError("A set delivery carries a compact SET in data.set");
+      return {
+        body: set,
+        headers: {
+          "content-type": "application/secevent+jwt",
+          accept: "application/json",
+        },
+      };
+    },
+    classify(response) {
+      if (response.status === 202 || response.status === 200)
+        return { outcome: "succeeded" };
+      if (response.status !== 400) return;
+      const reply = jsonOf(response.body);
+      const code = typeof reply?.["err"] === "string" ? reply["err"] : "";
+      const description =
+        typeof reply?.["description"] === "string"
+          ? `: ${reply["description"]}`
+          : "";
+      return {
+        outcome: SET_RETRYABLE.has(code) ? "retry" : "dead",
+        error: `SET rejected (${code || "HTTP 400"})${description}`,
+      };
+    },
+  };
+}
+
 const FORMAT = /^[a-z][a-z0-9-]{0,39}$/;
 
 /** The built-in encoders by format, with `encoders` replacing any by name. */
@@ -272,10 +316,9 @@ export function encoderRegistry(
   encoders: readonly WebhookEncoder[] = [],
 ): ReadonlyMap<string, WebhookEncoder> {
   const registry = new Map<string, WebhookEncoder>(
-    [cloudEvents(), otlpLogs(), splunkHec()].map((encoder) => [
-      encoder.name,
-      encoder,
-    ]),
+    [cloudEvents(), otlpLogs(), splunkHec(), securityEvents()].map(
+      (encoder) => [encoder.name, encoder],
+    ),
   );
   for (const encoder of encoders) {
     if (!FORMAT.test(encoder.name))
