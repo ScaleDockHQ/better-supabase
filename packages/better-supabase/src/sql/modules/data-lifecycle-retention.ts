@@ -23,6 +23,7 @@ export const RETENTION_KINDS = [
   "workflow_runs",
   "ai_chats",
   "trash",
+  "scim_sync_log",
 ] as const;
 
 export const RETENTION_TABLES: Readonly<Record<string, ModuleTableSpec>> = {

@@ -18,7 +18,12 @@ import {
 } from "../shared.ts";
 import { accessModel, moduleOperations, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
-import { type ScimSqlNames, scimSql } from "./sso-scim-sql.ts";
+import {
+  SCIM_SYNC_LOG_CONTRACT,
+  type ScimSqlNames,
+  scimSql,
+  scimSyncLogSql,
+} from "./sso-scim-sql.ts";
 import { roleNameOf } from "./tenant.ts";
 
 const EVENTS: ModuleEvents<SsoEvents> = {
@@ -78,7 +83,7 @@ const EVENTS: ModuleEvents<SsoEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles"],
+  options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles", "syncLog"],
   hooks: [],
   tables: {
     domains: {
@@ -888,11 +893,12 @@ grant execute on function ${fn("scim_delete_user")}(${id}, uuid) to service_role
 grant execute on function ${fn("scim_list_groups")}(${id}) to service_role;
 grant execute on function ${fn("scim_get_group")}(${id}, uuid) to service_role;
 grant execute on function ${fn("scim_save_group")}(${id}, uuid, jsonb, integer) to service_role;
-grant execute on function ${fn("scim_delete_group")}(${id}, uuid) to service_role;`;
+grant execute on function ${fn("scim_delete_group")}(${id}, uuid) to service_role;${ctx.flag("syncLog", false) ? `\n\n${scimSyncLogSql(ctx, serviceOnly)}` : ""}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
+    ...(ctx.flag("syncLog", false) ? SCIM_SYNC_LOG_CONTRACT : []),
     { name: "scim_group_role", args: ["text"], returns: "text" },
     { name: "scim_sync_member", args: ["uuid"], returns: "void" },
     {
@@ -959,7 +965,7 @@ export const SSO: ModuleDefinition = {
   description:
     "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",
   requires: ["tenant", "access"],
-  integrates: ["organizations"],
+  integrates: ["organizations", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],

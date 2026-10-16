@@ -18,6 +18,16 @@ const sqlOf = (
     .join("\n");
 
 describe("sso module", () => {
+  it("adds scim_sync_log and its functions only with options.syncLog", () => {
+    const sql = sqlOf(["sso"], { syncLog: true });
+    expect(sql).toContain(
+      "create table if not exists better_supabase.scim_sync_log (",
+    );
+    expect(sql).toContain("scim_log_sync");
+    expect(sql).toContain("purge_scim_sync_log");
+    expect(sqlOf(["sso"])).not.toContain("scim_sync_log");
+  });
+
   it("creates domains, providers and SCIM tables with role defaults", () => {
     const sql = sqlOf(["sso"]);
     expect(sql).toContain(

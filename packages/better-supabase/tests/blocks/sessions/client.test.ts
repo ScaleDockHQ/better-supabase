@@ -142,3 +142,70 @@ describe("createOAuthGrantsController", () => {
     unmount();
   });
 });
+
+describe("OAuth read failures", () => {
+  const failing = { message: "Auth is down", status: 503 };
+
+  it("keeps a failed details read and refuses to decide without a request", async () => {
+    const oauth = fakeOAuth();
+    oauth.getAuthorizationDetails.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    const { view, unmount } = mount(
+      createOAuthConsentController({
+        oauth,
+        auth: fakeAuth(),
+        authorizationId: "failed-read",
+        redirect: vi.fn(),
+      }),
+    );
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    expect(await view().approve()).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_input" },
+    });
+    unmount();
+  });
+
+  it("shows a redirect URI that is not a URL as it is", async () => {
+    const oauth = fakeOAuth();
+    oauth.getAuthorizationDetails.mockImplementationOnce((id: string) =>
+      reply({
+        authorization_id: id,
+        redirect_uri: "not a url",
+        client: CLIENT,
+        user: { id: "u1", email: "u@example.com" },
+        scope: "openid",
+      }),
+    );
+    const { view, unmount } = mount(
+      createOAuthConsentController({
+        oauth,
+        auth: fakeAuth(),
+        authorizationId: "odd-uri",
+        redirect: vi.fn(),
+      }),
+    );
+    await flush();
+    expect(view().request?.redirectHost).toBe("not a url");
+    unmount();
+  });
+
+  it("keeps a failed grants read and a failed revoke", async () => {
+    const oauth = fakeOAuth();
+    oauth.listGrants.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    const { view, unmount } = mount(
+      createOAuthGrantsController({ oauth, auth: fakeAuth() }),
+    );
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    oauth.revokeGrant.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    expect(await view().revoke("c1")).toMatchObject({ ok: false });
+    unmount();
+  });
+});

@@ -450,7 +450,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "organizations"
+        "organizations",
+        "data-lifecycle"
       ],
       "manifest": "sso",
       "scopes": [

@@ -4133,7 +4133,11 @@
                   "type": "string"
                 }
               },
-              "groupRoles": {}
+              "groupRoles": {},
+              "syncLog": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }

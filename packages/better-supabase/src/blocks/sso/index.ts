@@ -19,6 +19,20 @@ export {
 } from "./sso.ts";
 export { scimHandler, type ScimHandlerOptions } from "./scim.ts";
 export {
+  sqlScimStore,
+  sqlScimSyncLog,
+  type ScimListPage,
+  type ScimListQuery,
+  type ScimResourceType,
+  type ScimSaveInput,
+  type ScimStore,
+  type ScimStoredResource,
+  type ScimSyncEntry,
+  type ScimSyncLog,
+  type ScimSyncOperation,
+  type SqlScimStoreOptions,
+} from "./scim-store.ts";
+export {
   parseFilter as parseScimFilter,
   matches as matchesScimFilter,
   ScimFilterError,

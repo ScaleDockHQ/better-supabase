@@ -3,13 +3,8 @@ import type { DbError } from "../../core/errors.ts";
 import type { ApiKeys } from "../api-keys/api-keys.ts";
 
 import {
-  blockCall,
   isRecord,
   optionalText,
-  recordOf,
-  recordsOf,
-  textOf,
-  toInstant,
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
@@ -32,10 +27,16 @@ import {
   schemas,
   serviceProviderConfig,
 } from "./scim-schema.ts";
+import {
+  type ScimResourceType,
+  type ScimStore,
+  type ScimStoredResource,
+  type ScimSyncLog,
+  type ScimSyncOperation,
+  sqlScimStore,
+} from "./scim-store.ts";
 
-export interface ScimHandlerOptions extends BlockTemporalOptions {
-  /** A service-role transport: the SCIM functions are granted to `service_role` only. */
-  readonly transport: BlockTransport;
+interface ScimHandlerBaseOptions extends BlockTemporalOptions {
   /** Verifies the bearer token: an organization API key with the `scim` scope. */
   readonly keys: Pick<ApiKeys, "verify">;
   /** The path the handler is mounted at, such as `/scim/v2`. Default empty. */
@@ -45,10 +46,25 @@ export interface ScimHandlerOptions extends BlockTemporalOptions {
   /** Page size and the largest `count`. Default 100. */
   readonly maxResults?: number;
   readonly documentationUri?: string;
+  /** The schema of the `scim_*` functions, with `transport`. */
   readonly schema?: string;
+  /** Records each write; `sqlScimSyncLog` writes `scim_sync_log`. */
+  readonly log?: ScimSyncLog;
+  /** The request id the log records. Default the `x-request-id` header. */
+  readonly requestId?: (request: Request) => string | undefined;
 }
 
-type Kind = "User" | "Group";
+/**
+ * Where users and groups live: a `store`, or a service-role `transport` for
+ * `sqlScimStore` (the SCIM functions are granted to `service_role` only).
+ */
+export type ScimHandlerOptions = ScimHandlerBaseOptions &
+  (
+    | { readonly store: ScimStore; readonly transport?: never }
+    | { readonly transport: BlockTransport; readonly store?: never }
+  );
+
+type Kind = ScimResourceType;
 type Doc = Record<string, unknown>;
 
 const MEDIA_TYPE = "application/scim+json";
@@ -98,8 +114,10 @@ function errorResponse(error: ScimError): Response {
 }
 
 function fromDbError(error: DbError): ScimError {
-  if (error.hint === "SCIM_NOT_FOUND") return new ScimError(404, error.message);
-  if (error.hint === "SCIM_PRECONDITION") {
+  if (error.hint === "SCIM_NOT_FOUND" || error.kind === "not_found") {
+    return new ScimError(404, error.message);
+  }
+  if (error.hint === "SCIM_PRECONDITION" || error.kind === "stale") {
     return new ScimError(412, "The resource changed; read it again");
   }
   if (error.kind === "conflict") {
@@ -112,6 +130,7 @@ function fromDbError(error: DbError): ScimError {
   if (
     error.hint === "SCIM_INVALID" ||
     error.kind === "invalid_input" ||
+    error.kind === "validation" ||
     error.kind === "check" ||
     error.kind === "not_null"
   ) {
@@ -133,68 +152,49 @@ function ifMatch(request: Request): number | undefined {
   return Number(version);
 }
 
-function meta(row: Doc, kind: Kind, location: string): Doc {
-  return {
-    resourceType: kind,
-    created: toInstant(textOf(row["created_at"])).toString(),
-    lastModified: toInstant(textOf(row["updated_at"])).toString(),
-    location,
-    version: etag(row["version"]),
-  };
-}
-
 function compact(doc: Doc): Doc {
   return Object.fromEntries(
     Object.entries(doc).filter(([, value]) => value !== undefined),
   );
 }
 
-function userOf(value: unknown, base: string): Doc {
-  const row = recordOf(value, "scim_users");
-  const id = textOf(row["id"]);
-  const givenName = optionalText(row["given_name"]);
-  const familyName = optionalText(row["family_name"]);
-  return compact({
-    schemas: [SCIM_USER],
-    id,
-    externalId: optionalText(row["external_id"]),
-    userName: textOf(row["user_name"]),
-    name:
-      givenName === undefined && familyName === undefined
-        ? undefined
-        : compact({
-            givenName,
-            familyName,
-            formatted: [givenName, familyName].filter(Boolean).join(" "),
-          }),
-    displayName: optionalText(row["display_name"]),
-    emails: Array.isArray(row["emails"]) ? row["emails"] : [],
-    active: row["active"] !== false,
-    groups: recordsOf(row["groups"], "scim_users.groups").map((group) => ({
-      value: textOf(group["value"]),
-      display: textOf(group["display"]),
-      $ref: `${base}/Groups/${textOf(group["value"])}`,
-    })),
-    meta: meta(row, "User", `${base}/Users/${id}`),
-  });
-}
+const refs = (value: unknown, base: string, endpoint: string): unknown =>
+  Array.isArray(value)
+    ? value.map((item: unknown) =>
+        isRecord(item) && typeof item["value"] === "string"
+          ? { ...item, $ref: `${base}/${endpoint}/${item["value"]}` }
+          : item,
+      )
+    : value;
 
-function groupOf(value: unknown, base: string): Doc {
-  const row = recordOf(value, "scim_groups");
-  const id = textOf(row["id"]);
-  return compact({
-    schemas: [SCIM_GROUP],
-    id,
-    externalId: optionalText(row["external_id"]),
-    displayName: textOf(row["display_name"]),
-    members: recordsOf(row["members"], "scim_groups.members").map((member) => ({
-      value: textOf(member["value"]),
-      display: textOf(member["display"]),
-      type: "User",
-      $ref: `${base}/Users/${textOf(member["value"])}`,
-    })),
-    meta: meta(row, "Group", `${base}/Groups/${id}`),
-  });
+/** The resource as served: `$ref`s for the URL and `meta` from the store's fields. */
+function present(kind: Kind, stored: ScimStoredResource, base: string): Doc {
+  const { resource } = stored;
+  const endpoint = KINDS[kind].endpoint;
+  return {
+    ...resource,
+    id: stored.id,
+    ...(kind === "User"
+      ? { groups: refs(resource["groups"] ?? [], base, "Groups") }
+      : {
+          members: Array.isArray(resource["members"])
+            ? refs(
+                resource["members"].map((member: unknown) =>
+                  isRecord(member) ? { ...member, type: "User" } : member,
+                ),
+                base,
+                "Users",
+              )
+            : [],
+        }),
+    meta: {
+      resourceType: kind,
+      created: stored.created.toString(),
+      lastModified: stored.lastModified.toString(),
+      location: `${base}/${endpoint}/${stored.id}`,
+      version: etag(stored.version),
+    },
+  };
 }
 
 function stringField(doc: Doc, key: string): string | undefined {
@@ -413,26 +413,8 @@ function resourceBody(body: unknown, urn: string): Doc {
 }
 
 const KINDS = {
-  User: {
-    endpoint: "Users",
-    urn: SCIM_USER,
-    list: "scim_list_users",
-    get: "scim_get_user",
-    save: "scim_save_user",
-    remove: "scim_delete_user",
-    of: userOf,
-    data: userData,
-  },
-  Group: {
-    endpoint: "Groups",
-    urn: SCIM_GROUP,
-    list: "scim_list_groups",
-    get: "scim_get_group",
-    save: "scim_save_group",
-    remove: "scim_delete_group",
-    of: groupOf,
-    data: groupData,
-  },
+  User: { endpoint: "Users", urn: SCIM_USER, data: userData },
+  Group: { endpoint: "Groups", urn: SCIM_GROUP, data: groupData },
 } as const;
 
 /**
@@ -445,7 +427,12 @@ export function scimHandler(
   options: ScimHandlerOptions,
 ): (request: Request) => Promise<Response> {
   applyTemporal(options);
-  const call = blockCall(options.transport, options.schema);
+  const store =
+    options.store ??
+    sqlScimStore(options.transport, { schema: options.schema });
+  const requestIdOf =
+    options.requestId ??
+    ((request: Request) => request.headers.get("x-request-id") ?? undefined);
   const basePath = (options.basePath ?? "").replace(/\/+$/, "");
   const scope = options.scope ?? "scim";
   const maxResults = options.maxResults ?? 100;
@@ -456,8 +443,10 @@ export function scimHandler(
       : { documentationUri: options.documentationUri }),
   };
 
-  const rpc = async (fn: string, args: Readonly<Record<string, unknown>>) => {
-    const result = await call(fn, args, (value) => value);
+  const unwrap = async <T>(
+    reply: Promise<{ ok: true; data: T } | { ok: false; error: DbError }>,
+  ): Promise<T> => {
+    const result = await reply;
     if (!result.ok) throw fromDbError(result.error);
     return result.data;
   };
@@ -544,29 +533,14 @@ export function scimHandler(
     return ids === "" ? listed(items) : one(items);
   };
 
-  const fetchAll = async (
-    kind: Kind,
-    tenant: string,
-    base: string,
-  ): Promise<Doc[]> => {
-    const value = await rpc(KINDS[kind].list, { tenant });
-    return recordsOf(value, KINDS[kind].list).map((row) =>
-      KINDS[kind].of(row, base),
-    );
-  };
-
   const fetchOne = async (
     kind: Kind,
     tenant: string,
     id: string,
-    base: string,
-  ): Promise<Doc> => {
-    if (!/^[0-9a-f-]{36}$/i.test(id)) {
-      throw new ScimError(404, `No ${kind} ${id}`);
-    }
-    const value = await rpc(KINDS[kind].get, { tenant, id });
-    if (!isRecord(value)) throw new ScimError(404, `No ${kind} ${id}`);
-    return KINDS[kind].of(value, base);
+  ): Promise<ScimStoredResource> => {
+    const found = await unwrap(store.get(kind, tenant, id));
+    if (found === undefined) throw new ScimError(404, `No ${kind} ${id}`);
+    return found;
   };
 
   const search = async (
@@ -575,24 +549,36 @@ export function scimHandler(
     base: string,
     query: Query,
   ): Promise<Response> => {
-    let all = await fetchAll(kind, tenant, base);
-    if (query.filter) {
-      const filter = query.filter;
-      try {
-        all = all.filter((doc) => matches(doc, filter));
-      } catch (cause) {
-        if (cause instanceof ScimFilterError) {
-          throw new ScimError(400, cause.message, "invalidFilter");
+    const listed = await unwrap(
+      store.list(kind, tenant, {
+        filter: query.filter,
+        startIndex: query.startIndex,
+        count: query.count,
+      }),
+    );
+    let all = listed.resources.map((stored) => present(kind, stored, base));
+    let total = listed.totalResults;
+    if (total === undefined) {
+      if (query.filter) {
+        const filter = query.filter;
+        try {
+          all = all.filter((doc) => matches(doc, filter));
+        } catch (cause) {
+          if (cause instanceof ScimFilterError) {
+            throw new ScimError(400, cause.message, "invalidFilter");
+          }
+          throw cause;
         }
-        throw cause;
       }
+      total = all.length;
+      all = all.slice(query.startIndex - 1, query.startIndex - 1 + query.count);
     }
-    const page = all
-      .slice(query.startIndex - 1, query.startIndex - 1 + query.count)
-      .map((doc) => project(doc, query.attributes, query.excluded));
+    const page = all.map((doc) =>
+      project(doc, query.attributes, query.excluded),
+    );
     return json(200, {
       schemas: [SCIM_LIST],
-      totalResults: all.length,
+      totalResults: total,
       startIndex: query.startIndex,
       itemsPerPage: page.length,
       Resources: page,
@@ -602,18 +588,21 @@ export function scimHandler(
   const save = async (
     kind: Kind,
     tenant: string,
-    id: string | null,
+    id: string | undefined,
     doc: Doc,
     version: number | undefined,
     base: string,
   ): Promise<Doc> => {
-    const value = await rpc(KINDS[kind].save, {
-      tenant,
-      id,
-      data: KINDS[kind].data(doc),
-      version: version ?? null,
-    });
-    return KINDS[kind].of(value, base);
+    const { meta: _meta, ...resource } = doc;
+    const saved = await unwrap(
+      store.save(kind, tenant, {
+        id,
+        resource,
+        data: KINDS[kind].data(doc),
+        version,
+      }),
+    );
+    return present(kind, saved, base);
   };
 
   const respond = (
@@ -696,7 +685,14 @@ export function scimHandler(
       }
       if (method === "POST") {
         const doc = resourceBody(await readBody(request), spec.urn);
-        const created = await save(kind, tenant, null, doc, undefined, base);
+        const created = await save(
+          kind,
+          tenant,
+          undefined,
+          doc,
+          undefined,
+          base,
+        );
         const location = String(
           isRecord(created["meta"]) ? created["meta"]["location"] : "",
         );
@@ -704,11 +700,9 @@ export function scimHandler(
       }
       throw new ScimError(405, `${method} is not allowed on /${spec.endpoint}`);
     }
-    const current = await fetchOne(kind, tenant, id, base);
-    const currentMeta = isRecord(current["meta"]) ? current["meta"] : {};
-    const currentVersion = Number(
-      /\d+/.exec(String(currentMeta["version"]))?.[0],
-    );
+    const stored = await fetchOne(kind, tenant, id);
+    const current = present(kind, stored, base);
+    const currentVersion = stored.version;
     const required = ifMatch(request);
     if (
       method !== "GET" &&
@@ -720,7 +714,7 @@ export function scimHandler(
     switch (method) {
       case "GET": {
         const unchanged = request.headers.get("if-none-match")?.trim();
-        if (unchanged !== undefined && unchanged === currentMeta["version"]) {
+        if (unchanged !== undefined && unchanged === etag(currentVersion)) {
           return new Response(null, {
             status: 304,
             headers: { etag: unchanged },
@@ -760,12 +754,72 @@ export function scimHandler(
         );
       }
       case "DELETE": {
-        const removed = await rpc(spec.remove, { tenant, id });
-        if (removed !== true) throw new ScimError(404, `No ${kind} ${id}`);
+        const removed = await unwrap(store.delete(kind, tenant, id));
+        if (!removed) throw new ScimError(404, `No ${kind} ${id}`);
         return new Response(null, { status: 204 });
       }
       default:
         throw new ScimError(405, `${method} is not allowed`);
+    }
+  };
+
+  const operationOf = (
+    method: string,
+    id: string | undefined,
+  ): ScimSyncOperation | undefined => {
+    if (id === undefined) return method === "POST" ? "create" : undefined;
+    if (id === ".search") return undefined;
+    if (method === "PUT") return "replace";
+    if (method === "PATCH") return "patch";
+    if (method === "DELETE") return "delete";
+    return undefined;
+  };
+
+  /** Serves a resource request; with a log, records each write and how it went. */
+  const logged = async (
+    request: Request,
+    url: URL,
+    base: string,
+    kind: Kind,
+    id: string | undefined,
+    tenant: string,
+  ): Promise<Response> => {
+    const log = options.log;
+    const operation = operationOf(request.method, id);
+    if (log === undefined || operation === undefined) {
+      return resource(request, url, base, kind, id, tenant);
+    }
+    const note = async (
+      status: number,
+      resourceId: string | undefined,
+      error: string | undefined,
+    ): Promise<void> => {
+      try {
+        await log.record({
+          tenant,
+          operation,
+          resourceType: kind,
+          resourceId,
+          status,
+          error,
+          requestId: requestIdOf(request),
+        });
+      } catch {
+        // A log failure never changes the answer.
+      }
+    };
+    try {
+      const response = await resource(request, url, base, kind, id, tenant);
+      const created = response.headers.get("location")?.split("/").pop();
+      await note(response.status, id ?? created, undefined);
+      return response;
+    } catch (cause) {
+      const error =
+        cause instanceof ScimError
+          ? cause
+          : new ScimError(500, "The service provider failed");
+      await note(error.status, id, error.message);
+      throw error;
     }
   };
 
@@ -793,10 +847,10 @@ export function scimHandler(
       }
       if (rest.length > 0) throw new ScimError(404, "Not a SCIM endpoint");
       if (head === "Users") {
-        return await resource(request, url, base, "User", id, tenant);
+        return await logged(request, url, base, "User", id, tenant);
       }
       if (head === "Groups") {
-        return await resource(request, url, base, "Group", id, tenant);
+        return await logged(request, url, base, "Group", id, tenant);
       }
       throw new ScimError(404, "Not a SCIM endpoint");
     } catch (cause) {

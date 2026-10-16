@@ -173,3 +173,58 @@ describe("needsStepUp", () => {
     expect(needsStepUp(undefined)).toBe(false);
   });
 });
+
+describe("MFA read failures", () => {
+  const failing = { message: "Auth is down", status: 503 };
+
+  it("keeps the factors read error and clears it on dismiss", async () => {
+    const mfa = fakeMfa();
+    mfa.listFactors.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    const { view, unmount } = mount(
+      createMfaController({ mfa, auth: fakeAuth() }),
+    );
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    view().dismiss();
+    expect(view().error).toBeUndefined();
+    await view().cancel();
+    expect(mfa.unenroll).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("keeps the assurance read error", async () => {
+    const mfa = fakeMfa();
+    mfa.getAuthenticatorAssuranceLevel.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    const { view, unmount } = mount(
+      createMfaController({ mfa, auth: fakeAuth() }),
+    );
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    unmount();
+  });
+
+  it("keeps the step-up read errors and clears them on dismiss", async () => {
+    const mfa = fakeMfa(true);
+    mfa.listFactors.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    const { view, unmount } = mount(
+      createStepUpController({ mfa, auth: fakeAuth() }),
+    );
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    view().dismiss();
+    expect(view().error).toBeUndefined();
+    mfa.getAuthenticatorAssuranceLevel.mockImplementationOnce(
+      () => Promise.resolve({ data: null, error: failing }) as never,
+    );
+    view().refresh();
+    await flush();
+    expect(view().error).toMatchObject({ message: "Auth is down" });
+    unmount();
+  });
+});
