@@ -1,6 +1,9 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok, type Result } from "../../core/result.ts";
 import {
   blockCall,
@@ -110,6 +113,10 @@ export type BulkOutcome =
   | ({ readonly mode: "background" } & BulkStarted);
 
 export interface BulkOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Bulk>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -256,7 +263,7 @@ export function createBulk(options: BulkOptions): Bulk {
         if (!result.ok || result.data.done) return result;
       }
     });
-  return {
+  const client: Bulk = {
     run: (input) =>
       AsyncResult.from(async () =>
         runIds(input, await rowsOf(input.rows), input.atomic ?? false),
@@ -290,4 +297,8 @@ export function createBulk(options: BulkOptions): Bulk {
         await drain(run, { ...handlerOptions, signal }).orThrow();
       },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "bulk",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

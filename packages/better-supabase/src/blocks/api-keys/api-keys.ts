@@ -1,10 +1,22 @@
 import type { JWTClaims } from "@supabase/server";
 
 import type { AuthResolver, ResolvedState } from "../../auth/resolve.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  allWithFields,
+  type BlockFields,
+  blockFields,
+  extraFieldsArg,
+  type FieldsOf,
+  withFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { AsyncResult, ok, type Result } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
@@ -47,8 +59,8 @@ export interface ApiKey {
 }
 
 /** A new key. `token` is shown once: only its hash is stored. */
-export interface CreatedApiKey {
-  readonly key: ApiKey;
+export interface CreatedApiKey<F extends object = Record<never, never>> {
+  readonly key: ApiKey & F;
   readonly token: string;
 }
 
@@ -65,26 +77,44 @@ export interface CreateApiKeyInput {
   readonly rateLimit?: number;
 }
 
-export type ApiKeyCheck =
-  | { readonly status: "ok"; readonly key: ApiKey }
+export type ApiKeyCheck<F extends object = Record<never, never>> =
+  | { readonly status: "ok"; readonly key: ApiKey & F }
   | { readonly status: "invalid" }
   | { readonly status: "rate_limited"; readonly retryAfter: number };
 
-export interface ApiKeys {
-  create(input: CreateApiKeyInput): AsyncResult<CreatedApiKey>;
+/** `F` is the extra key fields `options.fields` describes. */
+export interface ApiKeys<F extends object = Record<never, never>> {
+  /** Keys besides the input's own are the key's extra columns. */
+  create(input: CreateApiKeyInput & Partial<F>): AsyncResult<CreatedApiKey<F>>;
   /** A tenant's keys for its managers (the caller's own otherwise), or the caller's personal keys. */
-  list(organizationId?: string): AsyncResult<readonly ApiKey[]>;
+  list(organizationId?: string): AsyncResult<readonly (ApiKey & F)[]>;
   revoke(id: string): AsyncResult<boolean>;
-  /** A new token for the key; the old one keeps working for `grace` (one day by default). */
+  /**
+   * A new token for the key, with its extra columns; the old one keeps
+   * working for `grace` (one day by default).
+   */
   rotate(
     id: string,
     options?: { readonly grace?: Temporal.Duration },
-  ): AsyncResult<CreatedApiKey>;
+  ): AsyncResult<CreatedApiKey<F>>;
   /** Checks a presented token and counts the request. Needs a service transport. */
-  verify(token: string): AsyncResult<ApiKeyCheck>;
+  verify(token: string): AsyncResult<ApiKeyCheck<F>>;
 }
 
-export interface ApiKeysOptions extends BlockTemporalOptions {
+export interface ApiKeysOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the key columns the app adds
+   * (`blocks.api-keys.options.extraColumns`), keyed by column name. It
+   * types and parses them on every read, and validates them on `create`,
+   * which returns a `validation` error for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<ApiKeys<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
   /** The token's first segment, lowercase letters and digits. Defaults to `bs`. */
@@ -255,8 +285,12 @@ function checkOf(value: unknown): ApiKeyCheck {
  * with their own transport; `verify` (and `apiKeyResolver`) need one that
  * runs as the service role.
  */
-export function createApiKeys(options: ApiKeysOptions): ApiKeys {
+export function createApiKeys<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ApiKeysOptions<S>): ApiKeys<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(options.fields, "API key fields");
   const prefix = options.prefix ?? "bs";
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
@@ -267,6 +301,14 @@ export function createApiKeys(options: ApiKeysOptions): ApiKeys {
     options.transport,
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
   );
+  const created = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+    token: string,
+  ): AsyncResult<CreatedApiKey<F>> =>
+    call(fn, args, (value) => value)
+      .andThen((value) => withFields(fields, value, apiKeyOf(value)))
+      .map((key) => ({ key, token }));
   const fresh = async () => {
     const id = publicId();
     const secret = base62Secret();
@@ -277,36 +319,49 @@ export function createApiKeys(options: ApiKeysOptions): ApiKeys {
       hash: await sha256Hex(secret),
     };
   };
-  return {
-    create: (input) =>
-      AsyncResult.from(async () => {
-        const { id, token, hash } = await fresh();
-        return call(
-          "create_api_key",
-          {
-            name: input.name,
-            public_id: id,
-            secret_hash: hash,
-            tenant: input.organizationId ?? null,
-            personal: input.personal ?? false,
-            scopes: input.scopes ?? [],
-            expires_at: instantArg(input.expiresAt) ?? null,
-            rate_limit: input.rateLimit ?? null,
-            prefix,
-          },
-          (value) => ({ key: apiKeyOf(value), token }),
-        );
-      }),
+  const client: ApiKeys<F> = {
+    create: ({
+      name,
+      organizationId,
+      personal,
+      scopes,
+      expiresAt,
+      rateLimit,
+      ...extra
+    }) =>
+      AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen(
+        async (more) => {
+          const { id, token, hash } = await fresh();
+          return created(
+            "create_api_key",
+            {
+              name,
+              public_id: id,
+              secret_hash: hash,
+              tenant: organizationId ?? null,
+              personal: personal ?? false,
+              scopes: scopes ?? [],
+              expires_at: instantArg(expiresAt) ?? null,
+              rate_limit: rateLimit ?? null,
+              prefix,
+              ...more,
+            },
+            token,
+          );
+        },
+      ),
     list: (organizationId) =>
       call("list_api_keys", { tenant: organizationId ?? null }, (value) =>
-        recordsOf(value, "list_api_keys").map(apiKeyOf),
-      ),
+        recordsOf(value, "list_api_keys").map(
+          (raw) => [raw, apiKeyOf(raw)] as const,
+        ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     revoke: (id) =>
       call("revoke_api_key", { key: id }, (value) => value === true),
     rotate: (id, rotateOptions = {}) =>
       AsyncResult.from(async () => {
         const { id: next, token, hash } = await fresh();
-        return call(
+        return created(
           "rotate_api_key",
           {
             key: id,
@@ -316,24 +371,34 @@ export function createApiKeys(options: ApiKeysOptions): ApiKeys {
               rotateOptions.grace ?? temporal().Duration.from({ days: 1 })
             ).toString(),
           },
-          (value) => ({ key: apiKeyOf(value), token }),
+          token,
         );
       }),
     verify: (token) =>
       AsyncResult.from(async () => {
         const parsed = parseApiKey(token);
         if (!parsed || parsed.prefix !== prefix)
-          return ok<ApiKeyCheck>({ status: "invalid" });
+          return ok<ApiKeyCheck<F>>({ status: "invalid" });
         return call(
           "verify_api_key",
           {
             public_id: parsed.publicId,
             secret_hash: await sha256Hex(parsed.secret),
           },
-          checkOf,
-        );
+          (value) => value,
+        ).andThen(async (value): Promise<Result<ApiKeyCheck<F>>> => {
+          const check = checkOf(value);
+          if (check.status !== "ok") return ok(check);
+          const raw = recordOf(value, "verify_api_key")["key"];
+          const key = await withFields(fields, raw, check.key);
+          return key.ok ? ok({ status: "ok", key: key.data }) : key;
+        });
       }),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "api-keys",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /**

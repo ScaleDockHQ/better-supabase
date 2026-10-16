@@ -1,8 +1,11 @@
 import type { BlockOptions } from "../../core/block-helpers.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
 import { applyTemporal } from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
@@ -15,7 +18,12 @@ import {
   textOf,
 } from "../shared.ts";
 
-export type BookingsOptions = BlockOptions;
+export interface BookingsOptions extends BlockOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Bookings>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+}
 
 /** The queue each hold enqueues a job on, to expire it when its time is up. */
 export const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
@@ -292,7 +300,7 @@ export function createBookings(options: BookingsOptions): Bookings {
       { booking: bookingId, access_token: accessToken, to_status: to },
       bookingOf,
     );
-  return {
+  const client: Bookings = {
     saveResource: (organizationId, input) =>
       call(
         "save_booking_resource",
@@ -422,4 +430,8 @@ export function createBookings(options: BookingsOptions): Bookings {
         change(bookingId, accessToken, "cancelled"),
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "bookings",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

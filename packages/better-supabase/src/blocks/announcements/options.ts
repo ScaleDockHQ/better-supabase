@@ -4,10 +4,12 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 export type AnnouncementsSqlOptions = {
   readonly topic?: string;
   readonly event?: string;
+  readonly extraColumns?: unknown;
 };
 
 export const announcementsSqlOptions: BlockOptionsSchema<AnnouncementsSqlOptions> =
   blockOptions<AnnouncementsSqlOptions>({
     topic: option.string({ default: "announcements", client: true }),
     event: option.string({ default: "announcement_changed" }),
+    extraColumns: option.unknown(),
   });

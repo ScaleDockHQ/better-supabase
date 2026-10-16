@@ -17,6 +17,7 @@ import { sqlIdent } from "../../core/template.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
+  blockCall,
   instantArg,
   optionalInstant,
   optionalText,
@@ -80,30 +81,35 @@ function transportPurgeCalls(
   transport: BlockTransport,
   schema: string,
 ): AuditPurgeCalls {
+  const call = blockCall(transport, schema);
   return {
-    purge: async (olderThan, batch, tenant) =>
-      Number(
-        (await transport.call(schema, "purge_audit_log", {
+    purge: (olderThan, batch, tenant) =>
+      call(
+        "purge_audit_log",
+        {
           older_than: olderThan,
           batch,
           tenant,
           for_tenant: tenant === undefined ? undefined : true,
-        })) ?? 0,
-      ),
-    async tenants() {
-      const value = await transport.call(schema, "audit_events_tenants", {
-        older_than: "1 day",
-      });
-      if (value === null || value === undefined) return [];
-      if (!Array.isArray(value)) {
-        throw new TypeError(
-          "audit_events_tenants returned one value, not rows: pass a SqlClient instead of sqlTransport",
-        );
-      }
-      return value.map((tenant: unknown) =>
-        tenant === null || tenant === undefined ? null : String(tenant),
-      );
-    },
+        },
+        (value) => Number(value ?? 0),
+      ).orThrow(),
+    tenants: () =>
+      call(
+        "audit_events_tenants",
+        { older_than: "1 day" },
+        (value): readonly (string | null)[] => {
+          if (value === null || value === undefined) return [];
+          if (!Array.isArray(value)) {
+            throw new TypeError(
+              "audit_events_tenants returned one value, not rows: pass a SqlClient instead of sqlTransport",
+            );
+          }
+          return value.map((tenant: unknown) =>
+            tenant === null || tenant === undefined ? null : String(tenant),
+          );
+        },
+      ).orThrow(),
   };
 }
 
@@ -420,7 +426,7 @@ export interface ExportAuditLogOptions extends BlockTemporalOptions {
  * order, one keyset query per batch. Run it with a member's claims (the
  * `readPolicy` filters) or as the service role. It reads the managed
  * module's column names; for an adopted log, the version 3 columns or CSV,
- * use `createAuditLog().export()`, which reads `list_audit_events`.
+ * use `createAudit().export()`, which reads `list_audit_events`.
  */
 export function exportAuditLog(
   sql: SqlClient,
@@ -508,7 +514,7 @@ export type AuditListDefinition<
 /**
  * A cursor-paged list over the audit table through the Data API or
  * `ctx.sql` (generate types for the module's schema to get it in your
- * models; facets follow the managed column names). `createAuditLog().list()`
+ * models; facets follow the managed column names). `createAudit().list()`
  * reads `list_audit_events` instead, with an adopted log's columns mapped.
  * Filtered by actor,
  * table, record, event type, category, outcome and target, newest first.

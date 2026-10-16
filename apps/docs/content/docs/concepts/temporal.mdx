@@ -67,9 +67,9 @@ needs no definition and no global polyfill:
 
 ```ts
 import { Temporal } from "temporal-polyfill";
-import { createAuditLog } from "better-supabase/blocks/audit";
+import { createAudit } from "better-supabase/blocks/audit";
 
-const audit = createAuditLog({ transport, temporal: Temporal });
+const audit = createAudit({ transport, temporal: Temporal });
 ```
 
 That covers the `create*` functions, `createJobs(source, queues, { temporal })`,

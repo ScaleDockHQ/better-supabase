@@ -1,5 +1,6 @@
 import type { AiChatEvents } from "../../blocks/ai-chat/events.ts";
 import type {
+  ExtraColumn,
   ModuleContext,
   ModuleContractFunction,
   ModuleEvents,
@@ -9,7 +10,12 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
-import { replaceColumnCheck, schemaPreamble, lockTable } from "../shared.ts";
+import {
+  addExtraColumns,
+  replaceColumnCheck,
+  schemaPreamble,
+  lockTable,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
@@ -267,6 +273,7 @@ const NAMES: ModuleNames = {
     "temporaryTtl",
     "staleAfter",
     "sandboxIdleAfter",
+    "extraColumns",
   ],
   tables: {
     projects: {
@@ -385,7 +392,32 @@ export interface AiChatNames {
   readonly staleAfter: string;
   /** Seconds a sandbox may sit unused before the idle-stop claim takes it. */
   readonly sandboxIdleAfter: number;
+  /** `options.extraColumns`, which the chats table gets. */
+  readonly chatExtras: readonly ExtraColumn[];
 }
+
+/** The keys a chat read returns, which no extra column may shadow. */
+export const CHAT_KEYS: readonly string[] = [
+  "id",
+  "organization_id",
+  "owner_id",
+  "project_id",
+  "agent_id",
+  "title",
+  "model",
+  "visibility",
+  "pinned",
+  "archived_at",
+  "is_temporary",
+  "expires_at",
+  "current_leaf_id",
+  "active_stream_id",
+  "active_run_id",
+  "last_message_at",
+  "created_at",
+  "updated_at",
+  "fields",
+];
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const INTERVAL =
@@ -485,6 +517,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
     temporaryTtl: intervalOption(ctx, "temporaryTtl", "1 day"),
     staleAfter: intervalOption(ctx, "staleAfter", "10 minutes"),
     sandboxIdleAfter: sandboxIdleAfter(ctx),
+    chatExtras: ctx.extraColumns("chats", CHAT_KEYS),
   };
 }
 
@@ -559,7 +592,7 @@ create index if not exists ai_chats_owner_idx on ${t.chats} (${ch.owner}, ${ch.l
 create index if not exists ai_chats_tenant_idx on ${t.chats} (${ch.tenant});
 create index if not exists ai_chats_project_idx on ${t.chats} (${ch.project});
 create index if not exists ai_chats_expires_idx on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
-create index if not exists ai_chats_search_idx on ${t.chats} using gin (${ch.search});
+create index if not exists ai_chats_search_idx on ${t.chats} using gin (${ch.search});${addExtraColumns(t.chats, names.chatExtras)}
 ${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
 drop policy if exists ai_chats_read on ${t.chats};

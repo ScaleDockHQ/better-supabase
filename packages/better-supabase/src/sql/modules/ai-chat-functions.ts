@@ -5,11 +5,13 @@ import type { AiChatNames } from "./ai-chat.ts";
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
 import { sqlString } from "../../core/template.ts";
 import {
+  extraFieldsJson,
   raise,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
   pageSize,
+  writeExtraFields,
 } from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
 
@@ -48,7 +50,7 @@ function chatJson(names: AiChatNames, row: string): string {
     ["created_at", ch.createdAt],
     ["updated_at", ch.updatedAt],
   ];
-  return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})`;
+  return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})${extraFieldsJson(row, names.chatExtras)}`;
 }
 
 function projectJson(names: AiChatNames, row: string): string {
@@ -160,7 +162,7 @@ begin
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', v_visibility, v_temporary,
     case when v_temporary then now() + interval ${sqlString(names.temporaryTtl)} end
   )
-  returning * into v_row;
+  returning * into v_row;${writeExtraFields(t.chats, names.chatExtras, "v_fields", `x.${ch.id} = v_row.${ch.id}`, "v_row")}
   if not v_temporary then
     perform ${fn("ai_chat_notify")}(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
@@ -210,7 +212,7 @@ begin
     ${ch.expiresAt} = case when x.${ch.temporary} and coalesce((v_fields ->> 'is_temporary')::boolean, true) then x.${ch.expiresAt} end,
     ${ch.updatedAt} = now()
   where x.${ch.id} = update_ai_chat.chat
-  returning * into v_row;
+  returning * into v_row;${writeExtraFields(t.chats, names.chatExtras, "v_fields", `x.${ch.id} = v_row.${ch.id}`, "v_row")}
   perform ${fn("ai_chat_notify")}(v_row.${ch.id}, v_row.${ch.owner}, 'chat.updated', '{}'::jsonb, not v_row.${ch.temporary});
   return ${chatJson(names, "v_row")};
 end;

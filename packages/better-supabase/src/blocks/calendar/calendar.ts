@@ -1,5 +1,7 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type {
   AttendeeResponse,
   AttendeeRole,
@@ -14,6 +16,7 @@ import type {
   OccurrenceRange,
 } from "./occurrences.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -30,6 +33,10 @@ import { parseIcs, toIcs } from "./ics.ts";
 import { expandOccurrences, splitRule } from "./occurrences.ts";
 
 export interface CalendarOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Calendar>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -310,7 +317,7 @@ export function createCalendar(options: CalendarOptions): Calendar {
       },
       (value) => recordsOf(value, "list_calendar_events").map(calendarEventOf),
     );
-  return {
+  const client: Calendar = {
     createCalendar: (organizationId, name, extra = {}) =>
       call(
         "create_calendar",
@@ -507,4 +514,8 @@ export function createCalendar(options: CalendarOptions): Calendar {
         );
       }),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "calendar",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

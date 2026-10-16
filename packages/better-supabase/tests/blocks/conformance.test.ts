@@ -21,7 +21,7 @@ const RECIPES = join(
 );
 
 /** Blocks whose creator is not `create<Name>(options)`. */
-const CREATOR_NAME: readonly string[] = ["audit", "flags"];
+const CREATOR_NAME: readonly string[] = ["flags"];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
   "entitlements",
@@ -33,23 +33,6 @@ const NO_CREATOR: readonly string[] = [
 ];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
 const NO_HOOKS: readonly string[] = [
-  "agents",
-  "ai-cache",
-  "ai-chat",
-  "ai-files",
-  "ai-providers",
-  "ai-tasks",
-  "announcements",
-  "api-keys",
-  "attachments",
-  "audit",
-  "billing",
-  "bookings",
-  "bulk",
-  "calendar",
-  "comments",
-  "connectors",
-  "custom-fields",
   "data-lifecycle",
   "flags",
   "idempotency",
@@ -81,8 +64,6 @@ const NO_HOOKS: readonly string[] = [
 ];
 /** Blocks with calls that skip `blockCall`. */
 const NO_BLOCK_CALL: readonly string[] = [
-  "audit",
-  "comments",
   "flags",
   "idempotency",
   "incoming-webhooks",
@@ -92,15 +73,8 @@ const NO_BLOCK_CALL: readonly string[] = [
 ];
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
-  "access-requests",
-  "agents",
   "ai-cache",
-  "ai-chat",
-  "ai-files",
   "ai-providers",
-  "ai-tasks",
-  "announcements",
-  "api-keys",
   "approvals",
   "attachments",
   "audit",

@@ -9,6 +9,11 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  dropWithoutExtraFields,
+  extraFieldsJson,
+  extraFieldsParam,
+  extraFieldsType,
   fail,
   lockTable,
   pageSize,
@@ -16,6 +21,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  writeExtraFields,
 } from "../shared.ts";
 import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
@@ -51,7 +57,7 @@ const NAMES: ModuleNames = {
     "before_access_grant",
     "after_access_grant",
   ],
-  options: ["roles", "policy", "maxDuration", "join"],
+  options: ["roles", "policy", "maxDuration", "join", "extraColumns"],
   tables: {
     requests: {
       name: "access_requests",
@@ -73,6 +79,16 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** The keys a request read returns, which no extra column may shadow. */
+const REQUEST_KEYS: readonly string[] = [
+  "id",
+  "role",
+  "reason",
+  "duration",
+  "status",
+  "fields",
+];
 
 /** `options.roles`, or every role but `owner` when the model names them. */
 function requestableRoles(ctx: ModuleContext): readonly string[] {
@@ -142,6 +158,7 @@ function build(ctx: ModuleContext): string {
   const read = ctx.permission("read", OPERATIONS["access-requests.read"]);
   const create = ctx.permission("create", OPERATIONS["access-requests.create"]);
   const manage = ctx.permission("manage", OPERATIONS["access-requests.manage"]);
+  const extras = ctx.extraColumns("requests", REQUEST_KEYS);
   const roles = requestableRoles(ctx);
   const policy = accessPolicy(ctx);
   const max = maxDuration(ctx);
@@ -154,7 +171,7 @@ function build(ctx: ModuleContext): string {
   const status = (row: string, approval: string): string =>
     `case when ${row}.${c("endedAt")} is not null then 'ended' when ${row}.${c("grantedAt")} is not null then 'granted' else coalesce(${approval}.${a("status")}, 'pending') end`;
   const json = (row: string, state: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")})${extraFieldsJson(row, extras)}`;
   const record = (
     event: string,
     row: string,
@@ -228,7 +245,7 @@ function build(ctx: ModuleContext): string {
   ${c("endedAt")} timestamptz,
   ${c("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
 ${lockTable(requests, { read: true })}
@@ -241,7 +258,7 @@ create policy "access_requests_read" on ${requests} for select to authenticated
 ${tables}
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-create or replace function ${fn("request_access")}(tenant ${ctx.idType}, role text, reason text default null, duration interval default null)
+${dropWithoutExtraFields(extras, `${fn("request_access")}(${ctx.idType}, text, text, interval)`)}create or replace function ${fn("request_access")}(tenant ${ctx.idType}, role text, reason text default null, duration interval default null${extraFieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -291,7 +308,7 @@ begin
   ])}
   insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("role")}, ${c("reason")}, ${c("duration")})
   values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
-  returning * into v_row;
+  returning * into v_row;${writeExtraFields(requests, extras, "request_access.extra_fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   v_approval := ${approvals.fn("open_approval")}(
     request_access.tenant, ${sqlString(ACCESS_REQUEST_SUBJECT)}, v_row.${c("id")}::text, 'grant',
     ${sqlString(policy)}::jsonb, request_access.reason,
@@ -305,7 +322,7 @@ begin
   return ${json("v_row", "'pending'")};
 end;
 $$;
-${userGrant(`${fn("request_access")}(${ctx.idType}, text, text, interval)`)}
+${userGrant(`${fn("request_access")}(${ctx.idType}, text, text, interval${extraFieldsType(extras)})`)}
 
 -- Grants the role once the approval is final. Approvals calls it; it
 -- isn't granted to anyone.

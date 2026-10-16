@@ -30,6 +30,75 @@ export const columnsObject = (
     .map((name) => `${sqlString(name)}, ${alias}.${sqlIdent(name)}`)
     .join(", ")})`;
 
+/**
+ * ` || jsonb_build_object('fields', ...)` to append to a read's `jsonb`
+ * object, so it returns the table's extra columns under `fields`, keyed by
+ * column name. Empty without extra columns, so the read stays as it was.
+ */
+export const extraFieldsJson = (
+  alias: string,
+  columns: readonly ExtraColumn[],
+): string =>
+  columns.length === 0
+    ? ""
+    : ` || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        columns.map((column) => column.name),
+      )})`;
+
+/** The `extra_fields` parameter a write takes when the table has extra columns. */
+export const extraFieldsParam = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", extra_fields jsonb default null";
+
+/**
+ * `drop function if exists` for a write's signature without `extra_fields`,
+ * so adding extra columns replaces the function instead of overloading it.
+ * Empty without extra columns.
+ */
+export const dropWithoutExtraFields = (
+  columns: readonly ExtraColumn[],
+  signature: string,
+): string =>
+  columns.length === 0 ? "" : `drop function if exists ${signature};\n`;
+
+/** The `extra_fields` type in a signature, as `extraFieldsParam` adds it. */
+export const extraFieldsType = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", jsonb";
+
+/**
+ * PL/pgSQL that copies the extra columns `source` (a `jsonb` object) names
+ * onto the rows of `table` that `where` selects (alias `x`); columns it
+ * leaves out keep their value, and keys that aren't extra columns are
+ * ignored. `into` takes the updated row. Empty without extra columns.
+ */
+export function writeExtraFields(
+  table: string,
+  columns: readonly ExtraColumn[],
+  source: string,
+  where: string,
+  into?: string,
+): string {
+  if (columns.length === 0) return "";
+  const names = columns.map((column) => sqlString(column.name)).join(", ");
+  const sets = columns
+    .map(
+      (column) =>
+        `${column.ident} = case when ${source} ? ${sqlString(column.name)} then f.${column.ident} else x.${column.ident} end`,
+    )
+    .join(",\n      ");
+  return `
+  if ${source} is not null then
+    update ${table} x set
+      ${sets}
+    from jsonb_populate_record(null::${table}, (
+      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
+      from jsonb_each(${source}) as e (field_key, field_value)
+      where e.field_key = any (array[${names}])
+    )) f
+    where ${where}${into === undefined ? "" : `\n    returning x.* into ${into}`};
+  end if;`;
+}
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 

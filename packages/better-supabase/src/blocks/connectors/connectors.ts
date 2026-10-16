@@ -1,10 +1,13 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { revokeIfConfigured } from "../../credentials/compose.ts";
@@ -79,6 +82,10 @@ export interface ConnectorSession {
 }
 
 export interface ConnectorsOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Connectors>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /** Calls as the service role, for grants and renewals. */
@@ -291,7 +298,7 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
       (value) => value === true,
     );
 
-  return {
+  const client: Connectors = {
     servers: {
       list: (organizationId) =>
         call("list_connector_servers", { tenant: organizationId }, (value) =>
@@ -417,4 +424,8 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
       reject: (serverId, fingerprint) => decide(serverId, fingerprint, false),
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "connectors",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

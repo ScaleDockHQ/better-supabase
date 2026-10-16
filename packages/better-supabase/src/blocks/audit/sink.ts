@@ -1,7 +1,7 @@
 import type { AsyncResult } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { AuditCategory } from "../../sql/context.ts";
-import type { AuditEventInput } from "./client.ts";
+import type { AuditEventInput } from "./audit-log.ts";
 
 import { DbException } from "../../core/errors.ts";
 import { isRecord } from "../shared.ts";

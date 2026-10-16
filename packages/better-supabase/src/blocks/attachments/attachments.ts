@@ -1,8 +1,11 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -53,6 +56,10 @@ export interface AttachmentStorage {
 }
 
 export interface AttachmentsOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Attachments>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, so the bucket policies apply. */
@@ -313,7 +320,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         token: url.data.token,
       });
     });
-  return {
+  const client: Attachments = {
     upload,
     confirm: (id) => call("confirm_attachment", { id }, attachmentOf),
     get: (id) => lookup(call, id),
@@ -376,6 +383,10 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           call("delete_attachment", { id }, (value) => value === true),
         ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "attachments",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /** A scanner's verdict on one file. */

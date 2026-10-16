@@ -1,0 +1,17 @@
+organizations
+profiles
+api-keys
+announcements
+ai-chat
+ai-files
+agents
+ai-tasks
+access-requests
+drive
+parties
+deals
+work-items
+quotes
+invoices
+hiring
+employees

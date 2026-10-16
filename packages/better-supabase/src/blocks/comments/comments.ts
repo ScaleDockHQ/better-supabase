@@ -1,6 +1,8 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type {
@@ -10,13 +12,13 @@ import type {
   TableMeta,
 } from "../../schema/types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { type AsyncResult, err, ok } from "../../core/result.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
   blockCall,
-  DEFAULT_BLOCK_SCHEMA,
   instantArg,
   isRecord,
   optionalInstant,
@@ -33,6 +35,10 @@ import {
 } from "../shared.ts";
 
 export interface CommentsOptions extends BlockTemporalOptions {
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Comments>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
@@ -230,7 +236,7 @@ export function createComments(options: CommentsOptions): Comments {
     options.mentionsOf
       ? options.mentionsOf({ body, document: rich })
       : mentionsIn(body);
-  return {
+  const client: Comments = {
     create: (comment) =>
       call(
         "create_comment",
@@ -322,6 +328,10 @@ export function createComments(options: CommentsOptions): Comments {
         (value) => recordsOf(value, "list_activity").map(activityOf),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "comments",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }
 
 /** What an activity entry says about an event; `null` skips the event. */
@@ -385,7 +395,7 @@ function subjectOf(
  * tenant (`partitionkey`) are skipped, and a replayed event writes nothing.
  */
 export function activitySink(options: ActivitySinkOptions): EventSink {
-  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const call = blockCall(options.transport, options.schema);
   return {
     async send(events) {
       const entries: Record<string, unknown>[] = [];
@@ -419,9 +429,12 @@ export function activitySink(options: ActivitySinkOptions): EventSink {
         });
       }
       if (entries.length > 0) {
-        await options.transport.call(schema, "record_activity", {
-          batch: { entries },
-        });
+        // A sink rejects on failure, so the relay retries the batch.
+        await call(
+          "record_activity",
+          { batch: { entries } },
+          () => undefined,
+        ).orThrow();
       }
     },
   };

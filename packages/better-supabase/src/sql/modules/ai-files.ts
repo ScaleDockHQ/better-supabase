@@ -7,6 +7,12 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  dropWithoutExtraFields,
+  extraFieldsJson,
+  extraFieldsParam,
+  extraFieldsType,
+  writeExtraFields,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
@@ -16,6 +22,27 @@ import {
   lockTable,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+
+/** The keys a file read returns, which no extra column may shadow. */
+const FILE_KEYS: readonly string[] = [
+  "id",
+  "organization_id",
+  "owner_id",
+  "chat_id",
+  "project_id",
+  "bucket",
+  "path",
+  "media_type",
+  "filename",
+  "byte_size",
+  "sha256",
+  "status",
+  "source",
+  "created_at",
+  "uploaded_at",
+  "expires_at",
+  "fields",
+];
 
 const FILES = {
   id: "id",
@@ -80,7 +107,13 @@ const SUGGESTIONS = {
 } as const;
 
 const NAMES: ModuleNames = {
-  options: ["bucket", "maxSize", "allowedMimeTypes", "pendingTtl"],
+  options: [
+    "bucket",
+    "maxSize",
+    "allowedMimeTypes",
+    "pendingTtl",
+    "extraColumns",
+  ],
   tables: {
     files: {
       name: "ai_files",
@@ -187,8 +220,17 @@ function build(ctx: ModuleContext): string {
     ${raise("media type % is not allowed", "22023", "AI_FILE_TYPE", "media_type")}
   end if;`;
   const policy = (name: string): string => `bs_ai_files_${name}`;
+  const extras = ctx.extraColumns("files", FILE_KEYS);
   const fileJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt})`;
+    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt})${extraFieldsJson(row, extras)}`;
+  const setExtras = (name: string): string =>
+    writeExtraFields(
+      files,
+      extras,
+      `${name}.extra_fields`,
+      `x.${f.id} = v_row.${f.id}`,
+      "v_row",
+    );
   const documentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'chat_id', ${row}.${d.chat}, 'kind', ${row}.${d.kind}, 'title', ${row}.${d.title}, 'current_version', ${row}.${d.version}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
   const versionJson = (row: string): string =>
@@ -242,7 +284,7 @@ create unique index if not exists ai_files_object_idx on ${files} (${f.bucket}, 
 create index if not exists ai_files_owner_idx on ${files} (${f.owner});
 create index if not exists ai_files_tenant_idx on ${files} (${f.tenant});
 create index if not exists ai_files_chat_idx on ${files} (${f.chat}) where ${f.chat} is not null;
-create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';
+create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';${addExtraColumns(files, extras)}
 alter table ${files} enable row level security;
 ${revokeTable(files)}
 grant select on ${files} to authenticated;
@@ -368,13 +410,13 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-create or replace function ${fn("reserve_ai_file")}(
+${dropWithoutExtraFields(extras, `${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid)`)}create or replace function ${fn("reserve_ai_file")}(
   tenant ${id},
   filename text,
   media_type text,
   byte_size bigint,
   chat_id uuid default null,
-  project_id uuid default null
+  project_id uuid default null${extraFieldsParam(extras)}
 )
 returns jsonb
 language plpgsql
@@ -392,11 +434,11 @@ begin
   end if;${mimeCheck}
   insert into ${files} (${f.tenant}, ${f.owner}, ${f.chat}, ${f.project}, ${f.bucket}, ${f.filename}, ${f.mediaType}, ${f.size})
   values (reserve_ai_file.tenant, auth.uid(), reserve_ai_file.chat_id, reserve_ai_file.project_id, ${bucketLiteral}, reserve_ai_file.filename, lower(reserve_ai_file.media_type), reserve_ai_file.byte_size)
-  returning * into v_row;
+  returning * into v_row;${setExtras("reserve_ai_file")}
   return ${fileJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid)`)}
+${userGrant(`${fn("reserve_ai_file")}(${id}, text, text, bigint, uuid, uuid${extraFieldsType(extras)})`)}
 
 -- Marks an upload done once its object exists, taking the stored size.
 create or replace function ${fn("confirm_ai_file")}(file_id uuid, sha256 text default null)
@@ -493,7 +535,7 @@ ${userGrant(`${fn("delete_ai_file")}(uuid)`)}
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-create or replace function ${fn("store_ai_file")}(
+${dropWithoutExtraFields(extras, `${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text)`)}create or replace function ${fn("store_ai_file")}(
   tenant ${id},
   owner uuid,
   filename text,
@@ -501,7 +543,7 @@ create or replace function ${fn("store_ai_file")}(
   byte_size bigint,
   chat_id uuid default null,
   source text default 'generated',
-  sha256 text default null
+  sha256 text default null${extraFieldsParam(extras)}
 )
 returns jsonb
 language plpgsql
@@ -512,11 +554,11 @@ declare
 begin
   insert into ${files} (${f.tenant}, ${f.owner}, ${f.chat}, ${f.bucket}, ${f.filename}, ${f.mediaType}, ${f.size}, ${f.status}, ${f.source}, ${f.sha256}, ${f.uploadedAt})
   values (store_ai_file.tenant, store_ai_file.owner, store_ai_file.chat_id, ${bucketLiteral}, store_ai_file.filename, lower(store_ai_file.media_type), store_ai_file.byte_size, 'ready', coalesce(store_ai_file.source, 'generated'), lower(store_ai_file.sha256), now())
-  returning * into v_row;
+  returning * into v_row;${setExtras("store_ai_file")}
   return ${fileJson("v_row")};
 end;
 $$;
-${serviceGrant(`${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text)`)}
+${serviceGrant(`${fn("store_ai_file")}(${id}, uuid, text, text, bigint, uuid, text, text${extraFieldsType(extras)})`)}
 
 create or replace function ${fn("set_ai_provider_file")}(file_id uuid, provider text, reference text, expires_at timestamptz default null)
 returns boolean

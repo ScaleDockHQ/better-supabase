@@ -203,10 +203,10 @@ Pass an `EventSink` as the server's `audit` option, such as the audit log's
 forwards `support.denied` events to the same sink:
 
 ```ts title="src/lib/server.ts"
-import { createAuditLog, rpcTransport } from "better-supabase/blocks/audit";
+import { createAudit, rpcTransport } from "better-supabase/blocks/audit";
 import { createServer } from "better-supabase/server";
 
-const audit = createAuditLog({ transport: rpcTransport(supabaseAdmin) });
+const audit = createAudit({ transport: rpcTransport(supabaseAdmin) });
 
 export const bs = createServer(betterSupabase, {
   postgres,
