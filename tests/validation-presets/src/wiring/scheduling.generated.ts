@@ -9,9 +9,12 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { remindersBlock } from "better-supabase/blocks/reminders";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./scheduling.blocks.generated.ts";
@@ -24,9 +27,12 @@ export const blockSet = defineBlocks(blockConfig, {
   bookings: bookingsBlock,
   calendar: calendarBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   profiles: profilesBlock,
   reminders: remindersBlock,
+  settings: settingsBlock,
   teams: teamsBlock,
 });
 

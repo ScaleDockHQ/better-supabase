@@ -7,8 +7,11 @@ import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./saas.blocks.generated.ts";
@@ -19,8 +22,11 @@ export const blockSet = defineBlocks(blockConfig, {
   audit: auditBlock,
   billing: billingBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   profiles: profilesBlock,
+  settings: settingsBlock,
   teams: teamsBlock,
 });
 

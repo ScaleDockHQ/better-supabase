@@ -67,8 +67,11 @@ export interface SettingsOptions<
   O extends SettingEntries = SettingEntries,
   P extends SettingEntries = SettingEntries,
 > extends BlockOptions {
-  /** The app's settings, from `defineSettings`. */
-  readonly settings: SettingsDefinition<U, O, P>;
+  /**
+   * The app's settings, from `defineSettings`. Without it (a block wired
+   * with no definition) every key is unknown.
+   */
+  readonly settings?: SettingsDefinition<U, O, P>;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Settings<U, O, P>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -162,15 +165,11 @@ export function createSettings<
   O extends SettingEntries,
   P extends SettingEntries = Record<never, never>,
 >(options: SettingsOptions<U, O, P>): Settings<U, O, P> {
-  // A block built without `.using(...)` gets no definition.
-  if (typeof options.settings !== "object") {
-    throw new TypeError(
-      "createSettings needs `settings`, the result of defineSettings()",
-    );
-  }
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const { user, organization, platform } = options.settings.schemas;
+  const { user, organization, platform } = (
+    options.settings ?? defineSettings<U, O, P>({})
+  ).schemas;
   function getUser(): AsyncResult<SettingValues<U>>;
   function getUser<K extends keyof U & string>(
     key: K,

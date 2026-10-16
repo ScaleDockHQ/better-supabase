@@ -270,7 +270,7 @@ describe("add <block>", () => {
     });
     const result = await run(["add", "outbox", "comments", "--cwd", dir]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Wired comments in lib/blocks.ts.");
+    expect(result.stdout).toContain("Wired comments, outbox in lib/blocks.ts.");
     expect(result.stdout).toContain(
       "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
     );
@@ -279,7 +279,7 @@ describe("add <block>", () => {
       'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
     );
     expect(wiring).toContain(
-      "      profiles: profilesBlock,\n      comments: commentsBlock,\n",
+      "      profiles: profilesBlock,\n      comments: commentsBlock,\n      outbox: outboxBlock,\n",
     );
     expect(
       JSON.parse(

@@ -10,10 +10,13 @@ import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { rankBlock } from "better-supabase/blocks/rank";
 import { remindersBlock } from "better-supabase/blocks/reminders";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -30,10 +33,13 @@ export const blockSet = defineBlocks(blockConfig, {
   billing: billingBlock,
   comments: commentsBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   profiles: profilesBlock,
   rank: rankBlock,
   reminders: remindersBlock,
+  settings: settingsBlock,
   stateMachine: stateMachineBlock,
   tags: tagsBlock,
   teams: teamsBlock,
