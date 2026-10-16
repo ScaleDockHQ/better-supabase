@@ -61,7 +61,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm run fix`           | Format and apply lint fixes with Ultracite                                |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |
 
-The local stack runs on the Supabase CLI's stack engine without Docker. The CLI picks its ports for each checkout and branch, so worktrees run their own stacks side by side; `pnpm supabase:start` writes the URLs and keys to `.env.development.local`, which `pnpm test:integration` and `pnpm db:gen` load. Run it again after switching branches. After you edit `supabase/schemas`, create the migration with `pnpm supabase:sync <name>` (see `docs/agents/database.md`).
+The local stack runs on the Supabase CLI's stack engine without Docker. The CLI picks its ports for each checkout and branch, so worktrees run their own stacks side by side; `pnpm supabase:start` writes the URLs and keys to `.env.development.local`, which `pnpm test:integration` and `pnpm db:gen` load. Run it again after switching branches. After you edit `supabase/schemas`, create the migration with `pnpm supabase:diff <name>` (see `docs/agents/database.md`).
 
 Before the first `supabase start`, create the stack's ES256 signing key with `node packages/better-supabase/src/cli/bin.ts keys --cwd .`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
 

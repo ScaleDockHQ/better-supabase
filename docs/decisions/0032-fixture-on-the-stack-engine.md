@@ -32,7 +32,10 @@ creates it on the native runtime (`--runtime native`), then runs
 `.env.development.local`. `pnpm test:integration` and `pnpm db:gen` load that
 file, and the suites read `SUPABASE_URL` and `SUPABASE_DB_URL` instead of
 fixed ports: the integration project throws when they are missing, and the
-validation projects skip as they do when the stack is down.
+validation projects skip as they do when the stack is down. The standard's
+`env:local` reads the JSON that `supabase start` prints; `supabase status`
+prints the same keys for a running stack, so `pnpm env:local` also works on
+its own after a branch switch.
 
 CI and `database.yml` run the catalog's CLI (`pnpm exec supabase`) through
 `.github/actions/supabase-stack`, which starts the stack with

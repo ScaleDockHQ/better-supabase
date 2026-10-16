@@ -47,7 +47,7 @@ the clients (`client`, `client/native`) and the local-first entries
 
 - Install a block's SQL module from `apps/examples/nextjs` with
   `pnpm exec better-supabase sql sync`, then
-  `pnpm supabase:sync <name>`.
+  `pnpm supabase:diff <name>`.
 - Run `pnpm exec better-supabase sql data` after that migration exists. A
   data migration stamped before the schema migration fails on reset; delete
   it and run the command again.

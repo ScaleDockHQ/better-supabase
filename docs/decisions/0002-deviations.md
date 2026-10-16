@@ -48,6 +48,16 @@ backlogs too large to clear in the upgrade.
 - The CLI ships inside `better-supabase` (`src/cli` and the `better-supabase`
   bin) instead of as `@{{SCOPE}}/cli` in `packages/cli` and a Changesets
   `fixed` group, as `cli.md` describes. ADR 0007 has the reasons.
+- `packages/typescript-config/next.json` sets `jsx: "react-jsx"` instead of
+  `preserve`. Next.js 16 requires the automatic runtime and rewrites any
+  other value in the app's `tsconfig.json` on the next `next dev`.
+- There is no `supabase:pull` script, because the fixture has no hosted
+  project to pull from, and no `openapi:check`, because the repo serves no
+  API of its own; `packages/better-supabase/tests/openapi` tests the
+  documents the library renders.
+- The root `README.md` is the package README for consumers (install, usage,
+  subpaths). The development outline the standard puts there lives in
+  `CONTRIBUTING.md`.
 
 ### Docs site
 

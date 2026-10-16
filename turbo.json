@@ -1,5 +1,6 @@
 {
-  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-7.turborepo.dev/schema.json",
+  "agentGuidance": true,
   "futureFlags": {
     "affectedUsingTaskInputs": true,
     "filterUsingTasks": true,
@@ -33,6 +34,7 @@
     "!packages/*/node_modules/**"
   ],
   "remoteCache": {
+    "enabled": true,
     "teamSlug": "scaledock",
     "signature": true
   },

@@ -60,7 +60,7 @@ catalog:
   "@tanstack/react-query": 5.104.2
   "@types/express": 5.0.6
   "@types/mdx": 2.0.14
-  "@types/node": 26.6.5
+  "@types/node": 24.19.2
   "@types/pg": 8.23.1
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
@@ -259,6 +259,8 @@ saveExact: true
 savePrefix: ""
 strictPeerDependencies: true
 strictDepBuilds: true
+# Transitive dependencies may only come from the registry, never git or a tarball URL.
+blockExoticSubdeps: true
 engineStrict: true
 minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true
@@ -326,6 +328,10 @@ peerDependencyRules:
     # The World conformance suite peers on Vitest 4; it runs on the repo's
     # Vitest 5 through the same describe and test API.
     "@workflow/world-testing>vitest": "5.0.3"
+    # @workflow/swc-plugin pins @swc/core 1.15.3; the Next.js example gets
+    # 1.16.13 through @workflow/nest's @swc/cli, which it never runs, and Next
+    # compiles with its own SWC.
+    "@workflow/swc-plugin>@swc/core": "1.16.13"
     # @supabase/lite depends on jsonv-ts, which peers on TypeScript 5 for its
     # type helpers; the runtime validators liteStack() and gen load use none.
     "jsonv-ts>typescript": "7.0.2"
