@@ -168,11 +168,12 @@ describe("relations client", () => {
         subject: b,
         data: {},
         createdAt: "2026-10-13T00:00:00Z",
+        fields: {},
       },
     ]);
     expect(fake.calls[0]?.args).toMatchObject({ kind: null });
     expect(await relations.edges(ORG, "blocks").orThrow()).toEqual([
-      { id: "r1", kind: "blocks", source: b, target: a, data: {} },
+      { id: "r1", kind: "blocks", source: b, target: a, data: {}, fields: {} },
     ]);
     expect(await relations.ancestors(ORG, "parent", a).orThrow()).toEqual([
       { type: "task", id: "b", depth: 1 },
@@ -250,6 +251,7 @@ describe("relation adapters", () => {
     source: { type: "task", id: source },
     target: { type: "task", id: target },
     data,
+    fields: {},
   });
 
   it("turns blocks edges into Gantt dependencies", () => {

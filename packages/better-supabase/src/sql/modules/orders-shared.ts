@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -12,6 +12,8 @@ export interface OrdersNames {
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
+  /** `options.extraColumns` of the orders table. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 /**

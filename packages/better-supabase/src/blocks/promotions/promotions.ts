@@ -1,8 +1,18 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { type Money } from "../../commerce/money.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -37,14 +47,22 @@ export type PromotionDiscount =
   | { readonly kind: "fixed"; readonly amount: Money }
   | { readonly kind: "free_shipping" };
 
-export interface PromotionsOptions extends BlockOptions {
+export interface PromotionsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the extra columns of the promotions table
+   * (`blocks.promotions.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around any promotions method. */
-  readonly hooks?: NoInfer<BlockHooks<Promotions>>;
+  readonly hooks?: NoInfer<BlockHooks<Promotions<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
-export interface PromotionInput {
+export interface PromotionInput<F extends object = Record<never, never>> {
   /** Updates this promotion; creates one when left out. */
   readonly id?: string;
   readonly name: string;
@@ -70,6 +88,15 @@ export interface PromotionInput {
   readonly automatic?: boolean;
   /** Default `true`. */
   readonly active?: boolean;
+  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
+}
+
+/** A saved promotion: its id and the app's extra columns. */
+export interface SavedPromotion<F extends object = Record<never, never>> {
+  readonly id: string;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 interface CodeLimit {
@@ -97,12 +124,12 @@ export interface AppliedCode {
   readonly promotionId: string;
 }
 
-export interface Promotions {
+export interface Promotions<F extends object = Record<never, never>> {
   /** Refused with `PROMOTIONS_INVALID` when the discount, limits or targets don't fit. */
   savePromotion(
     organizationId: string,
-    input: PromotionInput,
-  ): AsyncResult<{ readonly id: string }>;
+    input: PromotionInput<F>,
+  ): AsyncResult<SavedPromotion<F>>;
   setPromotionActive(
     promotionId: string,
     active: boolean,
@@ -169,10 +196,17 @@ function codesOf(value: unknown): readonly PromotionCode[] {
 }
 
 /** Coupons, codes, usage limits and stacking rules over the `promotions` SQL module; `orders` prices them into carts. */
-export function createPromotions(options: PromotionsOptions): Promotions {
+export function createPromotions<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: PromotionsOptions<S>): Promotions<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const promotions: Promotions = {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "promotion fields",
+  );
+  const promotions: Promotions<F> = {
     savePromotion: (organizationId, input) => {
       const data = promotionData(input);
       if (typeof data === "string") {
@@ -180,11 +214,21 @@ export function createPromotions(options: PromotionsOptions): Promotions {
           dbError("invalid_request", data, { hint: "PROMOTIONS_INVALID" }),
         );
       }
-      return call(
-        "save_promotion",
-        { tenant: organizationId, promotion: input.id ?? null, data },
-        (value) => ({ id: textOf(recordOf(value, "save_promotion")["id"]) }),
-      );
+      return writeFields(fields, input.fields, (checked) =>
+        call(
+          "save_promotion",
+          {
+            tenant: organizationId,
+            promotion: input.id ?? null,
+            data,
+            fields: checked,
+          },
+          (value) => {
+            const row = recordOf(value, "save_promotion");
+            return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
+          },
+        ),
+      ).andThen((saved) => readFields(fields, saved));
     },
     setPromotionActive: (promotionId, active) =>
       call("set_promotion_active", { promotion: promotionId, active }, isTrue),

@@ -7,6 +7,7 @@ import { rpcTransport } from "../../../core/block-transport.ts";
 import { useController } from "../../react-controller.ts";
 import { useBlockEnv } from "../../react-env.ts";
 import { createOnboardingController } from "../client.ts";
+import { createOnboarding } from "../onboarding.ts";
 
 export interface UseOnboardingOptions {
   /** The organization, for an organization checklist. */
@@ -34,12 +35,12 @@ export function useOnboarding<Id extends string, Scope extends ChecklistScope>(
   const { organizationId, schema } = options;
   return useController(
     () =>
-      createOnboardingController({
-        client: checklist.connect({
+      createOnboardingController<Id, Scope>({
+        client: createOnboarding({
           transport: rpcTransport(supabase),
           ...(schema === undefined ? {} : { schema }),
         }),
-        scope: checklist.scope,
+        checklist,
         auth,
         organizationId: organizationId ?? null,
       }),

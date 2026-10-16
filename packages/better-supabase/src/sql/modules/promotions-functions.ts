@@ -1,7 +1,14 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
-import { fail, userGrant } from "../shared.ts";
+import {
+  columnsObject,
+  fail,
+  fieldsArg,
+  fieldsParam,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { amountOf, columns } from "./orders-shared.ts";
 
 export interface PromotionsNames {
@@ -27,6 +34,11 @@ function guard(names: PromotionsNames, tenant: string): string {
   end if;`;
 }
 
+/** `options.extraColumns`, added to the promotions table. */
+export const promotionExtras = (
+  ctx: ModuleContext,
+): ReturnType<ModuleContext["extraColumns"]> => ctx.extraColumns("promotions");
+
 /** Normalizes a shopper-typed code: trimmed and upper case. */
 const normalized = (code: string): string => `upper(btrim(${code}))`;
 
@@ -35,6 +47,7 @@ export function promotionFunctions(
   names: PromotionsNames,
 ): string {
   const { fn } = names;
+  const extras = promotionExtras(ctx);
   const catalog = ctx.of("catalog");
   const p = columns(ctx, "promotions");
   const r = columns(ctx, "redemptions");
@@ -95,7 +108,7 @@ export function promotionFunctions(
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
-create or replace function ${fn("save_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb)
+create or replace function ${fn("save_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb${fieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -172,15 +185,22 @@ ${targetCheck}
 ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_id;
-  end if;
+  end if;${writeExtraColumns(promotions, extras, "save_promotion.fields", `x.${p("id")} = v_id`)}
   if coalesce((data ->> 'active')::boolean, true) then
     ${ctx.hook("before_promotion_activate", [["uuid", "v_id"]])}
   end if;
   ${ctx.hook("after_promotion_save", [["uuid", "v_id"]])}
-  return jsonb_build_object('id', v_id);
+  return jsonb_build_object('id', v_id${
+    extras.length === 0
+      ? ""
+      : `, 'fields', (select ${columnsObject(
+          "x",
+          extras.map((extra) => extra.name),
+        )} from ${promotions} x where x.${p("id")} = v_id)`
+  });
 end;
 $$;
-${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb${fieldsArg(extras)})`)}
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.

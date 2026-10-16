@@ -3323,7 +3323,8 @@
               "validFor": {
                 "type": "string",
                 "default": "7 days"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -3509,7 +3510,8 @@
               "updatedEvent": {
                 "type": "string",
                 "default": "notification_updated"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -3551,7 +3553,8 @@
               "paymentWindowMinutes": {
                 "type": "number",
                 "default": 30
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -3685,7 +3688,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -3758,7 +3762,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -3769,7 +3775,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -3877,7 +3885,8 @@
             "additionalProperties": false,
             "properties": {
               "kinds": {},
-              "subjects": {}
+              "subjects": {},
+              "extraColumns": {}
             }
           }
         }
@@ -3893,7 +3902,8 @@
               "ruleFormat": {
                 "type": "string",
                 "default": "rrule"
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -3932,7 +3942,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -3963,7 +3975,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },

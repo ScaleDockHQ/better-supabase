@@ -52,7 +52,7 @@ describe("promotions block", () => {
           priority: 5,
         })
         .orThrow(),
-    ).toEqual({ id: "p1" });
+    ).toEqual({ id: "p1", fields: {} });
     expect(calls).toEqual([
       {
         fn: "save_promotion",

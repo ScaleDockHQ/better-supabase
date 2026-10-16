@@ -135,9 +135,10 @@ defineBlocks(blockConfig, {
 
 `using` builds a block with your own call to its creator, which keeps the
 creator's type parameters, such as the notification `types` or the metric
-definitions. It also turns a block with only SQL and a helper into a client:
-`settingsBlock.using((options) => settings.connect(options))`. Settings from
-an earlier `with` still reach the creator and the block's ports.
+definitions, or passes what the creator needs from your code:
+`settingsBlock.using((options) => createSettings({ ...options, settings }))`.
+Settings from an earlier `with` still reach the creator and the block's
+ports.
 
 ## Transports
 

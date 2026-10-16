@@ -89,6 +89,22 @@ export const withExtraFields = (
         extras.map((extra) => extra.name),
       )}))`;
 
+/**
+ * The `fields jsonb` parameter of a function that writes extra columns,
+ * after the others; empty without extra columns. Add `fieldsArg` to the
+ * signature in its grants and its contract entry.
+ */
+export const fieldsParam = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ",\n  fields jsonb default null";
+
+/** `, jsonb` for a signature with `fieldsParam`; empty without extra columns. */
+export const fieldsArg = (columns: readonly ExtraColumn[]): string =>
+  columns.length === 0 ? "" : ", jsonb";
+
+/** The `jsonb` contract argument for `fieldsParam`; none without extra columns. */
+export const fieldsArgs = (columns: readonly ExtraColumn[]): string[] =>
+  columns.length === 0 ? [] : ["jsonb"];
+
 /** The `extra_fields` parameter a write takes when the table has extra columns. */
 export const extraFieldsParam = (columns: readonly ExtraColumn[]): string =>
   columns.length === 0 ? "" : ", extra_fields jsonb default null";

@@ -64,7 +64,7 @@ describe("saved views client", () => {
         },
       })
       .orThrow();
-    expect(saved).toEqual({ id: "v1", rank: "V" });
+    expect(saved).toEqual({ id: "v1", rank: "V", fields: {} });
     expect(fake.calls[0]).toEqual({
       fn: "save_view",
       args: {
@@ -189,6 +189,7 @@ describe("saved views client", () => {
     expect(await views.duplicate("v1").orThrow()).toEqual({
       id: "v2",
       rank: "k",
+      fields: {},
     });
     await views
       .duplicate("v1", { name: "Team copy", scope: "team", teamId: "t1" })

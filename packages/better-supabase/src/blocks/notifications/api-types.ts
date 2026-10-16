@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { FieldsOf, RowFields } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
@@ -25,7 +26,10 @@ export type NotificationTypes = Readonly<Record<string, StandardSchemaV1>>;
 
 export type TypeName<K extends NotificationTypes> = keyof K & string;
 
-export interface SendInput<D = unknown> {
+export interface SendInput<
+  D = unknown,
+  F extends object = Record<never, never>,
+> {
   /** Who gets it. Watchers of `subject` and the `notification_audience` hook add more. */
   readonly recipients?: readonly string[];
   /**
@@ -64,6 +68,8 @@ export interface SendInput<D = unknown> {
   readonly watchers?: boolean;
   /** Users left out after the watchers and the audience hook are added. */
   readonly exclude?: readonly string[];
+  /** Values for the events table's extra columns (`options.extraColumns`). */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 export interface ListOptions<
@@ -303,13 +309,19 @@ export interface Rendered<
  * A notification as `get`, `list` and `page` return it: its `data` parsed
  * with its type's schema, so checking `type` narrows `data`.
  */
-export type NotificationOf<K extends NotificationTypes> = {
-  [N in TypeName<K>]: Rendered<N, StandardSchemaV1.InferOutput<K[N]>>;
+export type NotificationOf<
+  K extends NotificationTypes,
+  F extends object = Record<never, never>,
+> = {
+  [N in TypeName<K>]: Rendered<N, StandardSchemaV1.InferOutput<K[N]>> & {
+    readonly fields: RowFields<F>;
+  };
 }[TypeName<K>];
 
 export interface NotificationsOptions<
   K extends NotificationTypes,
   H = undefined,
+  S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
   readonly transport: BlockTransport;
@@ -321,8 +333,14 @@ export interface NotificationsOptions<
    * a type no longer listed keeps its data as stored.
    */
   readonly types: K;
+  /**
+   * A Standard Schema for the events table's extra columns
+   * (`blocks.notifications.options.extraColumns`): `send` validates them,
+   * and `get`, `list` and `page` parse them.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the methods, such as a rule on `send`. */
-  readonly hooks?: NoInfer<BlockHooks<Notifications<K>>>;
+  readonly hooks?: NoInfer<BlockHooks<Notifications<K, FieldsOf<S>>>>;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   /**
@@ -385,22 +403,25 @@ export interface NotificationsOptions<
  * leaves out the actor and non-members and applies subscriptions and
  * preferences.
  */
-export interface Notifications<K extends NotificationTypes> {
+export interface Notifications<
+  K extends NotificationTypes,
+  F extends object = Record<never, never>,
+> {
   /** The notification id, or `null` when nobody was left to notify. */
   send<N extends TypeName<K>>(
     type: N,
-    input: SendInput<StandardSchemaV1.InferInput<K[N]>>,
+    input: SendInput<StandardSchemaV1.InferInput<K[N]>, F>,
   ): AsyncResult<SentNotification | null>;
   get(
     id: string,
     options?: Pick<ListOptions, "locale" | "include">,
-  ): AsyncResult<NotificationOf<K> | null>;
+  ): AsyncResult<NotificationOf<K, F> | null>;
   list(
     options?: ListOptions<TypeName<K>>,
-  ): AsyncResult<readonly NotificationOf<K>[]>;
+  ): AsyncResult<readonly NotificationOf<K, F>[]>;
   page(
     options?: PageOptions<TypeName<K>>,
-  ): AsyncResult<NotificationPage<TypeName<K>, NotificationOf<K>>>;
+  ): AsyncResult<NotificationPage<TypeName<K>, NotificationOf<K, F>>>;
   counts(options?: {
     readonly tenant?: string;
   }): AsyncResult<NotificationCounts>;

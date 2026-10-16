@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import * as v from "valibot";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createQuotes } from "../../../src/blocks/quotes/index.ts";
 
@@ -235,5 +236,35 @@ describe("quotes block, defaults", () => {
       .respond("tok", "changes_requested", { name: "Els", note: "Fewer seats" })
       .orThrow();
     expect(t.calls[2]?.[1]).toMatchObject({ note: "Fewer seats" });
+  });
+});
+
+describe("quote fields", () => {
+  const schema = v.object({ region: v.picklist(["eu", "us"]) });
+
+  it("sends checked fields inside attrs and parses the row's fields", async () => {
+    const t = transport({
+      create_quote: () => ({ ...ROW, fields: { region: "us" } }),
+      update_quote: () => ROW,
+    });
+    const quotes = createQuotes({ transport: t, fields: schema });
+    const bad = await quotes.create("o", {
+      title: "Rollout",
+      // @ts-expect-error not one of the regions
+      fields: { region: "apac" },
+    });
+    expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(t.calls).toHaveLength(0);
+    const quote = await quotes
+      .create("o", { title: "Rollout", fields: { region: "us" } })
+      .orThrow();
+    expect(t.calls[0]?.[1]).toMatchObject({
+      attrs: { title: "Rollout", fields: { region: "us" } },
+    });
+    expectTypeOf(quote.fields.region).toEqualTypeOf<"eu" | "us">();
+    expect(quote.fields).toEqual({ region: "us" });
+    const updated = await quotes.update("q1", { note: "x" }).orThrow();
+    expect(t.calls[1]?.[1]).toEqual({ quote: "q1", attrs: { note: "x" } });
+    expect(updated.fields).toEqual({ region: "eu" });
   });
 });

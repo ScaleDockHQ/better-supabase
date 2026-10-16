@@ -23,20 +23,11 @@ const RECIPES = join(
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [];
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
-const NO_CREATOR: readonly string[] = ["onboarding", "outbox", "settings"];
+const NO_CREATOR: readonly string[] = [];
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
-const NO_HOOKS: readonly string[] = [
-  "number-sequences",
-  "push",
-  "rank",
-  "rate-limit",
-  "relations",
-  "reminders",
-  "saved-views",
-  "service-principals",
-];
+const NO_HOOKS: readonly string[] = [];
 /** Blocks with calls that skip `blockCall`. */
-const NO_BLOCK_CALL: readonly string[] = ["notifications"];
+const NO_BLOCK_CALL: readonly string[] = [];
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
   // Cache entries keyed by a request hash; nothing for an app to extend.
@@ -72,22 +63,18 @@ const NO_FIELDS: readonly string[] = [
   "memory",
   // Points are metric samples written by the sink.
   "metrics",
-  "notifications",
+  // Gapless counters the module owns; an app reads numbers, not these rows.
   "number-sequences",
-  "orders",
-  "organizations",
-  "parties",
-  "pipelines",
-  "profiles",
-  "promotions",
-  "push",
-  "quotes",
+  // Progress rows per checklist step; the steps live in `defineChecklist`.
+  "onboarding",
+  // An event log; the app's data goes in each event's payload.
+  "outbox",
+  // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
-  "relations",
-  "reminders",
-  "saved-views",
+  // A derived index the sink rebuilds from each subject's own row.
   "search",
-  "service-principals",
+  // Values of app-defined keys, typed by `defineSettings` schemas.
+  "settings",
   // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.
   "sso",
   // Triggers on the app's own record table write its history; the app's columns live on that table.

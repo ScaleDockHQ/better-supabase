@@ -112,8 +112,9 @@ export interface Block<
   /**
    * This block built by `create` instead, keeping its SQL, events and ports:
    * for a creator's type parameters (`notificationsBlock.using((options) =>
-   * createNotifications({ ...options, types }))`) or a block with only SQL
-   * and a helper (`settingsBlock.using((options) => settings.connect(options))`).
+   * createNotifications({ ...options, types }))`) or a definition the
+   * creator needs (`settingsBlock.using((options) =>
+   * createSettings({ ...options, settings }))`).
    * The ports it provides receive the new client. Settings from an earlier
    * `with` still reach `create` and the providers.
    */

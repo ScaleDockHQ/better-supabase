@@ -4,7 +4,17 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
@@ -43,7 +53,12 @@ interface PartyRecord {
   readonly fields: Readonly<Record<string, unknown>>;
 }
 
-export interface Company extends PartyRecord {
+/** A company. `F` types the extra columns the `fields` schema describes. */
+export interface Company<
+  F extends object = Record<never, never>,
+> extends PartyRecord {
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
   readonly domain?: string;
   readonly website?: string;
   readonly vatId?: string;
@@ -69,7 +84,7 @@ export interface CompanyPerson extends Person {
  * The fields of a write. Left out keeps the stored value; `null` clears it
  * (a name and a lifecycle can't be cleared).
  */
-export interface CompanyInput {
+export interface CompanyInput<F extends object = Record<never, never>> {
   /** Leave out to create a company; `name` is then required. */
   readonly id?: string;
   readonly name?: string;
@@ -79,8 +94,8 @@ export interface CompanyInput {
   readonly lifecycle?: string;
   readonly ownerId?: string | null;
   readonly address?: Readonly<Record<string, unknown>> | null;
-  /** Values for the app's extra columns, by column name. */
-  readonly fields?: Readonly<Record<string, unknown>>;
+  /** Values for the app's extra columns, by column name; `options.fields` checks them. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 export interface PersonInput {
@@ -103,11 +118,11 @@ export interface PartyListOptions extends CursorPageOptions<PartyCursor> {
   readonly ownerId?: string;
 }
 
-export interface Parties {
+export interface Parties<F extends object = Record<never, never>> {
   saveCompany(
     organizationId: string,
-    input: CompanyInput,
-  ): AsyncResult<Company>;
+    input: CompanyInput<F>,
+  ): AsyncResult<Company<F>>;
   savePerson(organizationId: string, input: PersonInput): AsyncResult<Person>;
   /** Archives a company, or restores it with `archived: false`. */
   archiveCompany(id: string, archived?: boolean): AsyncResult<boolean>;
@@ -120,13 +135,13 @@ export interface Parties {
   ): AsyncResult<boolean>;
   unlinkPerson(companyId: string, personId: string): AsyncResult<boolean>;
   /** Merges `drop` into `keep`. Needs `parties.manage`. */
-  mergeCompanies(keep: string, drop: string): AsyncResult<Company>;
+  mergeCompanies(keep: string, drop: string): AsyncResult<Company<F>>;
   mergePeople(keep: string, drop: string): AsyncResult<Person>;
   /** A page of active companies by name (50 by default, at most 200). */
   listCompanies(
     organizationId: string,
     options?: PartyListOptions,
-  ): AsyncResult<PartyPage<Company>>;
+  ): AsyncResult<PartyPage<Company<F>>>;
   listPeople(
     organizationId: string,
     options?: PartyListOptions,
@@ -146,12 +161,20 @@ export interface Parties {
   ): AsyncResult<Person | undefined>;
 }
 
-export interface PartiesOptions {
+export interface PartiesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the extra columns of the companies table
+   * (`blocks.parties.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Parties>>;
+  readonly hooks?: NoInfer<BlockHooks<Parties<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -195,6 +218,7 @@ function base(
   row: Record<string, unknown>,
   known: ReadonlySet<string>,
 ): PartyRecord {
+  const fields = row["fields"];
   const ownerId = optionalText(row["owner_user_id"]);
   const mergedInto = optionalText(row["merged_into"]);
   return {
@@ -203,7 +227,7 @@ function base(
     name: textOf(row["name"]),
     lifecycle: textOf(row["lifecycle"]),
     archived: row["archived_at"] !== null && row["archived_at"] !== undefined,
-    fields: fieldsOf(row, known),
+    fields: isRecord(fields) ? fields : fieldsOf(row, known),
     ...(ownerId === undefined ? {} : { ownerId }),
     ...(mergedInto === undefined ? {} : { mergedInto }),
   };
@@ -270,8 +294,14 @@ function pageFrom<T extends { readonly id: string; readonly name: string }>(
  * Register them in `config.subjects` with `partiesSubjects()` so comments,
  * tags, files, pipelines and deals can point at them.
  */
-export function createParties(options: PartiesOptions): Parties {
+export function createParties<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: PartiesOptions<S>): Parties<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "company fields");
+  const company = (result: AsyncResult<Company>): AsyncResult<Company<F>> =>
+    result.andThen((row) => readFields(fields, row));
   const list = <T extends { readonly id: string; readonly name: string }>(
     fn: string,
     organizationId: string,
@@ -293,16 +323,23 @@ export function createParties(options: PartiesOptions): Parties {
       (value) => pageFrom(recordsOf(value, fn).map(map), limit),
     );
   };
-  const client: Parties = {
+  const client: Parties<F> = {
     saveCompany: (organizationId, input) =>
-      call(
-        "save_company",
-        {
-          tenant: organizationId,
-          company: input.id ?? null,
-          attrs: attrsOf(input),
-        },
-        companyOf,
+      writeFields(fields, input.fields, (checked) =>
+        company(
+          call(
+            "save_company",
+            {
+              tenant: organizationId,
+              company: input.id ?? null,
+              attrs: attrsOf({
+                ...input,
+                ...(checked === undefined ? {} : { fields: checked }),
+              }),
+            },
+            companyOf,
+          ),
+        ),
       ),
     savePerson: (organizationId, input) =>
       call(
@@ -336,10 +373,16 @@ export function createParties(options: PartiesOptions): Parties {
         (value) => value === true,
       ),
     mergeCompanies: (keep, drop) =>
-      call("merge_companies", { keep, drop }, companyOf),
+      company(call("merge_companies", { keep, drop }, companyOf)),
     mergePeople: (keep, drop) => call("merge_people", { keep, drop }, personOf),
     listCompanies: (organizationId, listOptions = {}) =>
-      list("list_companies", organizationId, listOptions, companyOf),
+      list("list_companies", organizationId, listOptions, companyOf).andThen(
+        (page) =>
+          readAllFields(fields, page.items).map((items) => ({
+            ...page,
+            items,
+          })),
+      ),
     listPeople: (organizationId, listOptions = {}) =>
       list("list_people", organizationId, listOptions, personOf),
     linkInboxContact: (personId, contactId) =>

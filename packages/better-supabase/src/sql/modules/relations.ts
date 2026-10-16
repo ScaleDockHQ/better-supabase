@@ -8,7 +8,19 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  columnsObject,
+  fail,
+  fieldsArg,
+  fieldsArgs,
+  extraFieldsJson,
+  fieldsParam,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import {
   type Subject,
   qualifiedTable,
@@ -76,7 +88,7 @@ const EVENTS: ModuleEvents<RelationsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
-  options: ["kinds", "subjects"],
+  options: ["kinds", "subjects", "extraColumns"],
   tables: {
     relations: {
       name: "relations",
@@ -190,8 +202,21 @@ function subjectTables(list: readonly (readonly [string, Subject])[]): string {
     .join("\n");
 }
 
+/**
+ * `options.extraColumns`, added to a managed relations table. The keys
+ * `relations_of` returns next to them are reserved.
+ */
+const extrasOf = (ctx: ModuleContext) =>
+  ctx.extraColumns("relations", [
+    "direction",
+    "type",
+    "other_type",
+    "other_id",
+  ]);
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
+  const extras = extrasOf(ctx);
   const relations = ctx.table("relations");
   const c = (column: string): string => ctx.col("relations", column);
   const [id, tenant, kind, sourceType, sourceId, targetType, targetId, data] = [
@@ -233,7 +258,7 @@ function build(ctx: ModuleContext): string {
   unique (${tenant}, ${kind}, ${sourceType}, ${sourceId}, ${targetType}, ${targetId}),
   check (not (${sourceType} = ${targetType} and ${sourceId} = ${targetId}))
 );
-create index if not exists relations_target_idx on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});
+create index if not exists relations_target_idx on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});${addExtraColumns(relations, extras)}
 ${lockTable(relations, { read: true })}
 `
     : "";
@@ -295,7 +320,7 @@ using (${tenant} in (select ${ctx.scope.ids(read)}));
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-create or replace function ${fn("link")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
+create or replace function ${fn("link")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb${fieldsParam(extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -376,17 +401,25 @@ ${canonical("link")}
     ${event("subject.linked", "v_id", "link.tenant")}
   elsif link.data is not null then
     update ${relations} set ${data} = link.data where ${id} = v_id;
-  end if;
+  end if;${writeExtraColumns(relations, extras, "link.fields", `x.${id} = v_id`)}
   ${ctx.hook("after_relation_link", [["uuid", "v_id"]])}
   return jsonb_build_object(
     'id', v_id, 'kind', v_kind, 'created', v_created,
     'sourceType', v_source_type, 'sourceId', v_source_id,
     'targetType', v_target_type, 'targetId', v_target_id,
     'previousData', case when v_created then null else v_previous end,
-    'replaced', v_replaced);
+    'replaced', v_replaced${
+      extras.length === 0
+        ? ""
+        : `,
+    'fields', (select ${columnsObject(
+      "r",
+      extras.map((extra) => extra.name),
+    )} from ${relations} r where r.${id} = v_id)`
+    });
 end;
 $$;
-${userGrant(`${fn("link")}(${ctx.idType}, text, text, text, text, text, jsonb)`)}
+${userGrant(`${fn("link")}(${ctx.idType}, text, text, text, text, text, jsonb${fieldsArg(extras)})`)}
 
 create or replace function ${fn("unlink")}(tenant ${ctx.idType}, kind text, source_type text, source_id text, target_type text, target_id text)
 returns jsonb
@@ -432,15 +465,29 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', e.id, 'kind', n.seen, 'direction', e.direction,
     'type', e.other_type, 'subjectId', e.other_id,
-    'data', e.data, 'createdAt', e.created_at
+    'data', e.data, 'createdAt', e.created_at${extras.length === 0 ? "" : ", 'fields', e.fields"}
   ) order by n.seen, e.created_at, e.id), '[]'::jsonb)
   from (
     select r.${id} as id, r.${kind} as canonical, 'out' as direction,
-      r.${targetType} as other_type, r.${targetId} as other_id, r.${data} as data, r.${createdAt} as created_at
+      r.${targetType} as other_type, r.${targetId} as other_id, r.${data} as data, r.${createdAt} as created_at${
+        extras.length === 0
+          ? ""
+          : `, ${columnsObject(
+              "r",
+              extras.map((extra) => extra.name),
+            )} as fields`
+      }
     from ${relations} r
     where r.${tenant} = relations_of.tenant and r.${sourceType} = relations_of.subject_type and r.${sourceId} = relations_of.subject_id
     union all
-    select r.${id}, r.${kind}, 'in', r.${sourceType}, r.${sourceId}, r.${data}, r.${createdAt}
+    select r.${id}, r.${kind}, 'in', r.${sourceType}, r.${sourceId}, r.${data}, r.${createdAt}${
+      extras.length === 0
+        ? ""
+        : `, ${columnsObject(
+            "r",
+            extras.map((extra) => extra.name),
+          )}`
+    }
     from ${relations} r
     where r.${tenant} = relations_of.tenant and r.${targetType} = relations_of.subject_type and r.${targetId} = relations_of.subject_id
   ) e
@@ -465,7 +512,7 @@ as $$
     'id', r.${id}, 'kind', r.${kind},
     'sourceType', r.${sourceType}, 'sourceId', r.${sourceId},
     'targetType', r.${targetType}, 'targetId', r.${targetId},
-    'data', r.${data}
+    'data', r.${data}${extraFieldsJson("r", extras)}
   ) order by r.${createdAt}, r.${id}), '[]'::jsonb)
   from (
     select * from ${relations} r
@@ -613,11 +660,20 @@ ${userGrant(`${fn("relation_rollup")}(${ctx.idType}, text, text, text, text, tex
 ${cascades}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "link",
-      args: ["{id}", "text", "text", "text", "text", "text", "jsonb"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
+        "jsonb",
+        ...fieldsArgs(extrasOf(ctx)),
+      ],
       returns: "jsonb",
     },
     {

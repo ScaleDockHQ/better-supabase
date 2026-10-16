@@ -239,6 +239,24 @@ const [first] = await organizations.mine().orThrow();
 first?.plan; // "free" | "pro"
 ```
 
+Invitations take their own columns from
+`blocks.invitations.options.extraColumns`. `invite` writes them from
+`fields`, every invitation the block returns carries them in `fields`, and
+`invitationFields` types and checks them:
+
+```ts
+const organizations = createOrganizations({
+  transport,
+  invitationFields: z.object({ source: z.enum(["admin", "signup"]) }),
+});
+await organizations.invite({
+  organizationId,
+  email,
+  role: "member",
+  fields: { source: "admin" },
+});
+```
+
 SQL hooks run inside the functions for every caller:
 `before_organization_create(attrs jsonb, owner uuid)`,
 `after_organization_create(organization, owner uuid)`,
@@ -452,6 +470,7 @@ config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
 | `platformRoles`         | none       | the platform role table under the `provider` model           |
+| `extraColumns`          | none       | column name to SQL type on a managed invitations table       |
 
 Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.

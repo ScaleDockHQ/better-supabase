@@ -1,4 +1,4 @@
-import { createOutbox } from "better-supabase/blocks/outbox";
+import { createOutbox, sqlTransport } from "better-supabase/blocks/outbox";
 
 import { postgres } from "@/lib/postgres";
 
@@ -7,7 +7,8 @@ import { postgres } from "@/lib/postgres";
  * example in a migration script or at the top of the relay route:
  * `await outbox.register("search", { types: ["customer.*"] })`.
  */
-export const outbox = createOutbox(postgres.admin, {
+export const outbox = createOutbox({
+  transport: sqlTransport(postgres.admin),
   source: process.env.APP_URL ?? "http://localhost:3000",
   typePrefix: "com.example.app",
 });

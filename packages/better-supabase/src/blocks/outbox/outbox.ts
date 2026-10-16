@@ -1,28 +1,28 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type {
   AuthorizationHooks,
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
-import type { SqlClient } from "../../postgres/executor.ts";
 
 import {
+  type BlockOptions,
   type Budget,
+  blockCall,
   budget,
-  DEFAULT_BLOCK_SCHEMA,
 } from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { type DbError } from "../../core/errors.ts";
 import { type BlockProblemOptions } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
-import { sqlIdent } from "../../core/template.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
   asDbError,
   run,
   toInstant,
   workerId,
-  type BlockTemporalOptions,
   applyTemporal,
   type CursorPageOptions,
   pageOf,
@@ -55,9 +55,12 @@ export interface EmitOptions {
   readonly source?: string;
 }
 
-export interface OutboxOptions extends BlockTemporalOptions {
-  /** The schema of the `outbox` module. Defaults to `better_supabase`. */
-  readonly schema?: string;
+/**
+ * `transport` writes (`emit`) and reads (`history`); `service`, which
+ * defaults to `transport`, runs the consumer calls (`register`, `relay`,
+ * `consume`, `deadLetters`, `purge`), which need the service role.
+ */
+export interface OutboxOptions extends BlockOptions {
   /** CloudEvents `source` of the relayed events, e.g. `https://crm.example.com`. */
   readonly source: string;
   /** Prepended to each type with a dot when relaying, e.g. `com.example`. Defaults to `dev.better-supabase`. */
@@ -71,6 +74,10 @@ export interface OutboxOptions extends BlockTemporalOptions {
   readonly subscribers?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.subscribers` policy. */
   readonly authorization?: Pick<AuthorizationHooks, "delivery">;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<Outbox>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface RegisterOptions {
@@ -285,7 +292,7 @@ export function outboxCloudEvent(
   };
 }
 
-/** The outbox functions' argument names, for calls through a `BlockTransport`. */
+/** The outbox functions' argument names, in the order the client passes them. */
 const PARAMS: Readonly<Record<string, readonly string[]>> = {
   emit_event: ["event_type", "payload", "subject", "tenant", "key", "source"],
   outbox_register: ["consumer", "types", "from_start"],
@@ -324,42 +331,35 @@ function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
   });
 }
 
-const isTransport = (
-  source: SqlClient | BlockTransport,
-): source is BlockTransport => "call" in source;
-
 /**
- * The outbox over a server connection (`SqlClient`), or over a
- * `BlockTransport` such as `rpcTransport(serviceClient, { schema: "api" })`
- * for apps that reach the database only through the Data API. Over a
- * transport, `emit` writes in its own transaction.
+ * The outbox over a `BlockTransport`: `sqlTransport(postgres)` on a server
+ * connection, where `emit` joins the caller's transaction, or
+ * `rpcTransport(serviceClient)` for apps that reach the database only
+ * through the Data API, where `emit` writes in its own transaction.
  */
-export function createOutbox(
-  source: SqlClient | BlockTransport,
-  options: OutboxOptions,
-): Outbox {
+export function createOutbox(options: OutboxOptions): Outbox {
   applyTemporal(options);
-  const name = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-  const schema = sqlIdent(name);
-  const transport = isTransport(source) ? source : undefined;
-  const call = async (fn: string, args: unknown[]): Promise<unknown> => {
-    if (isTransport(source)) {
-      const names = PARAMS[fn] ?? [];
-      const value = await source.call(
-        name,
-        fn,
-        Object.fromEntries(names.map((param, index) => [param, args[index]])),
-      );
-      return value ?? null;
-    }
-    const sql = source;
-    const params = args.map((_, index) => `$${String(index + 1)}`).join(", ");
-    const [row] = await sql.queryRaw<{ value: unknown }>(
-      `select ${schema}.${sqlIdent(fn)}(${params}) as value`,
-      args,
-    );
-    return row?.value ?? null;
+  const callers = {
+    user: blockCall(options.transport, options.schema, options.mappers),
+    service: blockCall(
+      options.service ?? options.transport,
+      options.schema,
+      options.mappers,
+    ),
   };
+  /** Calls `fn` with positional `args`, named by `PARAMS`; a failure throws its `DbError`. */
+  const callAs =
+    (as: keyof typeof callers) =>
+    async (fn: string, args: unknown[]): Promise<unknown> =>
+      callers[as](
+        fn,
+        Object.fromEntries(
+          (PARAMS[fn] ?? []).map((param, index) => [param, args[index]]),
+        ),
+        (value) => value ?? null,
+      ).orThrow();
+  const userCall = callAs("user");
+  const call = callAs("service");
 
   const toSink =
     (sink: EventSink): OutboxHandler =>
@@ -456,13 +456,13 @@ export function createOutbox(
     return done({});
   }
 
-  return {
+  const client: Outbox = {
     emit: (type, payload = {}, emitOptions = {}) =>
       run(async () =>
         String(
-          await call("emit_event", [
+          await userCall("emit_event", [
             type,
-            transport ? payload : JSON.stringify(payload),
+            payload,
             emitOptions.subject ?? null,
             emitOptions.tenant ?? null,
             emitOptions.key ?? null,
@@ -525,7 +525,7 @@ export function createOutbox(
     history: (filter = {}) =>
       run(async () =>
         toEvents(
-          await call("outbox_history", [
+          await userCall("outbox_history", [
             filter.subject ?? null,
             filter.type ?? null,
             pageOf(filter).cursor ?? 0,
@@ -550,4 +550,8 @@ export function createOutbox(
         ),
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "outbox",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

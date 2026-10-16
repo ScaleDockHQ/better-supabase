@@ -1,16 +1,18 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { Block } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 import type { SettingsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { settingsEvents } from "./events.ts";
 import { settingsSqlOptions } from "./options.ts";
+import { createSettings } from "./settings.ts";
 
-/** The `settings` block's manifest (ADR 0029). */
-export const settingsBlock: Block<
+/**
+ * The `settings` block's manifest (ADR 0029). Pass the app's settings with
+ * `settingsBlock.using((options) => createSettings({ ...options, settings }))`.
+ */
+export const settingsBlock: BlockOf<
   "settings",
-  BlockContext,
-  unknown,
+  typeof createSettings,
   SettingsEvents
 > = defineBlock({
   name: "settings",
@@ -19,6 +21,7 @@ export const settingsBlock: Block<
     settings: settingsSqlOptions,
   },
   events: settingsEvents,
+  create: createSettings,
   category: "foundation",
   recipes: ["settings-layout"],
 });

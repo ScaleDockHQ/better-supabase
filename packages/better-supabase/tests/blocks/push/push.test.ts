@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import * as v from "valibot";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { NotificationMessage } from "../../../src/blocks/notifications/channel.ts";
 import type {
@@ -66,12 +67,75 @@ describe("createPush", () => {
     });
     expect(await devices.unregister("a").orThrow()).toBe(true);
     expect(await devices.tokensFor(["u1"]).orThrow()).toEqual([
-      { userId: "u1", token: "a", platform: "ios", provider: "expo" },
+      {
+        userId: "u1",
+        token: "a",
+        platform: "ios",
+        provider: "expo",
+        fields: {},
+      },
     ]);
     expect(call).toHaveBeenLastCalledWith("app", "push_tokens_for", {
       users: ["u1"],
     });
     expect(await devices.prune(["a", "b"]).orThrow()).toBe(2);
+  });
+});
+
+describe("push fields", () => {
+  const schema = v.object({ channel: v.picklist(["stable", "beta"]) });
+
+  it("validates fields before registering and parses them on reads", async () => {
+    const { call, transport: t } = transport((fn) =>
+      fn === "register_push_device"
+        ? "d1"
+        : [
+            {
+              userId: "u1",
+              token: "a",
+              platform: "ios",
+              provider: "expo",
+              fields: { channel: "beta" },
+            },
+          ],
+    );
+    const devices = createPush({ transport: t, fields: schema });
+    const bad = await devices.register({
+      token: "a",
+      platform: "ios",
+      // @ts-expect-error not one of the channels
+      fields: { channel: "nightly" },
+    });
+    expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(call).not.toHaveBeenCalled();
+    await devices
+      .register({ token: "a", platform: "ios", fields: { channel: "beta" } })
+      .orThrow();
+    expect(call.mock.calls[0]?.[2]).toMatchObject({
+      fields: { channel: "beta" },
+    });
+    const [target] = await devices.tokensFor(["u1"]).orThrow();
+    expectTypeOf(target?.fields.channel).toEqualTypeOf<
+      "stable" | "beta" | undefined
+    >();
+    expect(target?.fields).toEqual({ channel: "beta" });
+  });
+
+  it("rejects a read whose fields fail the schema", async () => {
+    const { transport: t } = transport(() => [
+      {
+        userId: "u1",
+        token: "a",
+        platform: "ios",
+        provider: "expo",
+        fields: { channel: 3 },
+      },
+    ]);
+    const devices = createPush({ transport: t, fields: schema });
+    expect(await devices.tokensFor(["u1"])).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
   });
 });
 
@@ -296,6 +360,7 @@ describe("expoPushChannel", () => {
       createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       readAt: null,
       resolvedAt: null,
+      fields: {},
     },
     text: { title: "Ada commented", body: "Looks good" },
   };

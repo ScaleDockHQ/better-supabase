@@ -15,7 +15,7 @@ import {
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { searchBlock } from "better-supabase/blocks/search";
-import { settingsBlock } from "better-supabase/blocks/settings";
+import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { usageBlock } from "better-supabase/blocks/usage";
 import { workflowsBlock } from "better-supabase/blocks/workflows";
 
@@ -23,7 +23,6 @@ import {
   notificationTypes,
   renderNotification,
 } from "@/features/notifications/notification-types";
-import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { metrics } from "@/metrics";
@@ -54,10 +53,10 @@ const blockSet = defineBlocks(blockConfig, {
   ),
   usage: usageBlock,
   workflows: workflowsBlock,
-  onboarding: onboardingBlock.using((options) =>
-    gettingStarted.connect(options),
+  onboarding: onboardingBlock,
+  settings: settingsBlock.using((options) =>
+    createSettings({ ...options, settings }),
   ),
-  settings: settingsBlock.using((options) => settings.connect(options)),
 });
 
 /**

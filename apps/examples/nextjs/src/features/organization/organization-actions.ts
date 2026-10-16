@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
@@ -101,7 +102,11 @@ export const invitationSent = bs.action(
     authorize: (session) => can(session, "members.invite"),
   },
   async (_input, { tenant: organizationId, supabase }) => {
-    await blocks(supabase).onboarding.complete("invite", organizationId);
+    await blocks(supabase).onboarding.complete(
+      gettingStarted,
+      "invite",
+      organizationId,
+    );
     refresh();
     return ok(true);
   },

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
-import { createOutbox } from "../../src/blocks/outbox/index.ts";
+import { createOutbox, sqlTransport } from "../../src/blocks/outbox/index.ts";
 import { renderModules } from "../../src/sql/render.ts";
 
 const dbUrl =
@@ -37,7 +37,8 @@ describe.skipIf(!live)("outbox", () => {
       // SAFETY: the caller names the row shape of its own query.
       (await pool.query(text, params)).rows as T[],
   };
-  const outbox = createOutbox(sql, {
+  const outbox = createOutbox({
+    transport: sqlTransport(sql),
     schema: SCHEMA,
     source: "https://crm.example.com",
   });

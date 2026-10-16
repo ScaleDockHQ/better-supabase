@@ -56,7 +56,13 @@ describe.skipIf(!live)("push module", () => {
 
       await s.service();
       expect(await devices.tokensFor([alice.id, bob.id]).orThrow()).toEqual([
-        { userId: bob.id, token, platform: "ios", provider: "expo" },
+        {
+          userId: bob.id,
+          token,
+          platform: "ios",
+          provider: "expo",
+          fields: {},
+        },
       ]);
       expect(await devices.prune([token, "unknown"]).orThrow()).toBe(1);
       expect(await devices.tokensFor([bob.id]).orThrow()).toEqual([]);

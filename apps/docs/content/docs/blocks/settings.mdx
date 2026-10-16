@@ -53,24 +53,57 @@ example) also reads as the default, so old rows never break a page.
 
 ## Reading and writing
 
+`createSettings` takes the definition as `settings` and returns typed
+`get`, `set` and `reset` methods for each scope:
+
 ```ts title="app/settings/actions.ts"
-import { rpcTransport } from "better-supabase/blocks/settings";
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
 
 import { settings } from "@/lib/settings";
 
-const client = settings.connect({
+const client = createSettings({
+  settings,
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 
-const theme = await client.user.get("theme").orThrow(); // "light" | "dark" | "system"
-await client.user.set("theme", "dark").orThrow();
-await client.user.reset("theme"); // back to the default
+const theme = await client.getUser("theme").orThrow(); // "light" | "dark" | "system"
+await client.setUser("theme", "dark").orThrow();
+await client.resetUser("theme"); // back to the default
 
-const all = await client.organization.get(organizationId).orThrow();
-await client.organization.set(organizationId, "defaultRole", "viewer");
+const all = await client.getOrganization(organizationId).orThrow();
+await client.setOrganization(organizationId, "defaultRole", "viewer");
 ```
 
-`set` returns a `validation` error with the schema's issues when the value
+With [`defineBlocks`](/docs/blocks/create-blocks), pass the definition
+through `using`:
+
+```ts title="lib/blocks.ts"
+settings: settingsBlock.using((options) =>
+  createSettings({ ...options, settings }),
+),
+```
+
+`hooks` run around every method, such as an audit line on
+`setOrganization`:
+
+```ts
+const client = createSettings({
+  settings,
+  transport,
+  hooks: {
+    setOrganization: {
+      after: (result, [organizationId, key]) => {
+        if (result.ok) log.info("setting changed", { organizationId, key });
+      },
+    },
+  },
+});
+```
+
+The settings tables take no app columns: each value is typed by its key's
+schema.
+
+`setUser` returns a `validation` error with the schema's issues when the value
 doesn't match, and an `invalid_input` error for a key you didn't declare;
 neither reaches the database. Use `sqlTransport(postgres.asUser(claims))`
 instead of `rpcTransport` to call the functions over Postgres. With
@@ -133,7 +166,7 @@ the Next.js and Expo examples.
 ```vue title="Preferences.vue"
 <script setup lang="ts">
 import { useSupabase } from "better-supabase/vue";
-import { rpcTransport } from "better-supabase/blocks/settings";
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
 import { useSettings } from "better-supabase/blocks/settings/vue";
 
 import { settings } from "@/lib/settings";
@@ -141,7 +174,7 @@ import { settings } from "@/lib/settings";
 const supabase = useSupabase();
 const { state, actions } = useSettings({
   entries: settings.schemas.user,
-  user: settings.connect({ transport: rpcTransport(supabase) }).user,
+  user: createSettings({ settings, transport: rpcTransport(supabase) }),
 });
 </script>
 
@@ -159,7 +192,10 @@ const { state, actions } = useSettings({
 ```svelte title="Preferences.svelte"
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
-  import { rpcTransport } from "better-supabase/blocks/settings";
+  import {
+  createSettings,
+  rpcTransport,
+} from "better-supabase/blocks/settings";
   import { useSettings } from "better-supabase/blocks/settings/svelte";
 
   import { settings } from "$lib/settings";
@@ -167,7 +203,7 @@ const { state, actions } = useSettings({
   const { supabase } = getBetterSupabase();
   const preferences = useSettings({
     entries: settings.schemas.user,
-    user: settings.connect({ transport: rpcTransport(supabase) }).user,
+    user: createSettings({ settings, transport: rpcTransport(supabase) }),
   });
 </script>
 
@@ -176,7 +212,7 @@ const { state, actions } = useSettings({
 
 ```tsx title="Preferences.tsx"
 import { useSupabase } from "better-supabase/solid";
-import { rpcTransport } from "better-supabase/blocks/settings";
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
 import { useSettings } from "better-supabase/blocks/settings/solid";
 
 import { settings } from "~/lib/settings";
@@ -185,7 +221,7 @@ export function Preferences() {
   const supabase = useSupabase();
   const { state } = useSettings({
     entries: settings.schemas.user,
-    user: settings.connect({ transport: rpcTransport(supabase) }).user,
+    user: createSettings({ settings, transport: rpcTransport(supabase) }),
   });
   return <p>{state().fields.length} settings</p>;
 }
@@ -228,11 +264,12 @@ the config doesn't list is refused, so a typo or a stale key never lands in
 any key can be written with that permission.
 
 ```ts
-const admin = platformSettings.connect({
+const admin = createSettings({
+  settings: platformSettings,
   transport: sqlTransport(postgres.asUser(claims)),
 });
-await admin.platform.set("invoiceFeePercent", 1.5).orThrow();
-const fee = await admin.platform.get("invoiceFeePercent").orThrow();
+await admin.setPlatform("invoiceFeePercent", 1.5).orThrow();
+const fee = await admin.getPlatform("invoiceFeePercent").orThrow();
 ```
 
 A key a caller may not read comes back as its default, and a write without

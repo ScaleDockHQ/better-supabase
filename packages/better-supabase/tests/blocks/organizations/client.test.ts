@@ -291,6 +291,7 @@ const sent = (email: string): InvitationSent => ({
     prefill: {},
     inviter: null,
     extra: {},
+    fields: {},
   },
   token: "token-1",
   resent: false,

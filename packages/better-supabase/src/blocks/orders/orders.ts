@@ -2,6 +2,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
@@ -18,6 +19,12 @@ import {
   taxProviderOf,
   type TaxTransaction,
 } from "../../commerce/tax.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
@@ -51,7 +58,15 @@ import {
   transactionToJson,
 } from "./codecs.ts";
 
-export interface OrdersOptions extends BlockOptions {
+export interface OrdersOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the extra columns of the orders table
+   * (`blocks.orders.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
   /** Takes the payment at checkout and the money back on refunds. */
   readonly payments?: PaymentProvider;
   /** Quotes tax at checkout and records the sale once the order is paid. */
@@ -65,7 +80,7 @@ export interface OrdersOptions extends BlockOptions {
   /** `manual` holds the funds until `capture`. Default `automatic`. */
   readonly capture?: "automatic" | "manual";
   /** `withBlockHooks` hooks around any orders method. */
-  readonly hooks?: NoInfer<BlockHooks<Orders>>;
+  readonly hooks?: NoInfer<BlockHooks<Orders<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw and failed tax calls. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -98,7 +113,7 @@ export interface CartDetails {
   readonly billingAddress?: Address;
 }
 
-export interface CheckoutInput {
+export interface CheckoutInput<F extends object = Record<never, never>> {
   /** Reserve stock at this location instead of the one with the most. */
   readonly locationId?: string;
   /** The payment provider's customer id. */
@@ -106,10 +121,12 @@ export interface CheckoutInput {
   /** Where a redirecting payment method returns the customer. */
   readonly returnUrl?: string;
   readonly metadata?: Readonly<Record<string, string>>;
+  /** Values for the order's extra columns (`options.extraColumns`). */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface Checkout {
-  readonly order: Order;
+export interface Checkout<F extends object = Record<never, never>> {
+  readonly order: Order<F>;
   /**
    * The payment to confirm in the browser (its `clientSecret` or
    * `redirectUrl`). Null for a free order or without a payments provider.
@@ -177,13 +194,13 @@ export type PaymentEventOutcome =
       readonly reason: string;
     };
 
-export interface Invoice {
+export interface Invoice<F extends object = Record<never, never>> {
   readonly number: string;
   readonly issuedAt: Temporal.Instant;
-  readonly order: Order;
+  readonly order: Order<F>;
 }
 
-export interface Orders {
+export interface Orders<F extends object = Record<never, never>> {
   saveShippingRate(
     organizationId: string,
     input: ShippingRateInput,
@@ -222,14 +239,14 @@ export interface Orders {
    * and creates the payment. Repeating it for the same cart returns the
    * same order and, through the idempotency key, the same payment.
    */
-  checkout(cartId: string, input?: CheckoutInput): AsyncResult<Checkout>;
+  checkout(cartId: string, input?: CheckoutInput<F>): AsyncResult<Checkout<F>>;
   /** Stores a payment's state on its order; the order is paid once its total is captured. Service only. */
   recordPayment(
     orderId: string | null,
     payment: Payment,
   ): AsyncResult<PaymentRecord>;
   /** Captures the order's authorized payments. */
-  capture(orderId: string): AsyncResult<Order>;
+  capture(orderId: string): AsyncResult<Order<F>>;
   /** Applies one provider event: a payment update or a refund's outcome. */
   handlePaymentEvent(event: PaymentEvent): AsyncResult<PaymentEventOutcome>;
   /** Verifies a provider webhook and applies its events. */
@@ -240,7 +257,7 @@ export interface Orders {
   cancelOrder(orderId: string, reason?: string): AsyncResult<boolean>;
   /** Cancels orders whose payment window passed. Service only. */
   expireOrders(maxRows?: number): AsyncResult<number>;
-  getOrder(orderId: string): AsyncResult<Order>;
+  getOrder(orderId: string): AsyncResult<Order<F>>;
   createFulfillment(
     orderId: string,
     input?: FulfillmentInput,
@@ -266,7 +283,7 @@ export interface Orders {
   /** Refunds through the payment provider and reverses the refunded part of the tax. */
   refund(orderId: string, input?: RefundRequest): AsyncResult<RefundOutcome>;
   /** The invoice of a paid order. */
-  invoice(orderId: string): AsyncResult<Invoice>;
+  invoice(orderId: string): AsyncResult<Invoice<F>>;
   /** The handler for a scheduled job that runs `expireOrders`. */
   readonly job: JobHandler<unknown>;
 }
@@ -309,8 +326,14 @@ function refundStatusOf(
 }
 
 /** Carts, checkout, payments, fulfillments, returns, refunds and invoices over the `orders` SQL module. */
-export function createOrders(options: OrdersOptions): Orders {
+export function createOrders<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: OrdersOptions<S>): Orders<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(options.fields, "order fields");
+  const parsed = (result: AsyncResult<Order>): AsyncResult<Order<F>> =>
+    result.andThen((order) => readFields(fields, order));
   const payments = options.payments
     ? paymentProviderOf(options.payments)
     : undefined;
@@ -328,8 +351,8 @@ export function createOrders(options: OrdersOptions): Orders {
       ? options.taxCategory(line)
       : options.taxCategory;
 
-  const loadOrder = (orderId: string): AsyncResult<Order> =>
-    service("get_order", { order_id: orderId }, orderOf);
+  const loadOrder = (orderId: string): AsyncResult<Order<F>> =>
+    parsed(service("get_order", { order_id: orderId }, orderOf));
 
   const recordPayment: Orders["recordPayment"] = (orderId, payment) =>
     service(
@@ -430,8 +453,13 @@ export function createOrders(options: OrdersOptions): Orders {
     };
   };
 
-  const checkout: Orders["checkout"] = (cartId, input = {}) =>
-    AsyncResult.from(async (): Promise<Result<Checkout>> => {
+  const checkout: Orders<F>["checkout"] = (cartId, input = {}) =>
+    AsyncResult.from(async (): Promise<Result<Checkout<F>>> => {
+      const checked =
+        input.fields === undefined
+          ? ok(undefined)
+          : await fields.write({ ...input.fields });
+      if (!checked.ok) return checked;
       const priced = await call("price_cart", { cart: cartId }, pricedCartOf);
       if (!priced.ok) return priced;
       const cart = priced.data;
@@ -460,15 +488,18 @@ export function createOrders(options: OrdersOptions): Orders {
         if (!quoted.ok) return quoted;
         quote = quoteToJson(quoted.data);
       }
-      const placed = await service(
-        "place_order",
-        {
-          cart: cartId,
-          tax: quote,
-          expected_total: amountText(cart.total),
-          location: input.locationId ?? null,
-        },
-        orderOf,
+      const placed = await parsed(
+        service(
+          "place_order",
+          {
+            cart: cartId,
+            tax: quote,
+            expected_total: amountText(cart.total),
+            location: input.locationId ?? null,
+            fields: checked.data,
+          },
+          orderOf,
+        ),
       );
       if (!placed.ok) return placed;
       const order = placed.data;
@@ -518,8 +549,8 @@ export function createOrders(options: OrdersOptions): Orders {
         : current;
     });
 
-  const capture: Orders["capture"] = (orderId) =>
-    AsyncResult.from(async (): Promise<Result<Order>> => {
+  const capture: Orders<F>["capture"] = (orderId) =>
+    AsyncResult.from(async (): Promise<Result<Order<F>>> => {
       if (!payments)
         return err(
           failure("ORDERS_NO_PAYMENTS", "capture needs a payments provider"),
@@ -769,7 +800,7 @@ export function createOrders(options: OrdersOptions): Orders {
   const expireOrders: Orders["expireOrders"] = (maxRows) =>
     service("expire_orders", { max_rows: maxRows ?? null }, Number);
 
-  const orders: Orders = {
+  const orders: Orders<F> = {
     saveShippingRate: (organizationId, input) =>
       call(
         "save_shipping_rate",
@@ -865,7 +896,8 @@ export function createOrders(options: OrdersOptions): Orders {
     commitTax,
     cancelOrder,
     expireOrders,
-    getOrder: (orderId) => call("get_order", { order_id: orderId }, orderOf),
+    getOrder: (orderId) =>
+      parsed(call("get_order", { order_id: orderId }, orderOf)),
     createFulfillment: (orderId, input = {}) =>
       call(
         "create_fulfillment",
@@ -931,16 +963,17 @@ export function createOrders(options: OrdersOptions): Orders {
       call("reject_return", { return_id: returnId }, isTrue),
     refund,
     invoice: (orderId) =>
-      call("get_order", { order_id: orderId }, orderOf).andThen((order) =>
-        Promise.resolve(
-          order.invoiceNumber === null || order.invoicedAt === undefined
-            ? err(failure("ORDERS_NOT_INVOICED", "the order isn't paid yet"))
-            : ok({
-                number: order.invoiceNumber,
-                issuedAt: order.invoicedAt,
-                order,
-              }),
-        ),
+      parsed(call("get_order", { order_id: orderId }, orderOf)).andThen(
+        (order) =>
+          Promise.resolve(
+            order.invoiceNumber === null || order.invoicedAt === undefined
+              ? err(failure("ORDERS_NOT_INVOICED", "the order isn't paid yet"))
+              : ok({
+                  number: order.invoiceNumber,
+                  issuedAt: order.invoicedAt,
+                  order,
+                }),
+          ),
       ),
     job: async (payload) => {
       await expireOrders(maxRowsOf(payload)).orThrow();

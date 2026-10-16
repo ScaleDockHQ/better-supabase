@@ -2,6 +2,7 @@
 
 import { ok } from "better-supabase";
 
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
@@ -16,7 +17,11 @@ export const apiKeyCreated = bs.action(
     authorize: (session) => can(session, "api_keys.own"),
   },
   async (_input, { tenant: organizationId, supabase }) => {
-    await blocks(supabase).onboarding.complete("api-key", organizationId);
+    await blocks(supabase).onboarding.complete(
+      gettingStarted,
+      "api-key",
+      organizationId,
+    );
     return ok(true);
   },
 );

@@ -1,7 +1,8 @@
 import type { DbError } from "../../core/errors.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type {
-  ChecklistClient,
+  Checklist,
   ChecklistProgress,
   ChecklistScope,
   ChecklistSubject,
@@ -9,14 +10,35 @@ import type {
 
 import { defineController, whileSignedIn } from "../controller.ts";
 
+/** The calls the controller makes for one checklist; `createOnboarding` fits. */
+export interface OnboardingControllerClient<
+  Id extends string,
+  Scope extends ChecklistScope,
+> {
+  progress(
+    checklist: Checklist<Id, Scope>,
+    ...subject: ChecklistSubject<Scope>
+  ): AsyncResult<ChecklistProgress<Id>>;
+  complete(
+    checklist: Checklist<Id, Scope>,
+    step: Id,
+    ...subject: ChecklistSubject<Scope>
+  ): AsyncResult<boolean>;
+  reset(
+    checklist: Checklist<Id, Scope>,
+    step: Id,
+    ...subject: ChecklistSubject<Scope>
+  ): AsyncResult<boolean>;
+}
+
 export interface OnboardingControllerOptions<
   Id extends string,
   Scope extends ChecklistScope,
 > {
-  /** `checklist.connect({ transport })`. */
-  readonly client: ChecklistClient<Id, Scope>;
-  /** `checklist.scope`. */
-  readonly scope: Scope;
+  /** `createOnboarding({ transport })`. */
+  readonly client: OnboardingControllerClient<Id, Scope>;
+  /** The checklist, from `defineChecklist`. */
+  readonly checklist: Checklist<Id, Scope>;
   readonly auth: AuthPort;
   /** The organization, for an organization checklist; it waits without one. */
   readonly organizationId?: string | null;
@@ -45,12 +67,12 @@ export function createOnboardingController<
   Id extends string,
   Scope extends ChecklistScope,
 >(options: OnboardingControllerOptions<Id, Scope>): OnboardingController<Id> {
-  const { client } = options;
+  const { client, checklist } = options;
   const organizationId = options.organizationId ?? null;
-  const ready = options.scope === "user" || organizationId !== null;
+  const ready = checklist.scope === "user" || organizationId !== null;
   // SAFETY: ChecklistSubject is [organizationId] for organization checklists and [] for user ones.
   const subject = (
-    options.scope === "organization" && organizationId !== null
+    checklist.scope === "organization" && organizationId !== null
       ? [organizationId]
       : []
   ) as ChecklistSubject<Scope>;
@@ -59,7 +81,7 @@ export function createOnboardingController<
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
-        const result = await client.progress(...subject);
+        const result = await client.progress(checklist, ...subject);
         if (run !== state.run()) return;
         state.set(
           result.ok
@@ -71,7 +93,7 @@ export function createOnboardingController<
         action: "complete" | "reset",
         step: Id,
       ): Promise<void> => {
-        const result = await client[action](step, ...subject);
+        const result = await client[action](checklist, step, ...subject);
         if (result.ok) await refresh();
         else state.set({ error: result.error });
       };

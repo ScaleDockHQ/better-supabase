@@ -3,7 +3,14 @@ import type { ModuleContext } from "../context.ts";
 import { rankKeys } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import {
+  columnsObject,
+  fail,
+  fieldsArg,
+  fieldsParam,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import {
   byType,
@@ -11,6 +18,15 @@ import {
   outcomeCase,
   type PipelineBinding,
 } from "./pipelines-bindings.ts";
+
+/** ` || jsonb_build_object('fields', ...)` for pipeline row `alias`; empty without extra columns. */
+const pipelineFields = (names: Names, alias: string): string =>
+  names.extras.length === 0
+    ? ""
+    : ` || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        names.extras.map((extra) => extra.name),
+      )})`;
 
 /**
  * The first pipeline of a subject type and scope, created from the
@@ -386,7 +402,7 @@ ${userGrant(`${fn("set_pipeline_transitions")}(uuid, jsonb)`)}
   return `
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-create or replace function ${fn("save_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function ${fn("save_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean${fieldsParam(names.extras)})
 returns jsonb
 language plpgsql
 security definer
@@ -432,7 +448,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("PIPELINE_KEY_TAKEN", "another pipeline of this type has this key", "23505")}
-  end;
+  end;${writeExtraColumns(t("pipelines"), names.extras, "save_pipeline.fields", `x.${p("id")} = v_pipeline`)}
   if v_created then
     ${configured("pipeline.created", "jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)", "'pipelines/' || v_pipeline::text", "save_pipeline.tenant::text", "'created pipeline ' || save_pipeline.name")}
   else
@@ -442,10 +458,10 @@ begin
     ["uuid", "v_pipeline"],
     ["boolean", "v_created"],
   ])}
-  return (select to_jsonb(x) from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
+  return (select to_jsonb(x)${pipelineFields(names, "x")} from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
 end;
 $$;
-${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean)`)}
+${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${fieldsArg(names.extras)})`)}
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function ${fn("archive_pipeline")}(pipeline uuid)
@@ -766,7 +782,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('stages', coalesce((
+  select coalesce(jsonb_agg(to_jsonb(x)${pipelineFields(names, "x")} || jsonb_build_object('stages', coalesce((
       select jsonb_agg(to_jsonb(st) order by st.${s("rank")} collate "C")
       from ${t("stages")} st where st.${s("pipeline")} = x.${c("pipelines", "id")} and st.${s("archivedAt")} is null
     ), '[]'::jsonb)) order by x.${c("pipelines", "rank")} collate "C"), '[]'::jsonb)

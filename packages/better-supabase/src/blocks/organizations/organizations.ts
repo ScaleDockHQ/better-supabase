@@ -13,7 +13,15 @@ import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 import type { OrganizationsEvents } from "./events.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
-import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  rowFields,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -45,7 +53,7 @@ export interface CreateOrganizationOptions {
 
 export type SlugProblem = "invalid" | "reserved" | "taken";
 
-export interface InviteRequest {
+export interface InviteRequest<I extends object = Record<never, never>> {
   /** `null` invites to the platform (`blocks.access.model: 'catalog'`). */
   readonly organizationId: string | null;
   readonly email: string;
@@ -55,9 +63,16 @@ export interface InviteRequest {
   readonly validFor?: string;
   /** Profile fields to fill in on sign-up. */
   readonly prefill?: Readonly<Record<string, unknown>>;
+  /**
+   * Values for the invitations table's extra columns
+   * (`blocks.invitations.options.extraColumns`), checked by
+   * `options.invitationFields`.
+   */
+  readonly fields?: Partial<I> & Readonly<Record<string, unknown>>;
 }
 
-export interface Invitation {
+/** An invitation. `I` types the extra columns `options.invitationFields` describes. */
+export interface Invitation<I extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string | null;
   readonly email: string;
@@ -78,6 +93,8 @@ export interface Invitation {
   readonly inviter: Readonly<Record<string, unknown>> | null;
   /** The keys an `invitation_preview_extra` hook added, such as a role label. */
   readonly extra: Readonly<Record<string, unknown>>;
+  /** The extra columns of an organization invitation, by column name. */
+  readonly fields: RowFields<I>;
 }
 
 /** What `updateInvitation` changes; a missing key keeps the current value. */
@@ -90,8 +107,8 @@ export interface InvitationChanges {
 }
 
 /** What `onInvite` receives: the place to send the email. */
-export interface InvitationSent {
-  readonly invitation: Invitation;
+export interface InvitationSent<I extends object = Record<never, never>> {
+  readonly invitation: Invitation<I>;
   /** Put it in the accept link. It is never stored in plain text by default. */
   readonly token: string;
   readonly resent: boolean;
@@ -157,6 +174,7 @@ export interface OrganizationInvitationRow {
 
 export interface OrganizationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
+  SI extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the organization's extra columns
@@ -165,8 +183,16 @@ export interface OrganizationsOptions<
    * `create` and `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
+  /**
+   * A Standard Schema for the invitations table's extra columns
+   * (`blocks.invitations.options.extraColumns`). It validates them on
+   * `invite` and parses them on every invitation read.
+   */
+  readonly invitationFields?: SI;
   /** `withBlockHooks` hooks around the methods, such as a seat limit on `invite`. */
-  readonly hooks?: NoInfer<BlockHooks<Organizations<FieldsOf<S>>>>;
+  readonly hooks?: NoInfer<
+    BlockHooks<Organizations<FieldsOf<S>, FieldsOf<SI>>>
+  >;
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
@@ -187,13 +213,17 @@ export interface OrganizationsOptions<
    * Runs before an invitation is created, after the database checks the
    * caller may invite. Return `false` to refuse (seat limits, plans).
    */
-  readonly canInvite?: (request: InviteRequest) => boolean | Promise<boolean>;
+  readonly canInvite?: (
+    request: InviteRequest<FieldsOf<SI>>,
+  ) => boolean | Promise<boolean>;
   /**
    * Runs after an invitation is created or resent, to send the email. When
    * it throws, the call returns an error and the invitation stays open:
    * call `resendInvitation` to retry.
    */
-  readonly onInvite?: (sent: InvitationSent) => void | Promise<void>;
+  readonly onInvite?: (
+    sent: InvitationSent<FieldsOf<SI>>,
+  ) => void | Promise<void>;
   /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -211,7 +241,10 @@ export type InvitationErrorHint = InvitationError;
  * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`. `F` is
  * the extra fields `options.fields` describes.
  */
-export interface Organizations<F extends object = Record<never, never>> {
+export interface Organizations<
+  F extends object = Record<never, never>,
+  I extends object = Record<never, never>,
+> {
   create(
     attributes: OrganizationAttributes & Partial<F>,
     options?: CreateOrganizationOptions,
@@ -250,11 +283,11 @@ export interface Organizations<F extends object = Record<never, never>> {
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
-  invite(request: InviteRequest): AsyncResult<InvitationSent>;
+  invite(request: InviteRequest<I>): AsyncResult<InvitationSent<I>>;
   resendInvitation(
     invitationId: string,
     validFor?: string,
-  ): AsyncResult<InvitationSent>;
+  ): AsyncResult<InvitationSent<I>>;
   /**
    * A new email, role or prefill for an open invitation, with the checks
    * `invite` makes. The token and expiry stay, so the link already sent
@@ -264,7 +297,7 @@ export interface Organizations<F extends object = Record<never, never>> {
   updateInvitation(
     invitationId: string,
     changes: InvitationChanges,
-  ): AsyncResult<Invitation>;
+  ): AsyncResult<Invitation<I>>;
   /** `false` when it was not open. */
   revokeInvitation(invitationId: string): AsyncResult<boolean>;
   declineInvitation(token: string): AsyncResult<boolean>;
@@ -278,7 +311,7 @@ export interface Organizations<F extends object = Record<never, never>> {
     invitationId: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
   declineInvitationById(invitationId: string): AsyncResult<boolean>;
-  myInvitations(): AsyncResult<readonly Invitation[]>;
+  myInvitations(): AsyncResult<readonly Invitation<I>[]>;
 }
 
 const text = (value: unknown): string =>
@@ -305,6 +338,7 @@ const INVITATION_KEYS: ReadonlySet<string> = new Set([
   "prefill",
   "inviter",
   "token",
+  "fields",
 ]);
 
 function invitationFrom(row: Record<string, unknown>): Invitation {
@@ -324,6 +358,7 @@ function invitationFrom(row: Record<string, unknown>): Invitation {
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
     inviter: isRecord(row["inviter"]) ? row["inviter"] : null,
     extra: extraOf(row, INVITATION_KEYS),
+    fields: rowFields(row["fields"]),
   };
 }
 
@@ -410,19 +445,32 @@ const splitAttributes = (
 /** Calls the `organizations` and `invitations` block functions. */
 export function createOrganizations<
   S extends StandardSchemaV1 | undefined = undefined,
->(options: OrganizationsOptions<S>): Organizations<FieldsOf<S>> {
-  const client = organizationsClient<FieldsOf<S>>(options);
+  SI extends StandardSchemaV1 | undefined = undefined,
+>(
+  options: OrganizationsOptions<S, SI>,
+): Organizations<FieldsOf<S>, FieldsOf<SI>> {
+  const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>>(options);
   return withBlockHooks(client, options.hooks, {
     block: "organizations",
     ...(options.events ? { logger: options.events.logger } : {}),
   });
 }
 
-function organizationsClient<F extends object>(
-  options: OrganizationsOptions<StandardSchemaV1 | undefined>,
-): Organizations<F> {
+function organizationsClient<F extends object, I extends object>(
+  options: OrganizationsOptions<
+    StandardSchemaV1 | undefined,
+    StandardSchemaV1 | undefined
+  >,
+): Organizations<F, I> {
   applyTemporal(options);
-  const fields = blockFields<F>(options.fields, "organization fields");
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "organization fields",
+  );
+  const invitationFields: BlockFields<I> = blockFields(
+    options.invitationFields,
+    "invitation fields",
+  );
   const checked = (
     attributes: OrganizationAttributes,
   ): AsyncResult<OrganizationAttributes> =>
@@ -484,10 +532,13 @@ function organizationsClient<F extends object>(
     value: unknown,
     fn: string,
     resent: boolean,
-  ): Promise<InvitationSent> => {
+  ): Promise<InvitationSent<I>> => {
     const row = recordOf(value, fn);
-    const invitation = invitationFrom(row);
-    const result: InvitationSent = {
+    const invitation = await readFields(
+      invitationFields,
+      invitationFrom(row),
+    ).orThrow();
+    const result: InvitationSent<I> = {
       invitation,
       token: text(row["token"]),
       resent,
@@ -767,6 +818,11 @@ function organizationsClient<F extends object>(
             }),
           );
         }
+        const checked =
+          request.fields === undefined
+            ? ok(undefined)
+            : await invitationFields.write({ ...request.fields });
+        if (!checked.ok) return checked;
         return run(
           "invitations",
           "invite_member",
@@ -776,6 +832,7 @@ function organizationsClient<F extends object>(
             invitee_role: request.role,
             valid_for: request.validFor,
             prefill: request.prefill,
+            fields: checked.data,
           },
           (value) => sent(value, "invite_member", false),
         );
@@ -813,7 +870,7 @@ function organizationsClient<F extends object>(
           });
           return invitation;
         },
-      );
+      ).andThen((invitation) => readFields(invitationFields, invitation));
     },
     revokeInvitation(invitationId) {
       return run(
@@ -859,7 +916,7 @@ function organizationsClient<F extends object>(
         (Array.isArray(value) ? value.filter(isRecord) : []).map(
           invitationFrom,
         ),
-      );
+      ).andThen((invitations) => readAllFields(invitationFields, invitations));
     },
     declineInvitationById(invitationId) {
       return run(

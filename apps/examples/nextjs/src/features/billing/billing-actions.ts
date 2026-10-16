@@ -4,6 +4,7 @@ import { type Result, dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
@@ -18,6 +19,7 @@ export const markPlanReviewed = bs.action(
   },
   async (_input, { tenant: organizationId, supabase }) => {
     const completed = await blocks(supabase).onboarding.complete(
+      gettingStarted,
       "plan",
       organizationId,
     );

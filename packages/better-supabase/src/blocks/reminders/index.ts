@@ -10,6 +10,7 @@ export {
   REMINDER_DELIVERY_QUEUE,
   createReminders,
   type Reminders,
+  type SavedReminder,
   type RemindersOptions,
 } from "./reminders.ts";
 export { remindersBlock } from "./manifest.ts";

@@ -1,8 +1,13 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, pageSize, fail } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  pageSize,
+  fail,
+  writeExtraColumns,
+} from "../shared.ts";
 import { accessModel, OPERATIONS } from "./access-model.ts";
 import {
   channelDefaults,
@@ -33,7 +38,12 @@ export interface NotifyNames {
   readonly readPermission: string;
   /** Whether `member_can` answers for users other than the caller. */
   readonly answersForOthers: boolean;
+  /** `options.extraColumns` of the events table, written from `notification.fields`. */
+  readonly extras: readonly ExtraColumn[];
 }
+
+/** The keys an inbox item returns next to the event's columns (`itemJson`). */
+const ITEM_KEYS = ["event_id", "read_at", "actor_id", "resolved_at", "fields"];
 
 export function notifyNames(
   ctx: ModuleContext,
@@ -41,6 +51,7 @@ export function notifyNames(
 ): NotifyNames {
   return {
     answersForOthers,
+    extras: ctx.extraColumns("events", ITEM_KEYS),
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
     has: (table, logical) => ctx.hasTable(table) && ctx.has(table, logical),
@@ -372,7 +383,7 @@ begin
   if cardinality(v_recipients) = 0 then
     return null;
   end if;
-${keyed}
+${keyed}${writeExtraColumns(n.table("events"), n.extras, "(notification -> 'fields')", `x.${e("id")} = v_event`)}
 
   insert into ${n.table("recipients")} (${recipientColumns.join(", ")})
   select ${recipientValues.join(", ")}

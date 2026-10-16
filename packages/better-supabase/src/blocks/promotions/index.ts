@@ -10,6 +10,7 @@ export {
   type PromotionKind,
   type PromotionScope,
   type Promotions,
+  type SavedPromotion,
   type PromotionsOptions,
 } from "./promotions.ts";
 export {

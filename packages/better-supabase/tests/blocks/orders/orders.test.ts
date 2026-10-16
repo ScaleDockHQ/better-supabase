@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import * as v from "valibot";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
   createOrders,
@@ -1442,5 +1443,45 @@ describe("orders block", () => {
     );
     await o.getOrder("o1").orThrow();
     expect(before).toHaveBeenCalled();
+  });
+});
+
+describe("order fields", () => {
+  const schema = v.object({ channel: v.picklist(["web", "pos"]) });
+
+  it("validates checkout fields, sends them to place_order and parses reads", async () => {
+    const route = router({
+      price_cart: () =>
+        cartRow({ status: "converted", lines: [], problems: [] }),
+      place_order: () =>
+        orderRow({ status: "paid", fields: { channel: "pos" } }),
+      get_order: () => orderRow({ fields: { channel: "web" } }),
+    });
+    const o = createOrders({ transport: route.transport, fields: schema });
+    const bad = await o.checkout("c1", {
+      // @ts-expect-error not one of the channels
+      fields: { channel: "fax" },
+    });
+    expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(route.calls).toHaveLength(0);
+    const placed = await o
+      .checkout("c1", { fields: { channel: "pos" } })
+      .orThrow();
+    expect(route.calls[1]?.args).toMatchObject({ fields: { channel: "pos" } });
+    expect(placed.order.fields).toEqual({ channel: "pos" });
+    const order = await o.getOrder("o1").orThrow();
+    expectTypeOf(order.fields.channel).toEqualTypeOf<"web" | "pos">();
+    expect(order.fields.channel).toBe("web");
+  });
+
+  it("refuses an order whose stored fields fail the schema", async () => {
+    const route = router({
+      get_order: () => orderRow({ fields: { channel: 1 } }),
+    });
+    const o = createOrders({ transport: route.transport, fields: schema });
+    expect(await o.getOrder("o1")).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
   });
 });

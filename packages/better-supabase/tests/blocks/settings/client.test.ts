@@ -8,7 +8,10 @@ import {
   createSettingsController,
   settingFields,
 } from "../../../src/blocks/settings/client.ts";
-import { defineSettings } from "../../../src/blocks/settings/index.ts";
+import {
+  createSettings,
+  defineSettings,
+} from "../../../src/blocks/settings/index.ts";
 import { fakeAuth, flush, mount } from "../../fixtures/ports.ts";
 
 const settings = defineSettings({
@@ -121,11 +124,11 @@ describe("settingFields", () => {
 describe("createSettingsController", () => {
   it("loads, sets and resets the caller's own settings", async () => {
     const { transport } = fakeTransport();
-    const client = settings.connect({ transport });
+    const client = createSettings({ settings, transport });
     const controller = createSettingsController({
       entries: settings.schemas.user,
       auth: fakeAuth(),
-      user: client.user,
+      user: client,
     });
     expect(controller.getSnapshot().fields).toHaveLength(4);
     const { view, unmount } = mount(controller);
@@ -158,11 +161,11 @@ describe("createSettingsController", () => {
 
   it("edits an organization's settings once it has one", async () => {
     const { transport, call } = fakeTransport();
-    const client = settings.connect({ transport, schema: "api" });
+    const client = createSettings({ settings, transport, schema: "api" });
     const waiting = createSettingsController({
       entries: settings.schemas.organization,
       auth: fakeAuth(),
-      organization: client.organization,
+      organization: client,
       organizationId: null,
     });
     const idle = mount(waiting);
@@ -177,7 +180,7 @@ describe("createSettingsController", () => {
       createSettingsController({
         entries: settings.schemas.organization,
         auth: fakeAuth(),
-        organization: client.organization,
+        organization: client,
         organizationId: "org-1",
       }),
     );
@@ -211,7 +214,7 @@ describe("createSettingsController", () => {
     const controller = createSettingsController({
       entries: settings.schemas.user,
       auth: fakeAuth(),
-      user: settings.connect({ transport }).user,
+      user: createSettings({ settings, transport }),
     });
     expect((await controller.actions.set("signature", "Hi")).ok).toBe(true);
     expect(controller.getSnapshot().values).toBeUndefined();

@@ -1,8 +1,11 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { JobHandler } from "./types.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { sqlTransport } from "../../core/block-transport.ts";
 import { dbError } from "../../core/errors.ts";
 import { type ProblemFormat, problemResponse } from "../../core/problem.ts";
@@ -57,6 +60,10 @@ export interface RateLimit {
 
 export interface RateLimitOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: BlockHooks<RateLimit>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 const isTransport = (
@@ -82,13 +89,12 @@ export function createRateLimit(
     undefined,
     options.mappers,
   );
-  const purge: RateLimit["purge"] = (purgeOptions = {}) =>
-    call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
-      Number(value ?? 0),
-    );
-  return {
-    purge,
-    purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
+  const client: RateLimit = {
+    purge: (purgeOptions = {}) =>
+      call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
+        Number(value ?? 0),
+      ),
+    purgeJob: (jobOptions) => async () => hooked.purge(jobOptions).orThrow(),
     check: (scope, key, rule) => {
       if (rule !== undefined && (!Number.isInteger(rule.max) || rule.max < 1)) {
         return AsyncResult.err(
@@ -106,6 +112,11 @@ export function createRateLimit(
       );
     },
   };
+  const hooked = withBlockHooks(client, options.hooks, {
+    block: "rate-limit",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  return hooked;
 }
 
 type Hit = (

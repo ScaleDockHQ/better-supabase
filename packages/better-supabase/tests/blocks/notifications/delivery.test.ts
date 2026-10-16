@@ -123,6 +123,7 @@ const message = (
     createdAt: Temporal.Instant.fromEpochMilliseconds(0),
     readAt: null,
     resolvedAt: null,
+    fields: {},
   },
   text: { title: "Assigned", body: "You have a task" },
   ...overrides,

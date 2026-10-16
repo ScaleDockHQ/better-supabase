@@ -60,6 +60,30 @@ createReminders({ ...context, authorization: bs.authorization });
 and `userId`, so a [watcher sink](/docs/blocks/notifications#watchers) can
 route it like any other subject event.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `reminders`. `save` writes them (its last argument) from `fields`,
+and `save` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    reminders: { options: { extraColumns: { channel: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createReminders({
+  transport,
+  fields: v.object({ channel: v.optional(v.picklist(["email", "push"])) }),
+});
+await client.save(organizationId, "task", taskId, 30, { channel: "push" });
+```
+
 ## Adopt mode
 
 Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.

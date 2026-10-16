@@ -49,8 +49,10 @@ import { memoryBlock } from "better-supabase/blocks/memory";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
@@ -64,6 +66,7 @@ import { remindersBlock } from "better-supabase/blocks/reminders";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
@@ -133,8 +136,10 @@ export const blockSet = defineBlocks(blockConfig, {
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,
+  onboarding: onboardingBlock,
   orders: ordersBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   parties: partiesBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
@@ -148,6 +153,7 @@ export const blockSet = defineBlocks(blockConfig, {
   savedViews: savedViewsBlock,
   search: searchBlock,
   servicePrincipals: servicePrincipalsBlock,
+  settings: settingsBlock,
   shareLinks: shareLinksBlock,
   sla: slaBlock,
   sso: ssoBlock,

@@ -1,8 +1,22 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  readAllFields,
+  readFields,
+  type RowFields,
+  rowFields,
+  writeFields,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
   isRecord,
@@ -19,7 +33,7 @@ export interface SubjectRef {
   readonly id: string;
 }
 
-export interface LinkInput {
+export interface LinkInput<F extends object = Record<never, never>> {
   readonly organizationId: string;
   /** A kind, or its inverse name (`blocked_by` stores `blocks` from the other end). */
   readonly kind: string;
@@ -27,11 +41,13 @@ export interface LinkInput {
   readonly target: SubjectRef;
   /** Data on the link, such as a Gantt dependency's `type` and `lag`. */
   readonly data?: Readonly<Record<string, unknown>>;
+  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export type UnlinkInput = Omit<LinkInput, "data">;
+export type UnlinkInput = Omit<LinkInput, "data" | "fields">;
 
-export interface LinkResult {
+export interface LinkResult<F extends object = Record<never, never>> {
   readonly id: string;
   /** The stored kind; an inverse name resolves to its kind. */
   readonly kind: string;
@@ -46,6 +62,8 @@ export interface LinkResult {
     readonly data: Readonly<Record<string, unknown>>;
   } | null;
   readonly undo: UndoToken | null;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 export interface UnlinkResult {
@@ -53,7 +71,7 @@ export interface UnlinkResult {
   readonly undo: UndoToken | null;
 }
 
-export interface Relation {
+export interface Relation<F extends object = Record<never, never>> {
   readonly id: string;
   /** The kind as read from the subject's side: `blocked_by` for an incoming `blocks`. */
   readonly kind: string;
@@ -61,14 +79,18 @@ export interface Relation {
   readonly subject: SubjectRef;
   readonly data: Readonly<Record<string, unknown>>;
   readonly createdAt: string;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
-export interface RelationEdge {
+export interface RelationEdge<F extends object = Record<never, never>> {
   readonly id: string;
   readonly kind: string;
   readonly source: SubjectRef;
   readonly target: SubjectRef;
   readonly data: Readonly<Record<string, unknown>>;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: RowFields<F>;
 }
 
 export interface RelationNode extends SubjectRef {
@@ -88,23 +110,35 @@ export interface RollupInput {
   readonly column?: string;
 }
 
-export interface RelationsOptions {
+export interface RelationsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * A Standard Schema for the extra columns of the relations table
+   * (`blocks.relations.options.extraColumns`): writes are validated, reads
+   * parsed.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<Relations<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface Relations {
-  link(input: LinkInput): AsyncResult<LinkResult>;
+export interface Relations<F extends object = Record<never, never>> {
+  link(input: LinkInput<F>): AsyncResult<LinkResult<F>>;
   unlink(input: UnlinkInput): AsyncResult<UnlinkResult>;
   /** A subject's links in both directions, optionally of one kind. */
   of(
     organizationId: string,
     subject: SubjectRef,
     kind?: string,
-  ): AsyncResult<Relation[]>;
+  ): AsyncResult<Relation<F>[]>;
   /** Every link of a kind in the organization (up to 10,000), for a chart or a tree. */
-  edges(organizationId: string, kind: string): AsyncResult<RelationEdge[]>;
+  edges(organizationId: string, kind: string): AsyncResult<RelationEdge<F>[]>;
   ancestors(
     organizationId: string,
     kind: string,
@@ -171,6 +205,7 @@ function edgeOf(value: unknown): RelationEdge {
     source: ref(row["sourceType"], row["sourceId"]),
     target: ref(row["targetType"], row["targetId"]),
     data: objectOf(row["data"]),
+    fields: rowFields(row["fields"]),
   };
 }
 
@@ -183,65 +218,76 @@ function nodeOf(value: unknown): RelationNode {
   };
 }
 
-export function createRelations(options: RelationsOptions): Relations {
+export function createRelations<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: RelationsOptions<S>): Relations<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
+  const fields: BlockFields<F> = blockFields(options.fields, "relation fields");
+  const client: Relations<F> = {
     link: (input) =>
-      call(
-        "link",
-        {
-          ...linkArgs(
-            input.organizationId,
-            input.kind,
-            input.source,
-            input.target,
-          ),
-          data: input.data ?? null,
-        },
-        (value) => {
-          const row = recordOf(value, "link");
-          const kind = textOf(row["kind"]);
-          const source = ref(row["sourceType"], row["sourceId"]);
-          const target = ref(row["targetType"], row["targetId"]);
-          const created = row["created"] === true;
-          const replacedRow = row["replaced"];
-          const replaced = isRecord(replacedRow)
-            ? {
-                target: ref(replacedRow["targetType"], replacedRow["targetId"]),
-                data: objectOf(replacedRow["data"]),
-              }
-            : null;
-          const calls: UndoCall[] = [];
-          const args = linkArgs(input.organizationId, kind, source, target);
-          if (created) calls.push({ fn: "unlink", args });
-          if (replaced) {
-            calls.push({
-              fn: "link",
-              args: {
-                ...linkArgs(
-                  input.organizationId,
-                  kind,
-                  source,
-                  replaced.target,
-                ),
-                data: replaced.data,
-              },
-            });
-          }
-          const previous = row["previousData"];
-          if (!created && input.data !== undefined && isRecord(previous)) {
-            calls.push({ fn: "link", args: { ...args, data: previous } });
-          }
-          return {
-            id: textOf(row["id"]),
-            kind,
-            source,
-            target,
-            created,
-            replaced,
-            undo: calls.length > 0 ? undoToken(calls) : null,
-          };
-        },
+      writeFields(fields, input.fields, (checked) =>
+        call(
+          "link",
+          {
+            ...linkArgs(
+              input.organizationId,
+              input.kind,
+              input.source,
+              input.target,
+            ),
+            data: input.data ?? null,
+            fields: checked,
+          },
+          (value) => {
+            const row = recordOf(value, "link");
+            const kind = textOf(row["kind"]);
+            const source = ref(row["sourceType"], row["sourceId"]);
+            const target = ref(row["targetType"], row["targetId"]);
+            const created = row["created"] === true;
+            const replacedRow = row["replaced"];
+            const replaced = isRecord(replacedRow)
+              ? {
+                  target: ref(
+                    replacedRow["targetType"],
+                    replacedRow["targetId"],
+                  ),
+                  data: objectOf(replacedRow["data"]),
+                }
+              : null;
+            const calls: UndoCall[] = [];
+            const args = linkArgs(input.organizationId, kind, source, target);
+            if (created) calls.push({ fn: "unlink", args });
+            if (replaced) {
+              calls.push({
+                fn: "link",
+                args: {
+                  ...linkArgs(
+                    input.organizationId,
+                    kind,
+                    source,
+                    replaced.target,
+                  ),
+                  data: replaced.data,
+                },
+              });
+            }
+            const previous = row["previousData"];
+            if (!created && input.data !== undefined && isRecord(previous)) {
+              calls.push({ fn: "link", args: { ...args, data: previous } });
+            }
+            return {
+              id: textOf(row["id"]),
+              kind,
+              source,
+              target,
+              created,
+              replaced,
+              undo: calls.length > 0 ? undoToken(calls) : null,
+              fields: rowFields(row["fields"]),
+            };
+          },
+        ).andThen((result) => readFields(fields, result)),
       ),
     unlink: (input) =>
       call(
@@ -281,19 +327,20 @@ export function createRelations(options: RelationsOptions): Relations {
           kind: kind ?? null,
         },
         (value) =>
-          recordsOf(value, "relations_of").map((row) => ({
+          recordsOf(value, "relations_of").map((row): Relation => ({
             id: textOf(row["id"]),
             kind: textOf(row["kind"]),
             direction: row["direction"] === "in" ? "in" : "out",
             subject: ref(row["type"], row["subjectId"]),
             data: objectOf(row["data"]),
             createdAt: optionalText(row["createdAt"]) ?? "",
+            fields: rowFields(row["fields"]),
           })),
-      ),
+      ).andThen((relations) => readAllFields(fields, relations)),
     edges: (organizationId, kind) =>
       call("relations_by_kind", { tenant: organizationId, kind }, (value) =>
         recordsOf(value, "relations_by_kind").map(edgeOf),
-      ),
+      ).andThen((edges) => readAllFields(fields, edges)),
     ancestors: (organizationId, kind, subject) =>
       call(
         "ancestors",
@@ -359,4 +406,8 @@ export function createRelations(options: RelationsOptions): Relations {
           typeof value === "number" || typeof value === "string" ? value : null,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "relations",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

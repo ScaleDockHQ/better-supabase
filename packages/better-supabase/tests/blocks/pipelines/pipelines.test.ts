@@ -58,6 +58,7 @@ describe("pipelines block", () => {
       name: "Default",
       rank: "V",
       isDefault: true,
+      fields: {},
       stages: [
         {
           id: "s1",

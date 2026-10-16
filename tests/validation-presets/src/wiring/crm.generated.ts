@@ -11,12 +11,15 @@ import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
+import { settingsBlock } from "better-supabase/blocks/settings";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
@@ -32,12 +35,15 @@ export const blockSet = defineBlocks(blockConfig, {
   engagements: engagementsBlock,
   entitlements: entitlementsBlock,
   notifications: notificationsBlock,
+  onboarding: onboardingBlock,
   organizations: organizationsBlock,
+  outbox: outboxBlock,
   parties: partiesBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
+  settings: settingsBlock,
   tags: tagsBlock,
   teams: teamsBlock,
 });

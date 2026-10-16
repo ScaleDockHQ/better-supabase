@@ -29,6 +29,12 @@ import {
   blockEmitter,
   type NotificationDeliveryEventData,
 } from "../../core/block-events.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+  type RowFields,
+} from "../../core/block-fields.ts";
 import { budget, toBlockError } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
@@ -193,17 +199,26 @@ const subscriberEventOf = (
 export function createNotifications<
   const K extends NotificationTypes,
   H = undefined,
->(options: NotificationsOptions<K, H>): Notifications<K> {
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: NotificationsOptions<K, H, S>): Notifications<K, FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "notification fields",
+  );
+  /** An item with its data and fields parsed. */
+  type ParsedItem = NotificationItem & { readonly fields: RowFields<F> };
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const mappers = options.mappers ?? [];
   const run = blockCall(transport, schema, mappers);
 
+  /** A call for the delivery loop, which handles a failure by throwing. */
   const call = async (
     fn: string,
     args: Readonly<Record<string, unknown>>,
-  ): Promise<unknown> => transport.call(schema, fn, args);
+  ): Promise<unknown> => run(fn, args, (value) => value).orThrow();
 
   const emitEvent = blockEmitter<NotificationsEvents>(options);
 
@@ -269,14 +284,16 @@ export function createNotifications<
   /** Parses each item's data with its type's schema, before `hydrate` and `render` see it. */
   const parsed = async (
     items: readonly NotificationItem[],
-  ): Promise<Result<NotificationItem[]>> => {
-    const out: NotificationItem[] = [];
+  ): Promise<Result<ParsedItem[]>> => {
+    const out: ParsedItem[] = [];
     for (const item of items) {
       const schemaOf = Object.hasOwn(options.types, item.type)
         ? options.types[item.type]
         : undefined;
       if (schemaOf === undefined) {
-        out.push(item);
+        const extra = await fields.read(item.fields);
+        if (!extra.ok) return extra;
+        out.push({ ...item, fields: extra.data });
         continue;
       }
       const data = await validate(
@@ -287,7 +304,9 @@ export function createNotifications<
       if (!data.ok) {
         return err({ ...data.error, hint: "NOTIFICATION_DATA_INVALID" });
       }
-      out.push({ ...item, data: data.data });
+      const extra = await fields.read(item.fields);
+      if (!extra.ok) return extra;
+      out.push({ ...item, data: data.data, fields: extra.data });
     }
     return ok(out);
   };
@@ -295,7 +314,7 @@ export function createNotifications<
   const decorate = (
     items: readonly NotificationItem[],
     listOptions: Pick<ListOptions, "locale" | "include">,
-  ): AsyncResult<readonly NotificationOf<K>[]> =>
+  ): AsyncResult<readonly NotificationOf<K, F>[]> =>
     AsyncResult.from(async () => {
       const valid = await parsed(items);
       if (!valid.ok) return valid;
@@ -303,9 +322,9 @@ export function createNotifications<
     });
 
   const rendered = async (
-    items: readonly NotificationItem[],
+    items: readonly ParsedItem[],
     listOptions: Pick<ListOptions, "locale" | "include">,
-  ): Promise<Result<readonly NotificationOf<K>[]>> => {
+  ): Promise<Result<readonly NotificationOf<K, F>[]>> => {
     try {
       const locale = listOptions.locale;
       const context = locale === undefined ? {} : { locale };
@@ -313,18 +332,24 @@ export function createNotifications<
         options.hydrate ? options.hydrate(items, context) : undefined,
         listOptions.include?.includes("actor") ? actorsOf(items) : undefined,
       ]);
-      const out = items.map((item): Rendered => {
-        const text = render(item, locale, hydrated);
-        return actors
-          ? {
-              ...text,
-              actor: item.actorId ? (actors.get(item.actorId) ?? null) : null,
-            }
-          : text;
-      });
+      const out = items.map(
+        (item): Rendered & { readonly fields: RowFields<F> } => {
+          const text = {
+            ...render(item, locale, hydrated),
+            fields: item.fields,
+          };
+          return actors
+            ? {
+                ...text,
+                actor: item.actorId ? (actors.get(item.actorId) ?? null) : null,
+              }
+            : text;
+        },
+      );
       // SAFETY: `parsed` gave each item of a listed type the output of its
-      // type's schema, which is what NotificationOf<K> pairs with that type.
-      return ok(out as readonly NotificationOf<K>[]);
+      // type's schema and its fields the output of `options.fields`, which
+      // is what NotificationOf<K, F> pairs with that type.
+      return ok(out as readonly NotificationOf<K, F>[]);
     } catch (cause) {
       return err(toBlockError(cause, mappers));
     }
@@ -476,7 +501,7 @@ export function createNotifications<
     }
   }
 
-  const notifications: Notifications<K> = {
+  const notifications: Notifications<K, F> = {
     send(type, input) {
       return AsyncResult.from(async () => {
         const schemaOf = Object.hasOwn(options.types, type)
@@ -492,6 +517,11 @@ export function createNotifications<
         }
         const data = await validate(schemaOf, input.data, `${type} data`);
         if (!data.ok) return err(data.error);
+        const extra =
+          input.fields === undefined
+            ? ok(undefined)
+            : await fields.write({ ...input.fields });
+        if (!extra.ok) return extra;
         if (
           input.permission !== undefined &&
           (input.tenant === undefined || input.tenant === "")
@@ -528,6 +558,7 @@ export function createNotifications<
           actor: input.actorId,
           watchers: input.watchers,
           exclude: input.exclude,
+          fields: extra.data,
         };
         const sent = await run(
           "send_notification",
