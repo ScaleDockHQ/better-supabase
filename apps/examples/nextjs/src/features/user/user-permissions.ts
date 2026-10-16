@@ -131,13 +131,3 @@ export function assignableRoles(role: Role): readonly Role[] {
     (candidate) => RANK[candidate] <= RANK[role],
   );
 }
-
-/** Whether the caller may give `role` to someone: as in `better_supabase.can_assign_as`. */
-export function canAssign(session: AuthSession<Claims>, role: Role): boolean {
-  const own = roleOf(session);
-  return (
-    own !== undefined &&
-    (can(session, "members.invite") || can(session, "members.update_role")) &&
-    RANK[own] >= RANK[role]
-  );
-}
