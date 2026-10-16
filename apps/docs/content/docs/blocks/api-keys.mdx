@@ -101,6 +101,60 @@ action that completes an onboarding step. `createApiKeysController` from
 `useApiKeys` over it. The [API keys table recipe](/docs/registry/ui-recipes)
 shows it in the Next.js and Expo examples.
 
+```vue title="ApiKeys.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useApiKeys } from "better-supabase/blocks/api-keys/vue";
+import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useApiKeys({
+  client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
+  organizationId: props.organizationId,
+});
+</script>
+
+<template>
+  <p v-for="key in state.keys" :key="key.id">
+    {{ key.name }}
+    <button @click="actions.revoke(key.id)">Revoke</button>
+  </p>
+</template>
+```
+
+```svelte title="ApiKeys.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useApiKeys } from "better-supabase/blocks/api-keys/svelte";
+  import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const keys = useApiKeys({
+    client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId,
+  });
+</script>
+
+<p>{$keys.keys?.length ?? 0} keys</p>
+```
+
+```tsx title="ApiKeys.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useApiKeys } from "better-supabase/blocks/api-keys/solid";
+import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+
+export function ApiKeys(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useApiKeys({
+    client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId: props.organizationId,
+  });
+  return <p>{state().keys?.length ?? 0} keys</p>;
+}
+```
+
 ## Accepting keys
 
 `apiKeyResolver` reads the `x-api-key` header, or a Bearer token shaped like

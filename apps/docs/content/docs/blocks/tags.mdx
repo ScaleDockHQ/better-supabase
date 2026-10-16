@@ -35,6 +35,84 @@ const { tags, available, add, remove, create } = useTagInput({
 
 `createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it. The [tag input recipe](/docs/registry/ui-recipes) shows it in the Next.js and Expo examples.
 
+```vue title="CustomerTags.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useTagInput } from "better-supabase/blocks/tags/vue";
+import { rpcTransport } from "better-supabase/blocks";
+import { createTags } from "better-supabase/blocks/tags";
+
+const props = defineProps<{ organizationId: string; customerId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useTagInput({
+  client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
+  organizationId: props.organizationId,
+  subjectType: "customer",
+  subjectId: props.customerId,
+  kind: "customer",
+});
+</script>
+
+<template>
+  <button
+    v-for="tag in state.tags"
+    :key="tag.id"
+    @click="actions.remove(tag.id)"
+  >
+    {{ tag.name }}
+  </button>
+</template>
+```
+
+```svelte title="CustomerTags.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useTagInput } from "better-supabase/blocks/tags/svelte";
+  import { rpcTransport } from "better-supabase/blocks";
+  import { createTags } from "better-supabase/blocks/tags";
+
+  let { organizationId, customerId }: { organizationId: string; customerId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const tags = useTagInput({
+    client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId,
+    subjectType: "customer",
+    subjectId: customerId,
+    kind: "customer",
+  });
+</script>
+
+<p>{$tags.tags?.map((tag) => tag.name).join(", ")}</p>
+```
+
+```tsx title="CustomerTags.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useTagInput } from "better-supabase/blocks/tags/solid";
+import { rpcTransport } from "better-supabase/blocks";
+import { createTags } from "better-supabase/blocks/tags";
+
+export function CustomerTags(props: {
+  organizationId: string;
+  customerId: string;
+}) {
+  const supabase = useSupabase();
+  const { state } = useTagInput({
+    client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId: props.organizationId,
+    subjectType: "customer",
+    subjectId: props.customerId,
+    kind: "customer",
+  });
+  return (
+    <p>
+      {state()
+        .tags?.map((tag) => tag.name)
+        .join(", ")}
+    </p>
+  );
+}
+```
+
 Tags run in every [scope](/docs/blocks/sql#scope-and-naming). In `user` scope each user has their own tags, and in `none` scope every signed-in user shares one set.
 
 ## Adopt mode
