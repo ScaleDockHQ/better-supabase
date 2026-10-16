@@ -1,10 +1,9 @@
 name: Supabase stack
-description: Starts the fixture stack with the catalog's Supabase CLI and exports its URLs, keys and runtime as SUPABASE_* variables.
-
-inputs:
-  engine:
-    description: "`native` runs the CLI's stack engine without Docker; `legacy` runs the Docker stack (SUPABASE_EXPERIMENTAL_STACK=0)."
-    default: native
+description: >-
+  Starts the fixture stack with the catalog's Supabase CLI and writes its URLs, keys and runtime
+  to .env.development.local. Steps that need them load the file with dotenv. A job that sets
+  SUPABASE_EXPERIMENTAL_STACK=0 gets the legacy Docker stack; otherwise the stack engine runs
+  natively.
 
 runs:
   using: composite
@@ -14,26 +13,17 @@ runs:
       run: echo "version=$(pnpm exec supabase --version)" >> "$GITHUB_OUTPUT"
 
     # The native runtime downloads each service's binaries on first start.
-    - if: inputs.engine == 'native'
+    - if: env.SUPABASE_EXPERIMENTAL_STACK != '0'
       uses: actions/cache@v6
       with:
         path: ~/.supabase/cache/stack/slim-services
         key: supabase-slim-services-${{ runner.os }}-${{ runner.arch }}-${{ steps.cli.outputs.version }}
 
     - shell: bash
-      env:
-        ENGINE: ${{ inputs.engine }}
       run: |
-        case "$ENGINE" in
-          native) export SUPABASE_EXPERIMENTAL_STACK=1 ;;
-          legacy) export SUPABASE_EXPERIMENTAL_STACK=0 ;;
-          *) echo "Unknown engine: $ENGINE" >&2; exit 1 ;;
-        esac
-        echo "SUPABASE_EXPERIMENTAL_STACK=$SUPABASE_EXPERIMENTAL_STACK" >> "$GITHUB_ENV"
-        if [ "$ENGINE" = native ]; then
-          pnpm exec supabase start --runtime native
-        else
+        if [ "${SUPABASE_EXPERIMENTAL_STACK:-}" = 0 ]; then
           pnpm exec supabase start
+        else
+          pnpm exec supabase start --runtime native
         fi
         pnpm env:local
-        grep -E '^SUPABASE_' .env.development.local >> "$GITHUB_ENV"

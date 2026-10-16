@@ -86,7 +86,9 @@ jobs:
         run: pnpm run test:integration
 
       - name: Validation (request context on the stack)
-        run: pnpm --filter @better-supabase/validation-request-context test
+        run: >-
+          pnpm exec dotenv -e .env.development.local --
+          pnpm --filter @better-supabase/validation-request-context test
 
   # As of CLI 2.121.0 the stack engine's Realtime denies private channel joins
   # that the Docker stack allows, so these suites also run on the legacy engine.
@@ -97,6 +99,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      SUPABASE_EXPERIMENTAL_STACK: "0"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -111,11 +115,10 @@ jobs:
 
       - name: Start Supabase
         uses: ./.github/actions/supabase-stack
-        with:
-          engine: legacy
 
       - name: Realtime suites
         run: >-
+          pnpm exec dotenv -e .env.development.local --
           pnpm --filter better-supabase exec vitest run --project integration
           tests/integration/realtime.integration.test.ts
           tests/integration/access-policies.integration.test.ts
