@@ -6,10 +6,9 @@ import {
   avatarBucket,
   organizationLogoBucket,
 } from "../../src/storage/index.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -373,7 +372,10 @@ describe.skipIf(!live)("profiles", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderModules(["tenant", "access"], {}))
+      for (const file of renderModules(
+        ["organizations", "tenant", "access"],
+        {},
+      ))
         await client.query(file.contents);
       for (const who of ["ada", "bob"] as const) {
         await client.query(

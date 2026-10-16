@@ -19,7 +19,7 @@
   `admin@acme.test` (owner of Acme, member of Globex), `member@acme.test`
   (member of Acme) and `owner@globex.test` (owner of Globex). The setup
   project signs each in through `/en/login` and saves `e2e/.auth/<user>.json`.
-  Mail (password reset) is read from Mailpit on port 55424.
+  Mail (password reset) is read from the stack's Mailpit (`MAILPIT_URL` in `supabase status --env`).
 - DRIFT: the role and organization (the menu per user is the `routes` table
   in `pages.spec.ts`), the seed data (Acme has "Road Runner Inc", Globex has
   "Initech", the beta flag is on for Acme only), the active organization

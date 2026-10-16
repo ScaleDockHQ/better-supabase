@@ -47,8 +47,7 @@ the clients (`client`, `client/native`) and the local-first entries
 
 - Install a block's SQL module from `apps/examples/nextjs` with
   `pnpm exec better-supabase sql sync`, then
-  `SUPABASE_EXPERIMENTAL_STACK=1 pnpm supabase:sync <name>` (pg-delta needs
-  the native stack on a VM without Docker).
+  `pnpm supabase:sync <name>`.
 - Run `pnpm exec better-supabase sql data` after that migration exists. A
   data migration stamped before the schema migration fails on reset; delete
   it and run the command again.

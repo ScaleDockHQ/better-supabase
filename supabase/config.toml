@@ -1,8 +1,11 @@
 project_id = "better-supabase"
 
+# No port keys: the CLI picks ports for each checkout or git worktree and
+# remembers them, so worktrees run their own stacks side by side. Read the
+# URLs from `supabase status --env` (`pnpm env:local`).
+
 [api]
 enabled = true
-port = 55421
 # `api` holds the SQL modules' security-invoker entry points (blocks.<module>.api).
 schemas = ["public", "graphql_public", "api"]
 extra_search_path = ["public", "extensions"]
@@ -11,8 +14,6 @@ max_rows = 1000
 auto_expose_new_tables = false
 
 [db]
-port = 55422
-shadow_port = 55420
 major_version = 17
 
 [db.seed]
@@ -86,23 +87,24 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
 
 [studio]
 enabled = false
-port = 55423
 
 # The Next.js example's sign-up, password reset and invitation emails.
 [local_smtp]
 enabled = true
-port = 55424
 
 [analytics]
 enabled = false
-port = 55427
 
 [db.pooler]
 enabled = false
-port = 55429
 
 [edge_runtime]
 enabled = false
+
+# The CLI's stack engine: services start on first request and stop when idle.
+# CI runs it with `--runtime native`, which needs no Docker.
+[experimental]
+stack = true
 
 # pg-delta orders the files in schemas/ by dependency. Generate a migration
 # after an edit with `pnpm supabase:sync <name>`.

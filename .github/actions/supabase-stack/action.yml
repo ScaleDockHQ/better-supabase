@@ -1,0 +1,29 @@
+name: Supabase stack
+description: >-
+  Starts the fixture stack with the catalog's Supabase CLI and writes its URLs, keys and runtime
+  to .env.development.local. Steps that need them load the file with dotenv. A job that sets
+  SUPABASE_EXPERIMENTAL_STACK=0 gets the legacy Docker stack; otherwise the stack engine runs
+  natively.
+
+runs:
+  using: composite
+  steps:
+    - id: cli
+      shell: bash
+      run: echo "version=$(pnpm exec supabase --version)" >> "$GITHUB_OUTPUT"
+
+    # The native runtime downloads each service's binaries on first start.
+    - if: env.SUPABASE_EXPERIMENTAL_STACK != '0'
+      uses: actions/cache@v6
+      with:
+        path: ~/.supabase/cache/stack/slim-services
+        key: supabase-slim-services-${{ runner.os }}-${{ runner.arch }}-${{ steps.cli.outputs.version }}
+
+    - shell: bash
+      run: |
+        if [ "${SUPABASE_EXPERIMENTAL_STACK:-}" = 0 ]; then
+          pnpm exec supabase start
+        else
+          pnpm exec supabase start --runtime native
+        fi
+        pnpm env:local

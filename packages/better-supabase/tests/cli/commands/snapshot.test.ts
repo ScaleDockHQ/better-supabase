@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -118,6 +118,59 @@ describe("openSource", () => {
     expect(open.urls).toEqual([
       "postgresql://database-url/db",
       "postgresql://supabase-db-url/db",
+    ]);
+  });
+});
+
+describe("openSource on the local stack", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bs-local-source-"));
+    await writeFile(join(root, ".git"), "");
+    await mkdir(join(root, "supabase"));
+  });
+
+  afterEach(() => rm(root, { recursive: true, force: true }));
+
+  async function fakeSupabase(script: string): Promise<string> {
+    const bin = join(root, "fake-supabase");
+    await writeFile(bin, `#!/bin/sh\n${script}\n`);
+    await chmod(bin, 0o755);
+    return bin;
+  }
+
+  it("uses the [db] port from config.toml", async () => {
+    await writeFile(join(root, "supabase/config.toml"), "[db]\nport = 55422\n");
+    const open = fakeConnect(fakeSql().pg);
+    await openSource(config({}, root), {}, {}, open.connect);
+    expect(open.urls).toEqual([
+      "postgresql://postgres:postgres@127.0.0.1:55422/postgres",
+    ]);
+  });
+
+  it("asks the stack engine for DB_URL when config.toml sets no port", async () => {
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      "[experimental]\nstack = true\n",
+    );
+    const bin = await fakeSupabase(
+      `if [ "$2" = "-o" ]; then exit 1; fi\necho '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:28910/postgres"}'`,
+    );
+    const open = fakeConnect(fakeSql().pg);
+    await openSource(config({}, root), { SUPABASE_BIN: bin }, {}, open.connect);
+    expect(open.urls).toEqual([
+      "postgresql://postgres:postgres@127.0.0.1:28910/postgres",
+    ]);
+  });
+
+  it("falls back to port 54322 when no stack answers", async () => {
+    await writeFile(join(root, "supabase/config.toml"), "[api]\n");
+    const bin = await fakeSupabase("exit 1");
+    const open = fakeConnect(fakeSql().pg);
+    await openSource(config({}, root), { SUPABASE_BIN: bin }, {}, open.connect);
+    expect(open.urls).toEqual([
+      "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
     ]);
   });
 });

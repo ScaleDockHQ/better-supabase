@@ -19,8 +19,11 @@ import { installWorld } from "./workflow-world.ts";
 
 const live = await reachable();
 
-// The database container reaches the test process through this host.
-const HOST = env["WORKFLOW_TEST_HOST"] ?? "host.docker.internal";
+// How the database reaches the test process: a native Postgres shares the
+// host's network, a container goes through host.docker.internal.
+const HOST =
+  env["WORKFLOW_TEST_HOST"] ??
+  (env["SUPABASE_RUNTIME"] === "native" ? "127.0.0.1" : "host.docker.internal");
 const SECRET = "pg-net-test-secret";
 // The jobs module keeps messages in PGMQ: q_ holds waiting ones, a_ the settled.
 const QUEUE_TABLE = `q_${WORKFLOW_DELIVERY_QUEUE}`;

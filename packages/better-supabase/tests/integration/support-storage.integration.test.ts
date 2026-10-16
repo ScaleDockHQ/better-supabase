@@ -7,11 +7,10 @@ import { createPostgres } from "../../src/postgres/pool.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
+import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
-const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const url = stackUrl();
+const dbUrl = stackDbUrl();
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";

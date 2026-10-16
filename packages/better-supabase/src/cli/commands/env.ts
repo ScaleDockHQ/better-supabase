@@ -8,10 +8,14 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
-import { supabaseCli } from "../exec.ts";
 import { writeLine } from "../files.ts";
 import { display, readIfExists } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
+import {
+  parseStackStatus,
+  readStackStatus,
+  type StackStatus,
+} from "../stack-status.ts";
 
 const ARGS = {
   out: {
@@ -40,43 +44,29 @@ export type EnvArgs = CliArgs<typeof ARGS>;
 
 export type EnvFlags = CliOptions<typeof ARGS>;
 
-interface Status {
-  readonly [key: string]: unknown;
-}
-
 async function readStatus(
   config: ResolvedConfig,
   args: EnvFlags,
   env: CliEnv,
-): Promise<Status> {
+): Promise<StackStatus> {
   const from = args.from;
-  if (from)
-    // SAFETY: the file is the JSON output of supabase status.
-    return JSON.parse(
+  if (from) {
+    const status = parseStackStatus(
       await readFile(resolve(config.root, from), "utf8"),
-    ) as Status;
-  let result = await supabaseCli(["status", "-o", "json"], config.root, env);
-  // The native stack (`[experimental] stack`) rejects `-o` and prints the same keys with `--env`.
-  if (result.code !== 0) {
-    const native = await supabaseCli(
-      ["status", "--env", "--output-format", "json"],
-      config.root,
-      env,
     );
-    if (native.code === 0) result = native;
+    if (!status) throw new Error(`${from} holds no supabase status JSON.`);
+    return status;
   }
-  if (result.code !== 0) {
+  const result = await readStackStatus(config.root, env);
+  if (!result.ok) {
     throw new Error(
       `supabase status failed (${result.code}). Is the local stack running (supabase start)?`,
     );
   }
-  const start = result.stdout.indexOf("{");
-  if (start === -1) throw new Error("supabase status printed no JSON.");
-  // SAFETY: both supabase status forms print a flat Status object.
-  return JSON.parse(result.stdout.slice(start)) as Status;
+  return result.status;
 }
 
-const text = (status: Status, ...keys: string[]): string | undefined => {
+const text = (status: StackStatus, ...keys: string[]): string | undefined => {
   for (const key of keys) {
     const value = status[key];
     if (typeof value === "string" && value.length > 0) return value;

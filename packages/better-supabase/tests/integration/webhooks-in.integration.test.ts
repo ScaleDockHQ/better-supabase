@@ -20,10 +20,9 @@ import { renderModules } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { testIncomingDestination } from "../../src/testing/index.ts";
 import { BlockSession } from "./block-session.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -715,7 +714,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         },
       };
       for (const file of renderModules(
-        ["webhooks-in", "webhook-inbox", "jobs"],
+        ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
       ))
         if (file.kind === "schema") await client.query(file.contents);

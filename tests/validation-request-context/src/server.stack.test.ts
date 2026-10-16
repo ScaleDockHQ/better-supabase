@@ -5,8 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAppServer, withCron, withUserAuth } from "./supabase.ts";
 
+// `pnpm env:local` writes it (the CLI picks the ports per checkout); without
+// it the suite skips, like it does when the stack is down.
+const stackUrl = process.env["SUPABASE_URL"];
 const stack = {
-  url: process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421",
+  url: stackUrl ?? "http://supabase-url-not-set.invalid",
   publishableKey:
     process.env["SUPABASE_PUBLISHABLE_KEY"] ??
     "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
@@ -17,13 +20,15 @@ const stack = {
 const CRON_KEY = "sb_secret_cron_validation";
 const ACME = "00000000-0000-4000-8000-000000000001";
 
-const up = await fetch(`${stack.url}/auth/v1/health`, {
-  headers: { apikey: stack.publishableKey },
-  signal: AbortSignal.timeout(1000),
-}).then(
-  (response) => response.ok,
-  () => false,
-);
+const up =
+  stackUrl !== undefined &&
+  (await fetch(`${stackUrl}/auth/v1/health`, {
+    headers: { apikey: stack.publishableKey },
+    signal: AbortSignal.timeout(1000),
+  }).then(
+    (response) => response.ok,
+    () => false,
+  ));
 
 const env = parseEnv({
   SUPABASE_URL: stack.url,

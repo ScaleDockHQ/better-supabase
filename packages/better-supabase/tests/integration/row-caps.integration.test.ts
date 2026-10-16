@@ -4,14 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { openPg } from "../fixtures/pg.ts";
+import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
-const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
+const url = stackUrl();
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 const GLOBEX = "00000000-0000-4000-8000-000000000002";
 const PREFIX = `cap-${Date.now()}-`;

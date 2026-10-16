@@ -13,11 +13,10 @@ import {
   postgresExecutor,
 } from "../../../src/postgres/index.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
+import { stackDbUrl } from "../../integration/stack-env.ts";
 import { libraryFixture } from "../fixtures/library.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 const SCHEMA = `bs_overloads_${Date.now()}`;
 

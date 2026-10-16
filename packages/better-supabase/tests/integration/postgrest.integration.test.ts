@@ -12,8 +12,9 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { stackUrl } from "./stack-env.ts";
 
-const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
+const url = stackUrl();
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

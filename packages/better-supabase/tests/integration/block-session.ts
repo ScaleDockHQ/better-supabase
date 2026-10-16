@@ -4,10 +4,9 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { renderModules } from "../../src/sql/render.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-export const dbUrl: string =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+export const dbUrl: string = stackDbUrl();
 
 export async function reachable(): Promise<boolean> {
   const pool = new Pool({

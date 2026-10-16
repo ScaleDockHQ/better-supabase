@@ -4,10 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { renderModules } from "../../src/sql/render.ts";
+import { stackDbUrl } from "./stack-env.ts";
 
-const dbUrl =
-  process.env["SUPABASE_DB_URL"] ??
-  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const dbUrl = stackDbUrl();
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -78,7 +77,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const row = await inTransaction(
       pool,
       "",
-      ["access"],
+      ["organizations", "access"],
       {},
       async (client) => {
         await client.query(
@@ -122,7 +121,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const rows = await inTransaction(
       pool,
       "",
-      ["access"],
+      ["organizations", "access"],
       { modules: { access: { scopes: { "members:write": ["members.*"] } } } },
       async (client) => {
         await client.query(

@@ -152,8 +152,9 @@ catalog:
   # debug's optional peer. Pinned to the copy the examples resolve, so
   # better-supabase and the Next.js examples share one next instance.
   supports-color: 8.1.1
-  # Keep on the SUPABASE_CLI_VERSION that CI installs.
-  supabase: 2.120.0
+  # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
+  # ports when config.toml changes them.
+  supabase: 2.121.0
   svelte: 5.57.2
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.3

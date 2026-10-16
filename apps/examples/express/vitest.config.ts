@@ -14,7 +14,10 @@ export default defineConfig({
   ssr: { resolve: { conditions } },
   test: {
     env: {
-      SUPABASE_URL: process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421",
+      // `pnpm env:local` writes it; without it the suite skips like it does
+      // when the stack is down.
+      SUPABASE_URL:
+        process.env["SUPABASE_URL"] ?? "http://supabase-url-not-set.invalid",
       SUPABASE_PUBLISHABLE_KEY:
         process.env["SUPABASE_PUBLISHABLE_KEY"] ??
         "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",

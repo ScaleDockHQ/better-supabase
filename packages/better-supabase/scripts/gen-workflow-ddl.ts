@@ -11,7 +11,7 @@
  * package's migrations no longer match.
  *
  * `node scripts/gen-workflow-ddl.ts` writes the file; `--check` only compares.
- * Needs `$SUPABASE_DB_URL` (defaults to the repo stack on 55422).
+ * Needs `$SUPABASE_DB_URL` (`pnpm env:local` writes the repo stack's).
  */
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
@@ -276,9 +276,10 @@ export const OUTPUT: string = fileURLToPath(
 );
 
 if (import.meta.main) {
-  const dbUrl =
-    process.env["SUPABASE_DB_URL"] ??
-    "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+  const dbUrl = process.env["SUPABASE_DB_URL"];
+  if (dbUrl === undefined) {
+    throw new Error("SUPABASE_DB_URL is not set; run pnpm env:local");
+  }
   const migrations = await readMigrations();
   const contents = renderModuleFile(
     await worldPostgresVersion(),
