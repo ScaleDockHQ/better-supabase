@@ -10,7 +10,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
-  extraFieldsJson,
+  withExtraFields,
   schemaPreamble,
   SERVICE_CALLER,
   lockTable,
@@ -179,7 +179,7 @@ begin
     end if;
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) - ${raw("targets")}${extraFieldsJson("x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields(`to_jsonb(x) - ${raw("targets")}`, "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x
     where x.${ca("startsAt")} <= now()
       and (x.${ca("endsAt")} is null or x.${ca("endsAt")} > now())
@@ -239,7 +239,7 @@ begin
     ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x)${extraFieldsJson("x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x
   );
 end;
@@ -285,7 +285,7 @@ begin
     returning * into v_row;
   end if;
   ${announcementEvent("announcement.saved", "v_row." + ca("id"))}
-  return to_jsonb(v_row)${extraFieldsJson("v_row", extras)};
+  return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;
 

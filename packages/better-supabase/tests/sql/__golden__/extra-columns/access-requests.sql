@@ -128,17 +128,10 @@ begin
   insert into "better_supabase"."access_requests" ("tenant_id", "user_id", "role", "reason", "duration")
   values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
   returning * into v_row;
-  if request_access.extra_fields is not null then
-    update "better_supabase"."access_requests" x set
-      "app_note" = case when request_access.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."access_requests", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(request_access.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_row."id"
-    returning x.* into v_row;
-  end if;
+  update "better_supabase"."access_requests" x set "app_note" = case when request_access.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."access_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_access.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_row."id"
+  returning x.* into v_row;
   v_approval := "better_supabase"."open_approval"(
     request_access.tenant, 'access_request', v_row."id"::text, 'grant',
     '{"steps":[{"approvers":{"permission":"members.update_role"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, request_access.reason,
@@ -156,7 +149,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'pending', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'pending', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."request_access"(uuid, text, text, interval, jsonb) from public, anon;
@@ -254,7 +247,7 @@ begin
   end if;
   update "better_supabase"."access_requests" r set "ended_at" = now() where r."id" = v_row."id" returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'ended', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'ended', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."end_access"(uuid) from public, anon;
@@ -318,7 +311,7 @@ begin
     raise exception 'access request not found' using errcode = 'P0002', hint = 'ACCESS_REQUEST_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', case when v_row."ended_at" is not null then 'ended' when v_row."granted_at" is not null then 'granted' else coalesce(v_approval."status", 'pending') end, 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', case when v_row."ended_at" is not null then 'ended' when v_row."granted_at" is not null then 'granted' else coalesce(v_approval."status", 'pending') end, 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_access_request"(uuid) from public, anon;
@@ -336,7 +329,7 @@ set intervalstyle = 'iso_8601'
 as $$
   select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', r."app_note")) as item, r."created_at" as created
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at", 'fields', jsonb_build_object('app_note', r."app_note")) as item, r."created_at" as created
     from "better_supabase"."access_requests" r
     left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
     where r."tenant_id" = list_access_requests.tenant

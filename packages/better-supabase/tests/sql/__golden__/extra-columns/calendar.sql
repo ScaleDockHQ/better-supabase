@@ -253,16 +253,9 @@ begin
       raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
     end if;
   end if;
-  if v_item is not null then
-    update "better_supabase"."calendar_events" x set
-      "app_note" = case when v_item ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."calendar_events", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(v_item) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_id;
-  end if;
+  update "better_supabase"."calendar_events" x set "app_note" = case when v_item ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."calendar_events", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_item) e where e.key in ('app_note'))) r
+  where x."id" = v_id;
   if exists (select 1 from "better_supabase"."calendar_events" where "id" = v_id and "ends_at" < "starts_at") then
     raise exception 'endsAt must not be before startsAt' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -471,7 +464,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb)) || jsonb_build_object('fields', jsonb_build_object('app_note', e."app_note")) order by e."starts_at", e."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb), 'fields', jsonb_build_object('app_note', e."app_note")) order by e."starts_at", e."id"), '[]'::jsonb)
   from "better_supabase"."calendar_events" e
   where e."calendar_id" = any (list_calendar_events.calendar_ids)
     and e."starts_at" < list_calendar_events.range_end

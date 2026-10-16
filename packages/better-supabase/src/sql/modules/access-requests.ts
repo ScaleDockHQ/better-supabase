@@ -21,7 +21,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
@@ -171,7 +171,7 @@ function build(ctx: ModuleContext): string {
   const status = (row: string, approval: string): string =>
     `case when ${row}.${c("endedAt")} is not null then 'ended' when ${row}.${c("grantedAt")} is not null then 'granted' else coalesce(${approval}.${a("status")}, 'pending') end`;
   const json = (row: string, state: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")})${extraFieldsJson(row, extras)}`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
   const record = (
     event: string,
     row: string,
@@ -308,7 +308,7 @@ begin
   ])}
   insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("role")}, ${c("reason")}, ${c("duration")})
   values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
-  returning * into v_row;${writeExtraFields(requests, extras, "request_access.extra_fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(requests, extras, "request_access.extra_fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   v_approval := ${approvals.fn("open_approval")}(
     request_access.tenant, ${sqlString(ACCESS_REQUEST_SUBJECT)}, v_row.${c("id")}::text, 'grant',
     ${sqlString(policy)}::jsonb, request_access.reason,

@@ -226,7 +226,7 @@ begin
         using v_req."id";
     end if;
   end;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note"));
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
@@ -253,19 +253,12 @@ begin
     raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
   v_result := "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
-  if request_approval.extra_fields is not null then
-    update "better_supabase"."approval_requests" x set
-      "app_note" = case when request_approval.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."approval_requests", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(request_approval.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = (v_result ->> 'id')::uuid
-    returning x.* into v_req;
-  end if;
+  update "better_supabase"."approval_requests" x set "app_note" = case when request_approval.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."approval_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(request_approval.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = (v_result ->> 'id')::uuid
+  returning x.* into v_req;
   if v_req."id" is not null then
-    return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note"));
+    return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note"));
   end if;
   return v_result;
 end;
@@ -343,7 +336,7 @@ begin
         using v_req."id", v_req."status";
     end if;
   end;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note"));
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text) from public, anon;
@@ -386,7 +379,7 @@ begin
   values (v_req."id", v_req."tenant_id", v_req."step", auth.uid(), 'delegated', delegate_approval.to_user, delegate_approval.comment);
   null;
   perform "better_supabase"."approval_notify"(v_req."id", 'delegated');
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note"));
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
@@ -417,7 +410,7 @@ begin
   update "better_supabase"."approval_requests" r set "status" = 'cancelled', "decided_at" = now()
     where r."id" = v_req."id" returning * into v_req;
   null;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note"));
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
@@ -441,7 +434,7 @@ begin
     or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (v_req."subject_type" = 'access_request' or true))) then
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_req."app_note")) || jsonb_build_object(
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at", 'fields', jsonb_build_object('app_note', v_req."app_note")) || jsonb_build_object(
     'canDecide', "better_supabase"."approval_eligible"(v_req."id"),
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
@@ -467,7 +460,7 @@ declare
 begin
   select coalesce(jsonb_agg(t.j order by t.at desc, t.id), '[]'::jsonb) into v_rows
   from (
-    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'action', x."action", 'status', x."status", 'step', x."step", 'steps', x."policy" -> 'steps', 'requestedBy', x."requested_by", 'reason', x."reason", 'payload', x."payload", 'expiresAt', x."expires_at", 'decidedAt', x."decided_at", 'createdAt', x."created_at") || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) as j, x."created_at" as at, x."id" as id
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'action', x."action", 'status', x."status", 'step', x."step", 'steps', x."policy" -> 'steps', 'requestedBy', x."requested_by", 'reason', x."reason", 'payload', x."payload", 'expiresAt', x."expires_at", 'decidedAt', x."decided_at", 'createdAt', x."created_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, x."created_at" as at, x."id" as id
     from "better_supabase"."approval_requests" x
     where x."tenant_id" = list_approvals.tenant
       and (list_approvals.status is null or x."status" = list_approvals.status)

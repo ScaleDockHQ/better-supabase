@@ -3,5 +3,24 @@ export {
   hasEntitlement,
 } from "../../auth/entitlements.ts";
 export type { EntitlementKey } from "../../auth/entitlements.ts";
-export { entitlementMembers, ENTITLEMENTS_UPDATED } from "./entitlements.ts";
+export {
+  createEntitlements,
+  entitlementMembers,
+  type Entitlements,
+  type EntitlementsOptions,
+  ENTITLEMENTS_UPDATED,
+} from "./entitlements.ts";
 export { entitlementsBlock } from "./manifest.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
+export type { BlockTransport } from "../../core/block-transport.ts";
+export { createFeatureGateController } from "./client.ts";
+export type {
+  FeatureGateActions,
+  FeatureGateController,
+  FeatureGateControllerOptions,
+  FeatureGateSnapshot,
+} from "./client.ts";

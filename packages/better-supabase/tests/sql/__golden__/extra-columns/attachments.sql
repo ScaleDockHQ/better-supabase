@@ -247,7 +247,7 @@ begin
   execute format('insert into "better_supabase"."attachments" as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
   into v_row
   using v_row;
-  return to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 end;
 $$;
 
@@ -271,7 +271,7 @@ begin
     raise exception 'No pending attachment of yours has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
-    return to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+    return (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
   end if;
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = v_row."object_path";
@@ -285,7 +285,7 @@ begin
   where a."id" = v_row."id"
   returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 end;
 $$;
 
@@ -316,14 +316,14 @@ begin
   returning * into v_row;
   if v_row."id" is null then
     select * into v_row from "better_supabase"."attachments" a where a."id" = set_attachment_status.id;
-    return case when v_row."id" is null then null else to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")) end;
+    return case when v_row."id" is null then null else (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"))) end;
   end if;
   insert into "better_supabase"."scanned_objects" ("bucket", "object_path", "status", "scan_detail", "scanned_at")
   values (v_row."bucket", v_row."object_path", v_row."status", v_row."scan_detail", now())
   on conflict ("bucket", "object_path") do update
     set "status" = excluded."status", "scan_detail" = excluded."scan_detail", "scanned_at" = excluded."scanned_at";
   null;
-  return to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 end;
 $$;
 
@@ -334,7 +334,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(a.*) || jsonb_build_object('fields', jsonb_build_object('app_note', a."app_note")) order by a."created_at", a."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(a.*) || jsonb_build_object('fields', jsonb_build_object('app_note', a."app_note"))) order by a."created_at", a."id"), '[]'::jsonb)
   from "better_supabase"."attachments" a
   where a."organization_id" is not distinct from list_attachments.tenant
     and (list_attachments.subject_type is null or a."subject_type" = list_attachments.subject_type)
@@ -348,7 +348,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(a.*) || jsonb_build_object('fields', jsonb_build_object('app_note', a."app_note")) from "better_supabase"."attachments" a where a."id" = get_attachment.id
+  select (to_jsonb(a.*) || jsonb_build_object('fields', jsonb_build_object('app_note', a."app_note"))) from "better_supabase"."attachments" a where a."id" = get_attachment.id
 $$;
 
 create or replace function "better_supabase"."delete_attachment"(id uuid)

@@ -148,6 +148,109 @@ await billing.checkout(organizationId, {
 
 `changePlan` takes `variant` too.
 
+### A plan picker
+
+`usePlanPicker` from `better-supabase/blocks/billing/react` lists your plans
+with the tenant's current one and starts Checkout with `choose(plan)`. The
+hook never calls Stripe: `checkout` is your server action or API route,
+which calls `billing.checkout()` with the secret key and returns the
+Checkout URL, and `open` sends the user there. The same hook runs in React
+DOM and React Native.
+
+```ts title="app/settings/billing/actions.ts"
+"use server";
+
+export const startCheckout = bs.action(
+  {
+    input: v.object({ plan: v.string() }),
+    requireTenant: true,
+    authorize: (session) => can(session, "billing.manage"),
+  },
+  async ({ plan }, { tenant }) =>
+    billing.checkout(tenant, { plan, successUrl, cancelUrl }),
+);
+```
+
+```tsx title="components/plan-picker.tsx"
+import { usePlanPicker } from "better-supabase/blocks/billing/react";
+
+const { plans, current, pending, choose } = usePlanPicker({
+  load: loadPlanCatalog, // { plans, current }, such as a server action
+  checkout: (plan) => startCheckout({ plan }),
+  open: (url) => {
+    window.location.assign(url); // WebBrowser.openBrowserAsync(url) in Expo
+  },
+});
+```
+
+`initial` takes the catalog a server already rendered, so the first load
+is skipped. A failed checkout comes back as a `Result` and stays in
+`error`; a checkout that returns no URL, such as a plan change the server
+finished itself, loads the catalog again. `createPlanPickerController`
+from `better-supabase/blocks/billing` is the same logic without React, and
+`better-supabase/blocks/billing/vue`, `/svelte` and `/solid` export
+`usePlanPicker` over it, taking the same options with `auth` from the
+provider. The [plan picker recipe](/docs/registry/ui-recipes) shows it in
+the Next.js and Expo examples.
+
+```vue title="PlanPicker.vue"
+<script setup lang="ts">
+import { usePlanPicker } from "better-supabase/blocks/billing/vue";
+
+const { state, actions } = usePlanPicker({
+  load: loadPlanCatalog,
+  checkout: startCheckout,
+  open: (url) => window.location.assign(url),
+});
+</script>
+
+<template>
+  <button
+    v-for="plan in state.plans"
+    :key="plan.key"
+    :disabled="plan.key === state.current"
+    @click="actions.choose(plan.key)"
+  >
+    {{ plan.name }}
+  </button>
+</template>
+```
+
+```svelte title="PlanPicker.svelte"
+<script lang="ts">
+  import { usePlanPicker } from "better-supabase/blocks/billing/svelte";
+
+  const picker = usePlanPicker({
+    load: loadPlanCatalog,
+    checkout: startCheckout,
+    open: (url) => window.location.assign(url),
+  });
+</script>
+
+{#each $picker.plans ?? [] as plan}
+  <button onclick={() => picker.actions.choose(plan.key)}>{plan.name}</button>
+{/each}
+```
+
+```tsx title="PlanPicker.tsx"
+import { usePlanPicker } from "better-supabase/blocks/billing/solid";
+
+export function PlanPicker() {
+  const { state, actions } = usePlanPicker({
+    load: loadPlanCatalog,
+    checkout: startCheckout,
+    open: (url) => window.location.assign(url),
+  });
+  return (
+    <For each={state().plans}>
+      {(plan) => (
+        <button onClick={() => actions.choose(plan.key)}>{plan.name}</button>
+      )}
+    </For>
+  );
+}
+```
+
 ## Managing a subscription
 
 These calls are for an admin console or the customer's own billing page. The

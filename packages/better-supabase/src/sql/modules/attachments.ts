@@ -11,7 +11,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   ensureCheck,
-  extraFieldsJson,
+  withExtraFields,
   extraFieldsParam,
   extraFieldsType,
   SERVICE_CALLER,
@@ -284,7 +284,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const bucketList = buckets.map(sqlString).join(", ");
   const extras = ctx.extraColumns("attachments", ["fields"]);
   const json = (row: string): string =>
-    `to_jsonb(${row})${extraFieldsJson(row, extras)}`;
+    withExtraFields(`to_jsonb(${row})`, row, extras);
   const bucketFor = perSubject.some((entry) => entry.bucket !== bucket)
     ? `case create_attachment.subject_type ${perSubject
         .filter((entry) => entry.bucket !== bucket)
@@ -662,7 +662,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(a.*)${extraFieldsJson("a", extras)} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${withExtraFields("to_jsonb(a.*)", "a", extras)} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
   from ${t} a
   where a.${c("tenant")} is not distinct from list_attachments.tenant
     and (list_attachments.subject_type is null or a.${c("subjectType")} = list_attachments.subject_type)
@@ -676,7 +676,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(a.*)${extraFieldsJson("a", extras)} from ${t} a where a.${c("id")} = get_attachment.id
+  select ${withExtraFields("to_jsonb(a.*)", "a", extras)} from ${t} a where a.${c("id")} = get_attachment.id
 $$;
 
 create or replace function ${fn("delete_attachment")}(id uuid)

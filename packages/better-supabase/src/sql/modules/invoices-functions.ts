@@ -1,9 +1,9 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
@@ -21,6 +21,8 @@ export interface InvoiceNames {
   /** Days from issue to due date by default. */
   readonly termsDays: number;
   readonly service: string;
+  /** `options.extraColumns`, which `create_invoice` writes by name. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
@@ -154,7 +156,8 @@ ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
     `(select * from ${t("invoices")} k where k.${i("kind")} = ${kind})`;
   return `
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function ${fn("create_invoice")}(tenant ${ctx.idType}, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -186,7 +189,7 @@ begin
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice field has an invalid value", "22023")}
-  end;
+  end;${writeExtraColumns(t("invoices"), n.extras, "create_invoice.attrs", `x.${i("id")} = v_row.${i("id")}`)}
   if create_invoice.lines is not null then
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, create_invoice.lines);
   end if;

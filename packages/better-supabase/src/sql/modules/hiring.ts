@@ -14,6 +14,8 @@ import {
   lockTable,
   schemaPreamble,
   userGrant,
+  withExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -144,6 +146,7 @@ function build(ctx: ModuleContext): string {
   const write = ctx.permission("write", keys.write);
   const manage = ctx.permission("manage", keys.manage);
   const candidate = ctx.text("candidate", "person");
+  const extras = ctx.extraColumns("jobs");
   const fn = (name: string): string => ctx.fn(name);
   const t = (table: string): string => ctx.table(table);
   const j = (column: string): string => ctx.col("jobs", column);
@@ -199,7 +202,7 @@ create table if not exists ${t("jobs")} (
   ${j("createdAt")} timestamptz not null default now(),
   ${j("updatedAt")} timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), ctx.extraColumns("jobs"))}
+create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
 ${lockTable(t("jobs"), { read: true })}
 drop policy if exists jobs_read on ${t("jobs")};
 create policy jobs_read on ${t("jobs")} for select to authenticated
@@ -305,7 +308,8 @@ create trigger bs_application_guard before update of ${a("state")} on ${t("appli
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function ${fn("save_job")}(tenant ${ctx.idType}, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -348,7 +352,7 @@ begin
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
     ${fail("HIRING_JOB_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
-  end;
+  end;${writeExtraColumns(t("jobs"), extras, "save_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
   if v_job.${j("status")} is distinct from v_was then
     if v_job.${j("status")} = 'open' then
       update ${t("jobs")} x set ${j("openedAt")} = coalesce(x.${j("openedAt")}, now()), ${j("closedAt")} = null where x.${j("id")} = v_job.${j("id")} returning * into v_job;
@@ -358,7 +362,7 @@ begin
       ${jobRecord("job.closed")}
     end if;
   end if;
-  return to_jsonb(v_job);
+  return ${withExtraFields("to_jsonb(v_job)", "v_job", extras)};
 end;
 $$;
 ${userGrant(`${fn("save_job")}(${ctx.idType}, uuid, jsonb)`)}

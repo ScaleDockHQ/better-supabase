@@ -18,3 +18,9 @@ The row key makes a rerun skip a row that already imported.
 ## Adopt mode
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.
+
+## Hooks
+
+`createImports` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).

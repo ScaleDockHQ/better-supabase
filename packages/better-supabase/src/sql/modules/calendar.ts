@@ -13,11 +13,11 @@ import {
   fail,
   lockTable,
   schemaPreamble,
-  sha256Hex,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { liveShareLink } from "./share-links.ts";
 
 const EVENTS: ModuleEvents<CalendarEvents> = {
   "calendar.created": {
@@ -213,7 +213,7 @@ function eventJson(ctx: ModuleContext, attendees: string): string {
   const list = ctx.hasTable("attendees")
     ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${a("role")}, 'response', ${a("response")}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
     : "";
-  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list})${extraFieldsJson("e", eventExtras(ctx))}`;
+  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
 }
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
@@ -265,10 +265,7 @@ begin
   end if;
   select ${l("subjectId")}, ${l("tenant")}::text into v_subject, v_tenant
   from ${links} l
-  where ${l("tokenHash")} = ${sha256Hex("convert_to(calendar_feed.token, 'utf8')")}
-    and ${l("subjectType")} = 'calendar'
-    and ${l("revokedAt")} is null
-    and (${l("expiresAt")} is null or ${l("expiresAt")} > now());
+  where ${liveShareLink(s, "l", "calendar_feed.token", "'calendar'")};
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;
@@ -578,7 +575,7 @@ begin
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
     end if;
-  end if;${writeExtraFields(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
+  end if;${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}
   end if;

@@ -3,8 +3,8 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  extraFieldsJson,
-  writeExtraFields,
+  withExtraFields,
+  writeExtraColumns,
   raise,
   replaceColumnCheck,
   schemaPreamble,
@@ -108,7 +108,7 @@ function build(ctx: ModuleContext): string {
     "fields",
   ]);
   const taskJson = (row: string): string =>
-    `${rowJson(TASKS, t, row)}${extraFieldsJson(row, extras)}`;
+    withExtraFields(rowJson(TASKS, t, row), row, extras);
   const runJson = (row: string): string => rowJson(RUNS, r, row);
   const enqueue = (run: string): string =>
     ctx.installed("jobs")
@@ -246,7 +246,7 @@ begin
       else x.${t.nextRunAt} end,
     ${t.updatedAt} = now()
   where x.${t.id} = v_row.${t.id}
-  returning * into v_row;${writeExtraFields(tasks, extras, "save_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(tasks, extras, "save_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
   return ${taskJson("v_row")};
 end;
 $$;

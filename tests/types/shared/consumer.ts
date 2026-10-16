@@ -81,7 +81,7 @@ declare const client: SupabaseClient;
 declare const typedClient: SupabaseClient<Database>;
 rpcTransport(typedClient, { schema: "api" });
 rpcTransport(client);
-createJobs(typedClient, {});
+createJobs({ client: typedClient, queues: {} });
 
 const logger: Logger = silentLogger;
 const base = defineSupabase(schema, { logger })

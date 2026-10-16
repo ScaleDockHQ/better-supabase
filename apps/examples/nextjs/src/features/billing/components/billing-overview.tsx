@@ -1,9 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { Suspense } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -20,16 +18,12 @@ import { getSession } from "@/features/user/user-queries";
 import { getPlans, getSubscription } from "../billing-queries";
 import { MarkPlanReviewedButton } from "./mark-plan-reviewed-button";
 import { PlanFeatures } from "./plan-features";
-
-/** The caller's subscription; `null` outside an organization. */
-async function currentSubscription() {
-  const organizationId = tenantOf(await getSession());
-  return organizationId ? getSubscription(organizationId) : null;
-}
+import { PlanPicker } from "./plan-picker";
 
 /**
  * Render inside `<Suspense>`. The example doesn't install the billing SQL
- * module (Stripe Checkout and webhooks), so plans are read-only here.
+ * module (Stripe Checkout and webhooks), so the plan comes from the seeded
+ * subscription.
  */
 export async function CurrentPlan() {
   const session = await getSession();
@@ -71,95 +65,27 @@ export async function CurrentPlan() {
   );
 }
 
-/** Marks the caller's plan; the card around it comes from the shared cache. */
-async function PlanButton({ planKey }: { planKey: string }) {
-  const [subscription, t] = await Promise.all([
-    currentSubscription(),
-    getExtracted("billing"),
-  ]);
-  const active = planKey === subscription?.planKey;
-  return (
-    <Button
-      className="w-full"
-      variant={active ? "secondary" : "default"}
-      data-testid={active ? "active-plan" : undefined}
-      disabled
-    >
-      {active ? t("Current plan") : t("Switch")}
-    </Button>
-  );
-}
-
 /**
- * The plan catalog from the shared cache: after the first visit by anyone,
- * it renders without a database round trip. Reading the session first keeps
- * it out of the build's prerender, which has no secret key or database.
- * Render inside `<Suspense>`.
+ * The plan catalog from the shared cache, with the organization's plan:
+ * `PlanPicker` starts from both. Reading the session first keeps it out of
+ * the build's prerender, which has no secret key or database. Render
+ * inside `<Suspense>`.
  */
 export async function PlanGrid() {
-  if (!tenantOf(await getSession())) return null;
-  const [plans, t, format] = await Promise.all([
+  const session = await getSession();
+  const organizationId = tenantOf(session);
+  if (!organizationId) return null;
+  const [plans, subscription, t] = await Promise.all([
     getPlans(),
+    getSubscription(organizationId),
     getExtracted("billing"),
-    getFormatter(),
   ]);
-  const price = (cents: number) =>
-    cents === 0
-      ? t("Free")
-      : t("{price} per month", {
-          price: format.number(cents / 100, {
-            style: "currency",
-            currency: "USD",
-          }),
-        });
-  const featureLabel = ({
-    key,
-    value,
-  }: (typeof plans)[number]["features"][number]) => {
-    switch (key) {
-      case "seats":
-        return t("{seats} seats", { seats: String(value) });
-      case "exports":
-        return t("CSV exports");
-      case "audit":
-        return t("Audit log");
-      case "sso":
-        return t("Single sign-on");
-      default:
-        return key;
-    }
-  };
-
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan) => (
-          <Card key={plan.key} size="sm" data-testid="plan">
-            <CardHeader>
-              <CardTitle>{plan.name}</CardTitle>
-              <CardDescription>{price(plan.priceCents)}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-muted-foreground space-y-1 text-sm">
-                {plan.features.map((feature) => (
-                  <li key={feature.key}>{featureLabel(feature)}</li>
-                ))}
-              </ul>
-            </CardContent>
-            <CardFooter>
-              <Suspense
-                fallback={
-                  <Button className="w-full" disabled>
-                    {t("Switch")}
-                  </Button>
-                }
-              >
-                <PlanButton planKey={plan.key} />
-              </Suspense>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+      <PlanPicker
+        initial={{ plans, current: subscription?.planKey }}
+        canManage={can(session, "billing.manage")}
+      />
       <p className="text-muted-foreground text-sm">
         {t(
           "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install.",

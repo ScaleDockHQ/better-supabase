@@ -16,7 +16,7 @@ import {
   serviceGrant,
   sha256Hex,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
@@ -583,7 +583,7 @@ function lifecycle(p: Parts): string {
     perform ${jobs.fn("enqueue_job")}(queue => '${BOOKING_EXPIRE_QUEUE}', payload => jsonb_build_object('bookingId', v_id), delay => ceil(extract(epoch from (v_expires - now())))::integer + 1, dedupe_key => 'bookings:expire:' || v_id::text, dedupe_running => false);
   end if;`;
   const bookingJson = (alias: string) =>
-    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")})${extraFieldsJson(alias, p.extras)}`;
+    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")}${extraFieldsJson(alias, p.extras)})`;
   const declareMirror = `v_calendar uuid;
   v_tz text;
   v_title text;
@@ -691,7 +691,7 @@ begin
   end loop;
   if v_id is null then
     ${fail("BOOKING_SLOT_UNAVAILABLE", "that time was just taken", "23P01")}
-  end if;${writeExtraFields(p.bookings, p.extras, "v_customer", `x.${b("id")} = v_id`, "v_booking")}
+  end if;${writeExtraColumns(p.bookings, p.extras, "v_customer", `x.${b("id")} = v_id`, "v_booking")}
   ${record(p, "booking.reserved", "v_id", `v_booking.${b("tenant")}`)}
   if v_status = 'confirmed' then
     ${calendarMirror(p, "confirm")}

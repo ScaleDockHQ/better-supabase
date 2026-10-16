@@ -172,7 +172,8 @@ create trigger bs_application_guard before update of "state" on "better_supabase
 for each row execute function better_supabase.bs_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
--- description, hiringManagerId; and status draft, open or closed.
+-- description, hiringManagerId, fields (the extra columns by name); and
+-- status draft, open or closed.
 create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -219,6 +220,10 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation then
     raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'HIRING_JOB_INVALID';
   end;
+  update "better_supabase"."jobs" x set "app_note" = case when save_job.attrs -> 'fields' ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."jobs", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_job.attrs -> 'fields') e where e.key in ('app_note'))) r
+  where x."id" = v_job."id"
+  returning x.* into v_job;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
       update "better_supabase"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
@@ -228,7 +233,7 @@ begin
       null;
     end if;
   end if;
-  return to_jsonb(v_job);
+  return (to_jsonb(v_job) || jsonb_build_object('fields', jsonb_build_object('app_note', v_job."app_note")));
 end;
 $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;

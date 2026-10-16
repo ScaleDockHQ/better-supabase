@@ -2,9 +2,15 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -12,6 +18,7 @@ import {
   type BlockTemporalOptions,
   enumOrThrow,
   instantArg,
+  isRecord,
   optionalInstant,
   optionalText,
   recordOf,
@@ -38,7 +45,8 @@ const RECOMMENDATIONS: readonly Recommendation[] = [
   "strong_yes",
 ];
 
-export interface Job {
+/** A job. `F` types the extra columns the `fields` schema describes. */
+export interface Job<F extends object = Record<never, never>> {
   readonly id: string;
   readonly title: string;
   readonly teamId?: string;
@@ -49,9 +57,11 @@ export interface Job {
   readonly status: JobStatus;
   readonly openedAt?: Temporal.Instant;
   readonly closedAt?: Temporal.Instant;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
-export interface JobInput {
+export interface JobInput<F extends object = Record<never, never>> {
   readonly id?: string;
   readonly title?: string;
   readonly teamId?: string | null;
@@ -60,6 +70,8 @@ export interface JobInput {
   readonly description?: string | null;
   readonly hiringManagerId?: string | null;
   readonly status?: JobStatus;
+  /** Values for the extra columns, by column name. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 /** A candidate's record in `config.subjects`, a person by default. */
@@ -110,8 +122,9 @@ export interface ApplicationDetail extends Application {
   readonly averageRating?: number;
 }
 
-export interface Hiring {
-  saveJob(organizationId: string, job: JobInput): AsyncResult<Job>;
+/** `F` types the jobs' extra columns, from the `fields` schema. */
+export interface Hiring<F extends object = Record<never, never>> {
+  saveJob(organizationId: string, job: JobInput<F>): AsyncResult<Job<F>>;
   /** Adds a candidate to an open job; applying again returns the same one. */
   apply(
     jobId: string,
@@ -144,10 +157,18 @@ export interface Hiring {
   detail(applicationId: string): AsyncResult<ApplicationDetail>;
 }
 
-export interface HiringOptions extends BlockTemporalOptions {
+export interface HiringOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
-  readonly hooks?: NoInfer<BlockHooks<Hiring>>;
+  /**
+   * A Standard Schema for the jobs' extra columns
+   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on `saveJob` and validates the ones it writes.
+   */
+  readonly fields?: S;
+  readonly hooks?: NoInfer<BlockHooks<Hiring<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -165,6 +186,7 @@ function jobOf(value: unknown): Job {
     status: enumOrThrow(row["status"], JOB_STATUSES, "job status"),
     openedAt: optionalInstant(row["opened_at"]),
     closedAt: optionalInstant(row["closed_at"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   });
 }
 
@@ -225,23 +247,40 @@ function interviewOf(value: unknown): Interview {
  * scorecards and interviews. Act on `application.hired` to create the
  * employee in your app.
  */
-export function createHiring(options: HiringOptions): Hiring {
+export function createHiring<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: HiringOptions<S>): Hiring<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const fields: BlockFields<F> = blockFields(options.fields, "job fields");
   const close = (applicationId: string, outcome: string, reason?: string) =>
     call(
       "close_application",
       { application: applicationId, outcome, reason: reason ?? null },
       applicationOf,
     );
-  const client: Hiring = {
+  const client: Hiring<F> = {
     saveJob: (organizationId, job) => {
-      const { id, ...attrs } = job;
-      return call(
-        "save_job",
-        { tenant: organizationId, job: id ?? null, attrs },
-        jobOf,
-      );
+      const { id, fields: extra, ...attrs } = job;
+      return AsyncResult.from(() => fields.write({ ...extra }))
+        .andThen((valid) =>
+          call(
+            "save_job",
+            {
+              tenant: organizationId,
+              job: id ?? null,
+              attrs: extra === undefined ? attrs : { ...attrs, fields: valid },
+            },
+            jobOf,
+          ),
+        )
+        .andThen((saved) =>
+          AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
+            ...saved,
+            fields: value,
+          })),
+        );
     },
     apply: (jobId, candidate, apply = {}) =>
       call(

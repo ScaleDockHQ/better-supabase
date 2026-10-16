@@ -12,7 +12,7 @@ import {
   extraFieldsJson,
   extraFieldsParam,
   extraFieldsType,
-  writeExtraFields,
+  writeExtraColumns,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
@@ -222,9 +222,9 @@ function build(ctx: ModuleContext): string {
   const policy = (name: string): string => `bs_ai_files_${name}`;
   const extras = ctx.extraColumns("files", FILE_KEYS);
   const fileJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt})${extraFieldsJson(row, extras)}`;
+    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt}${extraFieldsJson(row, extras)})`;
   const setExtras = (name: string): string =>
-    writeExtraFields(
+    writeExtraColumns(
       files,
       extras,
       `${name}.extra_fields`,

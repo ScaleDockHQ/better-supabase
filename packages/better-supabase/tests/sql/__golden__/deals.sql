@@ -215,8 +215,8 @@ for each row execute function better_supabase.bs_deal_guard();
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function "better_supabase"."create_deal"(tenant uuid, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql
@@ -1113,8 +1113,8 @@ for each row execute function better_supabase.bs_deal_guard();
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function "better_supabase"."create_deal"(tenant uuid, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql
@@ -1997,8 +1997,8 @@ for each row execute function better_supabase.bs_deal_guard();
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function "app_private"."create_deal"(tenant uuid, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql
@@ -2873,8 +2873,8 @@ for each row execute function better_supabase.bs_deal_guard();
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function "better_supabase"."create_deal"(tenant uuid, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql

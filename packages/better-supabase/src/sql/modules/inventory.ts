@@ -8,7 +8,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { fail, lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import {
   purchaseOrderFunctions,
@@ -97,6 +97,7 @@ const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  options: ["extraColumns"],
   hooks: [
     "before_stock_adjust",
     "after_stock_adjust",
@@ -263,7 +264,7 @@ create table if not exists ${t("locations")} (
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
   unique (${l("tenant")}, ${l("code")})
-);
+);${addExtraColumns(t("locations"), names.extras)}
 ${lockTable(t("locations"), { read: true })}
 ${read("locations")}
 
@@ -470,6 +471,7 @@ function build(ctx: ModuleContext): string {
     read: ctx.permission("read", OPERATIONS["inventory.read"]),
     reserve: ctx.permission("reserve", OPERATIONS["inventory.reserve"]),
     purchase: ctx.permission("purchase", OPERATIONS["inventory.purchase"]),
+    extras: ctx.extraColumns("locations"),
   };
   return `${schemaPreamble(ctx)}
 -- Stock per catalog variant and location: an append-only movement ledger,
@@ -484,7 +486,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "save_location",
-      args: ["{id}", "uuid", "text", "text", "text"],
+      args: ["{id}", "uuid", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     {

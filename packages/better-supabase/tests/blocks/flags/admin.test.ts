@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../../src/blocks/flags/index.ts";
 
-import { createFlagAdmin } from "../../../src/blocks/flags/index.ts";
+import { createFlags } from "../../../src/blocks/flags/index.ts";
 
 const row = {
   key: "beta",
@@ -16,7 +16,7 @@ const row = {
   overrides: [],
 };
 
-describe("createFlagAdmin", () => {
+describe("createFlags", () => {
   it("calls the staff functions with database names", async () => {
     const calls: [string, string, Record<string, unknown>][] = [];
     const transport: BlockTransport = {
@@ -27,7 +27,7 @@ describe("createFlagAdmin", () => {
         return Promise.resolve(true);
       },
     };
-    const admin = createFlagAdmin({ transport, schema: "app" });
+    const admin = createFlags({ transport, schema: "app" });
     expect((await admin.list().orThrow())[0]).toMatchObject({
       key: "beta",
       rolloutPercentage: 10,
@@ -70,7 +70,7 @@ describe("createFlagAdmin", () => {
   });
 
   it("reads a missing flag after save as undefined", async () => {
-    const admin = createFlagAdmin({
+    const admin = createFlags({
       transport: { call: () => Promise.resolve(null) },
     });
     expect(await admin.save("x", {}).orThrow()).toBeUndefined();

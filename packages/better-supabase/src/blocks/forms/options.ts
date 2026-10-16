@@ -5,6 +5,7 @@ export type FormsSqlOptions = {
   readonly subjects?: unknown;
   readonly handlers?: unknown;
   readonly publicLimit?: unknown;
+  readonly extraColumns?: unknown;
 };
 
 export const formsSqlOptions: BlockOptionsSchema<FormsSqlOptions> =
@@ -12,6 +13,7 @@ export const formsSqlOptions: BlockOptionsSchema<FormsSqlOptions> =
     subjects: option.unknown(),
     handlers: option.unknown(),
     publicLimit: option.unknown(),
+    extraColumns: option.unknown(),
   });
 
 /** `blocks.signatures.options`. */

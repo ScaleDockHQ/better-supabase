@@ -42,10 +42,16 @@ describe("SQL module output with extra columns", () => {
   });
 
   it.each(MODULES)("%s refuses a column that shadows its own", (module) => {
+    const tables = SQL_MODULES[module]?.names?.tables ?? {};
+    const [name = "id"] = Object.values(
+      Object.values(tables)[0]?.columns ?? {},
+    );
     expect(() =>
       renderModules([module], {
-        modules: { [module]: { options: { extraColumns: { id: "text" } } } },
+        modules: {
+          [module]: { options: { extraColumns: { [name]: "text" } } },
+        },
       }),
-    ).toThrow(/extraColumns\.id shadows/);
+    ).toThrow(/shadows/);
   });
 });

@@ -1,12 +1,16 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthorizationDetail } from "../../auth/delegation.ts";
-import type { DbError } from "../../core/errors.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTransport } from "../../core/block-transport.ts";
+import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
-import type { QueueStats } from "./backends.ts";
+import type { QueueBackend, QueueRpcClient, QueueStats } from "./backends.ts";
 
 export type QueueSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -464,8 +468,40 @@ export interface Jobs<Q extends QueueSchemas> {
   ): Promise<DrainResult>;
 }
 
-/** The options `createJobs` takes. */
-export interface JobsOptions extends BlockTemporalOptions {
+/**
+ * The options `createJobs` takes: the queues, and where jobs live. Pass one
+ * of `backend`, `sql` or `client`, or a `transport`; the first one set in
+ * that order wins, so a block built by `createBlocks` (which passes the
+ * shared `transport`) can still run over `sql` set with `.with()`.
+ */
+export interface JobsOptions<
+  Q extends QueueSchemas = QueueSchemas,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for each queue's payload, keyed by queue name. Without
+   * it the client knows no queue: `createBlocks` builds the block that way
+   * unless `jobsBlock.with({ queues })` sets them.
+   */
+  readonly queues?: Q;
+  /** Any `QueueBackend`. */
+  readonly backend?: QueueBackend;
+  /** A service SQL connection (`postgres.admin`, `ctx.sql`), for the full feature set. */
+  readonly sql?: SqlClient;
+  /** A service-role Supabase client, through the `pgmq_public` RPCs. */
+  readonly client?: QueueRpcClient;
+  /**
+   * A service-role `rpcTransport` over the wrappers `blocks.jobs.api`
+   * writes, for the full feature set over the Data API.
+   */
+  readonly transport?: BlockTransport;
+  /** The schema of the functions over `transport`. Default `better_supabase`. */
+  readonly schema?: string;
+  /** Error mappers that run before the built-in ones, over `transport`. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around the methods that return an `AsyncResult`. */
+  readonly hooks?: NoInfer<BlockHooks<Jobs<Q>>>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
   /**
    * The clock for `runAt` delays and schedule runs; pass the definition's
    * `now` option to share one clock. Defaults to `Temporal.Now.instant()`.

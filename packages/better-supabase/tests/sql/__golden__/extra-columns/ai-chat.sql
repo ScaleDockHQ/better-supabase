@@ -463,7 +463,7 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
   end if;
   if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" = create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
@@ -475,21 +475,14 @@ begin
     case when v_temporary then now() + interval '1 day' end
   )
   returning * into v_row;
-  if v_fields is not null then
-    update "better_supabase"."ai_chats" x set
-      "app_note" = case when v_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."ai_chats", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(v_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_row."id"
-    returning x.* into v_row;
-  end if;
+  update "better_supabase"."ai_chats" x set "app_note" = case when v_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."ai_chats", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_row."id"
+  returning x.* into v_row;
   if not v_temporary then
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -540,19 +533,12 @@ begin
     "updated_at" = now()
   where x."id" = update_ai_chat.chat
   returning * into v_row;
-  if v_fields is not null then
-    update "better_supabase"."ai_chats" x set
-      "app_note" = case when v_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."ai_chats", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(v_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_row."id"
-    returning x.* into v_row;
-  end if;
+  update "better_supabase"."ai_chats" x set "app_note" = case when v_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."ai_chats", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_row."id"
+  returning x.* into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -600,7 +586,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_chat"(uuid) from public, anon;
@@ -636,7 +622,7 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', page."app_note")) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at", 'fields', jsonb_build_object('app_note', page."app_note")) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x

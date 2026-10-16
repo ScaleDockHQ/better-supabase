@@ -10,7 +10,7 @@ import {
   fail,
   pageSize,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
@@ -54,7 +54,12 @@ export function collectionFunctions(
   const extras = collectionExtras(ctx);
   const createArgs = `${ctx.idType}, text, text, text, text, text`;
   const setExtras = (source: string, id: string): string =>
-    writeExtraFields(t("collections"), extras, source, `x.${co("id")} = ${id}`);
+    writeExtraColumns(
+      t("collections"),
+      extras,
+      source,
+      `x.${co("id")} = ${id}`,
+    );
   const en = (column: string): string => names.c("entries", column);
   // `subject_collections_read` for a row a security definer function has read.
   const maySee = (alias: string): string =>
@@ -83,7 +88,7 @@ export function collectionFunctions(
     'archivedAt', ${alias}.${co("archivedAt")},
     'createdBy', ${alias}.${co("createdBy")},
     'createdAt', ${alias}.${co("createdAt")},
-    'updatedAt', ${alias}.${co("updatedAt")})${extraFieldsJson(alias, extras)}`;
+    'updatedAt', ${alias}.${co("updatedAt")}${extraFieldsJson(alias, extras)})`;
   const entryRecord = (event: string): string =>
     ctx.record({
       type: event,

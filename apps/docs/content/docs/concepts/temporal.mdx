@@ -72,7 +72,7 @@ import { createAudit } from "better-supabase/blocks/audit";
 const audit = createAudit({ transport, temporal: Temporal });
 ```
 
-That covers the `create*` functions, `createJobs(source, queues, { temporal })`,
+That covers the `create*` functions, `createJobs({ sql, queues, temporal })`,
 `createRateLimit(sql, { temporal })`, `exportAuditLog`, `purgeAuditLog`,
 `scimHandler`, and the `connect` options of settings and onboarding
 checklists. Like `defineSupabase`, the option sets the process-wide
@@ -99,7 +99,7 @@ native bundle and the server render use the same code path. See
 | `defineSupabase({ now })`, plugin hooks        | `now: () => Temporal.Instant`, also the `time` of block events on `betterSupabase.events`     |
 | `defineSupabase({ temporal })`                 | the `Temporal` namespace every other API reads                                                |
 | `Job`, `EnqueueOptions`, `WebhookInboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
-| `createJobs(source, queues, { now })`          | `now`, the clock for `runAt` delays and schedule runs                                         |
+| `createJobs({ sql, queues, now })`             | `now`, the clock for `runAt` delays and schedule runs                                         |
 | `verifyWebhook`, `signWebhook`                 | `timestamp` and `now`                                                                         |
 | `bucket.sweep`                                 | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |
 | `toCloudEvents`, `forwardMutations`            | `now`                                                                                         |

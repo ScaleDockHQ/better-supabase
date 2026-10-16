@@ -92,7 +92,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -108,19 +109,24 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
     raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid(), create_share_link.version_id)
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function "better_supabase"."revoke_share_link"(id uuid)
 returns boolean
 language plpgsql
@@ -130,16 +136,24 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_creator uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."share_links" set "revoked_at" = now()
+  select "tenant_id", "created_by" into v_tenant, v_creator
+  from "better_supabase"."share_links"
   where "id" = revoke_share_link.id and "revoked_at" is null
-  returning "tenant_id" into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
+  ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
   end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id;
   null;
   return true;
 end;
@@ -154,7 +168,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id")
+  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
   from "better_supabase"."share_links"
   where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
     and "revoked_at" is null
@@ -169,9 +183,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or record_view.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
   insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
@@ -191,10 +209,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'expiresAt', "expires_at", 'revokedAt', "revoked_at")), '[]'::jsonb)
   from "better_supabase"."share_links"
   where "subject_type" = list_share_links.subject_type
     and "subject_id" = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or "created_by" = (select auth.uid())
+      or "tenant_id" in (select better_supabase.tenant_ids_with('share_links.read'))
+    )
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -338,7 +361,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -354,6 +378,9 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
     raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
   if create_share_link.version_id is not null then
     declare
       v_version jsonb := "better_supabase"."get_version"(create_share_link.version_id);
@@ -364,16 +391,18 @@ begin
       end if;
     end;
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid(), create_share_link.version_id)
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function "better_supabase"."revoke_share_link"(id uuid)
 returns boolean
 language plpgsql
@@ -383,16 +412,24 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_creator uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."share_links" set "revoked_at" = now()
+  select "tenant_id", "created_by" into v_tenant, v_creator
+  from "better_supabase"."share_links"
   where "id" = revoke_share_link.id and "revoked_at" is null
-  returning "tenant_id" into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
+  ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
   end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id;
   perform "better_supabase".emit_event('share_link.revoked', jsonb_build_object('organizationId', v_tenant, 'id', revoke_share_link.id), 'share-links/' || revoke_share_link.id::text, (v_tenant)::text, null, 'better-supabase/share-links');
   return true;
 end;
@@ -407,7 +444,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id")
+  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
   from "better_supabase"."share_links"
   where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
     and "revoked_at" is null
@@ -422,9 +459,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or record_view.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
   insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
@@ -444,10 +485,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'expiresAt', "expires_at", 'revokedAt', "revoked_at")), '[]'::jsonb)
   from "better_supabase"."share_links"
   where "subject_type" = list_share_links.subject_type
     and "subject_id" = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or "created_by" = (select auth.uid())
+      or "tenant_id" in (select better_supabase.tenant_ids_with('share_links.read'))
+    )
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -531,12 +577,13 @@ begin
   if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
     return null;
   end if;
-  select "subject_id", "leaf_id"
+  select l."subject_id", l."leaf_id"
     into v_subject, v_leaf
-  from "better_supabase"."share_links"
-  where "token_hash" = encode(extensions.digest(convert_to(get_shared_ai_chat.token, 'utf8'), 'sha256'), 'hex')
-    and "revoked_at" is null
-    and "subject_type" = 'ai-chat';
+  from "better_supabase"."share_links" l
+  where l."token_hash" = encode(extensions.digest(convert_to(get_shared_ai_chat.token, 'utf8'), 'sha256'), 'hex')
+    and l."subject_type" = 'ai-chat'
+    and l."revoked_at" is null
+    and (l."expires_at" is null or l."expires_at" > now());
   if not found then
     return null;
   end if;
@@ -670,7 +717,8 @@ grant all on "app_private"."subject_user_state" to service_role;
 
 
 drop function if exists "app_private"."create_share_link"(uuid, text, text, text);
-create or replace function "app_private"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+drop function if exists "app_private"."create_share_link"(uuid, text, text, text, uuid);
+create or replace function "app_private"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -686,19 +734,24 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
     raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
-  insert into "app_private"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid(), create_share_link.version_id)
+  insert into "app_private"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "app_private"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "app_private"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "app_private"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function "app_private"."revoke_share_link"(id uuid)
 returns boolean
 language plpgsql
@@ -708,16 +761,24 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_creator uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "app_private"."share_links" set "revoked_at" = now()
+  select "tenant_id", "created_by" into v_tenant, v_creator
+  from "app_private"."share_links"
   where "id" = revoke_share_link.id and "revoked_at" is null
-  returning "tenant_id" into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
+  ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
   end if;
+  update "app_private"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id;
   null;
   return true;
 end;
@@ -732,7 +793,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id")
+  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
   from "app_private"."share_links"
   where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
     and "revoked_at" is null
@@ -747,9 +808,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or record_view.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
   insert into "app_private"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
@@ -769,10 +834,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'expiresAt', "expires_at", 'revokedAt', "revoked_at")), '[]'::jsonb)
   from "app_private"."share_links"
   where "subject_type" = list_share_links.subject_type
     and "subject_id" = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or "created_by" = (select auth.uid())
+      or "tenant_id" in (select better_supabase.tenant_ids_with('share_links.read'))
+    )
 $$;
 revoke execute on function "app_private"."list_share_links"(text, text) from public, anon;
 grant execute on function "app_private"."list_share_links"(text, text) to authenticated, service_role;
@@ -916,7 +986,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -932,19 +1003,24 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
     raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid(), create_share_link.version_id)
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function "better_supabase"."revoke_share_link"(id uuid)
 returns boolean
 language plpgsql
@@ -954,16 +1030,24 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_creator uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."share_links" set "revoked_at" = now()
+  select "tenant_id", "created_by" into v_tenant, v_creator
+  from "better_supabase"."share_links"
   where "id" = revoke_share_link.id and "revoked_at" is null
-  returning "tenant_id" into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
+  ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
   end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id;
   null;
   return true;
 end;
@@ -978,7 +1062,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id")
+  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
   from "better_supabase"."share_links"
   where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
     and "revoked_at" is null
@@ -993,9 +1077,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or record_view.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
   insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
@@ -1015,10 +1103,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'expiresAt', "expires_at", 'revokedAt', "revoked_at")), '[]'::jsonb)
   from "better_supabase"."share_links"
   where "subject_type" = list_share_links.subject_type
     and "subject_id" = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or "created_by" = (select auth.uid())
+      or "tenant_id" in (select better_supabase.tenant_ids_with('share_links.read'))
+    )
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -1048,6 +1141,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."create_share_link"(uuid, text, text, text);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1067,14 +1161,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."revoke_share_link"(id uuid)
 returns boolean
@@ -1190,7 +1284,8 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1206,19 +1301,24 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_share_link.tenant, 'share_links.create'), false)) then
     raise exception 'not allowed to share' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
+  if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
+    raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), auth.uid(), create_share_link.version_id)
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
 
+-- The link's creator, or a caller who may create links in its tenant, may
+-- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
 create or replace function "better_supabase"."revoke_share_link"(id uuid)
 returns boolean
 language plpgsql
@@ -1228,16 +1328,24 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
+  v_creator uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."share_links" set "revoked_at" = now()
+  select "tenant_id", "created_by" into v_tenant, v_creator
+  from "better_supabase"."share_links"
   where "id" = revoke_share_link.id and "revoked_at" is null
-  returning "tenant_id" into v_tenant;
-  if not found then
+  for update;
+  if not found or not (
+    auth.role() = 'service_role'
+    or (v_creator is not null and v_creator = auth.uid())
+    or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
+  ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
   end if;
+  update "better_supabase"."share_links" set "revoked_at" = now()
+  where "id" = revoke_share_link.id;
   null;
   return true;
 end;
@@ -1252,7 +1360,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id")
+  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
   from "better_supabase"."share_links"
   where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
     and "revoked_at" is null
@@ -1267,9 +1375,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or record_view.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'SHARE_FORBIDDEN';
   end if;
   insert into "better_supabase"."subject_views" ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
@@ -1289,10 +1401,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'expiresAt', "expires_at", 'revokedAt', "revoked_at")), '[]'::jsonb)
   from "better_supabase"."share_links"
   where "subject_type" = list_share_links.subject_type
     and "subject_id" = list_share_links.subject_id
+    and (
+      auth.role() = 'service_role'
+      or "created_by" = (select auth.uid())
+      or "tenant_id" in (select better_supabase.tenant_ids_with('share_links.read'))
+    )
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;

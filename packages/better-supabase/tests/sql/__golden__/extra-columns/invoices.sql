@@ -118,7 +118,8 @@ create policy invoice_payments_read on "better_supabase"."invoice_payments" for 
 using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
--- contact ({ type, id }), termsDays, note, origin ({ type, id }).
+-- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
+-- extra columns by name.
 create or replace function "better_supabase"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -160,6 +161,9 @@ begin
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
   end;
+  update "better_supabase"."invoices" x set "app_note" = case when create_invoice.attrs ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."invoices", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_invoice.attrs) e where e.key in ('app_note'))) r
+  where x."id" = v_row."id";
   if create_invoice.lines is not null then
     perform "better_supabase"."set_invoice_lines"(v_row."id", create_invoice.lines);
   end if;

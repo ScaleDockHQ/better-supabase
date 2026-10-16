@@ -4,13 +4,13 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  extraFieldsJson,
+  withExtraFields,
   raise,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
   revokeTable,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
@@ -141,7 +141,7 @@ function build(ctx: ModuleContext): string {
   }
   const extras = ctx.extraColumns("agents", AGENT_KEYS);
   const json = (row: string): string =>
-    `${rowJson(AGENTS, a, row)}${extraFieldsJson(row, extras)}`;
+    withExtraFields(rowJson(AGENTS, a, row), row, extras);
   // Owners see their agents, members the tenant's published ones, every
   // signed-in user the published public ones, moderators all of the tenant's.
   const readable = (row: string): string =>
@@ -309,7 +309,7 @@ begin
     ${a.starters} = coalesce(save_agent.fields -> 'starters', x.${a.starters}),
     ${a.updatedAt} = now()
   where x.${a.id} = v_row.${a.id}
-  returning * into v_row;${writeExtraFields(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
   ${agentEvent("agent.saved", "v_row")}
   return ${json("v_row")};
 exception

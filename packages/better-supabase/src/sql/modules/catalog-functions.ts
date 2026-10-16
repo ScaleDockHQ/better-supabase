@@ -10,7 +10,7 @@ import {
   extraFieldsType,
   fail,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -151,7 +151,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
-  end;${writeExtraFields(products, extras, "save_product.extra_fields", `x.${p("id")} = v_id`)}
+  end;${writeExtraColumns(products, extras, "save_product.extra_fields", `x.${p("id")} = v_id`)}
   if v_created then
     ${ctx.record({
       type: "product.created",

@@ -18,7 +18,7 @@ import {
   SERVICE_CALLER,
   fail,
   lockTable,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 
@@ -197,8 +197,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     'rotated_from', ${alias}.${c("rotatedFrom")},
     'created_by', ${alias}.${c("createdBy")},
     'created_at', ${alias}.${c("createdAt")},
-    'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}
-  )${extraFieldsJson(alias, extras)}`;
+    'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}${extraFieldsJson(alias, extras)}
+  )`;
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
     `((${alias}.${c("tenant")} is not null and ${can(`${alias}.${c("tenant")}`, "manage")}) or coalesce(${alias}.${c("user")} = auth.uid(), false) or ${SERVICE_CALLER})`;
@@ -297,7 +297,7 @@ begin
   end if;
   insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")})
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
-  returning * into created;${writeExtraFields(t, extras, "create_api_key.extra_fields", `x.${c("id")} = created.${c("id")}`, "created")}
+  returning * into created;${writeExtraColumns(t, extras, "create_api_key.extra_fields", `x.${c("id")} = created.${c("id")}`, "created")}
   ${keyEvent("api_key.created", "created")}
   return ${json("created")};
 end;

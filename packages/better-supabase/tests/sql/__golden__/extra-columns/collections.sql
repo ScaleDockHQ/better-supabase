@@ -180,16 +180,9 @@ begin
     case when v_scope = 'team' then create_collection.team end,
     v_name, nullif(trim(create_collection.description), ''), auth.uid())
   returning "id" into v_id;
-  if create_collection.extra_fields is not null then
-    update "better_supabase"."subject_collections" x set
-      "app_note" = case when create_collection.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."subject_collections", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(create_collection.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_id;
-  end if;
+  update "better_supabase"."subject_collections" x set "app_note" = case when create_collection.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_collection.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_id;
   null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_collection_create"(uuid)');
@@ -211,7 +204,7 @@ begin
     'archivedAt', x."archived_at",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
-    'updatedAt', x."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."subject_collections" x where x."id" = v_id);
+    'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."subject_collections" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_collection"(uuid, text, text, text, text, text, jsonb) from public, anon;
@@ -253,16 +246,9 @@ begin
       else nullif(trim(rename_collection.description), '') end,
     "updated_at" = now()
   where x."id" = v_row."id";
-  if rename_collection.extra_fields is not null then
-    update "better_supabase"."subject_collections" x set
-      "app_note" = case when rename_collection.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."subject_collections", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(rename_collection.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_row."id";
-  end if;
+  update "better_supabase"."subject_collections" x set "app_note" = case when rename_collection.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."subject_collections", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(rename_collection.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_row."id";
   return (select jsonb_build_object(
     'id', x."id",
     'organizationId', x."tenant_id",
@@ -275,7 +261,7 @@ begin
     'archivedAt', x."archived_at",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
-    'updatedAt', x."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."subject_collections" x where x."id" = v_row."id");
+    'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."subject_collections" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."rename_collection"(uuid, text, text, jsonb) from public, anon;
@@ -342,7 +328,7 @@ as $$
     'archivedAt', x."archived_at",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
-    'updatedAt', x."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) order by lower(x."name"), x."id"), '[]'::jsonb)
+    'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) order by lower(x."name"), x."id"), '[]'::jsonb)
   from "better_supabase"."subject_collections" x
   where x."tenant_id" = list_collections.tenant
     and (list_collections.subject_type is null or x."subject_type" = list_collections.subject_type)
@@ -608,7 +594,7 @@ as $$
     'archivedAt', x."archived_at",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
-    'updatedAt', x."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) order by lower(x."name"), x."id"), '[]'::jsonb)
+    'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) order by lower(x."name"), x."id"), '[]'::jsonb)
   from "better_supabase"."subject_collections" x
   join "better_supabase"."subject_collection_entries" e on e."collection_id" = x."id"
   where e."subject_type" = collections_of.subject_type

@@ -74,7 +74,7 @@ describe("withBetterSupabase", () => {
         entry,
         withPostgresAdminClient(),
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs(ctx.postgresAdmin, {}),
+          createJobs({ sql: ctx.postgresAdmin, queues: {} }),
         ),
       ],
       (_req, ctx) => {
@@ -90,7 +90,7 @@ describe("withBetterSupabase", () => {
       [
         entry,
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs(ctx.postgresAdmin, {}),
+          createJobs({ sql: ctx.postgresAdmin, queues: {} }),
         ),
         withPostgresAdminClient(),
       ],

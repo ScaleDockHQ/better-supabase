@@ -124,6 +124,24 @@ const approvals = createApprovals({
 });
 ```
 
+## Delegation and out-of-office
+
+`delegate(id, userId)` hands the caller's place on the current step of one
+request to another member of the organization. It never outlives the
+request. This block does not store out-of-office covers, where one user
+approves for another until a date.
+
+When your authorization provider keeps covers, let it own them: its
+`isApprover` answers for the cover, and `approval_eligible` passes the
+request's `requested_by` as `{requester}` so a cover never lets the
+requester's own delegator approve. Every module that waits for an approval
+then honours the same covers. Configure covers in the provider only, and
+don't mirror them with `delegate` calls. Without such a provider, call
+`delegate` per request. Under the `provider` model, `delegate` checks that
+the delegate is a member through the provider's `memberIdsFor` when the
+provider sets it. See
+[Authorization providers](/docs/extending/authorization-providers#out-of-office-covers).
+
 ## Resume a workflow when a request is decided
 
 A request's id is a random uuid, so it works as the token a paused workflow

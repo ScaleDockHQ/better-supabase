@@ -258,6 +258,7 @@ function approverOf(
     kind: SUPPORT_SESSION_APPROVAL,
     subject: `${c("id")}::text`,
     tenant: c("tenant"),
+    requester: c("admin"),
   });
   if (check) return `coalesce((${check.sql}), false)`;
   const isPlatform = ctx.of("access").fn("is_platform");

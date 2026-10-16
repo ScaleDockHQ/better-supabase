@@ -316,16 +316,9 @@ begin
   exception when unique_violation then
     raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
   end;
-  if save_product.extra_fields is not null then
-    update "better_supabase"."products" x set
-      "app_note" = case when save_product.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."products", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(save_product.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = v_id;
-  end if;
+  update "better_supabase"."products" x set "app_note" = case when save_product.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."products", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_product.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = v_id;
   if v_created then
     null;
   else

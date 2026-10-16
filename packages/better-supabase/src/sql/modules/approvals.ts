@@ -21,7 +21,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  writeExtraFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   subjectCascades,
@@ -35,6 +35,7 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
+import { providerMembers } from "./tenant.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
 export const ACCESS_REQUEST_SUBJECT = "access_request";
@@ -180,6 +181,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
     subject: `v_req.${c("subjectId")}::text`,
     tenant: `v_req.${c("tenant")}`,
+    requester: `v_req.${c("requestedBy")}`,
   });
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
@@ -236,7 +238,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     "fields",
   ]);
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")})${extraFieldsJson(row, extras)}`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
   const requestArgs = `${ctx.idType}, text, text, text, text, jsonb`;
   const record = (event: string, row: string, audit: boolean): string =>
     ctx.record({
@@ -257,6 +259,16 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
+  const memberIdsFor = providerMembers(ctx, layout).idsFor;
+  const delegateMember =
+    memberIdsFor === undefined
+      ? `exists (
+    select 1 from ${members.table("memberships")} m
+    where m.${mt} = v_req.${c("tenant")} and m.${mu} = delegate_approval.to_user
+  )`
+      : `v_req.${c("tenant")}::text in (
+    select t.id::text from ${memberIdsFor("delegate_approval.to_user")} as t(id)
+  )`;
   const teams =
     ctx.installed("teams") && ctx.of("teams").mode !== "custom"
       ? ctx.of("teams")
@@ -678,7 +690,7 @@ begin
   ${extras.length === 0 ? "return " : "v_result := "}${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
     extras.length === 0
       ? ""
-      : `${writeExtraFields(requests, extras, "request_approval.extra_fields", `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}
+      : `${writeExtraColumns(requests, extras, "request_approval.extra_fields", `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}
   if v_req.${c("id")} is not null then
     return ${json("v_req")};
   end if;
@@ -783,10 +795,7 @@ begin
   if delegate_approval.to_user is null or delegate_approval.to_user = auth.uid() or delegate_approval.to_user = v_req.${c("requestedBy")} then
     ${fail("APPROVAL_DELEGATE_INVALID", "delegate to another user than yourself or the requester", "22023")}
   end if;
-  if not exists (
-    select 1 from ${members.table("memberships")} m
-    where m.${mt} = v_req.${c("tenant")} and m.${mu} = delegate_approval.to_user
-  ) then
+  if not ${delegateMember} then
     ${fail("APPROVAL_DELEGATE_INVALID", "the delegate is not a member of this organization", "22023")}
   end if;
   insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}, ${d("delegateTo")}, ${d("comment")})

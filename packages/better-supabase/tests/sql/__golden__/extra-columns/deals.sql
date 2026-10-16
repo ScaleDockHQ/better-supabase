@@ -216,8 +216,8 @@ for each row execute function better_supabase.bs_deal_guard();
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
 -- existingAmount, valuePeriod, pipelineId, stageId, probability, forecast,
--- nextStep, nextAt, nextKind, flags, source, note. contacts: a list of
--- { type, id, role, primary }.
+-- nextStep, nextAt, nextKind, flags, source, note and the extra columns by
+-- name. contacts: a list of { type, id, role, primary }.
 create or replace function "better_supabase"."create_deal"(tenant uuid, attrs jsonb, contacts jsonb)
 returns jsonb
 language plpgsql
@@ -276,6 +276,9 @@ begin
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
   end;
   v_deal := v_row."id";
+  update "better_supabase"."deals" x set "app_note" = case when create_deal.attrs ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."deals", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_deal.attrs) e where e.key in ('app_note'))) r
+  where x."id" = v_deal;
   if v_row."motion" is not null and not (v_row."motion" = any ('{new_logo,expansion,renewal}'::text[])) then
     raise exception 'unknown motion' using errcode = '22023', hint = 'DEAL_MOTION_INVALID';
   end if;
@@ -398,6 +401,8 @@ begin
         update "better_supabase"."deals" x set "lost_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
       when 'company' then
         update "better_supabase"."deals" x set "company_type" = v_change -> 'value' ->> 'type', "company_id" = v_change -> 'value' ->> 'id' where x."id" = v_deal returning * into v_row;
+      when 'app_note' then
+        update "better_supabase"."deals" x set "app_note" = (jsonb_populate_record(null::"better_supabase"."deals", jsonb_build_object('app_note', v_change -> 'value')))."app_note" where x."id" = v_deal returning * into v_row;
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'DEAL_FIELD_UNKNOWN';
       end case;

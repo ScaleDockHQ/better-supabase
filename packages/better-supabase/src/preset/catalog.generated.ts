@@ -2052,7 +2052,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "entitlements"
       ],
       "category": "commerce",
-      "client": null,
+      "client": {
+        "export": "entitlementsBlock",
+        "subpath": "better-supabase/blocks/entitlements"
+      },
       "consumes": {},
       "provides": []
     },
@@ -2203,7 +2206,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "jobs"
       ],
       "category": "platform",
-      "client": null,
+      "client": {
+        "export": "jobsBlock",
+        "subpath": "better-supabase/blocks/jobs"
+      },
       "consumes": {},
       "provides": []
     },

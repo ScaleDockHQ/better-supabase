@@ -2,14 +2,21 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
   instantArg,
+  isRecord,
   optionalInstant,
   optionalText,
   recordOf,
@@ -25,7 +32,7 @@ export interface EngagementSubject {
 }
 
 /** A call, email, meeting, note or task logged on one or more records. */
-export interface Engagement {
+export interface Engagement<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
@@ -46,10 +53,12 @@ export interface Engagement {
   readonly overdue: boolean;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
 /** The fields of a write. On update, left out keeps the value and `null` clears it. */
-export interface EngagementInput {
+export interface EngagementInput<F extends object = Record<never, never>> {
   readonly type?: string;
   readonly title?: string;
   readonly body?: string | null;
@@ -61,26 +70,32 @@ export interface EngagementInput {
   readonly durationSeconds?: number | null;
   /** Logging the same `externalRef` again updates the engagement. */
   readonly externalRef?: string | null;
+  /** Values for the extra columns, by column name. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface Engagements {
+/** `F` types the engagements' extra columns, from the `fields` schema. */
+export interface Engagements<F extends object = Record<never, never>> {
   /** Logs an engagement on the records in `subjects`, the first being its main record. */
   log(
     organizationId: string,
-    input: EngagementInput & { readonly type: string; readonly title: string },
+    input: EngagementInput<F> & {
+      readonly type: string;
+      readonly title: string;
+    },
     subjects: readonly EngagementSubject[],
-  ): AsyncResult<Engagement>;
+  ): AsyncResult<Engagement<F>>;
   /** Changes an engagement, and its records when `subjects` is given. */
   update(
     id: string,
-    input: EngagementInput,
+    input: EngagementInput<F>,
     subjects?: readonly EngagementSubject[],
-  ): AsyncResult<Engagement>;
+  ): AsyncResult<Engagement<F>>;
   /** Marks it done now, with an outcome, or open again with `done: false`. */
   complete(
     id: string,
     options?: { readonly done?: boolean; readonly outcome?: string },
-  ): AsyncResult<Engagement>;
+  ): AsyncResult<Engagement<F>>;
   remove(id: string): AsyncResult<boolean>;
   /** A record's engagements, newest first (50 by default, at most 200). */
   of(
@@ -90,9 +105,9 @@ export interface Engagements {
       readonly before?: Temporal.Instant;
       readonly limit?: number;
     },
-  ): AsyncResult<Engagement[]>;
+  ): AsyncResult<Engagement<F>[]>;
   /** The next open engagement with a due time on a record, or `undefined`. */
-  next(subject: EngagementSubject): AsyncResult<Engagement | undefined>;
+  next(subject: EngagementSubject): AsyncResult<Engagement<F> | undefined>;
   /** A member's open engagements, earliest due first. Default: the caller's. */
   open(
     organizationId: string,
@@ -101,14 +116,22 @@ export interface Engagements {
       readonly dueBefore?: Temporal.Instant;
       readonly limit?: number;
     },
-  ): AsyncResult<Engagement[]>;
+  ): AsyncResult<Engagement<F>[]>;
 }
 
-export interface EngagementsOptions extends BlockTemporalOptions {
+export interface EngagementsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
-  readonly hooks?: NoInfer<BlockHooks<Engagements>>;
+  /**
+   * A Standard Schema for the engagements' extra columns
+   * (`blocks.engagements.options.extraColumns`), keyed by column name. It
+   * types and parses `fields` on reads and validates them on writes.
+   */
+  readonly fields?: S;
+  readonly hooks?: NoInfer<BlockHooks<Engagements<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -141,6 +164,7 @@ function engagementOf(value: unknown): Engagement {
     ),
     overdue: row["overdue"] === true,
     createdAt: requiredInstant(row["created_at"], "createdAt"),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
     ...Object.fromEntries(
       Object.entries(optional).filter(([, value]) => value !== undefined),
     ),
@@ -167,30 +191,73 @@ const subjectsArg = (
  * record registered in `config.subjects`, for a record's activity panel, a
  * "next step" and a member's task list.
  */
-export function createEngagements(options: EngagementsOptions): Engagements {
+export function createEngagements<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: EngagementsOptions<S>): Engagements<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Engagements = {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "engagement fields",
+  );
+  const parsed = (engagement: Engagement): AsyncResult<Engagement<F>> =>
+    AsyncResult.from(() => fields.read(engagement.fields)).map((value) => ({
+      ...engagement,
+      fields: value,
+    }));
+  const parsedAll = (
+    engagements: readonly Engagement[],
+  ): AsyncResult<Engagement<F>[]> =>
+    AsyncResult.from(async () => {
+      const out: Engagement<F>[] = [];
+      for (const engagement of engagements) {
+        const read = await parsed(engagement);
+        if (!read.ok) return read;
+        out.push(read.data);
+      }
+      return ok(out);
+    });
+  /** The attrs of a write, with the extra fields checked first. */
+  const checked = (
+    input: EngagementInput<F>,
+  ): AsyncResult<Record<string, unknown>> => {
+    const { fields: extra, ...rest } = input;
+    if (extra === undefined) return AsyncResult.ok(attrsOf(rest));
+    return AsyncResult.from(() => fields.write({ ...extra })).map((valid) => ({
+      ...attrsOf(rest),
+      fields: valid,
+    }));
+  };
+  const client: Engagements<F> = {
     log: (organizationId, input, subjects) =>
-      call(
-        "log_engagement",
-        {
-          tenant: organizationId,
-          attrs: attrsOf(input),
-          subjects: subjectsArg(subjects),
-        },
-        engagementOf,
-      ),
+      checked(input)
+        .andThen((attrs) =>
+          call(
+            "log_engagement",
+            {
+              tenant: organizationId,
+              attrs,
+              subjects: subjectsArg(subjects),
+            },
+            engagementOf,
+          ),
+        )
+        .andThen(parsed),
     update: (id, input, subjects) =>
-      call(
-        "update_engagement",
-        {
-          engagement: id,
-          attrs: attrsOf(input),
-          subjects: subjects === undefined ? null : subjectsArg(subjects),
-        },
-        engagementOf,
-      ),
+      checked(input)
+        .andThen((attrs) =>
+          call(
+            "update_engagement",
+            {
+              engagement: id,
+              attrs,
+              subjects: subjects === undefined ? null : subjectsArg(subjects),
+            },
+            engagementOf,
+          ),
+        )
+        .andThen(parsed),
     complete: (id, complete = {}) =>
       call(
         "complete_engagement",
@@ -200,7 +267,7 @@ export function createEngagements(options: EngagementsOptions): Engagements {
           outcome: complete.outcome ?? null,
         },
         engagementOf,
-      ),
+      ).andThen(parsed),
     remove: (id) =>
       call("delete_engagement", { engagement: id }, (value) => value === true),
     of: (subject, list = {}) =>
@@ -214,12 +281,14 @@ export function createEngagements(options: EngagementsOptions): Engagements {
           page_size: list.limit ?? null,
         },
         (value) => recordsOf(value, "engagements_of").map(engagementOf),
-      ),
+      ).andThen(parsedAll),
     next: (subject) =>
       call(
         "next_engagement",
         { subject_type: subject.type, subject_id: subject.id },
         (value) => (value === null ? undefined : engagementOf(value)),
+      ).andThen((found) =>
+        found === undefined ? AsyncResult.ok(undefined) : parsed(found),
       ),
     open: (organizationId, list = {}) =>
       call(
@@ -231,7 +300,7 @@ export function createEngagements(options: EngagementsOptions): Engagements {
           page_size: list.limit ?? null,
         },
         (value) => recordsOf(value, "open_engagements").map(engagementOf),
-      ),
+      ).andThen(parsedAll),
   };
   return withBlockHooks(client, options.hooks, {
     block: "engagements",

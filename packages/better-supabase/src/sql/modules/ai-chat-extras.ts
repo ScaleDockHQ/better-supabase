@@ -51,6 +51,7 @@ function toolApprover(
     kind: AI_TOOL_APPROVAL,
     subject: `v_row.${a.tool}`,
     tenant: `(select c.${ch.tenant} from ${names.t.chats} c where c.${ch.id} = v_row.${a.chat})`,
+    requester: `v_row.${a.owner}`,
   });
 }
 

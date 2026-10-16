@@ -128,17 +128,10 @@ begin
   insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
-  if create_api_key.extra_fields is not null then
-    update "better_supabase"."api_keys" x set
-      "app_note" = case when create_api_key.extra_fields ? 'app_note' then f."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."api_keys", (
-      select coalesce(jsonb_object_agg(e.field_key, e.field_value), '{}'::jsonb)
-      from jsonb_each(create_api_key.extra_fields) as e (field_key, field_value)
-      where e.field_key = any (array['app_note'])
-    )) f
-    where x."id" = created."id"
-    returning x.* into created;
-  end if;
+  update "better_supabase"."api_keys" x set "app_note" = case when create_api_key.extra_fields ? 'app_note' then r."app_note" else x."app_note" end
+  from jsonb_populate_record(null::"better_supabase"."api_keys", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_api_key.extra_fields) e where e.key in ('app_note'))) r
+  where x."id" = created."id"
+  returning x.* into created;
   null;
   return jsonb_build_object(
     'id', created."id",
@@ -161,8 +154,8 @@ begin
       when created."revoked_at" is not null then 'grace'
       else 'active'
     end,
-    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = created."id" order by s."created_at" desc limit 1)
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', created."app_note"));
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = created."id" order by s."created_at" desc limit 1), 'fields', jsonb_build_object('app_note', created."app_note")
+  );
 end;
 $$;
 
@@ -198,8 +191,8 @@ begin
       when k."revoked_at" is not null then 'grace'
       else 'active'
     end,
-    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', k."app_note")) order by k."created_at" desc), '[]'::jsonb)
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1), 'fields', jsonb_build_object('app_note', k."app_note")
+  ) order by k."created_at" desc), '[]'::jsonb)
       from "better_supabase"."api_keys" k where k."user_id" = auth.uid());
   end if;
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then
@@ -224,8 +217,8 @@ begin
       when k."revoked_at" is not null then 'grace'
       else 'active'
     end,
-    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', k."app_note")) order by k."created_at" desc), '[]'::jsonb)
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1), 'fields', jsonb_build_object('app_note', k."app_note")
+  ) order by k."created_at" desc), '[]'::jsonb)
       from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant);
   end if;
   return (select coalesce(jsonb_agg(jsonb_build_object(
@@ -249,8 +242,8 @@ begin
       when k."revoked_at" is not null then 'grace'
       else 'active'
     end,
-    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', k."app_note")) order by k."created_at" desc), '[]'::jsonb)
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1), 'fields', jsonb_build_object('app_note', k."app_note")
+  ) order by k."created_at" desc), '[]'::jsonb)
     from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant and k."user_id" = auth.uid());
 end;
 $$;
@@ -337,8 +330,8 @@ begin
       when created."revoked_at" is not null then 'grace'
       else 'active'
     end,
-    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = created."id" order by s."created_at" desc limit 1)
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', created."app_note"));
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = created."id" order by s."created_at" desc limit 1), 'fields', jsonb_build_object('app_note', created."app_note")
+  );
 end;
 $$;
 
@@ -409,8 +402,8 @@ begin
       when found."expires_at" is not null and found."expires_at" <= now() then 'expired'
       when found."revoked_at" is not null then 'grace'
       else 'active'
-    end
-  ) || jsonb_build_object('fields', jsonb_build_object('app_note', found."app_note")));
+    end, 'fields', jsonb_build_object('app_note', found."app_note")
+  ));
 end;
 $$;
 

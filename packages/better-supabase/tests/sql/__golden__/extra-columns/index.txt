@@ -1,6 +1,7 @@
 organizations
 profiles
 api-keys
+flags
 attachments
 announcements
 ai-chat
@@ -12,8 +13,11 @@ bookings
 approvals
 access-requests
 catalog
+inventory
 drive
+forms
 parties
+engagements
 deals
 work-items
 quotes

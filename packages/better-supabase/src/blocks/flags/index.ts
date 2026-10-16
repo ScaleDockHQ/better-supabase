@@ -24,11 +24,12 @@ export {
   type RequestFlagContext,
 } from "./flags.ts";
 export {
-  createFlagAdmin,
-  type FlagAdmin,
-  type FlagAdminOptions,
+  createFlags,
   type FlagInput,
   type FlagOverrideTarget,
+  type FlagRecord,
+  type Flags,
+  type FlagsOptions,
 } from "./admin.ts";
 export {
   dbTransport,

@@ -104,7 +104,7 @@ begin
     end if;
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) - 'targets' || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) order by x."starts_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg((to_jsonb(x) - 'targets' || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) order by x."starts_at" desc), '[]'::jsonb)
     from "better_supabase"."announcements" x
     where x."starts_at" <= now()
       and (x."ends_at" is null or x."ends_at" > now())
@@ -167,7 +167,7 @@ begin
     raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) order by x."starts_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) order by x."starts_at" desc), '[]'::jsonb)
     from "better_supabase"."announcements" x
   );
 end;
@@ -216,7 +216,7 @@ begin
     returning * into v_row;
   end if;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note"));
+  return (to_jsonb(v_row) || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 end;
 $$;
 
