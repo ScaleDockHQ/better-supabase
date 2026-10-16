@@ -6,10 +6,10 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  sha256Hex,
   userGrant,
 } from "../shared.ts";
 import { READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { liveShareLink } from "./share-links.ts";
 
 /** Files, revisions, the bin, stars and links: the drive-files module. */
 export function driveFilesSql(kit: DriveKit): string {
@@ -591,10 +591,7 @@ begin
   select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}
     into v_link_id, v_role, v_root, v_expires
   from ${shareLinks.table("links")} l
-  where l.${shareLinks.col("links", "tokenHash")} = ${sha256Hex("convert_to(drive_link.token, 'utf8')")}
-    and l.${shareLinks.col("links", "subjectType")} = ${typeLit}
-    and l.${shareLinks.col("links", "revokedAt")} is null
-    and (l.${shareLinks.col("links", "expiresAt")} is null or l.${shareLinks.col("links", "expiresAt")} > now());
+  where ${liveShareLink(shareLinks, "l", "drive_link.token", typeLit)};
   if v_link_id is null or v_root !~ ${UUID_TEXT} then
     ${fail("DRIVE_LINK_NOT_FOUND", "this link does not exist or has expired", "P0002")}
   end if;

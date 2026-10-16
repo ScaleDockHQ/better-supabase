@@ -44,8 +44,11 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
   ): Promise<RequestContext> {
     await session.service();
     const queue = `delegation_${crypto.randomUUID().slice(0, 8)}`;
-    const jobs = createJobs(session.sql, {
-      [queue]: v.object({ id: v.number() }),
+    const jobs = createJobs({
+      sql: session.sql,
+      queues: {
+        [queue]: v.object({ id: v.number() }),
+      },
     });
     await jobs.enqueue(queue, { id: 1 }, { context }).orThrow();
     const [job] = await jobs.claim(queue).orThrow();

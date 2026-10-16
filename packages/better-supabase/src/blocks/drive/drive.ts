@@ -3,11 +3,17 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import {
   type Attachment,
   type AttachmentDownload,
@@ -30,7 +36,9 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface DriveOptions extends BlockTemporalOptions {
+export interface DriveOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`), so grants apply. */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for upload URLs and removing purged files. */
@@ -42,8 +50,15 @@ export interface DriveOptions extends BlockTemporalOptions {
   readonly attachments?: Pick<Attachments, "download">;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the nodes' extra columns
+   * (`blocks.drive.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on every node the client returns, and validates
+   * them on `createFolder` and `upload`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Drive>;
+  readonly hooks?: NoInfer<BlockHooks<Drive<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -62,7 +77,8 @@ export interface DriveFile {
   readonly uploadedAt: Temporal.Instant | undefined;
 }
 
-export interface DriveNode {
+/** A folder or a file. `F` types the extra columns the `fields` schema describes. */
+export interface DriveNode<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly parentId: string | null;
@@ -77,8 +93,8 @@ export interface DriveNode {
   /** The file's current attachment; `undefined` for a folder or a file not uploaded yet. */
   readonly attachmentId: string | undefined;
   readonly file: DriveFile | undefined;
-  /** The `extraColumns` values. */
-  readonly fields: Readonly<Record<string, unknown>>;
+  /** The `extraColumns` values, by column name. */
+  readonly fields: Readonly<Record<string, unknown>> & F;
   /** The caller's role on the node, direct or inherited, where the call reports it. */
   readonly role: string | undefined;
   readonly starredAt: Temporal.Instant | undefined;
@@ -108,23 +124,25 @@ export interface DriveGrant {
   readonly inherited: boolean;
 }
 
-export interface NewDriveFolder {
+export interface NewDriveFolder<F extends object = Record<never, never>> {
   readonly parentId?: string | null;
   readonly name: string;
   readonly conflict?: DriveConflict;
   /** Values for `extraColumns`; unset ones are copied from the parent. */
-  readonly fields?: Readonly<Record<string, unknown>>;
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface NewDriveFile extends NewDriveFolder {
+export interface NewDriveFile<
+  F extends object = Record<never, never>,
+> extends NewDriveFolder<F> {
   readonly mimeType: string;
   /** Bytes; `commit` replaces it with the stored size. */
   readonly size: number;
 }
 
 /** A pending upload: PUT the bytes to `signedUrl`, then call `commit`. */
-export interface DriveUpload {
-  readonly node: DriveNode;
+export interface DriveUpload<F extends object = Record<never, never>> {
+  readonly node: DriveNode<F>;
   readonly attachment: Attachment;
   readonly signedUrl: string;
   readonly token: string;
@@ -153,24 +171,26 @@ export interface DriveBatch {
   readonly count: number;
 }
 
-export interface DriveBinEntry extends DriveBatch {
-  readonly node: DriveNode;
+export interface DriveBinEntry<
+  F extends object = Record<never, never>,
+> extends DriveBatch {
+  readonly node: DriveNode<F>;
   readonly trashedBy: string | undefined;
   readonly trashedAt: Temporal.Instant;
   readonly purgeAfter: Temporal.Instant | undefined;
 }
 
 /** What a share link opens. */
-export interface DriveLinkView {
+export interface DriveLinkView<F extends object = Record<never, never>> {
   readonly link: {
     readonly id: string;
     readonly role: string;
     readonly nodeId: string;
     readonly expiresAt: Temporal.Instant | undefined;
   };
-  readonly node: DriveNode;
+  readonly node: DriveNode<F>;
   /** A folder's children; `undefined` for a file. */
-  readonly children: readonly DriveNode[] | undefined;
+  readonly children: readonly DriveNode<F>[] | undefined;
   /** A file's object, for the server to sign a download URL with. */
   readonly object:
     | {
@@ -191,12 +211,13 @@ export interface DrivePage {
   readonly pageSize?: number;
 }
 
-export interface Drive {
+/** `F` types the nodes' extra columns, from the `fields` schema. */
+export interface Drive<F extends object = Record<never, never>> {
   createFolder(
     organizationId: string,
-    folder: NewDriveFolder,
-  ): AsyncResult<DriveNode>;
-  get(id: string): AsyncResult<DriveNode>;
+    folder: NewDriveFolder<F>,
+  ): AsyncResult<DriveNode<F>>;
+  get(id: string): AsyncResult<DriveNode<F>>;
   /** A folder's children (the root without `parentId`), folders first. */
   list(
     organizationId: string,
@@ -204,25 +225,25 @@ export interface Drive {
       readonly parentId?: string | null;
       readonly skip?: number;
     },
-  ): AsyncResult<readonly DriveNode[]>;
+  ): AsyncResult<readonly DriveNode<F>[]>;
   /** Nodes shared with the caller directly, outside folders they can open. */
   shared(
     organizationId: string,
     options?: DrivePage,
-  ): AsyncResult<readonly DriveNode[]>;
+  ): AsyncResult<readonly DriveNode<F>[]>;
   /** The node's folders, root first, for breadcrumbs. */
   path(id: string): AsyncResult<readonly DriveCrumb[]>;
   rename(
     id: string,
     name: string,
     options?: { readonly conflict?: DriveConflict },
-  ): AsyncResult<DriveNode>;
+  ): AsyncResult<DriveNode<F>>;
   /** Moves into `parentId` (`null` for the root), optionally to a rank key. */
   move(
     id: string,
     parentId: string | null,
     options?: { readonly rank?: string; readonly conflict?: DriveConflict },
-  ): AsyncResult<DriveNode>;
+  ): AsyncResult<DriveNode<F>>;
   /** Deletes the node and everything under it for good. */
   delete(id: string): AsyncResult<boolean>;
   share(
@@ -235,51 +256,54 @@ export interface Drive {
   /** The node's grants, inherited ones included. */
   grants(id: string): AsyncResult<readonly DriveGrant[]>;
   /** Creates the file (or a revision, with `conflict: "replace"`) and a signed upload URL. */
-  upload(organizationId: string, file: NewDriveFile): AsyncResult<DriveUpload>;
+  upload(
+    organizationId: string,
+    file: NewDriveFile<F>,
+  ): AsyncResult<DriveUpload<F>>;
   /** A signed upload URL for a new revision of a file. */
   uploadRevision(
     id: string,
     file: { readonly mimeType: string; readonly size: number },
-  ): AsyncResult<DriveUpload>;
+  ): AsyncResult<DriveUpload<F>>;
   /** Confirms an upload and makes it the file's content. */
-  commit(id: string, attachmentId: string): AsyncResult<DriveNode>;
+  commit(id: string, attachmentId: string): AsyncResult<DriveNode<F>>;
   /** A signed URL for the file's current content, behind the scan gate. */
   download(
     id: string,
     options?: { readonly as?: string | boolean },
   ): AsyncResult<AttachmentDownload>;
   revisions(id: string): AsyncResult<readonly DriveRevision[]>;
-  restoreRevision(id: string, revisionId: string): AsyncResult<DriveNode>;
+  restoreRevision(id: string, revisionId: string): AsyncResult<DriveNode<F>>;
   /** Moves the node and everything under it to the bin. */
   trash(id: string): AsyncResult<DriveBatch>;
   /** Restores a bin entry, renaming it when the name is taken now. */
   restore(
     binId: string,
     options?: { readonly conflict?: DriveConflict },
-  ): AsyncResult<DriveBatch & { readonly node: DriveNode }>;
+  ): AsyncResult<DriveBatch & { readonly node: DriveNode<F> }>;
   /** The bin, newest first: the entries the caller may restore. */
   bin(
     organizationId: string,
     options?: DrivePage & { readonly before?: Temporal.Instant },
-  ): AsyncResult<readonly DriveBinEntry[]>;
+  ): AsyncResult<readonly DriveBinEntry<F>[]>;
   /** Deletes a bin entry for good; returns how many nodes went. */
   purge(binId: string): AsyncResult<number>;
   star(id: string, starred?: boolean): AsyncResult<boolean>;
   /** Records the node as opened, for `recent`. */
-  open(id: string): AsyncResult<DriveNode>;
+  open(id: string): AsyncResult<DriveNode<F>>;
   starred(
     organizationId: string,
     options?: DrivePage,
-  ): AsyncResult<readonly DriveNode[]>;
+  ): AsyncResult<readonly DriveNode<F>[]>;
   recent(
     organizationId: string,
     options?: DrivePage,
-  ): AsyncResult<readonly DriveNode[]>;
+  ): AsyncResult<readonly DriveNode<F>[]>;
   /** What a share link token opens; `nodeId` picks an item under a linked folder. */
   link(
     token: string,
     options?: { readonly nodeId?: string },
-  ): AsyncResult<DriveLinkView>;
+  ): AsyncResult<DriveLinkView<F>>;
   /**
    * Service role: deletes revisions' files no revision or node uses any
    * more, and removes their objects through `storage`.
@@ -425,9 +449,109 @@ const noStorage = () =>
     hint: "DRIVE_STORAGE_CLIENT",
   });
 
+/** The methods whose result holds nodes, which `fields` parses. */
+const NODE_METHODS = [
+  "createFolder",
+  "get",
+  "list",
+  "shared",
+  "rename",
+  "move",
+  "upload",
+  "uploadRevision",
+  "commit",
+  "restoreRevision",
+  "restore",
+  "bin",
+  "open",
+  "starred",
+  "recent",
+  "link",
+] as const satisfies readonly (keyof Drive)[];
+
+const isNode = (value: Readonly<Record<string, unknown>>): boolean =>
+  typeof value["kind"] === "string" &&
+  typeof value["organizationId"] === "string";
+
+/** `value` with the `fields` of every node in it parsed: a node, a list, or `{ node, children }`. */
+async function parseNodes(
+  fields: BlockFields<object>,
+  value: unknown,
+): Promise<Result<unknown>> {
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (const item of value) {
+      const parsed = await parseNodes(fields, item);
+      if (!parsed.ok) return parsed;
+      out.push(parsed.data);
+    }
+    return ok(out);
+  }
+  if (!isRecord(value)) return ok(value);
+  const extra = value["fields"];
+  if (isNode(value) && isRecord(extra)) {
+    const parsed = await fields.read({ ...extra });
+    return parsed.ok ? ok({ ...value, fields: parsed.data }) : parsed;
+  }
+  const out: Record<string, unknown> = { ...value };
+  for (const key of ["node", "children"]) {
+    if (value[key] === undefined) continue;
+    const parsed = await parseNodes(fields, value[key]);
+    if (!parsed.ok) return parsed;
+    out[key] = parsed.data;
+  }
+  return ok(out);
+}
+
+/**
+ * The client with `fields` applied: the extra fields of a new folder or
+ * file are validated first, and every node it returns is parsed.
+ */
+function withFields<F extends object>(
+  client: Drive,
+  fields: BlockFields<object>,
+): Drive<F> {
+  const out: Drive = { ...client };
+  for (const method of NODE_METHODS) {
+    // SAFETY: every listed method returns an AsyncResult; the arguments are
+    // passed through unchanged.
+    const original = client[method] as (
+      ...args: unknown[]
+    ) => AsyncResult<unknown>;
+    const wrapped = (...args: unknown[]): AsyncResult<unknown> => {
+      const input = args[1];
+      const extra =
+        (method === "createFolder" || method === "upload") && isRecord(input)
+          ? input["fields"]
+          : undefined;
+      const checked = isRecord(extra)
+        ? AsyncResult.from(() => fields.write({ ...extra })).map(() => true)
+        : AsyncResult.ok(true);
+      return checked
+        .andThen(() => original.apply(client, args))
+        .andThen((value) => parseNodes(fields, value));
+    };
+    Object.defineProperty(out, method, {
+      value: wrapped,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  // SAFETY: `out` has every member of `client`, and the node methods return
+  // the same shapes with `fields` parsed by the schema F describes.
+  return out as Drive<F>;
+}
+
 /** The `drive` SQL module as typed calls, as the caller. */
-export function createDrive(options: DriveOptions): Drive {
+export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
+  options: DriveOptions<S>,
+): Drive<FieldsOf<S>> {
   applyTemporal(options);
+  const fields: BlockFields<object> = blockFields(
+    options.fields,
+    "drive node fields",
+  );
   const call = blockCall(options.transport, options.schema, options.mappers);
   const storage = options.storage;
   const attachments = options.attachments;
@@ -656,10 +780,14 @@ export function createDrive(options: DriveOptions): Drive {
         return ok(objects);
       }),
   };
-  return withBlockHooks(client, options.hooks, {
-    block: "drive",
-    ...(options.logger ? { logger: options.logger } : {}),
-  });
+  return withBlockHooks(
+    withFields<FieldsOf<S>>(client, fields),
+    options.hooks,
+    {
+      block: "drive",
+      ...(options.logger ? { logger: options.logger } : {}),
+    },
+  );
 }
 
 /**

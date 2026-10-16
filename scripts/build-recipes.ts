@@ -195,6 +195,98 @@ const RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "plan-picker",
+    title: "Plan picker",
+    block: "billing",
+    description:
+      "The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns.",
+    hook: {
+      name: "usePlanPicker",
+      entry: "better-supabase/blocks/billing/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/billing/components/plan-picker.tsx`,
+      components: ["button", "card"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/plan-picker.tsx`,
+      components: ["ActivityIndicator", "Pressable", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "usage-meter",
+    title: "Usage meter",
+    block: "usage",
+    description:
+      "This period's usage per meter against the plan's quota, with the reset date.",
+    hook: {
+      name: "useUsageMeter",
+      entry: "better-supabase/blocks/usage/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/dashboard/components/usage-card.tsx`,
+      components: ["card", "progress", "skeleton"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/usage-meter.tsx`,
+      components: ["ActivityIndicator", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "feature-gate",
+    title: "Feature gate",
+    block: "entitlements",
+    description:
+      "Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes.",
+    hook: {
+      name: "useFeatureGate",
+      entry: "better-supabase/blocks/entitlements/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/billing/components/feature-gate.tsx`,
+      components: ["button", "skeleton"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/feature-gate.tsx`,
+      components: ["ActivityIndicator", "Text", "View"],
+      glue: [],
+    },
+  },
+  {
+    slug: "settings-layout",
+    title: "Settings layout",
+    block: "settings",
+    description:
+      "Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares.",
+    hook: {
+      name: "useSettings",
+      entry: "better-supabase/blocks/settings/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/settings/components/settings-layout.tsx`,
+      components: ["card", "field", "input", "select", "skeleton", "switch"],
+      glue: [],
+    },
+    native: {
+      file: `${NATIVE_APP}/src/components/settings-layout.tsx`,
+      components: [
+        "ActivityIndicator",
+        "Pressable",
+        "ScrollView",
+        "Switch",
+        "Text",
+        "TextInput",
+        "View",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "members-table",
     title: "Members table",
     block: "organizations",
@@ -323,41 +415,6 @@ const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
-  ...(
-    [
-      [
-        "plan-picker",
-        "Plan picker",
-        "billing",
-        "The plans with prices and a checkout button.",
-      ],
-      [
-        "usage-meter",
-        "Usage meter",
-        "usage",
-        "This period's usage against the plan's quota.",
-      ],
-      [
-        "feature-gate",
-        "Feature gate",
-        "entitlements",
-        "Content shown only when the plan includes a feature.",
-      ],
-      [
-        "settings-layout",
-        "Settings layout",
-        "settings",
-        "Settings pages generated from the settings definition.",
-      ],
-    ] as const
-  ).map(([slug, title, block, description]): RecipeSource => ({
-    slug,
-    title,
-    block,
-    description,
-    hook: { name: "", entry: `better-supabase/blocks/${block}/react` },
-    missing: `a client controller and React hook for the ${block} block (plan 003, workstream 4)`,
-  })),
 ];
 
 interface Snippet {
@@ -547,17 +604,27 @@ function table(rows: readonly (readonly string[])[]): string {
   ].join("\n");
 }
 
-function plannedTable(recipes: readonly Recipe[]): string {
-  return table([
-    ["Recipe", "Block", "Waits for"],
-    ...recipes
-      .filter((recipe) => recipe.status === "planned")
-      .map((recipe) => [
+/** The "Planned" section, or nothing while every recipe is available. */
+function plannedSection(
+  recipes: readonly Recipe[],
+  lead: readonly string[] = [],
+): readonly string[] {
+  const planned = recipes.filter((recipe) => recipe.status === "planned");
+  if (planned.length === 0) return [];
+  return [
+    "## Planned",
+    "",
+    ...lead,
+    table([
+      ["Recipe", "Block", "Waits for"],
+      ...planned.map((recipe) => [
         recipe.title,
         `\`${recipe.block}\``,
         recipe.missing ?? "",
       ]),
-  ]);
+    ]),
+    "",
+  ];
 }
 
 const INTRO = `better-supabase ships no visible UI components. A recipe builds one interface from your own shadcn components (web) or React Native primitives (native) and a block's hook. The web and native code call the same hook, and both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
@@ -567,7 +634,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
   return [
     "---",
     "title: UI recipes",
-    "description: Build a notification bell, a command search, a members table, an API keys table, a tag input and other interfaces from shadcn or React Native components and the blocks' hooks.",
+    "description: Build notifications, search, onboarding, comments, an organization switcher, members, invitations, API keys, the audit log, tags, a plan picker, a usage meter, a feature gate and settings pages from shadcn or React Native components and the blocks' hooks.",
     "---",
     "",
     "{/* Generated by scripts/build-recipes.ts from the example apps. Edit the examples or the script, then run `pnpm recipes`. */}",
@@ -577,10 +644,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
     `Each recipe also has a page at [bettersupabase.com/recipes](${SITE}/recipes) with a screenshot. The native snippets use plain React Native primitives, so they run without a styling library; [React Native Reusables](https://reactnativereusables.com) serves shadcn-style native components from a working registry if you want them.`,
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
-    "## Planned",
-    "",
-    plannedTable(recipes),
-    "",
+    ...plannedSection(recipes),
   ].join("\n");
 }
 
@@ -596,12 +660,10 @@ function renderSkill(recipes: readonly Recipe[]): string {
     "Build the UI this way: add the shadcn components the recipe lists, install the glue items, then adapt the snippet to the app (its i18n, routes and API schema). Never add a better-supabase UI package; there is none.",
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
-    "## Planned",
-    "",
-    "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
-    "",
-    plannedTable(recipes),
-    "",
+    ...plannedSection(recipes, [
+      "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
+      "",
+    ]),
   ].join("\n");
 }
 

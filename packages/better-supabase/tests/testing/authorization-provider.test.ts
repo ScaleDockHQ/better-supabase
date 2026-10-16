@@ -359,6 +359,12 @@ describe("testAuthorizationProvider", () => {
       isApprover("authz.is_approver({kind}, {subject}, {tenant})"),
     );
     expect(report.checks.every((check) => check.ok)).toBe(true);
+    const withRequester = await testAuthorizationProvider(
+      isApprover(
+        "authz.is_approver({kind}, {subject}, {tenant}, ({requester})::text)",
+      ),
+    );
+    expect(withRequester.checks.every((check) => check.ok)).toBe(true);
     expect(
       await failures(isApprover("authz.is_approver({kind}, {subject})")),
     ).toEqual([

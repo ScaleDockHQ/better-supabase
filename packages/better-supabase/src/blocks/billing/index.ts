@@ -31,5 +31,15 @@ export {
 } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";
 export { billingBlock } from "./manifest.ts";
+export { createPlanPickerController } from "./client.ts";
+export type {
+  CheckoutStarted,
+  PlanCatalog,
+  PlanOption,
+  PlanPickerActions,
+  PlanPickerController,
+  PlanPickerControllerOptions,
+  PlanPickerSnapshot,
+} from "./client.ts";
 export { billingEvents } from "./events.ts";
 export type { BillingEvents } from "./events.ts";

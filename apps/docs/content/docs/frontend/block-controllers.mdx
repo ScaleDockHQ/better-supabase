@@ -53,9 +53,11 @@ build them from the provider's client.
 | `announcements`    | `createAnnouncementsController`                                                                                | `useAnnouncements`                                         |
 | `api-keys`         | `createApiKeysController`                                                                                      | `useApiKeys`                                               |
 | `audit`            | `createAuditLogController`                                                                                     | `useAuditLog`                                              |
+| `billing`          | `createPlanPickerController`                                                                                   | `usePlanPicker`                                            |
 | `bookings`         | `createAvailableSlotsController`                                                                               | `useAvailableSlots`                                        |
 | `calendar`         | `createCalendarController`                                                                                     | `useCalendar`                                              |
 | `comments`         | `createCommentsController`                                                                                     | `useComments`                                              |
+| `entitlements`     | `createFeatureGateController`                                                                                  | `useFeatureGate`                                           |
 | `forms`            | `createQuestionnaireController`                                                                                | `useQuestionnaire`                                         |
 | `inbox`            | `createInboxController`, `createConversationController`, `createInboxWidgetController`                         | `useInbox`, `useConversation`, `useInboxWidget`            |
 | `notifications`    | `createNotificationsController`                                                                                | `useNotifications`                                         |
@@ -64,8 +66,10 @@ build them from the provider's client.
 | `reactions`        | `createReactionsController`                                                                                    | `useReactions`                                             |
 | `saved-views`      | `createSavedViewsController`, `matchSavedViews`                                                                | `useSavedViews`                                            |
 | `search`           | `createCommandSearchController`                                                                                | `useCommandSearch`                                         |
+| `settings`         | `createSettingsController`, `settingFields`                                                                    | `useSettings`                                              |
 | `tags`             | `createTagInputController`                                                                                     | `useTagInput`                                              |
 | `undo`             | `createUndoController`                                                                                         | `useUndoStack`                                             |
+| `usage`            | `createUsageMeterController`                                                                                   | `useUsageMeter`                                            |
 | `workflows`        | `createWorkflowRunsController`, `createWorkflowRunController`                                                  | `useWorkflowRuns`, `useWorkflowRun`                        |
 | `workflow-builder` | `createWorkflowBuilderController`, `createWorkflowCanvasRunController`                                         | `useWorkflowBuilder`, `useWorkflowCanvasRun`               |
 

@@ -222,7 +222,7 @@ describe("transportQueueBackend", () => {
       },
       list_dead_jobs: [],
     });
-    const jobs = createJobs(transport, { emails: v.object({}) });
+    const jobs = createJobs({ transport, queues: { emails: v.object({}) } });
     expect((await jobs.stats(["emails"]).orThrow()).emails.dead).toBe(1);
     expect(await jobs.listDead("emails").orThrow()).toEqual([]);
     expect(calls.map((call) => [call.schema, call.fn])).toEqual([
@@ -252,7 +252,8 @@ describe("idempotency and leases over a transport", () => {
       complete_idempotent: true,
       release_idempotent: true,
     });
-    const idempotency = createIdempotency(transport, {
+    const idempotency = createIdempotency({
+      transport,
       schema: "api",
       ttl: 60,
     });
@@ -275,7 +276,9 @@ describe("idempotency and leases over a transport", () => {
     expect(calls[1]!.args).toMatchObject({ holder: "h-1", status_code: 201 });
 
     const { transport: none } = fakeTransport({ begin_idempotent: [] });
-    expect((await createIdempotency(none).begin("k", "f")).ok).toBe(false);
+    expect(
+      (await createIdempotency({ transport: none }).begin("k", "f")).ok,
+    ).toBe(false);
     expectWrapped("idempotency", calls);
   });
 
@@ -320,9 +323,12 @@ describe("purge", () => {
 
   it("purges every declared queue's archive by name", async () => {
     const { transport, calls } = fakeTransport({ purge_job_archive: 2 });
-    const jobs = createJobs(transport, {
-      emails: v.object({}),
-      reports: v.object({}),
+    const jobs = createJobs({
+      transport,
+      queues: {
+        emails: v.object({}),
+        reports: v.object({}),
+      },
     });
     expect(
       await jobs
@@ -352,7 +358,10 @@ describe("purge", () => {
 
   it("purges the archive over SQL with only the options given", async () => {
     const fake = fakeSql([["purge_job_archive", [{ purged: 3 }]]]);
-    const jobs = createJobs(fake.sql, { emails: v.object({}) });
+    const jobs = createJobs({
+      sql: fake.sql,
+      queues: { emails: v.object({}) },
+    });
     expect(await jobs.purge({ batch: 10 }).orThrow()).toBe(3);
     expect(fake.calls).toEqual([
       {
@@ -369,7 +378,7 @@ describe("purge", () => {
       purge_webhooks: 1,
     });
     expect(
-      await createIdempotency(transport, { schema: "api" }).purge().orThrow(),
+      await createIdempotency({ transport, schema: "api" }).purge().orThrow(),
     ).toBe(4);
     expect(
       await createRateLimit(transport).purge({ batch: 100 }).orThrow(),
@@ -406,7 +415,9 @@ describe("purge", () => {
       ["purge_idempotency_keys", [{ purged: 2 }]],
       ["purge_rate_limits", [{ value: 7 }]],
     ]);
-    expect(await createIdempotency(fake.sql).purge().orThrow()).toBe(2);
+    expect(await createIdempotency({ sql: fake.sql }).purge().orThrow()).toBe(
+      2,
+    );
     expect(await createRateLimit(fake.sql).purge().orThrow()).toBe(7);
   });
 });

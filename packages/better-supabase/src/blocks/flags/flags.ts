@@ -1,7 +1,9 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { ErrorMapper } from "../../core/errors.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import {
+  blockCall,
   DEFAULT_BLOCK_SCHEMA,
   errorText,
   isRecord,
@@ -51,6 +53,8 @@ export interface FlagDefinition {
   readonly rolloutPercentage: number;
   readonly rolloutVariant: string | undefined;
   readonly overrides: readonly FlagOverride[];
+  /** The extra columns (`blocks.flags.options.extraColumns`), when the flag has any. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -270,6 +274,7 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
         variant: textOf(entry["variant"]),
       }),
     ),
+    ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
   }));
 }
 
@@ -283,6 +288,8 @@ export interface FlagsProviderOptions<
   readonly transport?: BlockTransport;
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
+  /** Error mappers that run before the built-in ones. */
+  readonly mappers?: readonly ErrorMapper[];
   /** How long the definitions are cached, in milliseconds. Default 30000. */
   readonly ttl?: number;
   /** Fixed definitions instead of a transport, for tests and static flags. */
@@ -346,14 +353,18 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
 ): FlagsProvider<Code> {
   applyTemporal(options);
   const { transport, definitions } = options;
-  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const call =
+    transport === undefined
+      ? undefined
+      : blockCall(
+          transport,
+          options.schema ?? DEFAULT_BLOCK_SCHEMA,
+          options.mappers,
+        );
   const fetchFlags = definitions
     ? () => Promise.resolve(definitions)
-    : transport
-      ? async () =>
-          flagDefinitionsOf(
-            await transport.call(schema, "flag_definitions", {}),
-          )
+    : call
+      ? () => call("flag_definitions", {}, flagDefinitionsOf).orThrow()
       : undefined;
   if (!fetchFlags) {
     throw new TypeError("createFlagsProvider needs a transport or definitions");

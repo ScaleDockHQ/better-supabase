@@ -2,7 +2,14 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
-import { blockCall, optionalText, recordOf, textOf } from "../shared.ts";
+import {
+  blockCall,
+  instantArg,
+  optionalInstant,
+  optionalText,
+  recordOf,
+  textOf,
+} from "../shared.ts";
 
 export interface ShareLinksOptions {
   readonly transport: BlockTransport;
@@ -24,16 +31,25 @@ export interface CreateShareLinkOptions {
    * which `versions.getShared(token)` reads for anon.
    */
   readonly versionId?: string;
+  /**
+   * When the link stops resolving. It must be in the future
+   * (`SHARE_EXPIRY_INVALID`); without it the link lives until revoked.
+   */
+  readonly expiresAt?: Temporal.Instant;
 }
 
 /** What a live token points at. */
 export interface ResolvedShareLink {
   readonly id: string;
+  /** The organization the link was created in. */
+  readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
   readonly role: string;
   /** The version the link is pinned to, when it has one. */
   readonly versionId?: string;
+  /** When the link stops resolving, when it has an expiry. */
+  readonly expiresAt?: Temporal.Instant;
 }
 
 export interface ShareLinks {
@@ -44,9 +60,11 @@ export interface ShareLinks {
     subjectId: string,
     options?: string | CreateShareLinkOptions,
   ): AsyncResult<CreatedShareLink>;
+  /** The link's creator, or a member with `share_links.create`. */
   revoke(id: string): AsyncResult<boolean>;
   /** `null` for an unknown, revoked or expired token. */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
+  /** A member of the organization records a view. */
   recordView(
     organizationId: string,
     subjectType: string,
@@ -54,6 +72,7 @@ export interface ShareLinks {
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
+  /** The links the caller created or may read (`share_links.read`). */
   list(subjectType: string, subjectId: string): AsyncResult<unknown>;
   setState(
     subjectType: string,
@@ -66,10 +85,8 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
   const call = blockCall(options.transport, options.schema, options.mappers);
   return {
     create: (organizationId, subjectType, subjectId, options = {}) => {
-      const { role, versionId } =
-        typeof options === "string"
-          ? { role: options, versionId: undefined }
-          : options;
+      const { role, versionId, expiresAt }: CreateShareLinkOptions =
+        typeof options === "string" ? { role: options } : options;
       return call(
         "create_share_link",
         {
@@ -78,6 +95,7 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
           subject_id: subjectId,
           role: role ?? "view",
           version_id: versionId ?? null,
+          expires_at: instantArg(expiresAt) ?? null,
         },
         (value) => {
           const row = recordOf(value, "create_share_link");
@@ -92,12 +110,15 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
         if (value === null || value === undefined) return null;
         const row = recordOf(value, "resolve_share_link");
         const versionId = optionalText(row["versionId"]);
+        const expiresAt = optionalInstant(row["expiresAt"]);
         return {
           id: textOf(row["id"]),
+          organizationId: textOf(row["organizationId"]),
           subjectType: textOf(row["subjectType"]),
           subjectId: textOf(row["subjectId"]),
           role: textOf(row["role"]),
           ...(versionId === undefined ? {} : { versionId }),
+          ...(expiresAt === undefined ? {} : { expiresAt }),
         };
       }),
     recordView: (organizationId, subjectType, subjectId, viewerKind, viewer) =>

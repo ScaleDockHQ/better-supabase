@@ -9,11 +9,14 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
   userGrant,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -39,7 +42,7 @@ const EVENTS: ModuleEvents<EngagementsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
-  options: ["types"],
+  options: ["types", "extraColumns"],
   tables: {
     engagements: {
       name: "engagements",
@@ -97,6 +100,7 @@ function build(ctx: ModuleContext): string {
   const t = (table: string): string => ctx.table(table);
   const e = (column: string): string => ctx.col("engagements", column);
   const l = (column: string): string => ctx.col("links", column);
+  const extras = ctx.extraColumns("engagements", ["subjects", "overdue"]);
   const typeList = `${sqlString(`{${types(ctx).join(",")}}`)}::text[]`;
   const canSubject = ctx.of("subjects").fn("can_subject");
   const payload = (id: string, type: string, tenant: string): string =>
@@ -119,7 +123,7 @@ function build(ctx: ModuleContext): string {
   const subjectsOf = (id: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by sx.${l("position")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('subjects', ${subjectsOf(`${alias}.${e("id")}`)}, 'overdue', ${alias}.${e("doneAt")} is null and ${alias}.${e("dueAt")} < now())`;
+    `to_jsonb(${alias}) || jsonb_build_object('subjects', ${subjectsOf(`${alias}.${e("id")}`)}, 'overdue', ${alias}.${e("doneAt")} is null and ${alias}.${e("dueAt")} < now()${extraFieldsJson(alias, extras)})`;
   const setSubjects = (
     engagement: string,
     list: string,
@@ -186,7 +190,7 @@ ${
 );
 create index if not exists engagements_owner_open_idx on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
 create index if not exists engagements_tenant_created_idx on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-create unique index if not exists engagements_external_ref_idx on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;
+create unique index if not exists engagements_external_ref_idx on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;${addExtraColumns(t("engagements"), extras)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
@@ -214,7 +218,8 @@ using (${ctx.scope.check(e("tenant"), read)} and (
 }
 -- Logs an engagement on the records in subjects ([{ type, id }], the first
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
--- doneAt, durationSeconds, externalRef. A known externalRef updates instead.
+-- doneAt, durationSeconds, externalRef and fields (the extra columns by
+-- name). A known externalRef updates instead.
 create or replace function ${fn("log_engagement")}(tenant ${ctx.idType}, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
@@ -255,7 +260,7 @@ begin
     ${e("title")} = excluded.${e("title")}, ${e("body")} = excluded.${e("body")}, ${e("outcome")} = excluded.${e("outcome")},
     ${e("dueAt")} = excluded.${e("dueAt")}, ${e("doneAt")} = excluded.${e("doneAt")},
     ${e("durationSeconds")} = excluded.${e("durationSeconds")}, ${e("updatedAt")} = now()
-  returning ${e("id")} into v_id;
+  returning ${e("id")} into v_id;${writeExtraColumns(t("engagements"), extras, "log_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   ${setSubjects("v_id", "log_engagement.subjects", "v_tenant")}
   ${record("engagement.logged", "v_id", "v_type", "v_tenant")}${notifyOwner}
   ${ctx.hook("after_engagement_log", [["uuid", "v_id"]])}
@@ -302,7 +307,7 @@ begin
     ${e("durationSeconds")} = case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${e("durationSeconds")} end,
     ${e("updatedAt")} = now()
   where x.${e("id")} = v_id
-  returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;
+  returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;${writeExtraColumns(t("engagements"), extras, "update_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   if update_engagement.subjects is not null then
     ${setSubjects("v_id", "update_engagement.subjects", "v_tenant")}
   else

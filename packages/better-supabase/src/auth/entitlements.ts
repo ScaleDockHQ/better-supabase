@@ -1,3 +1,4 @@
+import type { AuthSnapshot } from "../client/bind.ts";
 import type { AuthSession } from "./view.ts";
 
 /**
@@ -51,17 +52,22 @@ export interface EntitlementClaimOptions {
  * `entitlements.claim.keys` writes short codes. The claim is as fresh as the
  * token: enforce it in RLS with `better_supabase.has_entitlement()`, and
  * refresh the session after checkout. A tenant left out by
- * `entitlements.claim.maxTenants` reads as not granted.
+ * `entitlements.claim.maxTenants` reads as not granted. Takes a server
+ * session or the client's `useAuth()` snapshot.
  */
 export function hasEntitlement<C>(
-  session: AuthSession<C>,
+  session: AuthSession<C> | AuthSnapshot,
   tenantId: string,
   key: EntitlementKey<C>,
   claim: string | EntitlementClaimOptions = "features",
 ): boolean {
-  if (session.kind !== "user") return false;
   const options = typeof claim === "string" ? { claim } : claim;
-  const claims: unknown = session.claims;
+  const claims: unknown =
+    "kind" in session
+      ? session.kind === "user"
+        ? session.claims
+        : undefined
+      : session.claims;
   if (!isRecord(claims)) return false;
   const features = claims[options.claim ?? "features"];
   if (!isRecord(features) || !Object.hasOwn(features, tenantId)) return false;

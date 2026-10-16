@@ -1578,6 +1578,8 @@
       "FailOptions",
       "Idempotency",
       "IdempotencyOptions",
+      "IdempotencySettings",
+      "IdempotencySource",
       "IdempotencyState",
       "Job",
       "JobContext",
@@ -2407,14 +2409,71 @@
   },
   "./blocks/entitlements": {
     "values": [
+      "createEntitlements",
+      "createFeatureGateController",
+      "dbTransport",
       "entitlementMembers",
       "ENTITLEMENTS_UPDATED",
       "entitlementsBlock",
-      "hasEntitlement"
+      "hasEntitlement",
+      "rpcTransport",
+      "sqlTransport"
     ],
     "types": [
+      "BlockTransport",
       "EntitlementClaimOptions",
-      "EntitlementKey"
+      "EntitlementKey",
+      "Entitlements",
+      "EntitlementsOptions",
+      "FeatureGateActions",
+      "FeatureGateController",
+      "FeatureGateControllerOptions",
+      "FeatureGateSnapshot"
+    ]
+  },
+  "./blocks/entitlements/react": {
+    "values": [
+      "useFeatureGate"
+    ],
+    "types": [
+      "FeatureGateState",
+      "UseFeatureGateOptions"
+    ]
+  },
+  "./blocks/entitlements/vue": {
+    "values": [
+      "useFeatureGate"
+    ],
+    "types": [
+      "BlockOptions",
+      "FeatureGateActions",
+      "FeatureGateControllerOptions",
+      "FeatureGateSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/entitlements/svelte": {
+    "values": [
+      "useFeatureGate"
+    ],
+    "types": [
+      "BlockOptions",
+      "FeatureGateActions",
+      "FeatureGateControllerOptions",
+      "FeatureGateSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/entitlements/solid": {
+    "values": [
+      "useFeatureGate"
+    ],
+    "types": [
+      "BlockOptions",
+      "FeatureGateActions",
+      "FeatureGateControllerOptions",
+      "FeatureGateSnapshot",
+      "SolidController"
     ]
   },
   "./blocks/api-keys": {
@@ -2459,9 +2518,11 @@
   },
   "./blocks/settings": {
     "values": [
+      "createSettingsController",
       "dbTransport",
       "defineSettings",
       "rpcTransport",
+      "settingFields",
       "settingsBlock",
       "settingsEvents",
       "sqlTransport"
@@ -2472,19 +2533,76 @@
       "PlatformSettings",
       "SettingEntries",
       "SettingEntry",
+      "SettingField",
       "SettingInputs",
+      "SettingKind",
+      "SettingsActions",
       "SettingsClient",
       "SettingsConnectOptions",
+      "SettingsController",
+      "SettingsControllerOptions",
       "SettingsDefinition",
       "SettingsEvents",
+      "SettingsSnapshot",
       "SettingsSpec",
       "SettingValues",
       "UserSettings"
     ]
   },
+  "./blocks/settings/react": {
+    "values": [
+      "useSettings"
+    ],
+    "types": [
+      "SettingField",
+      "SettingKind",
+      "SettingsState",
+      "UseSettingsOptions"
+    ]
+  },
+  "./blocks/settings/vue": {
+    "values": [
+      "useSettings"
+    ],
+    "types": [
+      "BlockOptions",
+      "SettingEntries",
+      "SettingsActions",
+      "SettingsControllerOptions",
+      "SettingsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/settings/svelte": {
+    "values": [
+      "useSettings"
+    ],
+    "types": [
+      "BlockOptions",
+      "SettingEntries",
+      "SettingsActions",
+      "SettingsControllerOptions",
+      "SettingsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/settings/solid": {
+    "values": [
+      "useSettings"
+    ],
+    "types": [
+      "BlockOptions",
+      "SettingEntries",
+      "SettingsActions",
+      "SettingsControllerOptions",
+      "SettingsSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/usage": {
     "values": [
       "createUsage",
+      "createUsageMeterController",
       "dbTransport",
       "reportUsageToStripe",
       "rpcTransport",
@@ -2493,6 +2611,7 @@
     ],
     "types": [
       "BlockTransport",
+      "MeterReading",
       "PurgeUsageOptions",
       "RecordUsageOptions",
       "ReportUsageOptions",
@@ -2505,11 +2624,61 @@
       "UsageEntry",
       "UsageHistoryEntry",
       "UsageHistoryOptions",
+      "UsageMeterActions",
+      "UsageMeterController",
+      "UsageMeterControllerOptions",
       "UsageMeterInfo",
+      "UsageMeterSnapshot",
       "UsageOptions",
       "UsagePeriod",
       "UsageRecorded",
       "UsageStatus"
+    ]
+  },
+  "./blocks/usage/react": {
+    "values": [
+      "useUsageMeter"
+    ],
+    "types": [
+      "MeterReading",
+      "UsageMeterState",
+      "UseUsageMeterOptions"
+    ]
+  },
+  "./blocks/usage/vue": {
+    "values": [
+      "useUsageMeter"
+    ],
+    "types": [
+      "BlockOptions",
+      "UsageMeterActions",
+      "UsageMeterControllerOptions",
+      "UsageMeterSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/usage/svelte": {
+    "values": [
+      "useUsageMeter"
+    ],
+    "types": [
+      "BlockOptions",
+      "SvelteController",
+      "UsageMeterActions",
+      "UsageMeterControllerOptions",
+      "UsageMeterSnapshot"
+    ]
+  },
+  "./blocks/usage/solid": {
+    "values": [
+      "useUsageMeter"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "UsageMeterActions",
+      "UsageMeterControllerOptions",
+      "UsageMeterSnapshot"
     ]
   },
   "./blocks/billing": {
@@ -2517,6 +2686,7 @@
       "billingBlock",
       "billingEvents",
       "createBilling",
+      "createPlanPickerController",
       "dbTransport",
       "rpcTransport",
       "signStripeWebhook",
@@ -2535,8 +2705,15 @@
       "BlockTransport",
       "CheckoutItem",
       "CheckoutOptions",
+      "CheckoutStarted",
       "CustomerDetails",
+      "PlanCatalog",
       "PlanChange",
+      "PlanOption",
+      "PlanPickerActions",
+      "PlanPickerController",
+      "PlanPickerControllerOptions",
+      "PlanPickerSnapshot",
       "PlatformListOptions",
       "SeatSync",
       "StripeClient",
@@ -2549,10 +2726,61 @@
       "TenantStripeRow"
     ]
   },
+  "./blocks/billing/react": {
+    "values": [
+      "usePlanPicker"
+    ],
+    "types": [
+      "CheckoutStarted",
+      "PlanCatalog",
+      "PlanOption",
+      "PlanPickerState",
+      "UsePlanPickerOptions"
+    ]
+  },
+  "./blocks/billing/vue": {
+    "values": [
+      "usePlanPicker"
+    ],
+    "types": [
+      "BlockOptions",
+      "PlanOption",
+      "PlanPickerActions",
+      "PlanPickerControllerOptions",
+      "PlanPickerSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/billing/svelte": {
+    "values": [
+      "usePlanPicker"
+    ],
+    "types": [
+      "BlockOptions",
+      "PlanOption",
+      "PlanPickerActions",
+      "PlanPickerControllerOptions",
+      "PlanPickerSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/billing/solid": {
+    "values": [
+      "usePlanPicker"
+    ],
+    "types": [
+      "BlockOptions",
+      "PlanOption",
+      "PlanPickerActions",
+      "PlanPickerControllerOptions",
+      "PlanPickerSnapshot",
+      "SolidController"
+    ]
+  },
   "./blocks/flags": {
     "values": [
-      "createFlagAdmin",
       "createFlagClient",
+      "createFlags",
       "createFlagsProvider",
       "dbTransport",
       "evaluateFlag",
@@ -2566,8 +2794,6 @@
     ],
     "types": [
       "BlockTransport",
-      "FlagAdmin",
-      "FlagAdminOptions",
       "FlagClient",
       "FlagContext",
       "FlagContextOptions",
@@ -2580,9 +2806,12 @@
       "FlagOverride",
       "FlagOverrideTarget",
       "FlagReason",
+      "FlagRecord",
       "FlagResolution",
       "FlagRule",
+      "Flags",
       "FlagsEvents",
+      "FlagsOptions",
       "FlagsProvider",
       "FlagsProviderOptions",
       "FlagType",
@@ -3333,6 +3562,7 @@
       "InboxControllerOptions",
       "InboxCounts",
       "InboxEvents",
+      "InboxHooks",
       "InboxListActions",
       "InboxListSnapshot",
       "InboxMessage",
@@ -3762,6 +3992,7 @@
       "KnowledgeChunk",
       "KnowledgeDocument",
       "KnowledgeHit",
+      "KnowledgeHooks",
       "KnowledgeOptions",
       "KnowledgeQuery",
       "KnowledgeScope",
@@ -3785,6 +4016,7 @@
       "MemoryCommand",
       "MemoryDocument",
       "MemoryHit",
+      "MemoryHooks",
       "MemoryKind",
       "MemoryNamespace",
       "MemoryOptions",

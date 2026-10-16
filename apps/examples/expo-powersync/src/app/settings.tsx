@@ -1,6 +1,6 @@
 import { Text } from "react-native";
 
-/** Web: the members, invitations, API keys and audit log screens are in the iOS and Android app. */
+/** Web: the preferences screen is in the iOS and Android app. */
 export default function SettingsScreen() {
   return <Text>Open this screen in the iOS or Android app.</Text>;
 }

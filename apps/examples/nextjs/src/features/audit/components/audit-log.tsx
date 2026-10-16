@@ -22,6 +22,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FeatureGate } from "@/features/billing/components/feature-gate";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
@@ -62,14 +63,16 @@ export async function AuditLog() {
           {t("Database changes and app events, recorded by the audit module.")}
         </CardDescription>
         <CardAction>
-          <a
-            href="/api/audit/export"
-            download
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <DownloadIcon />
-            {t("Export CSV")}
-          </a>
+          <FeatureGate feature="exports">
+            <a
+              href="/api/audit/export"
+              download
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <DownloadIcon />
+              {t("Export CSV")}
+            </a>
+          </FeatureGate>
         </CardAction>
       </CardHeader>
       <CardContent>

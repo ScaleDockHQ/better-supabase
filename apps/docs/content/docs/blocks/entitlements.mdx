@@ -246,6 +246,85 @@ if (!hasEntitlement(session, organizationId, "exports"))
 
 This is UX: the policy above still decides.
 
+`hasEntitlement` also takes the client's `useAuth()` snapshot. In a Client
+Component, `useFeatureGate` from `better-supabase/blocks/entitlements/react`
+checks the active organization (or `organizationId`) and follows the
+session, so the gate opens as soon as a refresh after checkout brings the
+new claim. `allowed` is `undefined` while the session loads. The same hook
+runs in React DOM and React Native.
+
+```tsx title="components/feature-gate.tsx"
+import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
+
+export function FeatureGate({ feature, children }) {
+  const { allowed } = useFeatureGate(feature);
+  if (allowed === undefined) return null;
+  return allowed ? children : <UpgradePrompt />;
+}
+```
+
+It takes `claim` and `tenantClaim` when `claims.features` or
+`claims.tenant` rename them. `createFeatureGateController` from
+`better-supabase/blocks/entitlements` is the same logic without React, and
+`better-supabase/blocks/entitlements/vue`, `/svelte` and `/solid` export
+`useFeatureGate` over it, taking the controller's options with `auth` from
+the provider. The [feature gate recipe](/docs/registry/ui-recipes) shows it
+in the Next.js and Expo examples.
+
+```vue title="ExportButton.vue"
+<script setup lang="ts">
+import { useFeatureGate } from "better-supabase/blocks/entitlements/vue";
+
+const { state } = useFeatureGate({ feature: "exports" });
+</script>
+
+<template>
+  <button v-if="state.allowed">Export CSV</button>
+</template>
+```
+
+```svelte title="ExportButton.svelte"
+<script lang="ts">
+  import { useFeatureGate } from "better-supabase/blocks/entitlements/svelte";
+
+  const gate = useFeatureGate({ feature: "exports" });
+</script>
+
+{#if $gate.allowed}<button>Export CSV</button>{/if}
+```
+
+```tsx title="ExportButton.tsx"
+import { useFeatureGate } from "better-supabase/blocks/entitlements/solid";
+
+export function ExportButton() {
+  const { state } = useFeatureGate({ feature: "exports" });
+  return state().allowed ? <button>Export CSV</button> : null;
+}
+```
+
+## From the server
+
+`createEntitlements` asks the database instead of the token, so it sees a
+plan change before the next refresh. `has` calls `has_entitlement` and
+`value` calls `entitlement_value`, both as the caller, so a non-member gets
+`false` and `undefined`. `hooks` runs your code around either method (see
+[extending blocks](/docs/extending/blocks#hooks)):
+
+```ts
+import {
+  createEntitlements,
+  sqlTransport,
+} from "better-supabase/blocks/entitlements";
+
+const entitlements = createEntitlements({
+  transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+});
+
+if (!(await entitlements.has(organizationId, "exports").orThrow()))
+  return new Response("Upgrade to export", { status: 402 });
+const seats = await entitlements.value(organizationId, "seats").orThrow();
+```
+
 ## With an authorization provider
 
 With an [authorization provider](/docs/extending/authorization-providers) in

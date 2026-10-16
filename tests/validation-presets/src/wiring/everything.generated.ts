@@ -30,6 +30,7 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
+import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/forms";
@@ -40,6 +41,7 @@ import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { idempotencyBlock } from "better-supabase/blocks/jobs";
+import { jobsBlock } from "better-supabase/blocks/jobs";
 import { rateLimitBlock } from "better-supabase/blocks/jobs";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
@@ -111,6 +113,7 @@ export const blockSet = defineBlocks(blockConfig, {
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,
+  entitlements: entitlementsBlock,
   flags: flagsBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
@@ -121,6 +124,7 @@ export const blockSet = defineBlocks(blockConfig, {
   inventory: inventoryBlock,
   invoices: invoicesBlock,
   idempotency: idempotencyBlock,
+  jobs: jobsBlock,
   rateLimit: rateLimitBlock,
   knowledge: knowledgeBlock,
   memory: memoryBlock,

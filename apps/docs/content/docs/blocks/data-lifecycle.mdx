@@ -369,3 +369,9 @@ tenant is gone by then (its id stays in `organizationId`):
 | `organization.deletion_requested` | a deletion is requested            | `organizationId`, `userId`, `purgeAfter`                         |
 | `organization.deletion_cancelled` | it is cancelled                    | the same                                                         |
 | `organization.purged`             | the purge deleted the organization | `organizationId`                                                 |
+
+## Hooks
+
+`createDataLifecycle` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).

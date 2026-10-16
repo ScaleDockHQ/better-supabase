@@ -119,7 +119,7 @@ puts the result into a policy or a module function:
 | `canAssign`      | `{role}`, `{tenant}`, `{scope}`                             | `boolean`: the caller may give `{role}` in `{tenant}`                         |
 | `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`                   | as `canAssign`, for another user                                              |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                    |
-| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{scope}`                | `boolean`: the caller may approve request `{subject}` of kind `{kind}`        |
+| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`        |
 | `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                             | deprecated: `isApprover` with `{kind}` `'ai-tool'`                            |
 | `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                       | a set of user ids that hold `{permission}` on `{tenant}`                      |
 | `actorMayWrite`  | none                                                        | `boolean`: the caller's session may write                                     |
@@ -135,7 +135,8 @@ Some modules call the optional templates under the `provider` model:
 `invitations` calls `idsWithFor`, `isPlatformFor` and `canAssignFor` to check
 the inviter again when an invitation is accepted; `inbox`, `comments`, `sso`,
 `notifications`, `connectors` and `workflow-sdk-world` call `idsWithFor`; and
-`usage` reads memberships through `memberIds`. Doctor (BS411) warns for each
+`usage` reads memberships through `memberIds`; `approvals` checks that a
+delegate is a member through `memberIdsFor`. Doctor (BS411) warns for each
 installed module whose template the provider doesn't set.
 
 `permissionsFor` fills `better_supabase.member_permissions` and
@@ -192,7 +193,11 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 `isApprover` is the one eligibility check for every request that waits for
 someone else: AI tool calls in the [ai-chat block](/docs/blocks/ai-chat)
 (`{kind}` `'ai-tool'`, `{subject}` the tool's name) and support sessions
-(`{kind}` `'support-session'`, `{subject}` the request id). `{tenant}` is required. Under the `provider` model,
+(`{kind}` `'support-session'`, `{subject}` the request id). `{tenant}` is
+required. `{requester}` is optional: the uuid of the user who asked (the
+approval's `requested_by`, the support admin, the chat's owner). A provider
+that resolves out-of-office covers inside `isApprover` reads it so a cover
+never lets the requester's own delegator approve. Under the `provider` model,
 `decide_ai_tool_approval` lets the service role and any caller `isApprover`
 allows decide the call. `approvals.distinctApprover: true` keeps the
 requester from deciding their own request, for four-eyes approval. Without
@@ -219,10 +224,49 @@ under the provider model and this template is missing.
 ```ts
 functions: {
   // ...
-  isApprover: "authz.is_approver({kind}, {subject}, {tenant}::text)",
+  isApprover: "authz.is_approver({kind}, {subject}, {tenant}::text, {requester})",
 },
 approvals: { distinctApprover: true },
 ```
+
+#### Out-of-office covers
+
+The approvals block's `delegate(id, userId)` hands one approver's place on
+one step of one request to someone else. A standing cover ("Ana approves for
+Ben until Friday") is a different thing, and it belongs to the provider when
+the provider has one: its `isApprover` answers true for the cover as well as
+for Ben, so every module that waits for an approval (the approvals block, AI
+tool calls, support sessions) sees it without a configuration of its own.
+Configure covers in one place only. An app without such a provider calls
+`delegate` per request instead.
+
+PermDock keeps covers in its `approval_delegations` table and resolves them
+in `permdock_is_approver`, one hop deep, never for the requester's own
+delegator. Its [better-supabase adapter](https://permdock.com/docs/adapters/better-supabase#approval-delegation)
+passes `{requester}` for that check.
+
+### Delegated tokens
+
+`delegation.scopes` maps an OAuth scope to the permission keys a delegated
+token (an OAuth client or an agent) may use. The access functions narrow
+every check to those keys, and `blocks.access.scopes` is merged over it.
+See [Access](/docs/blocks/access#delegated-tokens).
+
+```ts
+delegation: {
+  scopes: { "invoices:read": ["invoices.read"], "invoices:write": ["invoices.read", "invoices.update"] },
+},
+```
+
+### Share links as guests
+
+The [share-links block](/docs/blocks/share-links#guest-pages) resolves a
+token in `security definer` functions. A provider can instead turn the row
+`resolve_share_link` returns into a link principal and exchange it for a
+short-lived anonymous session, so a guest page reads the subject under the
+provider's row-level security. PermDock's `subjectFromShareLink` does this:
+it builds a link capability from the row, caps its lifetime at the row's
+`expiresAt`, and denies when the row is missing, revoked or expired.
 
 ### Operations
 

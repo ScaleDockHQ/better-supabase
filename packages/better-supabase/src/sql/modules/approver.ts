@@ -22,6 +22,8 @@ export interface ApprovalRequestSql {
   readonly subject: string;
   /** An expression of the tenant id type, or `null`. */
   readonly tenant: string;
+  /** A uuid expression: the user who asked for the approval. */
+  readonly requester: string;
 }
 
 /** The provider's eligibility check for one request. */
@@ -60,6 +62,7 @@ export function approverCheck(
             : request.kind.sql,
         subject: request.subject,
         tenant: request.tenant,
+        requester: request.requester,
         scope: provider.scope,
       }),
       template: "isApprover",
