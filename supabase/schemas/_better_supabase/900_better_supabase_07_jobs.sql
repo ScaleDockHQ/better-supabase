@@ -1,6 +1,6 @@
 -- better-supabase module: jobs (0.8.0)
 -- @bs-module jobs@7 managed
--- Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
+-- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

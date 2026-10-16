@@ -3154,7 +3154,7 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- Adopted: "better_supabase"."invitations" belongs to the app (modules.invitations.tables.invitations).
+-- Adopted: "better_supabase"."invitations" belongs to the app (blocks.invitations.tables.invitations).
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
 -- invitation, such as a role's display name; {} without the hook. The
