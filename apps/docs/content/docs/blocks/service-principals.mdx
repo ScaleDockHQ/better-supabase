@@ -91,6 +91,33 @@ Disabling the default principal stops both: workflow steps fail with "This
 organization has no default service principal" and service endpoints fall
 back to their declared permissions.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `service_principals`. `create` writes them from `fields`,
+and `create` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    "service-principals": { options: { extraColumns: { purpose: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createServicePrincipals({
+  transport,
+  admin: serviceClient.auth.admin,
+  fields: v.object({ purpose: v.optional(v.string()) }),
+});
+await client.create(organizationId, "Zapier", "member", {
+  fields: { purpose: "CRM sync" },
+});
+```
+
 ## Permissions
 
 | Operation                   | Key                         | Default roles |

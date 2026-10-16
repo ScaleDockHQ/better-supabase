@@ -84,11 +84,35 @@ keys it doesn't name.
 Notifications type their `data` the same way, per notification type: see
 [typed data](/docs/blocks/notifications#reading).
 
-| Block         | Columns from                                    | `fields` types                |
-| ------------- | ----------------------------------------------- | ----------------------------- |
-| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`  |
-| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`        |
-| notifications | the `data` of each type                         | `send`, `get`, `list`, `page` |
+A function that writes the columns takes them as `fields` (a `jsonb` argument
+the module adds only when `extraColumns` is set), and a column the write
+leaves out keeps its value, or its default on a new row. Reads return them
+under `fields`, built with `jsonb_build_object`, so a renamed column never
+leaks. The option names the block's main table; tables the block fills on
+its own (lines, deliveries, history rows) take no extra columns.
+
+| Block              | Columns from                                              | `fields` types                                                    |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| organizations      | `options.attributes`, `options.extraColumns`              | `mine()`, `create`, `update`                                      |
+| invitations        | `blocks.invitations.options.extraColumns`                 | `invitationFields`: `invite`, `updateInvitation`, `myInvitations` |
+| profiles           | `options.extraColumns`, or any column you adopt           | `mine()`, `updateMine`                                            |
+| notifications      | the `data` of each type; `options.extraColumns` on events | `send`, `get`, `list`, `page`                                     |
+| orders             | `options.extraColumns` on orders                          | `checkout`, `getOrder`, `capture`, `invoice`                      |
+| parties            | `options.extraColumns` on companies                       | `saveCompany`, `mergeCompanies`, `listCompanies`                  |
+| pipelines          | `options.extraColumns` on pipelines                       | `save`, `list`                                                    |
+| promotions         | `options.extraColumns` on promotions                      | `savePromotion`                                                   |
+| push               | `options.extraColumns` on devices                         | `register`, `tokensFor`                                           |
+| quotes             | `options.extraColumns` on quotes                          | `create`, `update`, `send`, `decide`, `revise`, `fromDeal`        |
+| relations          | `options.extraColumns` on relations                       | `link`, `of`, `edges`                                             |
+| reminders          | `options.extraColumns` on reminders                       | `save`                                                            |
+| saved-views        | `options.extraColumns` on views                           | `save`, `duplicate`, `list`                                       |
+| service-principals | `options.extraColumns` on principals                      | `create`, `list`                                                  |
+
+A few blocks keep no app columns: `number-sequences` (counters the module
+owns), `onboarding` (progress rows of the steps `defineChecklist` declares),
+`outbox` (an event log whose payload carries the app's data), `reactions`,
+`search` (an index rebuilt from each subject's own row) and `settings`
+(values typed by `defineSettings`).
 
 ## Hooks
 

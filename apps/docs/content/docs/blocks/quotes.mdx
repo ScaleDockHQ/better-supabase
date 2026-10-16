@@ -82,6 +82,33 @@ await quotes.respond(token, "accepted", { name: "Els Jansen" }).orThrow();
 
 With the [notifications](/docs/blocks/notifications) module installed, the quote's owner gets a notification when the customer answers.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `quotes`; a revision copies them. `create` and `update` write them from `fields`,
+and every method that returns a quote return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    quotes: { options: { extraColumns: { region: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createQuotes({
+  transport,
+  fields: v.object({ region: v.optional(v.picklist(["eu", "us"])) }),
+});
+await client.create(organizationId, {
+  title: "Rollout",
+  fields: { region: "eu" },
+});
+```
+
 ## Hooks
 
 The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`, `before_quote_accept(quote uuid)` and `after_quote_accept(quote uuid)`, so an app can check margins before a quote goes out or start an order when it is accepted.

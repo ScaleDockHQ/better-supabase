@@ -150,6 +150,34 @@ will be, and raising refuses the change. Use it for an approval step, such as
 holding discounts above a threshold until an approver signs off (the
 [commerce preset page](/docs/presets/commerce) shows one).
 
+## Your own fields
+
+`options.extraColumns` adds columns to `promotions`. `savePromotion` writes them from `fields`,
+and `savePromotion` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    promotions: { options: { extraColumns: { campaign: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createPromotions({
+  transport,
+  fields: v.object({ campaign: v.optional(v.string()) }),
+});
+await client.savePromotion(organizationId, {
+  name: "Black Friday",
+  discount: { kind: "percentage", percent: "20" },
+  fields: { campaign: "bf-2026" },
+});
+```
+
 ## Not included
 
 Buy-X-get-Y and tiered discounts, gift cards and store credit, and rule

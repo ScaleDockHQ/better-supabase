@@ -288,6 +288,36 @@ export function Component() {
 }
 ```
 
+## Your own fields
+
+`options.extraColumns` adds columns to `saved_views`. `save` writes them from `fields`,
+and `save`, `duplicate` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    "saved-views": { options: { extraColumns: { color: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createSavedViews({
+  transport,
+  fields: v.object({ color: v.optional(v.string()) }),
+});
+await client.save({
+  organizationId,
+  list: "tasks",
+  name: "Mine",
+  state,
+  fields: { color: "teal" },
+});
+```
+
 ## Events
 
 `save` and `delete` record `saved_view.saved` and `saved_view.deleted` in the

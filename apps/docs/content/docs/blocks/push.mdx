@@ -96,6 +96,30 @@ tickets to `checkReceipts`, which prunes the devices Expo no longer reaches
 and returns what failed. `accessToken` is needed only when the Expo project
 turns on push security; it is a server-only key.
 
+## Your own fields
+
+`options.extraColumns` adds columns to `push_devices`. `register` writes them from `fields`,
+and `tokensFor`'s targets return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    push: { options: { extraColumns: { app_build: "text" } } },
+  },
+});
+```
+
+```ts
+const client = createPush({
+  transport,
+  fields: v.object({ app_build: v.optional(v.string()) }),
+});
+await client.register({ token, platform: "ios", fields: { app_build: "142" } });
+```
+
 ## As a notifications channel
 
 ```ts title="server/notifications.ts"

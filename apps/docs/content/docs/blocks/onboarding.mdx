@@ -70,21 +70,46 @@ checklist's steps.
 
 ## Progress
 
+`createOnboarding` reads and completes the steps of any checklist the module
+knows. Each method takes the checklist first, so its step ids are typed:
+
 ```ts title="app/(app)/page.tsx"
-import { rpcTransport } from "better-supabase/blocks/onboarding";
+import {
+  createOnboarding,
+  rpcTransport,
+} from "better-supabase/blocks/onboarding";
 import { gettingStarted } from "@/onboarding";
 
-const checklist = gettingStarted.connect({ transport: rpcTransport(supabase) });
+const onboarding = createOnboarding({ transport: rpcTransport(supabase) });
 
-const progress = await checklist.progress(organizationId).orThrow();
+const progress = await onboarding
+  .progress(gettingStarted, organizationId)
+  .orThrow();
 // { steps: [{ id, title, completed, completedAt, ... }], completed: 1, total: 3, done: false, next: { id: "billing", ... } }
 
-await checklist.complete("project", organizationId);
-await checklist.reset("project", organizationId);
+await onboarding.complete(gettingStarted, "project", organizationId);
+await onboarding.reset(gettingStarted, "project", organizationId);
 ```
 
-A user checklist takes no organization: `checklist.progress()`.
-`complete` returns `false` when the step was already done.
+A user checklist takes no organization: `onboarding.progress(profile)`.
+`complete` returns `false` when the step was already done. With
+[`defineBlocks`](/docs/blocks/create-blocks), `onboardingBlock` builds the
+same client, and `hooks` run around its methods:
+
+```ts title="lib/blocks.ts"
+const onboarding = createOnboarding({
+  transport,
+  hooks: {
+    complete: {
+      after: (result, [checklist, step]) => {
+        if (result.ok && result.data) track("step_done", checklist.id, step);
+      },
+    },
+  },
+});
+```
+
+The progress rows take no app columns: the steps live in `defineChecklist`.
 
 ## In React
 
@@ -119,8 +144,8 @@ export function GettingStarted({ organizationId }: { organizationId: string }) {
 }
 ```
 
-In Server Components, call `progress()` instead; the `react-server` build of
-the hook throws.
+In Server Components, call `onboarding.progress(checklist)` instead; the
+`react-server` build of the hook throws.
 
 ## Vue
 
@@ -134,14 +159,17 @@ on mount, and the controller is disposed with the component.
 <script setup lang="ts">
 import { useSupabase } from "better-supabase/vue";
 import { useOnboarding } from "better-supabase/blocks/onboarding/vue";
-import { rpcTransport } from "better-supabase/blocks/onboarding";
+import {
+  createOnboarding,
+  rpcTransport,
+} from "better-supabase/blocks/onboarding";
 import { gettingStarted } from "@/onboarding";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
 const { state } = useOnboarding({
-  client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
-  scope: gettingStarted.scope,
+  client: createOnboarding({ transport: rpcTransport(supabase) }),
+  checklist: gettingStarted,
   organizationId,
 });
 </script>
@@ -167,14 +195,17 @@ work starts on mount, and the controller is disposed with the component.
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
   import { useOnboarding } from "better-supabase/blocks/onboarding/svelte";
-  import { rpcTransport } from "better-supabase/blocks/onboarding";
+  import {
+    createOnboarding,
+    rpcTransport,
+  } from "better-supabase/blocks/onboarding";
   import { gettingStarted } from "@/onboarding";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
   const onboarding = useOnboarding({
-    client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
-    scope: gettingStarted.scope,
+    client: createOnboarding({ transport: rpcTransport(supabase) }),
+    checklist: gettingStarted,
     organizationId,
   });
 </script>
@@ -198,14 +229,17 @@ work starts on mount, and the controller is disposed with the owner.
 import { For } from "solid-js";
 import { useSupabase } from "better-supabase/solid";
 import { useOnboarding } from "better-supabase/blocks/onboarding/solid";
-import { rpcTransport } from "better-supabase/blocks/onboarding";
+import {
+  createOnboarding,
+  rpcTransport,
+} from "better-supabase/blocks/onboarding";
 import { gettingStarted } from "@/onboarding";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
   const { state } = useOnboarding({
-    client: gettingStarted.connect({ transport: rpcTransport(supabase) }),
-    scope: gettingStarted.scope,
+    client: createOnboarding({ transport: rpcTransport(supabase) }),
+    checklist: gettingStarted,
     organizationId: props.organizationId,
   });
   return (

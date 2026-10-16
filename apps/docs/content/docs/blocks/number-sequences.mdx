@@ -19,6 +19,12 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 
 Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
 
+## Hooks
+
+`createNumberSequences` takes `hooks` around `next`, to refuse or observe an
+allocation (see [extending blocks](/docs/extending/blocks)). The sequences
+table takes no app columns: its rows are counters the module owns.
+
 ## Adopt mode
 
 Map `tables.numberSequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`.

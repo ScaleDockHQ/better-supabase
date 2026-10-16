@@ -96,6 +96,11 @@ export const GET = jobs.drainRoute({
 `rank.rebalance("deal", organizationId, "lead")` runs the same rewrite
 directly and resolves to the number of rows it changed.
 
+## Hooks
+
+`createRank` takes `hooks` around `move` and `rebalance`; the `rank.rebalance`
+job calls `rebalance` through them (see [extending blocks](/docs/extending/blocks)).
+
 ## Tags and custom fields
 
 Tag definitions and custom field definitions keep their order in a `rank`
