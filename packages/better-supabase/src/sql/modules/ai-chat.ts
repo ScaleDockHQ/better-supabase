@@ -397,7 +397,7 @@ export interface AiChatNames {
 }
 
 /** The keys a chat read returns, which no extra column may shadow. */
-export const CHAT_KEYS: readonly string[] = [
+const CHAT_KEYS: readonly string[] = [
   "id",
   "organization_id",
   "owner_id",

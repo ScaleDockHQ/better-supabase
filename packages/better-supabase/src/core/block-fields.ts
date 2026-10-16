@@ -102,7 +102,7 @@ export const extraOf = (
   Object.fromEntries(Object.entries(input).filter(([key]) => !known.has(key)));
 
 /** The extra columns a block read returns under its `fields` key. */
-export const extraFieldsOf = (value: unknown): Record<string, unknown> =>
+const extraFieldsOf = (value: unknown): Record<string, unknown> =>
   isObject(value) && isObject(value["fields"]) ? value["fields"] : {};
 
 /**
