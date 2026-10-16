@@ -236,11 +236,15 @@ not a list of names is refused. See
 
 ## Blocks
 
-`create_share_link` takes a fifth argument, `version_id`, that pins the link
-to a version of its subject and must belong to it. Calls with four arguments
-still work, but grants or revokes your SQL wrote on the four-argument
-signature `create_share_link(uuid, text, text, text)` no longer exist after
-the sync: write them for `(uuid, text, text, text, uuid)`.
+`create_share_link` takes two more arguments: `version_id`, which pins the
+link to a version of its subject and must belong to it, and `expires_at`,
+which must be in the future. Calls with four arguments still work, but
+grants or revokes your SQL wrote on the four-argument signature
+`create_share_link(uuid, text, text, text)` no longer exist after the sync:
+write them for `(uuid, text, text, text, uuid, timestamptz)`.
+`revoke_share_link` now accepts only the link's creator or a member with
+`share_links.create`, `list_share_links` returns only links the caller may
+read, and `record_view` refuses non-members.
 An adopted links table needs a `version_id uuid` column, or map
 `columns.links.versionId` to `null` and links are never pinned.
 `shareLinks.resolve(token)` returns `versionId`. See

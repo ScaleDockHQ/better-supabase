@@ -103,7 +103,7 @@ describe.skipIf(!live)("deals", () => {
           { dealId: deal.id, field: "closeOn", value: day("2026-12-15") },
           { dealId: deal.id, field: "forecast", value: "commit" },
           { dealId: deal.id, field: "motion", value: "upsell" },
-          { dealId: deal.id, field: "openedOn" as "name", value: "2020-01-01" },
+          { dealId: deal.id, field: "openedOn", value: "2020-01-01" },
         ])
         .orThrow();
       expect(edits.accepted.map((item) => item.field)).toEqual([

@@ -17,7 +17,7 @@ import {
   lockTable,
   schemaPreamble,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -160,7 +160,7 @@ begin
   end if;
   insert into ${reminders} (${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}, ${ctx.col("reminders", "offsetMinutes")})
   values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
-  returning ${ctx.col("reminders", "id")} into v_id;${writeFields("save_reminder.fields", reminders, ctx.col("reminders", "id"), "v_id", extras)}
+  returning ${ctx.col("reminders", "id")} into v_id;${writeExtraColumns(reminders, extras, "save_reminder.fields", `x.${ctx.col("reminders", "id")} = v_id`)}
   return jsonb_build_object('id', v_id${
     extras.length === 0
       ? ""

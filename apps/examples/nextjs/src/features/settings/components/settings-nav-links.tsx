@@ -13,6 +13,8 @@ function useTabLabel() {
     switch (id) {
       case "profile":
         return t("Profile");
+      case "preferences":
+        return t("Preferences");
       case "security":
         return t("Security");
       case "organization":

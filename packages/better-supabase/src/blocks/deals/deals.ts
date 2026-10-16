@@ -3,10 +3,16 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -45,7 +51,8 @@ export interface DealContact extends DealParty {
   readonly primary: boolean;
 }
 
-export interface Deal {
+/** A deal. `F` types the extra columns the `fields` schema describes. */
+export interface Deal<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly number: bigint;
@@ -98,8 +105,8 @@ export interface Deal {
     readonly userId: string;
     readonly role?: string;
   }[];
-  /** The app's extra columns, by column name. */
-  readonly fields: Readonly<Record<string, unknown>>;
+  /** The app's extra columns (`options.extraColumns`), by column name. */
+  readonly fields: Readonly<Record<string, unknown>> & F;
   readonly archived: boolean;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -114,7 +121,7 @@ export interface DealTotals {
   readonly total: bigint;
 }
 
-export interface DealInput {
+export interface DealInput<F extends object = Record<never, never>> {
   readonly name: string;
   readonly closeOn: Temporal.PlainDate;
   readonly amount?: bigint;
@@ -137,6 +144,8 @@ export interface DealInput {
   readonly flags?: readonly string[];
   readonly source?: string;
   readonly note?: string;
+  /** Values for the extra columns, by column name. */
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
 /** The fields `update` writes, the shape of a grid cell edit. */
@@ -165,10 +174,10 @@ export type DealField =
   | "lostReason"
   | "company";
 
-/** One cell edit. `null` clears the field. */
+/** One cell edit: a field above, or an extra column by name. `null` clears it. */
 export interface DealChange {
   readonly dealId: string;
-  readonly field: DealField;
+  readonly field: DealField | (string & {});
   readonly value: unknown;
 }
 
@@ -233,20 +242,21 @@ export interface DealHealth {
   readonly overdue: boolean;
 }
 
-export interface Deals {
+/** `F` types the deals' extra columns, from the `fields` schema. */
+export interface Deals<F extends object = Record<never, never>> {
   create(
     organizationId: string,
-    input: DealInput,
+    input: DealInput<F>,
     contacts?: readonly DealContact[],
-  ): AsyncResult<Deal>;
+  ): AsyncResult<Deal<F>>;
   /** Applies cell edits; a refused change leaves the others applied. */
   update(changes: readonly DealChange[]): AsyncResult<DealChangeResult>;
   /** Moves the deal to its pipeline's won stage. `note` is the closing note. */
-  win(dealId: string, note?: string): AsyncResult<Deal>;
+  win(dealId: string, note?: string): AsyncResult<Deal<F>>;
   /** Moves the deal to its pipeline's lost stage. */
-  lose(dealId: string, reason?: string): AsyncResult<Deal>;
+  lose(dealId: string, reason?: string): AsyncResult<Deal<F>>;
   /** Opens a closed deal again, in `stageId` or the first open stage. */
-  reopen(dealId: string, stageId?: string): AsyncResult<Deal>;
+  reopen(dealId: string, stageId?: string): AsyncResult<Deal<F>>;
   setContacts(
     dealId: string,
     contacts: readonly DealContact[],
@@ -276,13 +286,48 @@ export interface Deals {
   health(pipelineId: string): AsyncResult<DealHealth[]>;
 }
 
-export interface DealsOptions extends BlockTemporalOptions {
+export interface DealsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
-  readonly hooks?: NoInfer<BlockHooks<Deals>>;
+  /**
+   * A Standard Schema for the deals' extra columns
+   * (`blocks.deals.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on reads and validates them on writes.
+   */
+  readonly fields?: S;
+  readonly hooks?: NoInfer<BlockHooks<Deals<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
+
+/** The fields `update` writes, by name: any other field is an extra column. */
+const BUILT_IN: ReadonlySet<string> = new Set<DealField>([
+  "name",
+  "motion",
+  "priority",
+  "ownerId",
+  "product",
+  "seats",
+  "amount",
+  "existingAmount",
+  "currency",
+  "valuePeriod",
+  "amountSource",
+  "stageId",
+  "probability",
+  "forecast",
+  "closeOn",
+  "nextStep",
+  "nextAt",
+  "nextKind",
+  "flags",
+  "source",
+  "note",
+  "lostReason",
+  "company",
+]);
 
 const KNOWN = new Set([
   "id",
@@ -500,67 +545,98 @@ function forecastOf(value: unknown): DealForecast {
  * per change, won and lost through the pipeline's stages, contacts, a team,
  * line items, the forecast call and the review checks.
  */
-export function createDeals(options: DealsOptions): Deals {
+export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
+  options: DealsOptions<S>,
+): Deals<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Deals = {
-    create: (organizationId, input, contacts) =>
-      call(
-        "create_deal",
-        {
-          tenant: organizationId,
-          attrs: Object.fromEntries(
-            Object.entries(input).map(([key, value]) => [key, valueArg(value)]),
+  const fields: BlockFields<F> = blockFields(options.fields, "deal fields");
+  const parsed = (deal: Deal): AsyncResult<Deal<F>> =>
+    AsyncResult.from(() => fields.read(deal.fields)).map((value) => ({
+      ...deal,
+      fields: value,
+    }));
+  const client: Deals<F> = {
+    create: (organizationId, input, contacts) => {
+      const { fields: extra, ...rest } = input;
+      return AsyncResult.from(() => fields.write({ ...extra }))
+        .andThen((valid) =>
+          call(
+            "create_deal",
+            {
+              tenant: organizationId,
+              attrs: Object.fromEntries(
+                Object.entries({ ...rest, ...valid }).map(([key, value]) => [
+                  key,
+                  valueArg(value),
+                ]),
+              ),
+              contacts:
+                contacts === undefined
+                  ? null
+                  : contacts.map((contact) => ({ ...contact })),
+            },
+            dealOf,
           ),
-          contacts:
-            contacts === undefined
-              ? null
-              : contacts.map((contact) => ({ ...contact })),
-        },
-        dealOf,
-      ),
+        )
+        .andThen(parsed);
+    },
     update: (changes) =>
-      call(
-        "update_deals",
-        {
-          changes: changes.map((change) => ({
-            dealId: change.dealId,
-            field: change.field,
-            value: valueArg(change.value),
-          })),
-        },
-        (value) => {
-          const row = recordOf(value, "update_deals");
-          return {
-            accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
-              dealId: textOf(item["dealId"]),
-              field: textOf(item["field"]),
+      AsyncResult.from(async () => {
+        for (const change of changes) {
+          if (BUILT_IN.has(change.field)) continue;
+          const valid = await fields.write({ [change.field]: change.value });
+          if (!valid.ok) return valid;
+        }
+        return ok(changes);
+      }).andThen((checked) =>
+        call(
+          "update_deals",
+          {
+            changes: checked.map((change) => ({
+              dealId: change.dealId,
+              field: change.field,
+              value: valueArg(change.value),
             })),
-            rejected: recordsOf(row["rejected"], "rejected").map((item) =>
-              compact<DealChangeResult["rejected"][number]>({
+          },
+          (value) => {
+            const row = recordOf(value, "update_deals");
+            return {
+              accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
                 dealId: textOf(item["dealId"]),
                 field: textOf(item["field"]),
-                hint: optionalText(item["hint"]),
-                reason: textOf(item["reason"]),
-              }),
-            ),
-          };
-        },
+              })),
+              rejected: recordsOf(row["rejected"], "rejected").map((item) =>
+                compact<DealChangeResult["rejected"][number]>({
+                  dealId: textOf(item["dealId"]),
+                  field: textOf(item["field"]),
+                  hint: optionalText(item["hint"]),
+                  reason: textOf(item["reason"]),
+                }),
+              ),
+            };
+          },
+        ),
       ),
     win: (dealId, note) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "won", reason: note ?? null },
         dealOf,
-      ),
+      ).andThen(parsed),
     lose: (dealId, reason) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "lost", reason: reason ?? null },
         dealOf,
-      ),
+      ).andThen(parsed),
     reopen: (dealId, stageId) =>
-      call("reopen_deal", { deal: dealId, stage: stageId ?? null }, dealOf),
+      call(
+        "reopen_deal",
+        { deal: dealId, stage: stageId ?? null },
+        dealOf,
+      ).andThen(parsed),
     setContacts: (dealId, contacts) =>
       call(
         "set_deal_contacts",

@@ -7,9 +7,12 @@ const postgres = createPostgres();
 
 // The inbox module queues one inbox_bot job per contact message in a
 // conversation in bot mode.
-export const jobs = createJobs(postgres.admin, {
-  inbox_bot: v.looseObject({
-    conversation_id: v.string(),
-    message_id: v.string(),
-  }),
+export const jobs = createJobs({
+  sql: postgres.admin,
+  queues: {
+    inbox_bot: v.looseObject({
+      conversation_id: v.string(),
+      message_id: v.string(),
+    }),
+  },
 });

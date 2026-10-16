@@ -9,7 +9,7 @@ import {
   serviceGrant,
   sha256Hex,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
@@ -224,7 +224,7 @@ begin
       coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + ${String(n.validDays)}),
       create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
       create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id', auth.uid())
-    returning * into v_row;${writeFields("(create_quote.attrs -> 'fields')", t("quotes"), q("id"), `v_row.${q("id")}`, n.extras)}
+    returning * into v_row;${writeExtraColumns(t("quotes"), n.extras, "(create_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
   exception when check_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
   end;
@@ -275,7 +275,7 @@ begin
     returning * into v_row;${
       n.extras.length === 0
         ? ""
-        : `${writeFields("(update_quote.attrs -> 'fields')", t("quotes"), q("id"), `v_row.${q("id")}`, n.extras)}
+        : `${writeExtraColumns(t("quotes"), n.extras, "(update_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
     select * into v_row from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")};`
     }
   exception when check_violation or invalid_text_representation or datetime_field_overflow then

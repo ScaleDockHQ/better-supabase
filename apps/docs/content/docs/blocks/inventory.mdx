@@ -59,6 +59,30 @@ per organization. `setLocationActive(id, false)` stops new reservations and
 transfers at a location, and a location with stock history can't be deleted
 (`INVENTORY_LOCATION_IN_USE`).
 
+## Your own fields
+
+`blocks.inventory.options.extraColumns` adds columns to the `inventory_locations` table,
+keyed by column name with their SQL type. `saveLocation` writes them from `fields` and returns them under `fields`; a location you save without `fields` keeps its values. Pass a
+[Standard Schema](https://standardschema.dev) as `fields` to type them,
+parse them on reads and validate them on writes; a bad value is a
+`validation` error before anything reaches the database (see
+[extending blocks](/docs/extending/blocks#your-own-fields)):
+
+```ts
+import { z } from "zod";
+
+const inventory = createInventory({
+  transport,
+  fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
+});
+
+await inventory.saveLocation(organizationId, {
+  code: "WH-AMS",
+  name: "Amsterdam",
+  fields: { region: "emea" },
+});
+```
+
 ## The ledger
 
 ```ts

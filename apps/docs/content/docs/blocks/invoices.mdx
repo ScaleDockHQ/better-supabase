@@ -40,6 +40,29 @@ await invoices
   .orThrow();
 ```
 
+## Your own fields
+
+`blocks.invoices.options.extraColumns` adds columns to the `invoices` table,
+keyed by column name with their SQL type. `create` writes them from the input by name, and every invoice comes back with them under `fields`. Pass a
+[Standard Schema](https://standardschema.dev) as `fields` to type them,
+parse them on reads and validate them on writes; a bad value is a
+`validation` error before anything reaches the database (see
+[extending blocks](/docs/extending/blocks#your-own-fields)):
+
+```ts
+import { z } from "zod";
+
+const invoices = createInvoices({
+  transport,
+  fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
+});
+
+await invoices.create(organizationId, {
+  title: "October",
+  fields: { region: "emea" },
+});
+```
+
 ## Issue and number
 
 A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [number-sequences](/docs/blocks/number-sequences)), sets the issue date and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.

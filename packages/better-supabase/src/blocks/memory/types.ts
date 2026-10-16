@@ -1,5 +1,7 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { Embedder } from "../knowledge/knowledge.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
@@ -118,7 +120,19 @@ export interface MemoryOptions extends BlockTemporalOptions {
   readonly maxRender?: number;
   /** `saveExtracted` skips a fact this similar to a saved one. Default 0.92. */
   readonly dedupeThreshold?: number;
+  /** `withBlockHooks` hooks around the methods, and around each group's under its name. */
+  readonly hooks?: MemoryHooks;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
+
+/** Hooks for `Memory`: the top-level methods, and `core`, `archival`, `recall` and `documents` by group. */
+export type MemoryHooks = BlockHooks<Memory> & {
+  readonly core?: BlockHooks<Memory["core"]>;
+  readonly archival?: BlockHooks<Memory["archival"]>;
+  readonly recall?: BlockHooks<Memory["recall"]>;
+  readonly documents?: BlockHooks<Memory["documents"]>;
+};
 
 export interface Memory {
   readonly core: {

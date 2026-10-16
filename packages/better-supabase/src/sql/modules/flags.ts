@@ -7,7 +7,14 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { schemaPreamble, lockTable, fail } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsJson,
+  fail,
+  lockTable,
+  schemaPreamble,
+  writeExtraColumns,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<FlagsEvents> = {
@@ -27,7 +34,7 @@ const EVENTS: ModuleEvents<FlagsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: [],
+  options: ["extraColumns"],
   tables: {
     flags: {
       name: "flags",
@@ -93,6 +100,7 @@ function build(ctx: ModuleContext): string {
     },
   });
   const plans = ctx.entitlements("tenant", "'{}'::text[]");
+  const extras = ctx.extraColumns("flags");
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
@@ -114,7 +122,7 @@ create table if not exists ${flags} (
   ${f("updatedAt")} timestamptz not null default now(),
   check (${f("variants")} ? ${f("defaultVariant")}),
   check (${f("rolloutVariant")} is null or ${f("variants")} ? ${f("rolloutVariant")})
-);
+);${addExtraColumns(flags, extras)}
 ${lockTable(flags)}
 
 -- A variant for one tenant or one user; a user override beats a tenant one.
@@ -250,7 +258,7 @@ as $$
     'enabled', x.${f("enabled")},
     'rules', x.${f("rules")},
     'rollout_percentage', x.${f("rolloutPercentage")},
-    'rollout_variant', x.${f("rolloutVariant")},
+    'rollout_variant', x.${f("rolloutVariant")}${extraFieldsJson("x", extras)},
     'overrides', coalesce((
       select jsonb_agg(jsonb_build_object('organization_id', v.${o("tenant")}, 'user_id', v.${o("user")}, 'variant', v.${o("variant")}))
       from ${overrides} v where v.${o("flag")} = x.${f("key")}
@@ -275,8 +283,9 @@ end;
 $$;
 
 -- Creates or updates a flag from definition: type, description, variants,
--- default_variant, enabled, rules, rollout_percentage and rollout_variant;
--- missing keys keep their value (or the default for a new flag).
+-- default_variant, enabled, rules, rollout_percentage, rollout_variant and
+-- fields (the extra columns by name); missing keys keep their value (or the
+-- default for a new flag).
 create or replace function ${fn("save_flag")}(key text, definition jsonb)
 returns jsonb
 language plpgsql
@@ -309,7 +318,7 @@ begin
     ${f("rules")} = case when d ? 'rules' then excluded.${f("rules")} else x.${f("rules")} end,
     ${f("rolloutPercentage")} = case when d ? 'rollout_percentage' then excluded.${f("rolloutPercentage")} else x.${f("rolloutPercentage")} end,
     ${f("rolloutVariant")} = case when d ? 'rollout_variant' then excluded.${f("rolloutVariant")} else x.${f("rolloutVariant")} end,
-    ${f("updatedAt")} = now();
+    ${f("updatedAt")} = now();${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = save_flag.key`)}
   ${flagEvent("flag.saved", "save_flag.key")}
   return (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = save_flag.key);
 end;

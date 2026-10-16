@@ -111,6 +111,122 @@ instead of `rpcTransport` to call the functions over Postgres. With
 `api` and pass `rpcTransport(supabase, { schema: "api" })`; see
 [SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api).
 
+## Settings pages
+
+`useSettings` from `better-supabase/blocks/settings/react` edits one scope
+of the definition through the provider's client, so a settings page can be
+generated from it. `fields` lists the keys in declaration order, each with
+a `kind` (`boolean`, `number`, `text`, `choice` or `json`), its `choices`,
+and the `title` and `description` from the schema. They come from the
+schema's [Standard JSON Schema](https://standardschema.dev): Zod implements
+it, and `toStandardJsonSchema` from `@valibot/to-json-schema` adds it to a
+Valibot schema. For a schema without it, the kind follows the default's
+type. The same hook runs in React DOM and React Native.
+
+```ts title="lib/settings.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { defineSettings } from "better-supabase/blocks/settings";
+import * as v from "valibot";
+
+export const settings = defineSettings({
+  organization: {
+    defaultRole: {
+      schema: toStandardJsonSchema(
+        v.pipe(v.picklist(["member", "admin"]), v.title("Default role")),
+      ),
+      default: "member",
+    },
+  },
+});
+```
+
+```tsx title="components/settings-page.tsx"
+import { useSettings } from "better-supabase/blocks/settings/react";
+
+import { settings } from "@/lib/settings";
+
+const { fields, values, saving, setField } = useSettings(settings, {
+  scope: "organization",
+  organizationId,
+  schema: "api",
+});
+// fields: [{ key: "defaultRole", kind: "choice", choices: ["member", "admin"], ... }]
+```
+
+`set(key, value)` takes the key's typed input, and `setField(key, value)`
+takes whatever a generated control produces; both validate with the key's
+schema first and keep a failure in `error`. `reset(key)` goes back to the
+default. `createSettingsController` and `settingFields` from
+`better-supabase/blocks/settings` are the same logic without React, and
+`better-supabase/blocks/settings/vue`, `/svelte` and `/solid` export
+`useSettings` over the controller, taking the scope's `entries` and its
+client. The [settings layout recipe](/docs/registry/ui-recipes) shows it in
+the Next.js and Expo examples.
+
+```vue title="Preferences.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
+import { useSettings } from "better-supabase/blocks/settings/vue";
+
+import { settings } from "@/lib/settings";
+
+const supabase = useSupabase();
+const { state, actions } = useSettings({
+  entries: settings.schemas.user,
+  user: createSettings({ settings, transport: rpcTransport(supabase) }),
+});
+</script>
+
+<template>
+  <label v-for="field in state.fields" :key="field.key">
+    {{ field.title ?? field.key }}
+    <input
+      :value="state.values?.[field.key]"
+      @change="actions.setField(field.key, $event.target.value)"
+    />
+  </label>
+</template>
+```
+
+```svelte title="Preferences.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import {
+  createSettings,
+  rpcTransport,
+} from "better-supabase/blocks/settings";
+  import { useSettings } from "better-supabase/blocks/settings/svelte";
+
+  import { settings } from "$lib/settings";
+
+  const { supabase } = getBetterSupabase();
+  const preferences = useSettings({
+    entries: settings.schemas.user,
+    user: createSettings({ settings, transport: rpcTransport(supabase) }),
+  });
+</script>
+
+{#each $preferences.fields as field}<p>{field.title ?? field.key}</p>{/each}
+```
+
+```tsx title="Preferences.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
+import { useSettings } from "better-supabase/blocks/settings/solid";
+
+import { settings } from "~/lib/settings";
+
+export function Preferences() {
+  const supabase = useSupabase();
+  const { state } = useSettings({
+    entries: settings.schemas.user,
+    user: createSettings({ settings, transport: rpcTransport(supabase) }),
+  });
+  return <p>{state().fields.length} settings</p>;
+}
+```
+
 ## Platform settings
 
 Settings for the whole product, such as fee rates, routing rules or an

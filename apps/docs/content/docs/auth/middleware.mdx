@@ -113,7 +113,7 @@ const entries = [
   withBetterSupabase(bs, { allow: ["user"] }),
   withPostgresAdminClient(),
   withBlock("jobs", (ctx: { postgresAdmin: PostgresApi }) =>
-    createJobs(ctx.postgresAdmin, queues),
+    createJobs({ sql: ctx.postgresAdmin, queues }),
   ),
 ] as const;
 

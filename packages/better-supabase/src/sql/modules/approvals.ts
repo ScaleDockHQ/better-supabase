@@ -29,6 +29,7 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
+import { providerMembers } from "./tenant.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
 export const ACCESS_REQUEST_SUBJECT = "access_request";
@@ -174,6 +175,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
     subject: `v_req.${c("subjectId")}::text`,
     tenant: `v_req.${c("tenant")}`,
+    requester: `v_req.${c("requestedBy")}`,
   });
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
@@ -239,6 +241,16 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
+  const memberIdsFor = providerMembers(ctx, layout).idsFor;
+  const delegateMember =
+    memberIdsFor === undefined
+      ? `exists (
+    select 1 from ${members.table("memberships")} m
+    where m.${mt} = v_req.${c("tenant")} and m.${mu} = delegate_approval.to_user
+  )`
+      : `v_req.${c("tenant")}::text in (
+    select t.id::text from ${memberIdsFor("delegate_approval.to_user")} as t(id)
+  )`;
   const teams =
     ctx.installed("teams") && ctx.of("teams").mode !== "custom"
       ? ctx.of("teams")
@@ -757,10 +769,7 @@ begin
   if delegate_approval.to_user is null or delegate_approval.to_user = auth.uid() or delegate_approval.to_user = v_req.${c("requestedBy")} then
     ${fail("APPROVAL_DELEGATE_INVALID", "delegate to another user than yourself or the requester", "22023")}
   end if;
-  if not exists (
-    select 1 from ${members.table("memberships")} m
-    where m.${mt} = v_req.${c("tenant")} and m.${mu} = delegate_approval.to_user
-  ) then
+  if not ${delegateMember} then
     ${fail("APPROVAL_DELEGATE_INVALID", "the delegate is not a member of this organization", "22023")}
   end if;
   insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}, ${d("delegateTo")}, ${d("comment")})

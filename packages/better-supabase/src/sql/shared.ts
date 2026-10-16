@@ -31,20 +31,63 @@ export const columnsObject = (
     .join(", ")})`;
 
 /**
- * `, 'fields', jsonb_build_object(...)` with the extra columns of row
- * `alias`, for a read built with `jsonb_build_object`; empty without extra
- * columns, so the default read is unchanged.
+ * `, 'fields', jsonb_build_object(...)` of the extra columns of row
+ * `alias`, for a read built with `jsonb_build_object`; empty without any.
  */
-export const fieldsEntry = (
+export const extraFieldsJson = (
   alias: string,
-  columns: readonly ExtraColumn[],
+  extras: readonly ExtraColumn[],
 ): string =>
-  columns.length === 0
+  extras.length === 0
     ? ""
     : `, 'fields', ${columnsObject(
         alias,
-        columns.map((column) => column.name),
+        extras.map((extra) => extra.name),
       )}`;
+
+/**
+ * PL/pgSQL that copies the extra columns from `source`, a `jsonb` object
+ * keyed by column name, onto the rows of `table` (alias `x`) that `where`
+ * matches. A key `source` leaves out keeps the column's value, so it runs
+ * after an insert (the defaults stay) and on a partial update. Empty
+ * without extra columns.
+ */
+export const writeExtraColumns = (
+  table: string,
+  extras: readonly ExtraColumn[],
+  source: string,
+  where: string,
+  into?: string,
+): string =>
+  extras.length === 0
+    ? ""
+    : `
+  update ${table} x set ${extras
+    .map(
+      (extra) =>
+        `${extra.ident} = case when ${source} ? ${sqlString(extra.name)} then r.${extra.ident} else x.${extra.ident} end`,
+    )
+    .join(", ")}
+  from jsonb_populate_record(null::${table}, (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(${source}) e where e.key in (${extras
+    .map((extra) => sqlString(extra.name))
+    .join(", ")}))) r
+  where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
+
+/**
+ * `json` (a `jsonb` expression of row `alias`) with the extra columns
+ * under `fields`, or `json` itself without any.
+ */
+export const withExtraFields = (
+  json: string,
+  alias: string,
+  extras: readonly ExtraColumn[],
+): string =>
+  extras.length === 0
+    ? json
+    : `(${json} || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        extras.map((extra) => extra.name),
+      )}))`;
 
 /**
  * The `fields jsonb` parameter of a function that writes extra columns,
@@ -61,34 +104,6 @@ export const fieldsArg = (columns: readonly ExtraColumn[]): string =>
 /** The `jsonb` contract argument for `fieldsParam`; none without extra columns. */
 export const fieldsArgs = (columns: readonly ExtraColumn[]): string[] =>
   columns.length === 0 ? [] : ["jsonb"];
-
-/**
- * PL/pgSQL that writes the extra columns `fields` (a `jsonb` expression,
- * such as `register_push_device.fields`) names to the row of `table` whose
- * `idColumn` is `id`. A column it leaves out keeps its value, or its
- * default on a new row. Empty without extra columns.
- */
-export const writeFields = (
-  fields: string,
-  table: string,
-  idColumn: string,
-  id: string,
-  columns: readonly ExtraColumn[],
-): string => {
-  if (columns.length === 0) return "";
-  const sets = columns
-    .map(
-      (column) =>
-        `${column.ident} = case when ${fields} ? ${sqlString(column.name)} then (jsonb_populate_record(null::${table}, ${fields})).${column.ident} else x.${column.ident} end`,
-    )
-    .join(",\n      ");
-  return `
-  if jsonb_typeof(${fields}) = 'object' then
-    update ${table} x set
-      ${sets}
-    where x.${idColumn} = ${id};
-  end if;`;
-};
 
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;

@@ -225,8 +225,9 @@ end;
 $$;
 
 -- Creates or updates a flag from definition: type, description, variants,
--- default_variant, enabled, rules, rollout_percentage and rollout_variant;
--- missing keys keep their value (or the default for a new flag).
+-- default_variant, enabled, rules, rollout_percentage, rollout_variant and
+-- fields (the extra columns by name); missing keys keep their value (or the
+-- default for a new flag).
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb)
 returns jsonb
 language plpgsql

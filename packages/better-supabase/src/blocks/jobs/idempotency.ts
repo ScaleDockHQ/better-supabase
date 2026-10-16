@@ -1,23 +1,44 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { JobHandler } from "./types.ts";
 
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
-import { dbError } from "../../core/errors.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import { dbError, type ErrorMapper } from "../../core/errors.ts";
 import {
   problemResponse,
   type BlockProblemOptions,
 } from "../../core/problem.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
+  blockCall,
   run,
   seconds,
   type BlockTemporalOptions,
 } from "../shared.ts";
 import { transportRows } from "./backends.ts";
 
-export interface IdempotencyOptions
+/** Where `createIdempotency` stores keys: a transport, or a service SQL connection. */
+export type IdempotencySource =
+  | {
+      /**
+       * A service-role transport, such as `rpcTransport(adminClient, { schema: "api" })`
+       * over the wrappers `blocks.idempotency.api` writes.
+       */
+      readonly transport: BlockTransport;
+      readonly sql?: never;
+    }
+  | {
+      /** A service SQL connection: `postgres.admin` or `ctx.postgresAdmin`. */
+      readonly sql: SqlClient;
+      readonly transport?: never;
+    };
+
+export type IdempotencyOptions = IdempotencySource & IdempotencySettings;
+
+export interface IdempotencySettings
   extends BlockProblemOptions, BlockTemporalOptions {
   /**
    * Separates keys of different callers, endpoints or tenants. Defaults to a
@@ -36,6 +57,12 @@ export interface IdempotencyOptions
   readonly header?: string;
   /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
   readonly schema?: string;
+  /** Error mappers that run before the built-in ones, over a transport. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** `withBlockHooks` hooks around `begin`, `complete`, `release` and `purge`. */
+  readonly hooks?: BlockHooks<Idempotency>;
+  /** Receives the errors `after` hooks throw. */
+  readonly logger?: Logger;
 }
 
 export type IdempotencyState = "started" | "replay" | "running" | "mismatch";
@@ -116,7 +143,7 @@ interface BeginRow {
   readonly holder: string | null;
 }
 
-/** The three calls `createIdempotency` makes, over SQL or a transport. */
+/** The calls `createIdempotency` makes, over SQL or a transport. */
 interface IdempotencyCalls {
   begin(
     scope: string,
@@ -124,84 +151,81 @@ interface IdempotencyCalls {
     fingerprint: string,
     ttl: string,
     lock: string,
-  ): Promise<BeginRow | undefined>;
+  ): AsyncResult<BeginRow | undefined>;
   complete(
     scope: string,
     key: string,
     holder: string,
     status: number,
     body: unknown,
-  ): Promise<boolean>;
-  release(scope: string, key: string, holder: string): Promise<boolean>;
-  purge(): Promise<number>;
+  ): AsyncResult<boolean>;
+  release(scope: string, key: string, holder: string): AsyncResult<boolean>;
+  purge(): AsyncResult<number>;
 }
 
 function sqlCalls(sql: SqlClient): IdempotencyCalls {
   return {
-    async begin(scope, key, fingerprint, ttl, lock) {
-      const [row] = await sql.queryRaw<BeginRow>(
-        "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
-        [scope, key, fingerprint, ttl, lock],
-      );
-      return row;
-    },
-    async complete(scope, key, holder, status, body) {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
-        [scope, key, holder, status, JSON.stringify(body)],
-      );
-      return row?.done === true;
-    },
-    async release(scope, key, holder) {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.release_idempotent($1, $2, $3) as done",
-        [scope, key, holder],
-      );
-      return row?.done === true;
-    },
-    async purge() {
-      const [row] = await sql.queryRaw<{ purged: number }>(
-        "select better_supabase.purge_idempotency_keys() as purged",
-      );
-      return row?.purged ?? 0;
-    },
+    begin: (scope, key, fingerprint, ttl, lock) =>
+      run(async () => {
+        const [row] = await sql.queryRaw<BeginRow>(
+          "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
+          [scope, key, fingerprint, ttl, lock],
+        );
+        return row;
+      }),
+    complete: (scope, key, holder, status, body) =>
+      run(async () => {
+        const [row] = await sql.queryRaw<{ done: boolean }>(
+          "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
+          [scope, key, holder, status, JSON.stringify(body)],
+        );
+        return row?.done === true;
+      }),
+    release: (scope, key, holder) =>
+      run(async () => {
+        const [row] = await sql.queryRaw<{ done: boolean }>(
+          "select better_supabase.release_idempotent($1, $2, $3) as done",
+          [scope, key, holder],
+        );
+        return row?.done === true;
+      }),
+    purge: () =>
+      run(async () => {
+        const [row] = await sql.queryRaw<{ purged: number }>(
+          "select better_supabase.purge_idempotency_keys() as purged",
+        );
+        return row?.purged ?? 0;
+      }),
   };
 }
 
 function transportCalls(
   transport: BlockTransport,
-  schema: string,
+  schema: string | undefined,
+  mappers: readonly ErrorMapper[] | undefined,
 ): IdempotencyCalls {
+  const call = blockCall(transport, schema, mappers);
   return {
-    async begin(scope, key, fingerprint, ttl, lock) {
-      const [row] = transportRows<BeginRow>(
+    begin: (scope, key, fingerprint, ttl, lock) =>
+      call(
         "begin_idempotent",
-        await transport.call(schema, "begin_idempotent", {
-          scope,
-          key,
-          request_hash: fingerprint,
-          ttl,
-          lock,
-        }),
-      );
-      return row;
-    },
-    complete: async (scope, key, holder, status, body) =>
-      (await transport.call(schema, "complete_idempotent", {
-        scope,
-        key,
-        holder,
-        status_code: status,
-        response: body,
-      })) === true,
-    release: async (scope, key, holder) =>
-      (await transport.call(schema, "release_idempotent", {
-        scope,
-        key,
-        holder,
-      })) === true,
-    purge: async () =>
-      Number((await transport.call(schema, "purge_idempotency_keys", {})) ?? 0),
+        { scope, key, request_hash: fingerprint, ttl, lock },
+        (value) => transportRows<BeginRow>("begin_idempotent", value)[0],
+      ),
+    complete: (scope, key, holder, status, body) =>
+      call(
+        "complete_idempotent",
+        { scope, key, holder, status_code: status, response: body },
+        (value) => value === true,
+      ),
+    release: (scope, key, holder) =>
+      call(
+        "release_idempotent",
+        { scope, key, holder },
+        (value) => value === true,
+      ),
+    purge: () =>
+      call("purge_idempotency_keys", {}, (value) => Number(value ?? 0)),
   };
 }
 
@@ -210,48 +234,36 @@ function transportCalls(
  * `idempotency` SQL module: a service SQL connection, or a service-role
  * `rpcTransport` over the wrappers `blocks.idempotency.api` writes.
  */
-export function createIdempotency(
-  source: SqlClient | BlockTransport,
-  options: IdempotencyOptions = {},
-): Idempotency {
+export function createIdempotency(options: IdempotencyOptions): Idempotency {
   applyTemporal(options);
   const headerName = options.header ?? "idempotency-key";
   const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
   const calls =
-    "call" in source
-      ? transportCalls(source, options.schema ?? DEFAULT_BLOCK_SCHEMA)
-      : sqlCalls(source);
+    options.transport === undefined
+      ? sqlCalls(options.sql)
+      : transportCalls(options.transport, options.schema, options.mappers);
 
-  const begin: Idempotency["begin"] = (key, fingerprint, scope = "") =>
-    run(async () => {
-      const row = await calls.begin(scope, key, fingerprint, ttl, lock);
-      if (!row) throw new TypeError("begin_idempotent returned no row");
-      return {
-        state: row.state,
-        status: row.status_code,
-        body: row.response,
-        holder: row.holder ?? undefined,
-      };
-    });
-  const complete: Idempotency["complete"] = (
-    key,
-    holder,
-    status,
-    body,
-    scope = "",
-  ) => run(() => calls.complete(scope, key, holder, status, body));
-  const release: Idempotency["release"] = (key, holder, scope = "") =>
-    run(() => calls.release(scope, key, holder));
-  const purge: Idempotency["purge"] = () => run(() => calls.purge());
-
-  return {
-    purge,
-    purgeJob: () => async () => purge().orThrow(),
-    begin,
-    complete,
-    release,
+  const client: Idempotency = {
+    purge: () => calls.purge(),
+    purgeJob: () => async () => hooked.purge().orThrow(),
+    begin: (key, fingerprint, scope = "") =>
+      calls.begin(scope, key, fingerprint, ttl, lock).andThen((row) =>
+        row
+          ? AsyncResult.ok({
+              state: row.state,
+              status: row.status_code,
+              body: row.response,
+              holder: row.holder ?? undefined,
+            })
+          : AsyncResult.err(
+              dbError("unexpected", "begin_idempotent returned no row"),
+            ),
+      ),
+    complete: (key, holder, status, body, scope = "") =>
+      calls.complete(scope, key, holder, status, body),
+    release: (key, holder, scope = "") => calls.release(scope, key, holder),
     async handle(request, handler) {
       const key = request.headers.get(headerName);
       const instance = new URL(request.url).pathname;
@@ -285,7 +297,7 @@ export function createIdempotency(
       const fingerprint = await sha256(
         `${request.method} ${instance}\n${body}`,
       );
-      const started = await begin(key, fingerprint, scope);
+      const started = await hooked.begin(key, fingerprint, scope);
       if (!started.ok)
         return problemResponse(started.error, { instance, format });
       const { state, holder = "" } = started.data;
@@ -343,21 +355,26 @@ export function createIdempotency(
       try {
         response = await handler(request);
       } catch (cause) {
-        await release(key, holder, scope);
+        await hooked.release(key, holder, scope);
         throw cause;
       }
       if (response.status >= 500) {
-        await release(key, holder, scope);
+        await hooked.release(key, holder, scope);
         return response;
       }
       const stored: StoredResponse = {
         body: await response.clone().text(),
         contentType: response.headers.get("content-type"),
       };
-      await complete(key, holder, response.status, stored, scope);
+      await hooked.complete(key, holder, response.status, stored, scope);
       return response;
     },
   };
+  const hooked = withBlockHooks(client, options.hooks, {
+    block: "idempotency",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  return hooked;
 }
 
 // ---------------------------------------------------------------------------

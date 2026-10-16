@@ -7,7 +7,7 @@ import {
   fieldsArg,
   fieldsParam,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { amountOf, columns } from "./orders-shared.ts";
 
@@ -185,7 +185,7 @@ ${targetCheck}
 ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_id;
-  end if;${writeFields("save_promotion.fields", promotions, p("id"), "v_id", extras)}
+  end if;${writeExtraColumns(promotions, extras, "save_promotion.fields", `x.${p("id")} = v_id`)}
   if coalesce((data ->> 'active')::boolean, true) then
     ${ctx.hook("before_promotion_activate", [["uuid", "v_id"]])}
   end if;

@@ -870,7 +870,10 @@ service-role transport, so an app without a direct connection can schedule
 them too:
 
 ```ts
-const jobs = createJobs(postgres.admin, { purge: v.object({}) });
+const jobs = createJobs({
+  sql: postgres.admin,
+  queues: { purge: v.object({}) },
+});
 
 await jobs.schedule("retention", "0 4 * * *", "purge", {}).orThrow();
 

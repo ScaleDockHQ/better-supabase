@@ -35,7 +35,7 @@ describe("the temporal option of block creators", () => {
       () => createAuditLog({ transport, temporal: namespace }),
       () => createOutbox({ transport, source: "s", temporal: namespace }),
       () => createRateLimit(sql, { temporal: namespace }),
-      () => createJobs(sql, {}, { temporal: namespace }),
+      () => createJobs({ sql, queues: {}, temporal: namespace }),
       () =>
         createSettings({
           settings: defineSettings({}),

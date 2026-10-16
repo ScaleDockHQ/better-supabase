@@ -3,15 +3,17 @@ import type { Block, BlockOf } from "../define-block.ts";
 import { defineBlock } from "../define-block.ts";
 import { createIdempotency } from "./idempotency.ts";
 import { jobsSqlOptions, rateLimitSqlOptions } from "./options.ts";
+import { createJobs } from "./queue.ts";
 import { createRateLimit } from "./rate-limit.ts";
 
 /** The `jobs` block's manifest (ADR 0029). */
-export const jobsBlock: Block<"jobs"> = defineBlock({
+export const jobsBlock: BlockOf<"jobs", typeof createJobs> = defineBlock({
   name: "jobs",
   sql: ["jobs"],
   options: {
     jobs: jobsSqlOptions,
   },
+  create: createJobs,
   category: "platform",
 });
 

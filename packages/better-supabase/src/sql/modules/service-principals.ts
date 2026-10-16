@@ -14,13 +14,13 @@ import {
   fail,
   fieldsArg,
   fieldsArgs,
-  fieldsEntry,
+  extraFieldsJson,
   fieldsParam,
   lockTable,
   schemaPreamble,
   serviceGrant,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { checkRole, roleValue } from "./organizations.ts";
@@ -172,7 +172,7 @@ begin
   end if;
   insert into ${t} (${c("id")}, ${c("tenant")}, ${c("name")}, ${c("role")}, ${c("isDefault")}, ${c("createdBy")})
   values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,
-    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);${writeFields("register_service_principal.fields", t, c("id"), "register_service_principal.principal", extras)}${addMembership}
+    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);${writeExtraColumns(t, extras, "register_service_principal.fields", `x.${c("id")} = register_service_principal.principal`)}${addMembership}
   ${ctx.record({
     type: "service_principal.created",
     payload: `jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role)`,
@@ -298,7 +298,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', p.${c("id")}, 'name', p.${c("name")}, 'role', p.${c("role")}, 'isDefault', p.${c("isDefault")},
-    'createdBy', p.${c("createdBy")}, 'createdAt', p.${c("createdAt")}, 'disabledAt', p.${c("disabledAt")}${fieldsEntry("p", extras)}
+    'createdBy', p.${c("createdBy")}, 'createdAt', p.${c("createdAt")}, 'disabledAt', p.${c("disabledAt")}${extraFieldsJson("p", extras)}
   ) order by p.${c("name")}), '[]'::jsonb)
   from ${t} p
   where p.${c("tenant")} = service_principals_list.tenant

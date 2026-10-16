@@ -1,7 +1,11 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { fieldsEntry, organizationMissing, SERVICE_CALLER } from "../shared.ts";
+import {
+  extraFieldsJson,
+  organizationMissing,
+  SERVICE_CALLER,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 import {
   invitePlatform,
@@ -129,7 +133,7 @@ export function inviteJson(
     'inviter', ${inviter},`
         : ""
     }
-    'token', ${token}${fieldsEntry(row, t.extras)}
+    'token', ${token}${extraFieldsJson(row, t.extras)}
   ) || ${ctx.fn("invitation_extra")}(${c("id")}))`;
 }
 

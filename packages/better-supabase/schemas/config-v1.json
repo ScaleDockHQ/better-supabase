@@ -3096,7 +3096,8 @@
                 "items": {
                   "type": "string"
                 }
-              }
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -3130,7 +3131,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -3144,7 +3147,8 @@
             "properties": {
               "subjects": {},
               "handlers": {},
-              "publicLimit": {}
+              "publicLimit": {},
+              "extraColumns": {}
             }
           }
         }
@@ -3258,7 +3262,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },

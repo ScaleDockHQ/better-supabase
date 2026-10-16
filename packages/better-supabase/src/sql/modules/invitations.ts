@@ -8,7 +8,7 @@ import {
   fieldsArg,
   fieldsArgs,
   fieldsParam,
-  writeFields,
+  writeExtraColumns,
   memberAddedRecord,
   organizationMissing,
   renameSql,
@@ -402,7 +402,7 @@ begin
   returning * into created;${
     t.extras.length === 0
       ? ""
-      : `${writeFields("invite_member.fields", t.table, c("id"), `created.${c("id")}`, t.extras)}
+      : `${writeExtraColumns(t.table, t.extras, "invite_member.fields", `x.${c("id")} = created.${c("id")}`)}
   select * into created from ${t.table} i where i.${c("id")} = created.${c("id")};`
   }
   ${ctx.record({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `created.${c("id")}::text` } })}

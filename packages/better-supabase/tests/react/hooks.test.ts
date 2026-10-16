@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type * as ReactModule from "react";
 
 import { QueryClient } from "@tanstack/query-core";
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
@@ -24,15 +26,20 @@ import {
   useAiShare,
 } from "../../src/blocks/ai-chat/react/index.ts";
 import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
+import { usePlanPicker } from "../../src/blocks/billing/react/index.ts";
 import { useComments } from "../../src/blocks/comments/react/index.ts";
+import { useFeatureGate } from "../../src/blocks/entitlements/react/index.ts";
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
 import { useOrganizations } from "../../src/blocks/organizations/react/index.ts";
 import { useReactions } from "../../src/blocks/reactions/react/index.ts";
 import { useSavedViews } from "../../src/blocks/saved-views/react/index.ts";
+import { defineSettings } from "../../src/blocks/settings/index.ts";
+import { useSettings } from "../../src/blocks/settings/react/index.ts";
 import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
 import { undoToken } from "../../src/blocks/undo/undo.ts";
+import { useUsageMeter } from "../../src/blocks/usage/react/index.ts";
 import {
   useWorkflowBuilder,
   useWorkflowCanvasRun,
@@ -1499,6 +1506,196 @@ describe("useOrganizations", () => {
     expect(load).toHaveBeenCalledTimes(1);
     expect(view.result.organizations).toEqual([{ id: "org-2", plan: "pro" }]);
     expect(rpc).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+});
+
+describe("usePlanPicker", () => {
+  const catalog = {
+    plans: [
+      { key: "free", name: "Free" },
+      { key: "pro", name: "Pro" },
+    ],
+    current: "free",
+  };
+
+  it("loads the plans and opens the URL the checkout action returns", async () => {
+    const { browser } = fakeBrowser(signedIn(USER));
+    const load = vi.fn(async () => catalog);
+    const checkout = vi.fn(async (_plan: string) =>
+      ok<{ url: string | undefined }>({
+        url: "https://checkout.stripe.test/c/pay",
+      }),
+    );
+    const open = vi.fn();
+    const view = renderHook(
+      () => usePlanPicker({ load, checkout, open }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.active?.name).toBe("Free");
+    expect((await view.result.choose("pro")).ok).toBe(true);
+    expect(checkout).toHaveBeenCalledWith("pro");
+    expect(open).toHaveBeenCalledWith("https://checkout.stripe.test/c/pay");
+    view.unmount();
+  });
+
+  it("starts from the server's catalog", async () => {
+    const { browser } = fakeBrowser(signedIn(USER));
+    const load = vi.fn(async () => catalog);
+    const view = renderHook(
+      () =>
+        usePlanPicker({
+          load,
+          initial: { ...catalog, current: "pro" },
+          checkout: async () => ok({ url: undefined }),
+          open: () => undefined,
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect(view.result.active?.key).toBe("pro");
+    view.unmount();
+  });
+});
+
+describe("useUsageMeter", () => {
+  it("reads the organization's usage overview", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => [
+      {
+        meter: "api.calls",
+        used: 10,
+        limit: 40,
+        remaining: 30,
+        unlimited: false,
+        period: "month",
+        starts_at: "2026-10-01T00:00:00Z",
+        resets_at: "2026-11-01T00:00:00Z",
+      },
+    ]);
+    const view = renderHook(
+      (organizationId: string | null) =>
+        useUsageMeter({ organizationId, meters: ["api.calls"], schema: "api" }),
+      null as string | null,
+      { client: browser },
+    );
+    await flush();
+    expect(rpc).not.toHaveBeenCalled();
+    view.rerender("org-1");
+    await flush();
+    expect(rpc).toHaveBeenCalledWith("usage_overview", { tenant: "org-1" });
+    expect(view.result.meters?.[0]).toMatchObject({
+      meter: "api.calls",
+      fraction: 0.25,
+      exceeded: false,
+    });
+    view.unmount();
+  });
+});
+
+describe("useFeatureGate", () => {
+  it("opens when the session's plan gains the feature", async () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const view = renderHook(() => useFeatureGate("exports"), undefined, {
+      client: browser,
+    });
+    expect(view.result.allowed).toBeUndefined();
+    setAuth(signedIn(USER, { tenant_id: "org-1", features: { "org-1": [] } }));
+    await flush();
+    expect(view.result.allowed).toBe(false);
+    setAuth(
+      signedIn(USER, {
+        tenant_id: "org-1",
+        features: { "org-1": ["exports"] },
+      }),
+    );
+    await flush();
+    expect(view.result.allowed).toBe(true);
+    view.unmount();
+  });
+
+  it("checks another organization with a custom claim", async () => {
+    const { browser } = fakeBrowser(
+      signedIn(USER, { plan: { "org-2": ["e"] } }),
+    );
+    const view = renderHook(
+      () =>
+        useFeatureGate("exports", {
+          organizationId: "org-2",
+          claim: { claim: "plan", keys: { exports: "e" } },
+          tenantClaim: "org",
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.allowed).toBe(true);
+    view.unmount();
+  });
+});
+
+describe("useSettings", () => {
+  const settings = defineSettings({
+    user: {
+      digest: { schema: toStandardJsonSchema(v.boolean()), default: true },
+    },
+    organization: {
+      weekStart: {
+        schema: toStandardJsonSchema(v.picklist(["monday", "sunday"])),
+        default: "monday",
+      },
+    },
+  });
+
+  it("edits the caller's settings with fields from the definition", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, (fn) =>
+      fn === "get_user_settings" ? { digest: false } : null,
+    );
+    const view = renderHook(
+      () => useSettings(settings, { scope: "user" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.fields.map((field) => field.kind)).toEqual(["boolean"]);
+    expect(view.result.values).toEqual({ digest: false });
+    await view.result.set("digest", true);
+    await flush();
+    expect(rpc).toHaveBeenCalledWith("set_user_setting", {
+      key: "digest",
+      value: { value: true },
+    });
+    expect(view.result.values?.digest).toBe(true);
+    view.unmount();
+  });
+
+  it("waits for an organization", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => ({ weekStart: "sunday" }));
+    const view = renderHook(
+      (organizationId: string | null) =>
+        useSettings(settings, {
+          scope: "organization",
+          organizationId,
+          schema: "api",
+        }),
+      null as string | null,
+      { client: browser },
+    );
+    await flush();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(view.result.fields[0]?.choices).toEqual(["monday", "sunday"]);
+    view.rerender("org-1");
+    await flush();
+    expect(rpc).toHaveBeenCalledWith("get_organization_settings", {
+      tenant: "org-1",
+    });
+    expect(view.result.values?.weekStart).toBe("sunday");
     view.unmount();
   });
 });

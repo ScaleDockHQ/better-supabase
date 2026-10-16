@@ -2,7 +2,12 @@ import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, pageSize, fail, writeFields } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  pageSize,
+  fail,
+  writeExtraColumns,
+} from "../shared.ts";
 import { accessModel, OPERATIONS } from "./access-model.ts";
 import {
   channelDefaults,
@@ -378,7 +383,7 @@ begin
   if cardinality(v_recipients) = 0 then
     return null;
   end if;
-${keyed}${writeFields("(notification -> 'fields')", n.table("events"), e("id"), "v_event", n.extras)}
+${keyed}${writeExtraColumns(n.table("events"), n.extras, "(notification -> 'fields')", `x.${e("id")} = v_event`)}
 
   insert into ${n.table("recipients")} (${recipientColumns.join(", ")})
   select ${recipientValues.join(", ")}

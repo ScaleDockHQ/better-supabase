@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import {
-  createFlagAdmin,
+  createFlags,
   createFlagsProvider,
   type FlagContext,
   sqlTransport,
@@ -90,7 +90,7 @@ describe.skipIf(!live)("flags", () => {
       const staff = await s.user("staff");
       const organization = await s.organization(owner);
       const sql = sqlTransport(s.sql);
-      const admin = createFlagAdmin({
+      const admin = createFlags({
         transport: {
           call: (_schema, fn, args) => sql.call(api, fn, args),
         },

@@ -14,12 +14,12 @@ import {
   fail,
   fieldsArg,
   fieldsArgs,
-  fieldsEntry,
+  extraFieldsJson,
   fieldsParam,
   lockTable,
   schemaPreamble,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   type Subject,
@@ -401,7 +401,7 @@ ${canonical("link")}
     ${event("subject.linked", "v_id", "link.tenant")}
   elsif link.data is not null then
     update ${relations} set ${data} = link.data where ${id} = v_id;
-  end if;${writeFields("link.fields", relations, id, "v_id", extras)}
+  end if;${writeExtraColumns(relations, extras, "link.fields", `x.${id} = v_id`)}
   ${ctx.hook("after_relation_link", [["uuid", "v_id"]])}
   return jsonb_build_object(
     'id', v_id, 'kind', v_kind, 'created', v_created,
@@ -512,7 +512,7 @@ as $$
     'id', r.${id}, 'kind', r.${kind},
     'sourceType', r.${sourceType}, 'sourceId', r.${sourceId},
     'targetType', r.${targetType}, 'targetId', r.${targetId},
-    'data', r.${data}${fieldsEntry("r", extras)}
+    'data', r.${data}${extraFieldsJson("r", extras)}
   ) order by r.${createdAt}, r.${id}), '[]'::jsonb)
   from (
     select * from ${relations} r

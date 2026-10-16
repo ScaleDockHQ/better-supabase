@@ -14,12 +14,12 @@ import {
   fail,
   fieldsArg,
   fieldsArgs,
-  fieldsEntry,
+  extraFieldsJson,
   fieldsParam,
   lockTable,
   schemaPreamble,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -259,7 +259,7 @@ begin
       ${updatedAt} = now()
     where ${id} = v_id
     returning ${rank} into v_rank;
-  end if;${writeFields("save_view.fields", views, id, "v_id", extras)}
+  end if;${writeExtraColumns(views, extras, "save_view.fields", `x.${id} = v_id`)}
   ${ctx.record({
     type: "saved_view.saved",
     payload: `jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name)`,
@@ -298,7 +298,7 @@ as $$
     'state', v.${state},
     'rank', v.${rank},
     'isDefault', v.${isDefault},
-    'updatedAt', v.${updatedAt}${fieldsEntry("v", extras)}${preferences?.json ?? ""}
+    'updatedAt', v.${updatedAt}${extraFieldsJson("v", extras)}${preferences?.json ?? ""}
   ) order by v.${rank} collate "C", v.${id}), '[]'::jsonb)
   from ${views} v${preferences?.join ?? ""}
   where v.${tenant} = list_views.tenant and v.${list} = list_views.list

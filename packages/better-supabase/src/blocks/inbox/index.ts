@@ -11,6 +11,7 @@ export type {
   CreateInboxInput,
   InboundInput,
   Inbox,
+  InboxHooks,
   InboxOptions,
   InboxPatch,
   MessageInput,

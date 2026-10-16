@@ -11,14 +11,14 @@ import {
   addExtraColumns,
   fieldsArg,
   fieldsArgs,
-  fieldsEntry,
+  extraFieldsJson,
   fieldsParam,
   schemaPreamble,
   SERVICE_CALLER,
   revokeTable,
   fail,
   raise,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 
 const EVENTS: ModuleEvents<PushEvents> = {
@@ -172,7 +172,7 @@ begin
     ${c("deviceName")} = coalesce(excluded.${c("deviceName")}, x.${c("deviceName")}),
     ${c("appVersion")} = coalesce(excluded.${c("appVersion")}, x.${c("appVersion")}),
     ${c("lastSeenAt")} = now()
-  returning x.${c("id")}, (x.xmax = 0) into v_id, v_new;${writeFields("register_push_device.fields", d, c("id"), "v_id", extras)}
+  returning x.${c("id")}, (x.xmax = 0) into v_id, v_new;${writeExtraColumns(d, extras, "register_push_device.fields", `x.${c("id")} = v_id`)}
   if v_new then
     ${registered}
   end if;
@@ -222,7 +222,7 @@ begin${serviceOnly("push_tokens_for.users")}
       'userId', x.${c("user")},
       'token', x.${c("token")},
       'platform', x.${c("platform")},
-      'provider', x.${c("provider")}${fieldsEntry("x", extras)}
+      'provider', x.${c("provider")}${extraFieldsJson("x", extras)}
     ) order by x.${c("user")}, x.${c("lastSeenAt")} desc), '[]'::jsonb)
     from ${d} x
     where x.${c("user")} = any (push_tokens_for.users)

@@ -91,7 +91,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read'
 
 -- Logs an engagement on the records in subjects ([{ type, id }], the first
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
--- doneAt, durationSeconds, externalRef. A known externalRef updates instead.
+-- doneAt, durationSeconds, externalRef and fields (the extra columns by
+-- name). A known externalRef updates instead.
 create or replace function "better_supabase"."log_engagement"(tenant uuid, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
@@ -491,7 +492,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read'
 
 -- Logs an engagement on the records in subjects ([{ type, id }], the first
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
--- doneAt, durationSeconds, externalRef. A known externalRef updates instead.
+-- doneAt, durationSeconds, externalRef and fields (the extra columns by
+-- name). A known externalRef updates instead.
 create or replace function "better_supabase"."log_engagement"(tenant uuid, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
@@ -927,7 +929,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read'
 
 -- Logs an engagement on the records in subjects ([{ type, id }], the first
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
--- doneAt, durationSeconds, externalRef. A known externalRef updates instead.
+-- doneAt, durationSeconds, externalRef and fields (the extra columns by
+-- name). A known externalRef updates instead.
 create or replace function "app_private"."log_engagement"(tenant uuid, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql
@@ -1327,7 +1330,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read'
 
 -- Logs an engagement on the records in subjects ([{ type, id }], the first
 -- is its main record). attrs: type, title, body, outcome, ownerId, dueAt,
--- doneAt, durationSeconds, externalRef. A known externalRef updates instead.
+-- doneAt, durationSeconds, externalRef and fields (the extra columns by
+-- name). A known externalRef updates instead.
 create or replace function "better_supabase"."log_engagement"(tenant uuid, attrs jsonb, subjects jsonb)
 returns jsonb
 language plpgsql

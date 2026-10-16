@@ -3,11 +3,11 @@ import type { ModuleContext } from "../context.ts";
 import {
   fail,
   fieldsArg,
-  fieldsEntry,
+  extraFieldsJson,
   fieldsParam,
   serviceGrant,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import {
   type OrdersNames,
@@ -91,7 +91,7 @@ as $$
         'id', y.${rf("id")}, 'paymentId', y.${rf("payment")}, 'returnId', y.${rf("return")}, 'amount', ${text("y", rf("amount"))},
         'status', y.${rf("status")}, 'reason', y.${rf("reason")}, 'providerReference', y.${rf("providerReference")},
         'createdAt', y.${rf("createdAt")}, 'completedAt', y.${rf("completedAt")}) order by y.${rf("createdAt")})
-      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${fieldsEntry("x", names.extras)})
+      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${extraFieldsJson("x", names.extras)})
   from ${ctx.table("orders")} x where x.${o("id")} = p_order
 $$;
 revoke execute on function ${names.fn("order_json")}(uuid) from public, anon, authenticated;
@@ -292,7 +292,7 @@ begin
     (v_priced ->> 'subtotal')::bigint, (v_priced ->> 'discountTotal')::bigint, (v_priced ->> 'shippingTotal')::bigint,
     v_tax, v_total, v_inclusive, v_cart.shipping_address, v_cart.billing_address, v_priced -> 'shipping',
     v_priced -> 'promotions', place_order.tax)
-  returning ${o("id")} into v_id;${writeFields("place_order.fields", orders, o("id"), "v_id", names.extras)}
+  returning ${o("id")} into v_id;${writeExtraColumns(orders, names.extras, "place_order.fields", `x.${o("id")} = v_id`)}
   insert into ${ctx.table("orderLines")} (${ol("tenant")}, ${ol("order")}, ${ol("position")}, ${ol("variant")}, ${ol("product")}, ${ol("sku")}, ${ol("title")},
     ${ol("quantity")}, ${ol("unitAmount")}, ${ol("subtotal")}, ${ol("discount")}, ${ol("tax")}, ${ol("total")}, ${ol("requiresShipping")})
   select v_cart.tenant, v_id, e.n, (e.l ->> 'variantId')::uuid, (e.l ->> 'productId')::uuid, e.l ->> 'sku', e.l ->> 'title',

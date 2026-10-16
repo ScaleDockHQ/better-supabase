@@ -48,9 +48,13 @@ export interface AuthorizationFunctions {
    * Whether the caller may approve the request `{subject}` (text) of kind
    * `{kind}` (a text literal: `'ai-tool'` with the tool name as `{subject}`,
    * `'support-session'` with the request id, or the app's own kind) in
-   * `{tenant}`. It replaces each module's own eligibility check; the
-   * requester is refused before it runs. Without it a module falls back to
-   * its default approver (the chat's owner, a platform permission).
+   * `{tenant}`. `{requester}` is the uuid of the user who asked (the
+   * approval's `requested_by`, the support admin, the chat's owner), or
+   * `null`; a provider that resolves out-of-office covers reads it to
+   * refuse a cover by the requester's own delegator. It replaces each
+   * module's own eligibility check; the requester is refused before it
+   * runs. Without it a module falls back to its default approver (the
+   * chat's owner, a platform permission).
    */
   readonly isApprover?: string;
   /**

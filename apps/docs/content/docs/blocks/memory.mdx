@@ -140,3 +140,10 @@ records.
 [`better-supabase/ai-sdk/memory`](/docs/ai-sdk/memory) gives the model the
 memory tool, a recall tool, core memory in its instructions and a job that
 extracts facts from a conversation.
+
+## Hooks
+
+`createMemory` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)). Methods in a group take their hooks under the group's name,
+such as `hooks: { core: { write: { before } } }`.

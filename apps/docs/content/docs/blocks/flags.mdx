@@ -57,7 +57,7 @@ The reason in each result follows OpenFeature: `DISABLED`,
 
 ### Managing flags from an admin page
 
-`createFlagAdmin` manages flags for platform staff with `flags.manage` (the
+`createFlags` manages flags for platform staff with `flags.manage` (the
 module's `manage` permission, checked with `is_platform()` when the
 [access](/docs/blocks/access) module is installed) or the service role. It
 calls `list_flags`, `save_flag`, `delete_flag` and `set_flag_override`,
@@ -66,9 +66,9 @@ database through the Data API manages flags with `blocks.flags.api`
 and `rpcTransport`:
 
 ```ts
-import { createFlagAdmin, rpcTransport } from "better-supabase/blocks/flags";
+import { createFlags, rpcTransport } from "better-supabase/blocks/flags";
 
-const admin = createFlagAdmin({
+const admin = createFlags({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 
@@ -80,6 +80,31 @@ const flags = await admin.list().orThrow();
 
 `save` creates the flag or updates the fields you pass and keeps the rest.
 Anyone else gets `FLAGS_FORBIDDEN`.
+
+### Your own fields and hooks
+
+`blocks.flags.options.extraColumns` adds columns to the flags table, such as
+an owner or a ticket. `save` writes them from `fields`, and `list`, `save`
+and `flag_definitions()` return them under `fields`. Pass a Standard Schema
+as `fields` to type them, parse them on reads and validate them on `save`,
+and `hooks` to run code around a method (see
+[extending blocks](/docs/extending/blocks)):
+
+```ts
+import { z } from "zod";
+
+const admin = createFlags({
+  transport: rpcTransport(supabase, { schema: "api" }),
+  fields: z.object({ owner: z.string().email() }),
+  hooks: {
+    save: {
+      after: (result, [key]) => console.info("flag saved", key, result.ok),
+    },
+  },
+});
+
+await admin.save("new_editor", { fields: { owner: "ana@acme.test" } });
+```
 
 ## In policies
 
@@ -169,7 +194,7 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 | `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                 |
 | `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                 |
 | `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                    |
-| `createFlagAdmin(opts)`     | `list`, `save`, `remove` and `override` for platform staff or the service role   |
+| `createFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role   |
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).

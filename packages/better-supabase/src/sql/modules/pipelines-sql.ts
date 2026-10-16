@@ -9,7 +9,7 @@ import {
   fieldsArg,
   fieldsParam,
   userGrant,
-  writeFields,
+  writeExtraColumns,
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import {
@@ -448,7 +448,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("PIPELINE_KEY_TAKEN", "another pipeline of this type has this key", "23505")}
-  end;${writeFields("save_pipeline.fields", t("pipelines"), p("id"), "v_pipeline", names.extras)}
+  end;${writeExtraColumns(t("pipelines"), names.extras, "save_pipeline.fields", `x.${p("id")} = v_pipeline`)}
   if v_created then
     ${configured("pipeline.created", "jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)", "'pipelines/' || v_pipeline::text", "save_pipeline.tenant::text", "'created pipeline ' || save_pipeline.name")}
   else

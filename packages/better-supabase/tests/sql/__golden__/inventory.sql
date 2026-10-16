@@ -262,8 +262,10 @@ drop trigger if exists stock_movements_append_only on "better_supabase"."stock_m
 create trigger stock_movements_append_only before update on "better_supabase"."stock_movements"
 for each row execute function "better_supabase"."stock_movements_append_only"();
 
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists "better_supabase"."save_location"(uuid, uuid, text, text, text);
+create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -305,8 +307,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -1390,8 +1392,10 @@ drop trigger if exists stock_movements_append_only on "better_supabase"."stock_m
 create trigger stock_movements_append_only before update on "better_supabase"."stock_movements"
 for each row execute function "better_supabase"."stock_movements_append_only"();
 
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists "better_supabase"."save_location"(uuid, uuid, text, text, text);
+create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1433,8 +1437,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -2520,8 +2524,10 @@ drop trigger if exists stock_movements_append_only on "app_private"."stock_movem
 create trigger stock_movements_append_only before update on "app_private"."stock_movements"
 for each row execute function "app_private"."stock_movements_append_only"();
 
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function "app_private"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists "app_private"."save_location"(uuid, uuid, text, text, text);
+create or replace function "app_private"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2563,8 +2569,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "app_private"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "app_private"."set_location_active"(location uuid, active boolean)
@@ -3648,8 +3654,10 @@ drop trigger if exists stock_movements_append_only on "better_supabase"."stock_m
 create trigger stock_movements_append_only before update on "better_supabase"."stock_movements"
 for each row execute function "better_supabase"."stock_movements_append_only"();
 
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists "better_supabase"."save_location"(uuid, uuid, text, text, text);
+create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3691,8 +3699,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -4491,6 +4499,8 @@ grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to aut
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_location"(uuid, uuid, text, text, text);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -4509,14 +4519,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+create or replace function "api"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_location"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "api"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."save_location"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_location_active"(location uuid, active boolean)
 returns boolean
@@ -4791,8 +4801,10 @@ drop trigger if exists stock_movements_append_only on "better_supabase"."stock_m
 create trigger stock_movements_append_only before update on "better_supabase"."stock_movements"
 for each row execute function "better_supabase"."stock_movements_append_only"();
 
--- Creates a location (location null) or updates one. Returns its id, code and active flag.
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text)
+-- Creates a location (location null) or updates one, with the extra columns
+-- in fields by name. Returns its id, code and active flag.
+drop function if exists "better_supabase"."save_location"(uuid, uuid, text, text, text);
+create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4834,8 +4846,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
