@@ -1,7 +1,11 @@
+import type { ExtraFields, FieldsOf } from "../../core/block-fields.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AuthorizationHooks } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -48,7 +52,8 @@ export type WorkflowNodeRunStatus =
   | "failed"
   | "skipped";
 
-export interface WorkflowDefinition {
+/** A definition. `F` types the extra columns the `fields` schema describes. */
+export interface WorkflowDefinition<F extends object = Record<never, never>> {
   readonly id: string;
   readonly tenant: string | undefined;
   readonly slug: string;
@@ -79,6 +84,8 @@ export interface WorkflowDefinition {
   readonly behind?: boolean;
   /** Whether the listed tenant opted out of it (lists with a tenant only). */
   readonly optedOut?: boolean;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface WorkflowDefinitionGrant {
@@ -224,7 +231,20 @@ export type GraphCompiler = ((graph: WorkflowGraph) => unknown) & {
   readonly apiVersion?: 1;
 };
 
-export interface BuilderOptions extends BlockTemporalOptions {
+export interface BuilderOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the definition's extra columns
+   * (`blocks.workflow-builder.options.extraColumns`), keyed by database
+   * name. It types and parses them on the `definitions` reads, and
+   * validates them on `definitions.save`.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around `run`, `test` and the methods of each group. */
+  readonly hooks?: NoInfer<WorkflowBuilderHooks<FieldsOf<S>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
   /** The caller's transport: RLS and the module's permissions apply. */
   readonly transport: BlockTransport;
   /**
@@ -272,7 +292,7 @@ export interface PublishOptions {
   readonly claims?: Readonly<Record<string, unknown>>;
 }
 
-export interface DefinitionInput {
+export interface DefinitionInput<F extends object = Record<never, never>> {
   readonly tenant?: string;
   /** Lowercase letters, digits and dashes; saving the same slug again renames it. */
   readonly slug: string;
@@ -287,6 +307,8 @@ export interface DefinitionInput {
   readonly scope?: WorkflowDefinitionScope;
   /** Changing it needs `workflow.admin`. Left out keeps the stored value. */
   readonly restricted?: boolean;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export interface TriggerInput {
@@ -388,9 +410,21 @@ export interface VersionSaveOptions {
   readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
 
-export interface WorkflowBuilder {
+/** Hooks for `run` and `test`, and for the methods of each group of `WorkflowBuilder`. */
+export type WorkflowBuilderHooks<F extends object = Record<never, never>> =
+  BlockHooks<Pick<WorkflowBuilder<F>, "run" | "test">> & {
+    readonly definitions?: BlockHooks<WorkflowBuilder<F>["definitions"]>;
+    readonly versions?: BlockHooks<WorkflowBuilder<F>["versions"]>;
+    readonly triggers?: BlockHooks<WorkflowBuilder<F>["triggers"]>;
+    readonly credentials?: BlockHooks<WorkflowBuilder<F>["credentials"]>;
+    readonly steps?: BlockHooks<WorkflowBuilder<F>["steps"]>;
+    readonly nodeRuns?: BlockHooks<WorkflowBuilder<F>["nodeRuns"]>;
+    readonly alerts?: BlockHooks<WorkflowBuilder<F>["alerts"]>;
+  };
+
+export interface WorkflowBuilder<F extends object = Record<never, never>> {
   readonly definitions: {
-    save(input: DefinitionInput): AsyncResult<WorkflowDefinition>;
+    save(input: DefinitionInput<F>): AsyncResult<WorkflowDefinition<F>>;
     /**
      * The tenant's definitions; with a tenant, the system definitions too,
      * marked `optedOut` when it opted out. `subjectType` keeps the ones
@@ -399,8 +433,8 @@ export interface WorkflowBuilder {
     list(
       tenant?: string,
       filter?: { readonly subjectType?: string },
-    ): AsyncResult<readonly WorkflowDefinition[]>;
-    get(id: string): AsyncResult<WorkflowDefinition | undefined>;
+    ): AsyncResult<readonly WorkflowDefinition<F>[]>;
+    get(id: string): AsyncResult<WorkflowDefinition<F> | undefined>;
     remove(id: string): AsyncResult<boolean>;
     /**
      * Copies a system definition's (or the tenant's own) published graph
@@ -411,7 +445,7 @@ export interface WorkflowBuilder {
       readonly source: string;
       readonly tenant: string;
       readonly slug: string;
-    }): AsyncResult<WorkflowDefinition>;
+    }): AsyncResult<WorkflowDefinition<F>>;
     /** Opts a tenant out of a definition, or back in with `optedOut: false` (`workflow.admin`). */
     optOut(input: {
       readonly tenant: string;

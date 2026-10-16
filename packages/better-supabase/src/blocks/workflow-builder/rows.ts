@@ -89,6 +89,7 @@ export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
     ...("optedOut" in row && typeof row["optedOut"] === "boolean"
       ? { optedOut: row["optedOut"] }
       : {}),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 

@@ -12,7 +12,13 @@ import type {
 } from "./outgoing-types.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
-import { budget, seconds, toBlockError } from "../../core/block-helpers.ts";
+import {
+  blockCall,
+  budget,
+  seconds,
+  toBlockError,
+} from "../../core/block-helpers.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
@@ -157,21 +163,12 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   const httpTransport = (): WebhookTransport =>
     (http ??= fetchTransport({ allowUrl: options.allowUrl ?? publicUrl() }));
 
-  const call = (fn: string, args: Readonly<Record<string, unknown>>) =>
-    transport.call(schema, fn, args);
-
-  function run<T>(
-    fn: () => Promise<unknown>,
-    then: (value: unknown) => T,
-  ): AsyncResult<T> {
-    return AsyncResult.from(async () => {
-      try {
-        return ok(then(await fn()));
-      } catch (cause) {
-        return err(toBlockError(cause, mappers));
-      }
-    });
-  }
+  const db = blockCall(transport, schema, mappers);
+  /** A call the worker needs to go on: it throws the mapped `DbError`. */
+  const call = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): Promise<unknown> => db(fn, args, (value) => value).orThrow();
 
   const emitEvent = blockEmitter<WebhooksEvents>(options);
 
@@ -495,51 +492,51 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   }
 
   const purge: Webhooks["purge"] = (purgeOptions = {}) =>
-    run(
-      () =>
-        call("purge_webhook_deliveries", {
-          older_than:
-            purgeOptions.olderThan === undefined
-              ? undefined
-              : seconds(purgeOptions.olderThan),
-          include_dead: purgeOptions.includeDead,
-          batch: purgeOptions.batch,
-        }),
+    db(
+      "purge_webhook_deliveries",
+      {
+        older_than:
+          purgeOptions.olderThan === undefined
+            ? undefined
+            : seconds(purgeOptions.olderThan),
+        include_dead: purgeOptions.includeDead,
+        batch: purgeOptions.batch,
+      },
       (value) => Number(value ?? 0),
     );
 
-  return {
+  const client: Webhooks = {
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
     publish: (event) =>
-      run(
-        () =>
-          call("publish_webhook_event", {
-            event_type: event.type,
-            payload: event.data ?? {},
-            tenant: event.tenant ?? null,
-            event_id: event.id ?? null,
-            ...(event.subject === undefined ? {} : { subject: event.subject }),
-            ...(event.readPermission === undefined
-              ? {}
-              : { read_permission: event.readPermission }),
-          }),
+      db(
+        "publish_webhook_event",
+        {
+          event_type: event.type,
+          payload: event.data ?? {},
+          tenant: event.tenant ?? null,
+          event_id: event.id ?? null,
+          ...(event.subject === undefined ? {} : { subject: event.subject }),
+          ...(event.readPermission === undefined
+            ? {}
+            : { read_permission: event.readPermission }),
+        },
         Number,
       ),
     dispatch: (input) =>
-      run(
-        () =>
-          call("dispatch_webhook", {
-            endpoint: input.endpointId,
-            event_type: input.type,
-            payload: input.data ?? {},
-            run_id: input.runId ?? null,
-            event_id: input.eventId ?? null,
-          }),
+      db(
+        "dispatch_webhook",
+        {
+          endpoint: input.endpointId,
+          event_type: input.type,
+          payload: input.data ?? {},
+          run_id: input.runId ?? null,
+          event_id: input.eventId ?? null,
+        },
         String,
       ),
     redeliver: (deliveryId) =>
-      run(() => call("redeliver_webhook", { delivery: deliveryId }), String),
+      db("redeliver_webhook", { delivery: deliveryId }, String),
     rotateSecret(endpointId, rotateOptions) {
       if (!store.rotate) {
         return AsyncResult.err(
@@ -547,7 +544,13 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         );
       }
       const rotate = store.rotate.bind(store);
-      return run(() => rotate(endpointId, rotateOptions), String);
+      return AsyncResult.from(async () => {
+        try {
+          return ok(await rotate(endpointId, rotateOptions));
+        } catch (cause) {
+          return err(toBlockError(cause, mappers));
+        }
+      });
     },
     deliver,
     deliverRoute(routeOptions) {
@@ -591,4 +594,8 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       };
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "webhooks",
+    ...(options.events ? { logger: options.events.logger } : {}),
+  });
 }

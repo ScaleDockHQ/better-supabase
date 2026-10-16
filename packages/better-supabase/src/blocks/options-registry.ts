@@ -200,6 +200,10 @@ import {
   type TemplatesSqlOptions,
   templatesSqlOptions,
 } from "./templates/options.ts";
+import {
+  type WorkflowBuilderSqlOptions,
+  workflowBuilderSqlOptions,
+} from "./workflow-builder/options.ts";
 import { type TenantSqlOptions, tenantSqlOptions } from "./tenant/options.ts";
 import {
   type TimeTrackingSqlOptions,
@@ -343,7 +347,7 @@ export interface BlockOptionsRegistry {
   readonly "webhooks-in": WebhooksInSqlOptions;
   readonly "webhooks-out": WebhooksOutSqlOptions;
   readonly "work-items": WorkItemsSqlOptions;
-  readonly "workflow-builder": None;
+  readonly "workflow-builder": WorkflowBuilderSqlOptions;
   readonly "workflow-sdk-world": WorkflowSdkWorldSqlOptions;
   readonly workflows: None;
 }
@@ -455,7 +459,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "webhooks-in": webhooksInSqlOptions,
   "webhooks-out": webhooksOutSqlOptions,
   "work-items": workItemsSqlOptions,
-  "workflow-builder": NO_OPTIONS,
+  "workflow-builder": workflowBuilderSqlOptions,
   "workflow-sdk-world": workflowSdkWorldSqlOptions,
   workflows: NO_OPTIONS,
 };

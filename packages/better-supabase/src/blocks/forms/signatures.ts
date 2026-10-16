@@ -1,16 +1,22 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
+  type BlockOptions,
   enumOrThrow,
   instantArg,
+  isRecord,
   optionalInstant,
   optionalText,
   recordOf,
@@ -19,15 +25,20 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface SignaturesOptions extends BlockTemporalOptions {
-  readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
-  readonly schema?: string;
+export interface SignaturesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the request's extra columns
+   * (`blocks.signatures.options.extraColumns`), keyed by database name. It
+   * types and parses them on the request reads, and validates them on
+   * `request`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: BlockHooks<Signatures>;
+  readonly hooks?: NoInfer<BlockHooks<Signatures<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-  readonly mappers?: readonly ErrorMapper[];
 }
 
 export type SignatureMethod = "drawn" | "typed" | "click";
@@ -38,7 +49,8 @@ export type SignatureRequestStatus =
   | "declined"
   | "cancelled";
 
-export interface SignatureRequest {
+/** A request. `F` types the extra columns the `fields` schema describes. */
+export interface SignatureRequest<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly subjectType: string;
@@ -55,6 +67,8 @@ export interface SignatureRequest {
   readonly requestedBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly completedAt?: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface Signature {
@@ -88,12 +102,16 @@ export interface SignatureVerification {
 }
 
 /** A request with its signatures and their verification, from `get`. */
-export interface SignatureRequestDetail extends SignatureRequest {
+export interface SignatureRequestDetail<
+  F extends object = Record<never, never>,
+> extends SignatureRequest<F> {
   readonly signatures: readonly Signature[];
   readonly verification: SignatureVerification;
 }
 
-export interface SignatureRequestInput {
+export interface SignatureRequestInput<
+  F extends object = Record<never, never>,
+> {
   readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
@@ -106,6 +124,8 @@ export interface SignatureRequestInput {
   /** An approval request on the same record that a signer's signature decides. */
   readonly approvalRequestId?: string;
   readonly message?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export type SignInput =
@@ -124,22 +144,25 @@ export interface SignatureRequestListOptions {
   readonly before?: Temporal.Instant;
 }
 
-export interface Signatures {
-  request(input: SignatureRequestInput): AsyncResult<SignatureRequest>;
+export interface Signatures<F extends object = Record<never, never>> {
+  request(input: SignatureRequestInput<F>): AsyncResult<SignatureRequest<F>>;
   sign(
     requestId: string,
     input: SignInput,
   ): AsyncResult<
     Signature & { readonly requestStatus: SignatureRequestStatus }
   >;
-  decline(requestId: string, reason?: string): AsyncResult<SignatureRequest>;
-  cancel(requestId: string): AsyncResult<SignatureRequest>;
-  get(requestId: string): AsyncResult<SignatureRequestDetail>;
+  decline(
+    requestId: string,
+    reason?: string,
+  ): AsyncResult<SignatureRequest<F>>;
+  cancel(requestId: string): AsyncResult<SignatureRequest<F>>;
+  get(requestId: string): AsyncResult<SignatureRequestDetail<F>>;
   /** Newest first. */
   list(
     organizationId: string,
     options?: SignatureRequestListOptions,
-  ): AsyncResult<readonly SignatureRequest[]>;
+  ): AsyncResult<readonly SignatureRequest<F>[]>;
 }
 
 const STATUSES: readonly SignatureRequestStatus[] = [
@@ -181,6 +204,7 @@ function requestOf(value: unknown, fn: string): SignatureRequest {
     ...optional("message", optionalText(row["message"])),
     ...optional("requestedBy", optionalText(row["requestedBy"])),
     ...optional("completedAt", optionalInstant(row["completedAt"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -216,24 +240,34 @@ function verificationOf(value: unknown, fn: string): SignatureVerification {
 }
 
 /** The `signatures` SQL module as typed calls. */
-export function createSignatures(options: SignaturesOptions): Signatures {
+export function createSignatures<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: SignaturesOptions<S>): Signatures<FieldsOf<S>> {
+  type F = FieldsOf<S>;
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const client: Signatures = {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "signature request fields",
+  );
+  const client: Signatures<F> = {
     request: (input) =>
-      call(
-        "create_signature_request",
-        {
-          tenant: input.organizationId,
-          subject_type: input.subjectType,
-          subject_id: input.subjectId,
-          signers: input.signers,
-          version_id: input.versionId ?? null,
-          sign_order: input.order ?? "parallel",
-          approval_request_id: input.approvalRequestId ?? null,
-          message: input.message ?? null,
-        },
-        (value) => requestOf(value, "create_signature_request"),
+      fields.args(input.fields).andThen((checked) =>
+        call(
+          "create_signature_request",
+          {
+            tenant: input.organizationId,
+            subject_type: input.subjectType,
+            subject_id: input.subjectId,
+            signers: input.signers,
+            version_id: input.versionId ?? null,
+            sign_order: input.order ?? "parallel",
+            approval_request_id: input.approvalRequestId ?? null,
+            message: input.message ?? null,
+            fields: checked,
+          },
+          (value) => requestOf(value, "create_signature_request"),
+        ).andThen(fields.row),
       ),
     sign: (requestId, input) =>
       call(
@@ -259,11 +293,11 @@ export function createSignatures(options: SignaturesOptions): Signatures {
         "decline_signature_request",
         { request_id: requestId, reason: reason ?? null },
         (value) => requestOf(value, "decline_signature_request"),
-      ),
+      ).andThen(fields.row),
     cancel: (requestId) =>
       call("cancel_signature_request", { request_id: requestId }, (value) =>
         requestOf(value, "cancel_signature_request"),
-      ),
+      ).andThen(fields.row),
     get: (requestId) =>
       call("get_signature_request", { request_id: requestId }, (value) => {
         const row = recordOf(value, "get_signature_request");
@@ -277,7 +311,7 @@ export function createSignatures(options: SignaturesOptions): Signatures {
             "get_signature_request",
           ),
         };
-      }),
+      }).andThen(fields.row),
     list: (organizationId, list = {}) =>
       call(
         "list_signature_requests",
@@ -294,7 +328,7 @@ export function createSignatures(options: SignaturesOptions): Signatures {
           recordsOf(value, "list_signature_requests").map((row) =>
             requestOf(row, "list_signature_requests"),
           ),
-      ),
+      ).andThen(fields.rows),
   };
   return withBlockHooks(client, options.hooks, {
     block: "signatures",

@@ -1,7 +1,10 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { RunState } from "../../core/run-state.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { type AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { assertCron, nextCronRun } from "../jobs/cron.ts";
@@ -200,6 +203,21 @@ export interface WorkflowsOptions extends BlockTemporalOptions {
   /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * `withBlockHooks` hooks around the methods of each group, such as a rule
+   * on who may create a schedule: `{ schedules: { create: { before } } }`.
+   */
+  readonly hooks?: WorkflowsHooks;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
+}
+
+/** Hooks for the methods of each group of `Workflows`. */
+export interface WorkflowsHooks {
+  readonly runs?: BlockHooks<Workflows["runs"]>;
+  readonly schedules?: BlockHooks<Workflows["schedules"]>;
+  readonly semaphores?: BlockHooks<Workflows["semaphores"]>;
+  readonly admission?: BlockHooks<Workflows["admission"]>;
 }
 
 export interface Workflows {
@@ -394,7 +412,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
       return ok({ started, failed });
     });
 
-  return {
+  const client: Workflows = {
     runs: {
       list: (query = {}) =>
         call(
@@ -584,5 +602,25 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
           };
         }),
     },
+  };
+  const hooks = options.hooks ?? {};
+  const logger = options.logger ? { logger: options.logger } : {};
+  return {
+    runs: withBlockHooks(client.runs, hooks.runs, {
+      block: "workflows.runs",
+      ...logger,
+    }),
+    schedules: withBlockHooks(client.schedules, hooks.schedules, {
+      block: "workflows.schedules",
+      ...logger,
+    }),
+    semaphores: withBlockHooks(client.semaphores, hooks.semaphores, {
+      block: "workflows.semaphores",
+      ...logger,
+    }),
+    admission: withBlockHooks(client.admission, hooks.admission, {
+      block: "workflows.admission",
+      ...logger,
+    }),
   };
 }

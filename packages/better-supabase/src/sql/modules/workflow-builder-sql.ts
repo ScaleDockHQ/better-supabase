@@ -10,6 +10,7 @@ import { NOTHING } from "../context.ts";
 import {
   SERVICE_CALLER,
   activeMembership,
+  extraFieldsJson,
   serviceGrant,
   fail,
 } from "../shared.ts";
@@ -232,7 +233,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${cd("createdBy")},
     'createdAt', ${alias}.${cd("createdAt")},
     'updatedAt', ${alias}.${cd("updatedAt")}
-  )`;
+  )${extraFieldsJson(alias, ctx.extraColumns("definitions", ["fields"]))}`;
   const versionJson = (
     alias: string,
     full: boolean,
