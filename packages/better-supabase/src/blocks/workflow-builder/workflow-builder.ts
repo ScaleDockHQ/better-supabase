@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -19,8 +20,6 @@ import type {
   WorkflowTrigger,
   WorkflowVersion,
 } from "./types.ts";
-
-import type { StandardSchemaV1 } from "../../core/standard.ts";
 
 import {
   type BlockFields,
@@ -788,15 +787,27 @@ function hooked<F extends object>(
       hooks.definitions,
       block("definitions"),
     ),
-    versions: withBlockHooks(builder.versions, hooks.versions, block("versions")),
-    triggers: withBlockHooks(builder.triggers, hooks.triggers, block("triggers")),
+    versions: withBlockHooks(
+      builder.versions,
+      hooks.versions,
+      block("versions"),
+    ),
+    triggers: withBlockHooks(
+      builder.triggers,
+      hooks.triggers,
+      block("triggers"),
+    ),
     credentials: withBlockHooks(
       builder.credentials,
       hooks.credentials,
       block("credentials"),
     ),
     steps: withBlockHooks(builder.steps, hooks.steps, block("steps")),
-    nodeRuns: withBlockHooks(builder.nodeRuns, hooks.nodeRuns, block("nodeRuns")),
+    nodeRuns: withBlockHooks(
+      builder.nodeRuns,
+      hooks.nodeRuns,
+      block("nodeRuns"),
+    ),
     alerts: withBlockHooks(builder.alerts, hooks.alerts, block("alerts")),
   };
 }

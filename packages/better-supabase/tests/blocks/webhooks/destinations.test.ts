@@ -76,9 +76,10 @@ describe("incoming destinations", () => {
         (call) => {
           const key = `${String(call.values[0])}:${String(call.values[1])}:${String(call.values[5])}`;
           const seen = stored.get(key);
-          if (seen !== undefined) return [{ id: seen, duplicate: true }];
+          if (seen !== undefined)
+            return [{ value: { id: seen, duplicate: true } }];
           stored.set(key, stored.size + 1);
-          return [{ id: stored.size, duplicate: false }];
+          return [{ value: { id: stored.size, duplicate: false } }];
         },
       ],
     ]);

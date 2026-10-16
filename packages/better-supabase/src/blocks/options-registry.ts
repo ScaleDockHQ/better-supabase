@@ -103,6 +103,8 @@ import {
   jobsSqlOptions,
   type RateLimitSqlOptions,
   rateLimitSqlOptions,
+  type WebhookInboxSqlOptions,
+  webhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import {
   type KnowledgeSqlOptions,
@@ -200,10 +202,6 @@ import {
   type TemplatesSqlOptions,
   templatesSqlOptions,
 } from "./templates/options.ts";
-import {
-  type WorkflowBuilderSqlOptions,
-  workflowBuilderSqlOptions,
-} from "./workflow-builder/options.ts";
 import { type TenantSqlOptions, tenantSqlOptions } from "./tenant/options.ts";
 import {
   type TimeTrackingSqlOptions,
@@ -233,6 +231,10 @@ import {
   type WorkItemsSqlOptions,
   workItemsSqlOptions,
 } from "./work-items/options.ts";
+import {
+  type WorkflowBuilderSqlOptions,
+  workflowBuilderSqlOptions,
+} from "./workflow-builder/options.ts";
 import {
   type WorkflowSdkWorldSqlOptions,
   workflowSdkWorldSqlOptions,
@@ -343,7 +345,7 @@ export interface BlockOptionsRegistry {
   readonly "vector-search": VectorSearchSqlOptions;
   readonly versions: VersionsSqlOptions;
   readonly waitlist: WaitlistSqlOptions;
-  readonly "webhook-inbox": None;
+  readonly "webhook-inbox": WebhookInboxSqlOptions;
   readonly "webhooks-in": WebhooksInSqlOptions;
   readonly "webhooks-out": WebhooksOutSqlOptions;
   readonly "work-items": WorkItemsSqlOptions;
@@ -455,7 +457,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "vector-search": vectorSearchSqlOptions,
   versions: versionsSqlOptions,
   waitlist: waitlistSqlOptions,
-  "webhook-inbox": NO_OPTIONS,
+  "webhook-inbox": webhookInboxSqlOptions,
   "webhooks-in": webhooksInSqlOptions,
   "webhooks-out": webhooksOutSqlOptions,
   "work-items": workItemsSqlOptions,

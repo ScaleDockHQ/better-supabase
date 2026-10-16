@@ -7,7 +7,8 @@ import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
 import { postgres } from "@/lib/postgres";
 
 /** Stores each verified Stripe event once; the process route hands it to billing. */
-export const stripeInbox = createWebhookInbox(postgres.admin, {
+export const stripeInbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "stripe",
   verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET ?? ""),
 });

@@ -152,10 +152,7 @@ export interface Signatures<F extends object = Record<never, never>> {
   ): AsyncResult<
     Signature & { readonly requestStatus: SignatureRequestStatus }
   >;
-  decline(
-    requestId: string,
-    reason?: string,
-  ): AsyncResult<SignatureRequest<F>>;
+  decline(requestId: string, reason?: string): AsyncResult<SignatureRequest<F>>;
   cancel(requestId: string): AsyncResult<SignatureRequest<F>>;
   get(requestId: string): AsyncResult<SignatureRequestDetail<F>>;
   /** Newest first. */

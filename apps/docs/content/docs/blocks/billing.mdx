@@ -390,9 +390,10 @@ Store Stripe events in the webhook inbox, then hand them to
 
 ```ts title="app/api/stripe/route.ts"
 import { stripeInboxVerify } from "better-supabase/blocks/billing";
-import { createWebhookInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
 
-export const inbox = createWebhookInbox(postgres.admin, {
+export const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
   source: "stripe",
   verify: stripeInboxVerify(env.STRIPE_WEBHOOK_SECRET),
 });

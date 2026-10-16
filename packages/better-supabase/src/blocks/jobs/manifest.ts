@@ -3,7 +3,9 @@ import type { Block, BlockOf } from "../define-block.ts";
 import { defineBlock } from "../define-block.ts";
 import { createIdempotency } from "./idempotency.ts";
 import { jobsSqlOptions, rateLimitSqlOptions } from "./options.ts";
+import { webhookInboxSqlOptions } from "./options.ts";
 import { createRateLimit } from "./rate-limit.ts";
+import { createWebhookInbox } from "./webhook-inbox.ts";
 
 /** The `jobs` block's manifest (ADR 0029). */
 export const jobsBlock: Block<"jobs"> = defineBlock({
@@ -39,8 +41,15 @@ export const rateLimitBlock: BlockOf<"rate-limit", typeof createRateLimit> =
   });
 
 /** The `webhook-inbox` block's manifest (ADR 0029). */
-export const webhookInboxBlock: Block<"webhook-inbox"> = defineBlock({
+export const webhookInboxBlock: BlockOf<
+  "webhook-inbox",
+  typeof createWebhookInbox
+> = defineBlock({
   name: "webhook-inbox",
   sql: ["webhook-inbox"],
+  options: {
+    "webhook-inbox": webhookInboxSqlOptions,
+  },
+  create: createWebhookInbox,
   category: "platform",
 });

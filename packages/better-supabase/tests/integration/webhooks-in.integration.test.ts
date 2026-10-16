@@ -4,7 +4,11 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
-import { createJobs, createWebhookInbox } from "../../src/blocks/jobs/index.ts";
+import {
+  createJobs,
+  createWebhookInbox,
+  sqlTransport,
+} from "../../src/blocks/jobs/index.ts";
 import {
   createIncomingWebhooks,
   inboxDestination,
@@ -215,7 +219,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       );
       expect(stats[0]).toEqual({ receive_count: "4", last_status: 429 });
 
-      const inbox = createWebhookInbox(sql, {
+      const inbox = createWebhookInbox({
+        transport: sqlTransport(sql),
         source,
         verify: () => Promise.reject(new Error("process only")),
       });
@@ -749,7 +754,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         );
       expect((await post(hooks, "m1")).status).toBe(202);
       expect((await post(hooks, "m1")).status).toBe(200);
-      const inbox = createWebhookInbox(sql, {
+      const inbox = createWebhookInbox({
+        transport: sqlTransport(sql),
         source,
         verify: () => Promise.reject(new Error("process only")),
       });
