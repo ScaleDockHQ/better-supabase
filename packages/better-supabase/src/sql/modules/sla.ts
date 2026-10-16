@@ -9,10 +9,13 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
   serviceGrant,
+  setExtraFields,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
@@ -40,7 +43,7 @@ const EVENTS: ModuleEvents<SlaEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: [],
-  options: ["businessHours", "subjects"],
+  options: ["businessHours", "subjects", "extraColumns"],
   tables: {
     policies: {
       name: "sla_policies",
@@ -292,6 +295,8 @@ function build(ctx: ModuleContext): string {
         )
       : "";
   const list = bindings(ctx);
+  // The policy's extra columns: attrs.fields writes them, reads return them under fields.
+  const extras = ctx.extraColumns("policies", ["fields"]);
   return `${schemaPreamble(ctx)}
 -- Service levels on any record: response and resolution clocks from a
 -- policy per record type and priority, in business hours, paused while the
@@ -312,7 +317,7 @@ ${
   ${p("archivedAt")} timestamptz,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now()
-);
+);${addExtraColumns(t("policies"), extras)}
 create unique index if not exists sla_policies_match_idx on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, '')) where ${p("archivedAt")} is null;
 ${lockTable(t("policies"), { read: true })}
 drop policy if exists sla_policies_read on ${t("policies")};
@@ -426,8 +431,8 @@ begin
     ${fail("SLA_POLICY_TAKEN", "another active policy covers this record type and priority", "23505")}
   when check_violation or not_null_violation or invalid_text_representation then
     ${fail("SLA_POLICY_INVALID", "a policy needs a name, a record type and positive minutes", "22023")}
-  end;
-  return (select to_jsonb(x) from ${t("policies")} x where x.${p("id")} = v_id);
+  end;${setExtraFields(t("policies"), extras, "(save_sla_policy.attrs -> 'fields')", `x.${p("id")} = v_id`)}
+  return (select to_jsonb(x)${extraFieldsJson("x", extras)} from ${t("policies")} x where x.${p("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_sla_policy")}(${ctx.idType}, uuid, jsonb)`)}

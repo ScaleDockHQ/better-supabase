@@ -9,12 +9,16 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
   fail,
   lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
+  setExtraFields,
   userGrant,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
@@ -44,7 +48,7 @@ const EVENTS: ModuleEvents<TrashEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
-  options: ["subjects", "retentionDays"],
+  options: ["subjects", "retentionDays", "extraColumns"],
   tables: {
     items: {
       name: "trash_items",
@@ -299,6 +303,9 @@ function build(ctx: ModuleContext): string {
       },
     });
   const notFound = fail("TRASH_NOT_FOUND", "trash item not found", "P0002");
+  // The root item's extra columns, such as a reason: trash() sets them, list_trash returns them.
+  const extras = ctx.extraColumns("items", ["fields", "batchId", "count"]);
+  const extra = extraFieldsArg(extras);
   const tables = ctx.manages
     ? `create table if not exists ${items} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -312,7 +319,7 @@ function build(ctx: ModuleContext): string {
   ${c("trashedAt")} timestamptz not null default now(),
   ${c("purgeAfter")} timestamptz,
   unique (${c("subjectType")}, ${c("subjectId")})
-);
+);${addExtraColumns(items, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_tenant_idx`)} on ${items} (${c("tenant")}, ${c("trashedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_batch_idx`)} on ${items} (${c("batch")});
 ${lockTable(items, { read: true })}
@@ -351,7 +358,10 @@ end;
 $$;
 revoke execute on function ${cascade}(${ctx.idType}, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
-create or replace function ${fn("trash")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+-- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- subject's trash item.
+${extra.drop(fn("trash"), `${ctx.idType}, text, text`)}
+create or replace function ${fn("trash")}(tenant ${ctx.idType}, subject_type text, subject_id text${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -375,7 +385,7 @@ begin
     ${fail("TRASH_NOT_FOUND", "no live record to trash", "P0002")}
   end if;
   select i.${c("id")} into v_id from ${items} i
-    where i.${c("subjectType")} = trash.subject_type and i.${c("subjectId")} = trash.subject_id;
+    where i.${c("subjectType")} = trash.subject_type and i.${c("subjectId")} = trash.subject_id;${setExtraFields(items, extras, "trash.fields", `x.${c("id")} = v_id`)}
   ${ctx.hook("after_trash", [
     ["uuid", "v_id"],
     ["uuid", "v_batch"],
@@ -383,7 +393,7 @@ begin
   return jsonb_build_object('id', v_id, 'batchId', v_batch, 'count', v_count);
 end;
 $$;
-${userGrant(`${fn("trash")}(${ctx.idType}, text, text)`)}
+${userGrant(`${fn("trash")}(${ctx.idType}, text, text${extra.type})`)}
 
 -- Restores every row of a batch, after checking the unique columns. The
 -- caller deletes the batch's items, so the read-only guard sees its write.
@@ -451,7 +461,7 @@ begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "list_trash.tenant", read)}) then
     ${fail("TRASH_FORBIDDEN", "not allowed to read this organization's trash")}
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t.${c("id")}, 'subjectType', t.${c("subjectType")}, 'subjectId', t.${c("subjectId")}, 'title', t.${c("title")}, 'batchId', t.${c("batch")}, 'count', t.n, 'trashedBy', t.${c("trashedBy")}, 'trashedAt', t.${c("trashedAt")}, 'purgeAfter', t.${c("purgeAfter")}) order by t.${c("trashedAt")} desc, t.${c("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t.${c("id")}, 'subjectType', t.${c("subjectType")}, 'subjectId', t.${c("subjectId")}, 'title', t.${c("title")}, 'batchId', t.${c("batch")}, 'count', t.n, 'trashedBy', t.${c("trashedBy")}, 'trashedAt', t.${c("trashedAt")}, 'purgeAfter', t.${c("purgeAfter")})${extraFieldsJson("t", extras)} order by t.${c("trashedAt")} desc, t.${c("id")}), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from ${items} b where b.${c("batch")} = x.${c("batch")})::integer as n
@@ -556,9 +566,16 @@ ${userGrant(`${fn("is_trashed")}(text, text)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("items", ["fields", "batchId", "count"]),
+  ).contract;
   return [
-    { name: "trash", args: ["{id}", "text", "text"], returns: "jsonb" },
+    {
+      name: "trash",
+      args: ["{id}", "text", "text", ...extra],
+      returns: "jsonb",
+    },
     { name: "restore_trash", args: ["uuid"], returns: "jsonb" },
     { name: "purge_trash", args: ["uuid"], returns: "integer" },
     { name: "is_trashed", args: ["text", "text"], returns: "boolean" },

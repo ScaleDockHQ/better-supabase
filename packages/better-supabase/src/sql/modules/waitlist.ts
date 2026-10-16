@@ -9,8 +9,12 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
   memberAddedRecord,
   pageSize,
+  setExtraFields,
   schemaPreamble,
   SERVICE_CALLER,
   sha256Hex,
@@ -51,7 +55,7 @@ const EVENTS: ModuleEvents<WaitlistEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["defaultRole", "codeField", "roles"],
+  options: ["defaultRole", "codeField", "roles", "extraColumns"],
   tables: {
     entries: {
       name: "waitlist_entries",
@@ -196,6 +200,8 @@ function build(ctx: ModuleContext): string {
     role: "v_role",
   });
 
+  const extras = ctx.extraColumns("entries", ["fields"]);
+  const extra = extraFieldsArg(extras);
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
 
@@ -212,7 +218,7 @@ create table if not exists ${e} (
   ${ce("decidedBy")} uuid references auth.users (id) on delete set null,
   ${ce("decidedAt")} timestamptz,
   ${ce("createdAt")} timestamptz not null default now()
-);
+);${addExtraColumns(e, extras)}
 create index if not exists waitlist_entries_status_idx on ${e} (${ce("status")}, ${ce("position")});
 create index if not exists waitlist_entries_user_idx on ${e} (${ce("user")});
 create index if not exists waitlist_entries_decided_by_idx on ${e} (${ce("decidedBy")});
@@ -250,8 +256,10 @@ ${lockTable(r)}
 -- Open to anon, so rate-limit the route that calls it. Only the service role
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
--- whether someone was approved or signed up.
-create or replace function ${fn("join_waitlist")}(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
+-- whether someone was approved or signed up. fields: the extra columns
+-- (blocks.waitlist.options.extraColumns), written only on a new entry.
+${extra.drop(fn("join_waitlist"), "text, text, jsonb")}
+create or replace function ${fn("join_waitlist")}(email text, referrer text default null, metadata jsonb default '{}'::jsonb${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -268,7 +276,7 @@ begin
   insert into ${e} as x (${ce("email")}, ${ce("referrer")}, ${ce("metadata")})
   values (v_email, join_waitlist.referrer, coalesce(join_waitlist.metadata, '{}'::jsonb))
   on conflict (${ce("email")}) do update set ${ce("email")} = x.${ce("email")}
-  returning * into v_row;
+  returning * into v_row;${setExtraFields(e, extras, "join_waitlist.fields", `x.${ce("id")} = v_row.${ce("id")} and x.${ce("createdAt")} = now()`)}
   if ${SERVICE_CALLER} then
     return jsonb_build_object(
       'position', case when v_row.${ce("status")} = 'waiting' then (
@@ -300,7 +308,7 @@ begin
     ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) order by x.${ce("position")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(to_jsonb(x)${extraFieldsJson("x", extras)} order by x.${ce("position")}), '[]'::jsonb)
     from (
       select * from ${e} w
       where (list_waitlist.status is null or w.${ce("status")} = list_waitlist.status)
@@ -340,7 +348,7 @@ begin
   else
     ${decided("waitlist.rejected")}
   end if;
-  return to_jsonb(v_row);
+  return to_jsonb(v_row)${extraFieldsJson("v_row", extras)};
 end;
 $$;
 
@@ -547,7 +555,7 @@ drop trigger if exists ${ctx.trigger("waitlist_auth_user")} on auth.users;
 create trigger ${ctx.trigger("waitlist_auth_user")} after insert on auth.users
   for each row execute function ${fn("waitlist_on_auth_user")}();
 
-revoke execute on function ${fn("join_waitlist")}(text, text, jsonb) from public;
+revoke execute on function ${fn("join_waitlist")}(text, text, jsonb${extra.type}) from public;
 revoke execute on function ${fn("list_waitlist")}(text, integer, bigint) from public, anon;
 revoke execute on function ${fn("decide_waitlist_entry")}(uuid, boolean) from public, anon;
 revoke execute on function ${fn("create_invite_code")}(text, integer, timestamptz, ${id}, text) from public, anon;
@@ -556,7 +564,7 @@ revoke execute on function ${fn("revoke_invite_code")}(uuid) from public, anon;
 revoke execute on function ${fn("waitlist_admit")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("redeem_for")}(text, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("redeem_invite_code")}(text) from public, anon;
-grant execute on function ${fn("join_waitlist")}(text, text, jsonb) to anon, authenticated, service_role;
+grant execute on function ${fn("join_waitlist")}(text, text, jsonb${extra.type}) to anon, authenticated, service_role;
 grant execute on function ${fn("list_waitlist")}(text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("decide_waitlist_entry")}(uuid, boolean) to authenticated, service_role;
 grant execute on function ${fn("create_invite_code")}(text, integer, timestamptz, ${id}, text) to authenticated, service_role;
@@ -567,11 +575,16 @@ grant execute on function ${fn("redeem_for")}(text, uuid) to service_role;
 grant execute on function ${fn("redeem_invite_code")}(text) to authenticated, service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "join_waitlist",
-      args: ["text", "text", "jsonb"],
+      args: [
+        "text",
+        "text",
+        "jsonb",
+        ...extraFieldsArg(ctx.extraColumns("entries", ["fields"])).contract,
+      ],
       returns: "jsonb",
     },
     {

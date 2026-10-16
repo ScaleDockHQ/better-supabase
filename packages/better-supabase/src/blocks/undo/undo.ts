@@ -1,6 +1,9 @@
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { blockCall, isRecord } from "../shared.ts";
@@ -59,6 +62,10 @@ export interface UndoOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** Extra functions a token may call, for an app's own inverses. */
   readonly allow?: readonly string[];
+  /** `withBlockHooks` hooks around `apply`, such as a rule on which tokens a user may apply. */
+  readonly hooks?: BlockHooks<Undo>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
 export interface Undo {
@@ -69,7 +76,7 @@ export interface Undo {
 export function createUndo(options: UndoOptions): Undo {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const allowed = [...UNDO_FUNCTIONS, ...(options.allow ?? [])];
-  return {
+  const client: Undo = {
     apply: (token) => {
       if (!isUndoToken(token, allowed)) {
         return AsyncResult.err(
@@ -89,4 +96,8 @@ export function createUndo(options: UndoOptions): Undo {
       });
     },
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "undo",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

@@ -191,7 +191,15 @@ import {
   supportSessionsSqlOptions,
 } from "./support-sessions/options.ts";
 import { type TagsSqlOptions, tagsSqlOptions } from "./tags/options.ts";
+import {
+  type TargetsSqlOptions,
+  targetsSqlOptions,
+} from "./targets/options.ts";
 import { type TeamsSqlOptions, teamsSqlOptions } from "./teams/options.ts";
+import {
+  type TemplatesSqlOptions,
+  templatesSqlOptions,
+} from "./templates/options.ts";
 import { type TenantSqlOptions, tenantSqlOptions } from "./tenant/options.ts";
 import {
   type TimeTrackingSqlOptions,
@@ -320,9 +328,9 @@ export interface BlockOptionsRegistry {
   readonly subjects: None;
   readonly "support-sessions": SupportSessionsSqlOptions;
   readonly tags: TagsSqlOptions;
-  readonly targets: None;
+  readonly targets: TargetsSqlOptions;
   readonly teams: TeamsSqlOptions;
-  readonly templates: None;
+  readonly templates: TemplatesSqlOptions;
   readonly tenant: TenantSqlOptions;
   readonly "time-tracking": TimeTrackingSqlOptions;
   readonly trash: TrashSqlOptions;
@@ -432,9 +440,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   subjects: NO_OPTIONS,
   "support-sessions": supportSessionsSqlOptions,
   tags: tagsSqlOptions,
-  targets: NO_OPTIONS,
+  targets: targetsSqlOptions,
   teams: teamsSqlOptions,
-  templates: NO_OPTIONS,
+  templates: templatesSqlOptions,
   tenant: tenantSqlOptions,
   "time-tracking": timeTrackingSqlOptions,
   trash: trashSqlOptions,

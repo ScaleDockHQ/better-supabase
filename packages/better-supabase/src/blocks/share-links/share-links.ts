@@ -1,22 +1,65 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 
-import { blockCall, optionalText, recordOf, textOf } from "../shared.ts";
+import {
+  type BlockFields,
+  blockFields,
+  type ExtraFields,
+  type FieldsOf,
+} from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  applyTemporal,
+  blockCall,
+  type BlockOptions,
+  isRecord,
+  nullableInstant,
+  optionalText,
+  recordOf,
+  recordsOf,
+  textOf,
+} from "../shared.ts";
 
-export interface ShareLinksOptions {
-  readonly transport: BlockTransport;
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
+export interface ShareLinksOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the link's extra columns
+   * (`blocks.share-links.options.extraColumns`), keyed by database name. It
+   * types and parses them on `create` and `list`, and validates them on
+   * `create`.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the client's methods. */
+  readonly hooks?: NoInfer<BlockHooks<ShareLinks<FieldsOf<S>>>>;
+  /** Receives the errors `after` hooks throw. Default: `console`. */
+  readonly logger?: Logger;
 }
 
-export interface CreatedShareLink {
+export interface CreatedShareLink<F extends object = Record<never, never>> {
   readonly id: string;
   /** Returned once. Later calls only see the hash. */
   readonly token: string;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface CreateShareLinkOptions {
+/** A link `list` returns. The token is never returned again. */
+export interface ShareLink<F extends object = Record<never, never>> {
+  readonly id: string;
+  readonly role: string;
+  readonly revokedAt: Temporal.Instant | null;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
+}
+
+export interface CreateShareLinkOptions<
+  F extends object = Record<never, never>,
+> {
+  /** The link's extra columns. */
+  readonly fields?: Partial<F>;
   /** `view` unless set. */
   readonly role?: string;
   /**
@@ -36,14 +79,14 @@ export interface ResolvedShareLink {
   readonly versionId?: string;
 }
 
-export interface ShareLinks {
+export interface ShareLinks<F extends object = Record<never, never>> {
   /** A role string is the same as `{ role }`. */
   create(
     organizationId: string,
     subjectType: string,
     subjectId: string,
-    options?: string | CreateShareLinkOptions,
-  ): AsyncResult<CreatedShareLink>;
+    options?: string | CreateShareLinkOptions<F>,
+  ): AsyncResult<CreatedShareLink<F>>;
   revoke(id: string): AsyncResult<boolean>;
   /** `null` for an unknown, revoked or expired token. */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
@@ -54,7 +97,11 @@ export interface ShareLinks {
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
-  list(subjectType: string, subjectId: string): AsyncResult<unknown>;
+  /** The subject's links, revoked ones included. */
+  list(
+    subjectType: string,
+    subjectId: string,
+  ): AsyncResult<readonly ShareLink<F>[]>;
   setState(
     subjectType: string,
     subjectId: string,
@@ -62,27 +109,49 @@ export interface ShareLinks {
   ): AsyncResult<boolean>;
 }
 
-export function createShareLinks(options: ShareLinksOptions): ShareLinks {
+const fieldsOf = (row: Readonly<Record<string, unknown>>) =>
+  isRecord(row["fields"]) ? row["fields"] : {};
+
+/** The `share-links` SQL module as typed calls. */
+export function createShareLinks<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ShareLinksOptions<S>): ShareLinks<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  return {
-    create: (organizationId, subjectType, subjectId, options = {}) => {
-      const { role, versionId } =
-        typeof options === "string"
-          ? { role: options, versionId: undefined }
-          : options;
-      return call(
-        "create_share_link",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          role: role ?? "view",
-          version_id: versionId ?? null,
-        },
-        (value) => {
-          const row = recordOf(value, "create_share_link");
-          return { id: textOf(row["id"]), token: textOf(row["token"]) };
-        },
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "share link fields",
+  );
+  const client: ShareLinks<F> = {
+    create: (organizationId, subjectType, subjectId, link = {}) => {
+      const {
+        role,
+        versionId,
+        fields: extra,
+      }: CreateShareLinkOptions<F> = typeof link === "string"
+        ? { role: link }
+        : link;
+      return fields.args(extra).andThen((checked) =>
+        call(
+          "create_share_link",
+          {
+            tenant: organizationId,
+            subject_type: subjectType,
+            subject_id: subjectId,
+            role: role ?? "view",
+            version_id: versionId ?? null,
+            fields: checked,
+          },
+          (value) => {
+            const row = recordOf(value, "create_share_link");
+            return {
+              id: textOf(row["id"]),
+              token: textOf(row["token"]),
+              fields: fieldsOf(row),
+            };
+          },
+        ).andThen(fields.row),
       );
     },
     revoke: (id) =>
@@ -116,8 +185,14 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
       call(
         "list_share_links",
         { subject_type: subjectType, subject_id: subjectId },
-        (value) => value,
-      ),
+        (value) =>
+          recordsOf(value, "list_share_links").map((row) => ({
+            id: textOf(row["id"]),
+            role: textOf(row["role"]),
+            revokedAt: nullableInstant(row["revokedAt"]),
+            fields: fieldsOf(row),
+          })),
+      ).andThen(fields.rows),
     setState: (subjectType, subjectId, starred) =>
       call(
         "set_user_state",
@@ -125,4 +200,8 @@ export function createShareLinks(options: ShareLinksOptions): ShareLinks {
         (value) => value === true,
       ),
   };
+  return withBlockHooks(client, options.hooks, {
+    block: "share-links",
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 }

@@ -1,8 +1,8 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, pageSize, userGrant } from "../shared.ts";
+import { fail, pageSize, setExtraFields, userGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface WorkItemNames {
@@ -17,6 +17,8 @@ export interface WorkItemNames {
   /** The most assignees an item takes; 0 for no limit. */
   readonly maxAssignees: number;
   readonly service: string;
+  /** `options.extraColumns`: create writes them from attrs.fields, update by name. */
+  readonly extras: readonly ExtraColumn[];
 }
 
 /** The fields `update_work_items` writes, by camelCase name. */
@@ -65,12 +67,16 @@ export function workItemFunctions(
       tenant: `${alias}.${w("tenant")}::text`,
       audit: false,
     });
-  const writes = fields(w)
-    .map(
+  const writes = [
+    ...fields(w).map(
       (field) => `      when ${sqlString(field.field)} then
         update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`,
-    )
-    .join("\n");
+    ),
+    ...n.extras.map(
+      (extra) => `      when ${sqlString(extra.name)} then
+        update ${t("items")} x set ${extra.ident} = (jsonb_populate_record(null::${t("items")}, jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value'))).${extra.ident} where x.${w("id")} = v_item;`,
+    ),
+  ].join("\n");
   const watch = watchSql(ctx, {
     tenant: "v_row." + w("tenant"),
     user: "v_user",
@@ -202,7 +208,8 @@ ${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
   return `
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
--- progress, startAt, endAt, dueAt, pipelineId, stageId. assignees: user ids.
+-- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
+-- extra columns, by name). assignees: user ids.
 create or replace function ${fn("create_work_item")}(tenant ${ctx.idType}, attrs jsonb, assignees uuid[])
 returns jsonb
 language plpgsql
@@ -249,7 +256,7 @@ begin
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     ${fail("WORK_ITEM_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
-  end;
+  end;${setExtraFields(t("items"), n.extras, "(create_work_item.attrs -> 'fields')", `x.${w("id")} = v_id`)}
   if cardinality(coalesce(create_work_item.assignees, '{}')) > 0 then
     perform ${fn("set_work_item_assignees")}(v_id, create_work_item.assignees);
   end if;

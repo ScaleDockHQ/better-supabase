@@ -8,7 +8,16 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  lockTable,
+  schemaPreamble,
+  setExtraFields,
+  userGrant,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<TeamsEvents> = {
@@ -41,7 +50,7 @@ const EVENTS: ModuleEvents<TeamsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
-  options: ["teamIdType"],
+  options: ["teamIdType", "extraColumns"],
   tables: {
     teams: {
       name: "teams",
@@ -70,6 +79,9 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** The keys the team reads return next to the extra columns. */
+const RESERVED = ["fields"] as const;
 
 function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
@@ -106,6 +118,10 @@ function build(ctx: ModuleContext): string {
   const memberCreated = ctx.col("members", "createdAt");
   const manage = ctx.permission("manage", OPERATIONS["teams.manage"]);
   const read = ctx.permission("read", OPERATIONS["teams.read"]);
+  const extras = ctx.extraColumns("teams", RESERVED);
+  const extra = extraFieldsArg(extras);
+  const teamJson = (alias: string): string =>
+    `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug})${extraFieldsJson(alias, extras)}`;
   const idDefault =
     idType === "uuid"
       ? " default gen_random_uuid()"
@@ -122,7 +138,7 @@ function build(ctx: ModuleContext): string {
   ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique (${tenant}, ${slug})
-);
+);${addExtraColumns(teams, extras)}
 ${lockTable(teams, { read: true })}
 drop policy if exists teams_read on ${teams};
 create policy teams_read on ${teams} for select to authenticated
@@ -160,7 +176,9 @@ as $$
 $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
-create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text)
+-- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+${extra.drop(fn("create_team"), `${ctx.idType}, text, text`)}
+create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -182,18 +200,19 @@ begin
   ])}
   insert into ${teams} (${tenant}, ${name}, ${slug}, ${description}, ${createdBy})
   values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid())
-  returning ${id} into v_id;
+  returning ${id} into v_id;${setExtraFields(teams, extras, "create_team.fields", `x.${id} = v_id`)}
   ${record(ctx, "team.created", "v_id", "create_team.tenant", "create_team.name")}
   ${ctx.hook("after_team_create", [
     [idType, "v_id"],
     [ctx.idType, "create_team.tenant"],
   ])}
-  return jsonb_build_object('id', v_id, 'slug', v_slug);
+  return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_team")}(${ctx.idType}, text, text)`)}
+${userGrant(`${fn("create_team")}(${ctx.idType}, text, text${extra.type})`)}
 
-create or replace function ${fn("update_team")}(team ${idType}, name text, description text)
+${extra.drop(fn("update_team"), `${idType}, text, text`)}
+create or replace function ${fn("update_team")}(team ${idType}, name text, description text${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -213,12 +232,12 @@ begin
   set ${name} = coalesce(update_team.name, t.${name}),
       ${description} = coalesce(update_team.description, t.${description}),
       ${updatedAt} = now()
-  where t.${id} = update_team.team;
+  where t.${id} = update_team.team;${setExtraFields(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
-  return jsonb_build_object('id', update_team.team);
+  return ${extras.length === 0 ? "jsonb_build_object('id', update_team.team)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team)`};
 end;
 $$;
-${userGrant(`${fn("update_team")}(${idType}, text, text)`)}
+${userGrant(`${fn("update_team")}(${idType}, text, text${extra.type})`)}
 
 create or replace function ${fn("archive_team")}(team ${idType})
 returns boolean
@@ -328,7 +347,7 @@ as $$
     'name', t.${name},
     'slug', t.${slug},
     'status', t.${status}
-  )), '[]'::jsonb)
+  )${extraFieldsJson("t", extras)}), '[]'::jsonb)
   from ${teams} t
   where t.${tenant} = list_teams.tenant
     and (
@@ -462,9 +481,18 @@ function record(
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const id = teamIdType(ctx);
+  const extra = extraFieldsArg(ctx.extraColumns("teams", RESERVED)).contract;
   return [
-    { name: "create_team", args: ["{id}", "text", "text"], returns: "jsonb" },
-    { name: "update_team", args: [id, "text", "text"], returns: "jsonb" },
+    {
+      name: "create_team",
+      args: ["{id}", "text", "text", ...extra],
+      returns: "jsonb",
+    },
+    {
+      name: "update_team",
+      args: [id, "text", "text", ...extra],
+      returns: "jsonb",
+    },
     { name: "archive_team", args: [id], returns: "boolean" },
     { name: "delete_team", args: [id], returns: "boolean" },
     { name: "add_team_member", args: [id, "uuid"], returns: "boolean" },

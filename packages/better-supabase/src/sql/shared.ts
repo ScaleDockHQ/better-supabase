@@ -30,6 +30,94 @@ export const columnsObject = (
     .map((name) => `${sqlString(name)}, ${alias}.${sqlIdent(name)}`)
     .join(", ")})`;
 
+/**
+ * ` || jsonb_build_object('fields', ...)`: the extra columns of row `alias`
+ * under `fields`, keyed by column name, for a read built with
+ * `jsonb_build_object`. Nothing without extra columns.
+ */
+export const extraFieldsJson = (
+  alias: string,
+  columns: readonly ExtraColumn[],
+): string =>
+  columns.length === 0
+    ? ""
+    : ` || jsonb_build_object('fields', ${columnsObject(
+        alias,
+        columns.map((column) => column.name),
+      )})`;
+
+/** The `fields jsonb` parameter of a function that writes extra columns. */
+export interface ExtraFieldsArg {
+  /** `, fields jsonb default null`, or nothing without extra columns. */
+  readonly param: string;
+  /** `, jsonb` for the signature, or nothing. */
+  readonly type: string;
+  /** The contract's argument types to append. */
+  readonly contract: readonly string[];
+  /**
+   * Drops the signature this build doesn't create (with the parameter when
+   * there are no extra columns, without it when there are), so turning
+   * `extraColumns` on or off never leaves two overloads a call matches.
+   */
+  drop(fn: string, types: string): string;
+}
+
+/** The `fields jsonb` parameter for `columns`; see `ExtraFieldsArg`. */
+export function extraFieldsArg(
+  columns: readonly ExtraColumn[],
+): ExtraFieldsArg {
+  const on = columns.length > 0;
+  return {
+    param: on ? ", fields jsonb default null" : "",
+    type: on ? ", jsonb" : "",
+    contract: on ? ["jsonb"] : [],
+    drop: (fn, types) =>
+      `drop function if exists ${fn}(${on ? types : [types, "jsonb"].filter((type) => type !== "").join(", ")});`,
+  };
+}
+
+/**
+ * PL/pgSQL that copies the extra columns `source` (a jsonb object keyed by
+ * column name) names onto the row of `table` aliased `x` that `where`
+ * matches. A column the object leaves out keeps its value, so a row created
+ * just before keeps its column defaults. Nothing without extra columns.
+ */
+export const setExtraFields = (
+  table: string,
+  columns: readonly ExtraColumn[],
+  source: string,
+  where: string,
+): string =>
+  columns.length === 0
+    ? ""
+    : `
+  if ${source} is not null and ${source} <> '{}'::jsonb then
+    update ${table} x set ${columns
+      .map(
+        (column) =>
+          `${column.ident} = case when ${source} ? ${sqlString(column.name)} then (jsonb_populate_record(null::${table}, ${source})).${column.ident} else x.${column.ident} end`,
+      )
+      .join(",\n      ")}
+    where ${where};
+  end if;`;
+
+/**
+ * `setExtraFields` on the row held in the PL/pgSQL variable `row` (a
+ * `%rowtype` of `table`), then reads the row back into it. Nothing without
+ * extra columns.
+ */
+export const setExtraFieldsRow = (
+  table: string,
+  columns: readonly ExtraColumn[],
+  source: string,
+  id: string,
+  row: string,
+): string =>
+  columns.length === 0
+    ? ""
+    : `${setExtraFields(table, columns, source, `x.${id} = ${row}.${id}`)}
+  select * into ${row} from ${table} x where x.${id} = ${row}.${id};`;
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 

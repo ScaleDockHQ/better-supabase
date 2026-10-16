@@ -324,6 +324,7 @@ function build(ctx: ModuleContext): string {
     prefix: ctx.text("prefix", "TASK-"),
     maxAssignees,
     service: "(auth.role() = 'service_role')",
+    extras: ctx.extraColumns("items"),
   };
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
