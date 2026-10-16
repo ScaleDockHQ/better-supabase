@@ -818,7 +818,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const receive = async (tenant: string | null) =>
         (
           await client.query<{ duplicate: boolean }>(
-            "select duplicate from better_supabase.receive_webhook($1, 'm1', null, '{}', '{}', $2)",
+            "select (better_supabase.receive_webhook($1, 'm1', null, '{}', '{}', $2) ->> 'duplicate')::boolean as duplicate",
             [source, tenant],
           )
         ).rows[0]!.duplicate;
