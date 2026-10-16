@@ -4,6 +4,8 @@
  */
 export const SPEC_PINS: {
   readonly otelSemconv: "1.37.0";
+  /** OTLP/HTTP JSON that the webhooks block's `otlpLogs()` encoder writes. */
+  readonly otlp: "1.7.0";
   readonly mcp: "2026-07-28";
   /** The default OpenAPI version `createOpenApi` emits. */
   readonly openapi: "3.1.2";
@@ -54,6 +56,7 @@ export const SPEC_PINS: {
   readonly shadcnRegistry: "4.21.4";
 } = {
   otelSemconv: "1.37.0",
+  otlp: "1.7.0",
   mcp: "2026-07-28",
   openapi: "3.1.2",
   openapi30: "3.0.4",

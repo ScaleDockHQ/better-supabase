@@ -12,6 +12,7 @@ import type {
   SubscriberEvent,
   SubscriberPolicy,
 } from "../../../src/core/contracts/authorization-hooks.ts";
+import type { CredentialProvider } from "../../../src/credentials/provider.ts";
 
 import {
   createWebhooks,
@@ -20,7 +21,9 @@ import {
   UrlCheckError,
   WebhookPolicyError,
 } from "../../../src/blocks/webhooks/index.ts";
+import { dbError } from "../../../src/core/errors.ts";
 import { EventHub } from "../../../src/core/events.ts";
+import { AsyncResult } from "../../../src/core/result.ts";
 import { testWebhookSecretStore } from "../../../src/testing/index.ts";
 
 const SECRET = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
@@ -1082,5 +1085,150 @@ describe("purge", () => {
       { older_than: "86400 seconds", include_dead: true, batch: 50 },
       { older_than: undefined, include_dead: undefined, batch: undefined },
     ]);
+  });
+});
+
+describe("createWebhooks: encoders and credentials", () => {
+  const credentials = (
+    getToken: CredentialProvider["getToken"],
+  ): CredentialProvider => ({
+    apiVersion: 1,
+    name: "test",
+    getToken,
+    capabilities: () => ({
+      userSubjects: false,
+      authorization: false,
+      revoke: false,
+      inbound: false,
+    }),
+    revoke: () => AsyncResult.ok(false),
+  });
+  const token = credentials(() =>
+    AsyncResult.ok({
+      token: "hec-1",
+      headers: { authorization: "Bearer hec-1" },
+    }),
+  );
+  const ref = { provider: "test", name: "hec", tenant: "org-1" };
+
+  it("writes the endpoint's format with its credential, unsigned", async () => {
+    const run = setup(
+      [row({ format: "splunk-hec", credential_ref: ref })],
+      () => ({ status: 200, body: '{"text":"Success","code":0}' }),
+      { credentials: token },
+    );
+    expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 1 });
+    const [request] = run.sent;
+    expect(request!.headers["authorization"]).toBe("Splunk hec-1");
+    expect(request!.headers["webhook-signature"]).toBeUndefined();
+    expect(JSON.parse(request!.body)).toMatchObject({
+      event: { id: "del-1", type: "invoice.paid" },
+    });
+    expect(run.calls.some((call) => call.fn === "webhook_secrets")).toBe(false);
+  });
+
+  it("uses the token's headers for a signed format and lets classify decide", async () => {
+    const run = setup(
+      [
+        row({ credential_ref: ref }),
+        row({ id: "del-2", format: "splunk-hec" }),
+      ],
+      (request) =>
+        request.body.includes("sourcetype")
+          ? { status: 200, body: '{"text":"Server is busy","code":9}' }
+          : ok(),
+      { credentials: token },
+    );
+    expect(await run.webhooks.deliver()).toMatchObject({
+      succeeded: 1,
+      retrying: 1,
+    });
+    const signed = run.sent.find(
+      (request) => !request.body.includes("sourcetype"),
+    );
+    expect(signed!.headers["authorization"]).toBe("Bearer hec-1");
+    expect(signed!.headers["webhook-signature"]).toMatch(/^v1,/);
+    expect(outcomeOf(run.calls, "del-2")).toMatchObject({
+      status: "retrying",
+      error: "HEC 9: Server is busy",
+    });
+  });
+
+  it("dead-letters an unknown format, a foreign ref and a ref without a provider", async () => {
+    const unknown = setup([row({ format: "parquet" })]);
+    expect(await unknown.webhooks.deliver()).toMatchObject({ dead: 1 });
+    expect(unknown.outcomes()[0]).toMatchObject({
+      error: 'No encoder for the endpoint format "parquet"',
+    });
+
+    const foreign = setup(
+      [row({ credential_ref: { provider: "test", tenant: "org-2" } })],
+      ok,
+      { credentials: token },
+    );
+    expect(await foreign.webhooks.deliver()).toMatchObject({ dead: 1 });
+    expect(foreign.outcomes()[0]!["error"]).toMatch(/outside tenant "org-1"/);
+
+    const appLevel = setup(
+      [
+        row({
+          tenant: null,
+          credential_ref: { provider: "test", tenant: "org-2" },
+        }),
+      ],
+      ok,
+      { credentials: token },
+    );
+    expect(await appLevel.webhooks.deliver()).toMatchObject({ dead: 1 });
+
+    const missing = setup([row({ credential_ref: ref })]);
+    expect(await missing.webhooks.deliver()).toMatchObject({ dead: 1 });
+    expect(missing.outcomes()[0]).toMatchObject({
+      error:
+        "The endpoint has a credential_ref, but no credentials provider is set",
+    });
+    expect(missing.sent).toHaveLength(0);
+  });
+
+  it("dead-letters a missing credential and retries a provider outage", async () => {
+    const gone = setup([row({ credential_ref: ref })], ok, {
+      credentials: credentials(() =>
+        AsyncResult.err(dbError("not_found", "No credential stored")),
+      ),
+    });
+    expect(await gone.webhooks.deliver()).toMatchObject({ dead: 1 });
+    expect(gone.outcomes()[0]).toMatchObject({ error: "No credential stored" });
+
+    const down = setup([row({ credential_ref: ref })], ok, {
+      credentials: credentials(() =>
+        AsyncResult.err(dbError("network", "Vault is down")),
+      ),
+    });
+    expect(await down.webhooks.deliver()).toMatchObject({ retrying: 1 });
+  });
+
+  it("ignores a credential_ref that isn't a ref, and takes custom encoders", async () => {
+    const run = setup(
+      [row({ format: "lines", credential_ref: "nope" })],
+      () => ({ status: 202, body: "" }),
+      {
+        encoders: [
+          {
+            apiVersion: 1,
+            name: "lines",
+            signed: false,
+            encode: (events) => ({
+              body: events.map((event) => event.id).join("\n"),
+              headers: { "content-type": "text/plain" },
+            }),
+          },
+        ],
+      },
+    );
+    expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 1 });
+    expect(run.sent[0]).toMatchObject({
+      body: "del-1",
+      headers: { "content-type": "text/plain" },
+    });
   });
 });

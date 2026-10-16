@@ -2329,6 +2329,7 @@
   "./blocks/webhooks": {
     "values": [
       "authHook",
+      "cloudEvents",
       "createIncomingWebhooks",
       "createSafeFetch",
       "createWebhooks",
@@ -2344,10 +2345,12 @@
       "isDatabaseWebhook",
       "isPublicAddress",
       "jobsDestination",
+      "otlpLogs",
       "publicUrl",
       "rpcTransport",
       "signStripeWebhook",
       "signWebhook",
+      "splunkHec",
       "sqlSecretStore",
       "sqlTransport",
       "standardWebhooks",
@@ -2389,6 +2392,7 @@
       "IncomingWebhooksEvents",
       "IncomingWebhooksOptions",
       "JobsDestinationOptions",
+      "OtlpLogsOptions",
       "PublicUrlOptions",
       "PublishInput",
       "PurgeWebhookDeliveriesOptions",
@@ -2399,12 +2403,16 @@
       "RotateSecretOptions",
       "RpcClient",
       "SafeFetchOptions",
+      "SplunkHecOptions",
       "StandardWebhooksOptions",
       "UpdatedIncomingWebhook",
       "UpdateIncomingWebhookInput",
       "VerifiedWebhook",
       "VerifyOptions",
       "WebhookDelivery",
+      "WebhookEncoded",
+      "WebhookEncoder",
+      "WebhookEncodeTarget",
       "WebhookInput",
       "WebhookRequest",
       "WebhookResponse",
@@ -2416,7 +2424,8 @@
       "WebhookSinkOptions",
       "WebhooksOptions",
       "WebhooksRouteOptions",
-      "WebhookTransport"
+      "WebhookTransport",
+      "WebhookVerdict"
     ]
   },
   "./blocks/entitlements": {

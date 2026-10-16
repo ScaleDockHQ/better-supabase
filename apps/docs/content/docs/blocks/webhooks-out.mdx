@@ -82,6 +82,47 @@ secret. Without an `asymmetricSigner`, its deliveries are dead-lettered
 instead of sent unsigned. `hmac: true` also adds the `v1` signatures from
 the endpoint's secrets while receivers move over.
 
+### Connectors
+
+An endpoint's `format` picks the encoder that writes its requests, so the
+same events can go to a log pipeline or a SIEM as well as to webhook
+receivers. `cloudevents` is the default. Two more are built in:
+
+| `format`      | Writes                                                                         | Point the URL at            |
+| ------------- | ------------------------------------------------------------------------------ | --------------------------- |
+| `cloudevents` | CloudEvents over HTTP, one event or a batch, signed per Standard Webhooks      | The receiver                |
+| `otlp-logs`   | OTLP/HTTP logs in JSON, a log record per event with the CloudEvents attributes | A collector's `/v1/logs`    |
+| `splunk-hec`  | Splunk HTTP Event Collector events, the CloudEvent as `event`                  | `/services/collector/event` |
+
+`otlp-logs` and `splunk-hec` aren't signed. They authenticate with the
+token in the endpoint's `credential_ref`, which the `credentials` option
+resolves (`Authorization: Splunk <token>` for HEC, the token's own headers
+otherwise). A ref outside the endpoint's organization, or a ref without a
+`credentials` provider, dead-letters the delivery. A partial success from an
+OTLP collector counts as delivered and keeps the rejection in the log, and an
+HEC error code inside a 200 retries or dead-letters by its code.
+
+```ts title="lib/webhooks.ts"
+import {
+  createWebhooks,
+  otlpLogs,
+  sqlTransport,
+} from "better-supabase/blocks/webhooks";
+import { vaultCredentials } from "better-supabase/credentials";
+
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
+  encoders: [otlpLogs({ serviceName: "billing" })],
+});
+```
+
+`encoders` replaces a built-in by name, with options as above, or adds a
+`WebhookEncoder` for another format: `encode(events, endpoint)` returns the
+body and its headers, `signed` says whether the Standard Webhooks headers go
+on, `authorize(token)` turns the token into headers and `classify(response)`
+reads a response the status alone doesn't explain.
+
 ## Publishing events
 
 `publish` queues the event for every enabled endpoint in the organization
@@ -337,6 +378,8 @@ The DNS caveat above applies here too.
 | ----------------------------- | --------------------------------------------------------------------------------------- |
 | `signer`                      | `standardWebhooks({ headers })` renames the headers; `hmacSigner` matches other formats |
 | `asymmetricSigner`            | Signs `v1a` endpoints, usually `standardWebhooksAsymmetric({ signer })`                 |
+| `encoders`                    | `WebhookEncoder`s for endpoint `format`s, such as `otlpLogs()` and `splunkHec()`        |
+| `credentials`                 | The `CredentialProvider` that resolves an endpoint's `credential_ref`                   |
 | `transform`                   | The CloudEvent `data` for a delivery                                                    |
 | `subscribers`                 | A `SubscriberPolicy` that narrows each event's endpoints at send time                   |
 | `headers`                     | Extra headers per delivery, e.g. an `idempotency-key`                                   |

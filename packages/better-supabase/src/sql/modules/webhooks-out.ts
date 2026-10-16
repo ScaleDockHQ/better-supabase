@@ -162,7 +162,7 @@ create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
   const scoped = n.clientAccess;
   const signingType = `text not null default 'v1' check (${d("signing")} in ('v1', 'v1a'))`;
   const formatType = `text not null default 'cloudevents' check (${d("format")} ~ '^[a-z][a-z0-9-]{0,39}$')`;
-  const credentialRefType = `jsonb check (${d("credentialRef")} is null or (jsonb_typeof(${d("credentialRef")}) = 'object' and ${d("credentialRef")} ? 'provider' and ${d("credentialRef")} ? 'name'))`;
+  const credentialRefType = `jsonb check (${d("credentialRef")} is null or (jsonb_typeof(${d("credentialRef")}) = 'object' and ${d("credentialRef")} ? 'provider'))`;
   const urlCheck = n.allowHttp
     ? `check (${d("url")} ~* '^https?://')`
     : `check (${d("url")} ~* '^https://')`;
@@ -436,7 +436,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
     {
       from: 3,
       description:
-        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (a vault credential for the receiver), and claim_webhook_deliveries returns them.",
+        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (the credential whose token authenticates the request), and claim_webhook_deliveries returns them.",
       sql: () => "",
     },
   ],

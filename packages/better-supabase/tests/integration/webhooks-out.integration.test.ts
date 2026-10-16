@@ -13,6 +13,7 @@ import {
   sqlTransport,
   verifyWebhook,
 } from "../../src/blocks/webhooks/index.ts";
+import { AsyncResult } from "../../src/core/result.ts";
 import { renderModules } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
@@ -447,6 +448,94 @@ describe.skipIf(!live)("webhooks-out", () => {
           "(select count(*)::int from better_supabase.outbox_events where type = 'webhook.disabled')",
         ),
       ).toBe(1);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("claims an endpoint's format and credential_ref and sends through its encoder", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const sql: SqlClient = {
+      async queryRaw<T>(text: string, params: unknown[] = []) {
+        const { rows } = await client.query(text, params);
+        // SAFETY: the test reads only the `value` column sqlTransport selects.
+        return rows as T[];
+      },
+    };
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+         values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+        [USERS.owner, `hec-${USERS.owner}@example.test`],
+      );
+      for (const file of renderModules(
+        ["organizations", "outbox", "webhooks-out"],
+        LAYOUT,
+      ))
+        await client.query(file.contents);
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-hec-${USERS.owner.slice(0, 8)}` }],
+      );
+      const ref = { provider: "vault", secret: "hec", tenant: organization };
+      expect(
+        await s.hint(
+          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, credential_ref)
+           values ($1, 'Bad', 'https://bad.example.com', '{*}', '{"secret":"x"}')`,
+          [organization],
+        ),
+      ).toBe("23514");
+      const { rows } = await client.query<{ id: string }>(
+        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, format, credential_ref)
+         values ($1, 'Splunk', 'https://splunk.example.com/services/collector/event', '{*}', 'splunk-hec', $2)
+         returning id`,
+        [organization, ref],
+      );
+      await s.as("service");
+      await client.query(
+        "select better_supabase.dispatch_webhook($1, 'invoice.paid', '{\"id\":7}')",
+        [rows[0]!.id],
+      );
+
+      const sent: WebhookRequest[] = [];
+      const seen: unknown[] = [];
+      const webhooks = createWebhooks({
+        transport: sqlTransport(sql),
+        http: {
+          apiVersion: 1,
+          name: "fake",
+          async send(request) {
+            sent.push(request);
+            return { status: 200, body: '{"text":"Success","code":0}' };
+          },
+        },
+        credentials: {
+          apiVersion: 1,
+          name: "vault",
+          getToken(got) {
+            seen.push(got);
+            return AsyncResult.ok({ token: "hec-token", headers: {} });
+          },
+          capabilities: () => ({
+            userSubjects: false,
+            authorization: false,
+            revoke: false,
+            inbound: false,
+          }),
+          revoke: () => AsyncResult.ok(false),
+        },
+      });
+      expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
+      expect(seen).toEqual([ref]);
+      expect(sent[0]!.headers["authorization"]).toBe("Splunk hec-token");
+      expect(JSON.parse(sent[0]!.body)).toMatchObject({
+        sourcetype: "_json",
+        event: { type: "invoice.paid", data: { id: 7 } },
+      });
     } finally {
       await client.query("rollback");
       client.release();

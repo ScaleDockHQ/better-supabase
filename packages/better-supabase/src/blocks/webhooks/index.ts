@@ -72,6 +72,15 @@ export type {
   WebhookSigner,
   WebhookSignInput,
 } from "./signers.ts";
+export { cloudEvents, otlpLogs, splunkHec } from "./encoders.ts";
+export type {
+  OtlpLogsOptions,
+  SplunkHecOptions,
+  WebhookEncodeTarget,
+  WebhookEncoded,
+  WebhookEncoder,
+  WebhookVerdict,
+} from "./encoders.ts";
 export { fetchTransport, WebhookPolicyError } from "./http.ts";
 export type {
   FetchTransportOptions,
