@@ -2,10 +2,10 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { type Money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { type Money } from "../commerce/money.ts";
 import { PROMOTION_KINDS } from "../orders/codecs.ts";
 import {
   applyTemporal,

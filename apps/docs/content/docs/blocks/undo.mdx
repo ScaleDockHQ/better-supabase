@@ -161,3 +161,9 @@ export function Component() {
 The free `c-sonner-*` examples show a toast with an action; the Pro
 application blocks show list toolbars with undo. Pro blocks are licensed per
 user, so copy them from [reui.io](https://reui.io).
+
+## Hooks
+
+`createUndo` takes `hooks` around its methods, such as a rule before
+`apply` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).

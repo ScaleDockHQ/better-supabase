@@ -21,7 +21,7 @@ import {
   subtractMoney,
   sumMoney,
   toDecimal,
-} from "../../../src/blocks/commerce/index.ts";
+} from "../../src/commerce/index.ts";
 
 const eur = (amount: bigint) => money(amount, "EUR");
 

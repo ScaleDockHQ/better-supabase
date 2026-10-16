@@ -1,14 +1,14 @@
-import type { Money } from "../../blocks/commerce/money.ts";
+import type { Money } from "../../commerce/money.ts";
 import type {
   TaxAddress,
   TaxCart,
   TaxProvider,
   TaxQuote,
-} from "../../blocks/commerce/tax.ts";
+} from "../../commerce/tax.ts";
 import type { Result } from "../../core/result.ts";
 
-import { isRate, money } from "../../blocks/commerce/money.ts";
-import { SHIPPING_LINE } from "../../blocks/commerce/tax.ts";
+import { isRate, money } from "../../commerce/money.ts";
+import { SHIPPING_LINE } from "../../commerce/tax.ts";
 import { type ConformanceReport, conform, expect } from "../conformance.ts";
 
 export interface TestTaxProviderOptions {

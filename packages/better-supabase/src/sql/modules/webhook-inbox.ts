@@ -219,7 +219,7 @@ ${extra.drop("better_supabase.receive_webhook", "text, text, text, jsonb, jsonb,
 drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
   return `${SCHEMA}
-${managed ? `${TABLE}${addExtraColumns(t, extras)}\n` : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
+${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);

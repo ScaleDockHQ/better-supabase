@@ -232,3 +232,9 @@ ones members change.
 | `sso_domain_for(email)`                                 | `anon`, `authenticated`               | The provider for an address at a verified domain      |
 | `sso_access_token_check(event)`                         | `service_role`, `supabase_auth_admin` | The event, or an error when the domain enforces SSO   |
 | `scim_save_user`, `scim_save_group` and the rest        | `service_role`                        | The storage behind `scimHandler`                      |
+
+## Hooks
+
+`createSso` takes `hooks` around its methods, such as a rule before
+`removeDomain` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).

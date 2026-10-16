@@ -99,7 +99,7 @@ const entries = [
   "blocks/search/svelte/index",
   "blocks/search/solid/index",
   "blocks/metrics/index",
-  "blocks/commerce/index",
+  "commerce/index",
   "blocks/calendar/index",
   "blocks/calendar/react/index",
   "blocks/calendar/react/server",

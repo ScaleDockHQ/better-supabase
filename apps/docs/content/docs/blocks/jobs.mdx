@@ -844,3 +844,21 @@ const chat = createWebhookInbox({
 
 await chat.store({ id: event.id, type: event.type, payload: event });
 ```
+
+## Your own columns
+
+Add columns to the webhook inbox message table with `blocks.webhook-inbox.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`store` validates and writes them, and `list` and the messages `process` hands the handler return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
+import { z } from "zod";
+
+const client = createWebhookInbox({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

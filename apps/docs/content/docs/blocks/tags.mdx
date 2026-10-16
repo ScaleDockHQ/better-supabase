@@ -40,3 +40,21 @@ tags: {
 ## Order
 
 Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). `create` appends a tag after the last one of its kind, and `reorder(id, { previous, next })` moves it between the tags with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. In adopt mode `rank` is optional; map it to `null` when the table has no such column.
+
+## Your own columns
+
+Add columns to the tag table with `blocks.tags.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`create` and `update` (the last argument) validates and writes them, and `create` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTags } from "better-supabase/blocks/tags";
+import { z } from "zod";
+
+const client = createTags({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

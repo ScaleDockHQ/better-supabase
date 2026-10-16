@@ -157,3 +157,21 @@ hook instead; it is granted to `supabase_auth_admin`.
 | `list_invite_codes(tenant)` and `revoke_invite_code(id)`       | `authenticated`, `service_role`       | Lists or revokes codes                     |
 | `waitlist_admit(email, code)`                                  | `service_role`, `supabase_auth_admin` | `{ allowed, reason }` for the sign-up hook |
 | `redeem_invite_code(code)`                                     | `authenticated`                       | Uses a code for the caller                 |
+
+## Your own columns
+
+Add columns to the waitlist entry, such as a company from the sign-up form, table with `blocks.waitlist.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`join` (only for a new address) validates and writes them, and `entries`, `approve` and `reject` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWaitlist } from "better-supabase/blocks/waitlist";
+import { z } from "zod";
+
+const client = createWaitlist({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

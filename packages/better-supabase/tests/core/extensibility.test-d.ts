@@ -7,10 +7,6 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
-import type {
-  PaymentProvider,
-  TaxProvider,
-} from "../../src/blocks/commerce/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
@@ -32,6 +28,7 @@ import type {
   BuilderStarter,
   GraphCompiler,
 } from "../../src/blocks/workflow-builder/index.ts";
+import type { PaymentProvider, TaxProvider } from "../../src/commerce/index.ts";
 import type {
   AuthorizationProvider,
   BetterSupabaseConfig,
@@ -92,11 +89,6 @@ import type {
 import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
 import {
-  fixedRates,
-  stripePayments,
-  stripeTax,
-} from "../../src/blocks/commerce/index.ts";
-import {
   pgmqPublicBackend,
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
@@ -110,6 +102,11 @@ import {
   sqlSecretStore,
   standardWebhooks,
 } from "../../src/blocks/webhooks/index.ts";
+import {
+  fixedRates,
+  stripePayments,
+  stripeTax,
+} from "../../src/commerce/index.ts";
 import { jsonSchema } from "../../src/config/index.ts";
 import {
   extendBlock,

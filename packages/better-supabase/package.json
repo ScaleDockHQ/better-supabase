@@ -814,10 +814,10 @@
       "types": "./dist/blocks/metrics/index.d.ts",
       "default": "./dist/blocks/metrics/index.js"
     },
-    "./blocks/commerce": {
-      "@better-supabase/source": "./src/blocks/commerce/index.ts",
-      "types": "./dist/blocks/commerce/index.d.ts",
-      "default": "./dist/blocks/commerce/index.js"
+    "./commerce": {
+      "@better-supabase/source": "./src/commerce/index.ts",
+      "types": "./dist/commerce/index.d.ts",
+      "default": "./dist/commerce/index.js"
     },
     "./blocks/calendar": {
       "@better-supabase/source": "./src/blocks/calendar/index.ts",
@@ -1827,9 +1827,9 @@
         "types": "./dist/blocks/metrics/index.d.ts",
         "default": "./dist/blocks/metrics/index.js"
       },
-      "./blocks/commerce": {
-        "types": "./dist/blocks/commerce/index.d.ts",
-        "default": "./dist/blocks/commerce/index.js"
+      "./commerce": {
+        "types": "./dist/commerce/index.d.ts",
+        "default": "./dist/commerce/index.js"
       },
       "./blocks/calendar": {
         "types": "./dist/blocks/calendar/index.d.ts",

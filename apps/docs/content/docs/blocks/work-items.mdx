@@ -102,3 +102,21 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("w
 | `WORK_ITEM_LOCKED`                             | a locked item's dates don't change                  |
 | `WORK_ITEM_ASSIGNEES_LIMIT`                    | more assignees than `maxAssignees`                  |
 | `WORK_ITEM_PROJECT_*`, `WORK_ITEM_ITERATION_*` | a project or iteration is missing, taken or invalid |
+
+## Your own columns
+
+Add columns to the work item table with `blocks.work-items.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`create`, and `update` with the column name as `field` validates and writes them, and every method that returns an item return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWorkItems } from "better-supabase/blocks/work-items";
+import { z } from "zod";
+
+const client = createWorkItems({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

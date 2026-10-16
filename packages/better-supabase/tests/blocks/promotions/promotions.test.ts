@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { money } from "../../../src/blocks/commerce/index.ts";
 import {
   createPromotions,
   PROMOTION_KINDS,
   PROMOTION_SCOPES,
 } from "../../../src/blocks/promotions/index.ts";
+import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];

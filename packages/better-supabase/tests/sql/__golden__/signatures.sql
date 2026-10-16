@@ -93,7 +93,9 @@ create policy "signatures_read" on "better_supabase"."signatures" for select to 
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
 returns jsonb
 language plpgsql
@@ -555,7 +557,9 @@ create policy "signatures_read" on "better_supabase"."signatures" for select to 
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
 returns jsonb
 language plpgsql
@@ -1069,7 +1073,9 @@ create policy "signatures_read" on "app_private"."signatures" for select to auth
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "app_private"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
 create or replace function "app_private"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
 returns jsonb
 language plpgsql
@@ -1531,7 +1537,9 @@ create policy "signatures_read" on "better_supabase"."signatures" for select to 
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
 returns jsonb
 language plpgsql
@@ -1877,6 +1885,8 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -2019,7 +2029,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first.
+-- are snapshotted first. fields: the extra columns
+-- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
 returns jsonb
 language plpgsql

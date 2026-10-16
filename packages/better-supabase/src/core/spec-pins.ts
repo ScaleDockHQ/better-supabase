@@ -42,7 +42,7 @@ export const SPEC_PINS: {
   readonly rfc5545: "2009-09";
   /** RFC 4180 CSV read by `parseCsv` and written by `toCsv`. */
   readonly rfc4180: "2005-10";
-  /** ISO 4217 List One publication behind the commerce block's minor units. */
+  /** ISO 4217 List One publication behind `better-supabase/commerce` minor units. */
   readonly iso4217: "2026-09-17";
   /** RFC 6902 JSON Patch that the versions block's `createPatch` writes and `applyPatch` applies. */
   readonly rfc6902: "2013-04";

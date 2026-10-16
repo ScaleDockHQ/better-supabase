@@ -92,6 +92,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
@@ -191,10 +193,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
-  from "better_supabase"."share_links"
-  where "subject_type" = list_share_links.subject_type
-    and "subject_id" = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links" l
+  where l."subject_type" = list_share_links.subject_type
+    and l."subject_id" = list_share_links.subject_id
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -338,6 +340,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
@@ -444,10 +448,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
-  from "better_supabase"."share_links"
-  where "subject_type" = list_share_links.subject_type
-    and "subject_id" = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links" l
+  where l."subject_type" = list_share_links.subject_type
+    and l."subject_id" = list_share_links.subject_id
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -670,6 +674,8 @@ grant all on "app_private"."subject_user_state" to service_role;
 
 
 drop function if exists "app_private"."create_share_link"(uuid, text, text, text);
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "app_private"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 create or replace function "app_private"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
@@ -769,10 +775,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
-  from "app_private"."share_links"
-  where "subject_type" = list_share_links.subject_type
-    and "subject_id" = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  from "app_private"."share_links" l
+  where l."subject_type" = list_share_links.subject_type
+    and l."subject_id" = list_share_links.subject_id
 $$;
 revoke execute on function "app_private"."list_share_links"(text, text) from public, anon;
 grant execute on function "app_private"."list_share_links"(text, text) to authenticated, service_role;
@@ -916,6 +922,8 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1015,10 +1023,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
-  from "better_supabase"."share_links"
-  where "subject_type" = list_share_links.subject_type
-    and "subject_id" = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links" l
+  where l."subject_type" = list_share_links.subject_type
+    and l."subject_id" = list_share_links.subject_id
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;
@@ -1048,6 +1056,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."create_share_link"(uuid, text, text, text);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1190,6 +1199,8 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, jsonb);
 create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1289,10 +1300,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', "id", 'role', "role", 'revokedAt', "revoked_at")), '[]'::jsonb)
-  from "better_supabase"."share_links"
-  where "subject_type" = list_share_links.subject_type
-    and "subject_id" = list_share_links.subject_id
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  from "better_supabase"."share_links" l
+  where l."subject_type" = list_share_links.subject_type
+    and l."subject_id" = list_share_links.subject_id
 $$;
 revoke execute on function "better_supabase"."list_share_links"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_share_links"(text, text) to authenticated, service_role;

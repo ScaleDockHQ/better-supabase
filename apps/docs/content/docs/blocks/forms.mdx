@@ -280,3 +280,21 @@ const q = useQuestionnaire({
 `next()` checks the step's fields against the version's schema and stays on the step when one fails. Answering a field that hides later steps moves past them, and `submit()` sends only the answers of fields still visible. Submissions render in a ReUI data grid from `listSubmissions`, with accept and reject actions that call `review`.
 
 For drawn signatures, ReUI's Signature Pad (free, MIT) captures the image. Upload it with the attachments block, then pass its id to `sign(request.id, { method: "drawn", imageAttachmentId })`. A ReUI timeline renders `get(request.id)`: one item per signer, completed when their signature is in `signatures`, with a warning when `verification.changedSince` is true.
+
+## Your own columns
+
+Add columns to the signature request table with `blocks.signatures.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`request` validates and writes them, and `request`, `get`, `list`, `decline` and `cancel` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createSignatures } from "better-supabase/blocks/forms";
+import { z } from "zod";
+
+const client = createSignatures({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

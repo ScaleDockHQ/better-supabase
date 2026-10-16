@@ -214,7 +214,7 @@ create index if not exists work_items_board_idx on ${t("items")} (${w("pipeline"
 create index if not exists work_items_parent_idx on ${t("items")} (${w("parent")});
 create index if not exists work_items_project_idx on ${t("items")} (${w("project")});
 create index if not exists work_items_iteration_idx on ${t("items")} (${w("iteration")});
-create index if not exists work_items_due_idx on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items"))}
+create index if not exists work_items_due_idx on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
 ${lockTable(t("items"), { read: true })}
 ${read("items")}
 
@@ -324,7 +324,7 @@ function build(ctx: ModuleContext): string {
     prefix: ctx.text("prefix", "TASK-"),
     maxAssignees,
     service: "(auth.role() = 'service_role')",
-    extras: ctx.extraColumns("items"),
+    extras: ctx.extraColumns("items", ["fields"]),
   };
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,

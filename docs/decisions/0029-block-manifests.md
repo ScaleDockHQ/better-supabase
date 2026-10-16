@@ -49,6 +49,11 @@ its headless controller (ADR 0030), its category and its UI recipe slugs.
   `naming` and the paths), and the foundation modules (`tenant`, `access`,
   `updated-at`, ...) become blocks in a `foundation` category. `SqlModule`
   stays the internal name of a block's SQL half.
+- A directory in `src/blocks` is a block and has a `manifest.ts`. Code
+  that blocks share but that installs no SQL module of its own lives
+  outside `src/blocks`: money and the payment and tax providers are
+  `better-supabase/commerce` (`src/commerce`), which catalog, orders,
+  inventory and promotions import.
 - Every block follows one contract, checked by
   `tests/blocks/conformance.test.ts` over the manifests: the creator is
   `create<Name>(options)` taking `BlockOptions`, it accepts `hooks`, every

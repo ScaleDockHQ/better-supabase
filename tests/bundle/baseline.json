@@ -151,7 +151,7 @@
   "./blocks/search/svelte": 6611,
   "./blocks/search/solid": 6548,
   "./blocks/metrics": 41984,
-  "./blocks/commerce": 27738,
+  "./commerce": 27738,
   "./blocks/calendar": 46865,
   "./blocks/calendar/react": 50494,
   "./blocks/calendar/vue": 12152,

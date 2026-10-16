@@ -99,7 +99,9 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- Open to anon, so rate-limit the route that calls it. Only the service role
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
--- whether someone was approved or signed up.
+-- whether someone was approved or signed up. fields: the extra columns
+-- (blocks.waitlist.options.extraColumns), written only on a new entry.
+drop function if exists "better_supabase"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -559,7 +561,9 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- Open to anon, so rate-limit the route that calls it. Only the service role
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
--- whether someone was approved or signed up.
+-- whether someone was approved or signed up. fields: the extra columns
+-- (blocks.waitlist.options.extraColumns), written only on a new entry.
+drop function if exists "better_supabase"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1063,7 +1067,9 @@ grant all on "app_private"."invite_code_redemptions" to service_role;
 -- Open to anon, so rate-limit the route that calls it. Only the service role
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
--- whether someone was approved or signed up.
+-- whether someone was approved or signed up. fields: the extra columns
+-- (blocks.waitlist.options.extraColumns), written only on a new entry.
+drop function if exists "app_private"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "app_private"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1523,7 +1529,9 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- Open to anon, so rate-limit the route that calls it. Only the service role
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
--- whether someone was approved or signed up.
+-- whether someone was approved or signed up. fields: the extra columns
+-- (blocks.waitlist.options.extraColumns), written only on a new entry.
+drop function if exists "better_supabase"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1858,6 +1866,8 @@ grant execute on function "better_supabase"."redeem_invite_code"(text) to authen
 -- blocks.waitlist.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."join_waitlist"(text, text, jsonb, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

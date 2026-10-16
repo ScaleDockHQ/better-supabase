@@ -1,7 +1,7 @@
-import type { AsyncResult } from "../../core/result.ts";
-import type { WebhookInput } from "../../core/signatures.ts";
+import type { AsyncResult } from "../core/result.ts";
+import type { WebhookInput } from "../core/signatures.ts";
 
-import { type DbError, dbError } from "../../core/errors.ts";
+import { type DbError, dbError } from "../core/errors.ts";
 import { isMoney, type Money } from "./money.ts";
 
 /**
